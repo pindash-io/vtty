@@ -85,7 +85,17 @@ size_t len  = vt_text_len(s);   // 11
 vt_free(s);
 ```
 
-Build the library with `cargo build -p vtty_ffi` (cdylib + staticlib).
+Build the library with `cargo build -p vtty_ffi` (cdylib + staticlib), then
+link a C program against it:
+
+```sh
+# macOS / Linux (add -lutil on Linux for forkpty)
+cc -O2 crates/vtty_ffi/examples/term_demo.c \
+   -I crates/vtty_ffi -L target/release -lvtty_ffi -o term_demo
+```
+
+`crates/vtty_ffi/examples/term_demo.c` is a minimal interactive terminal
+(Ctrl-D exits); the header is at `crates/vtty_ffi/vtty_ffi.h`.
 
 ## Feature flags
 
