@@ -11,9 +11,9 @@ pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).
     fn print(&mut self, _c: char) {}
 
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — the bulk hot
-    /// path. The bytes are valid UTF-8 by construction; convert with
-    /// `std::str::from_utf8_unchecked` without re-validating.
+    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — display text,
+    /// the bulk hot path. Valid UTF-8 by construction, so implementations
+    /// may `std::str::from_utf8_unchecked` without re-validating.
     fn print_bytes(&mut self, _s: &[u8]) {}
 
     /// A contiguous run of pre-decoded printable code points — the non-ASCII
@@ -45,12 +45,14 @@ pub trait Perform {
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
     fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
 
-    /// A device-control string payload byte arrived. Default: ignore.
+    /// A device-control string payload byte arrived. Raw — arbitrary, not
+    /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:
+    /// ignore.
     fn put(&mut self, _byte: u8) {}
 
-    /// A contiguous DCS payload run (no terminators). Bulk form of
-    /// [`put`](Perform::put); the default loops over it. Cross-byte decoders
-    /// (e.g. sixel) can keep the per-byte form.
+    /// A contiguous DCS payload run — raw bytes, like [`put`](Perform::put).
+    /// Bulk form of [`put`](Perform::put); the default loops over it.
+    /// Cross-byte decoders (e.g. sixel) can keep the per-byte form.
     fn put_slice(&mut self, bytes: &[u8]) {
         for &byte in bytes {
             self.put(byte);
