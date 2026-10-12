@@ -903,10 +903,11 @@ fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
 /// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
 /// contains byte `b`. (`x.wrapping_sub(LO) & !x & HI` is the classic zero-byte
 /// detector applied to `w ^ b`.)
+const LO: u64 = 0x0101_0101_0101_0101;
+const HI: u64 = 0x8080_8080_8080_8080;
+
 #[inline(always)]
 const fn swar_byte_eq(w: u64, b: u64) -> u64 {
-    const LO: u64 = 0x0101_0101_0101_0101;
-    const HI: u64 = 0x8080_8080_8080_8080;
     let x = w ^ (LO * b);
     x.wrapping_sub(LO) & !x & HI
 }
@@ -916,8 +917,6 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
 /// param separator (`0x3b`). The rest are `OSC_PUT` bytes. SWAR: 8 bytes/iter.
 #[inline]
 fn first_osc_boundary(bytes: &[u8]) -> usize {
-    const LO: u64 = 0x0101_0101_0101_0101;
-
     let mut i = 0;
     let len = bytes.len();
     while i + 8 <= len {
@@ -957,8 +956,6 @@ fn first_osc_boundary(bytes: &[u8]) -> usize {
 /// and any byte `>= 0x80`) ends the run or is ignored.
 #[inline]
 fn first_dcs_boundary(bytes: &[u8]) -> usize {
-    const HI: u64 = 0x8080_8080_8080_8080;
-
     let mut i = 0;
     let len = bytes.len();
     while i + 8 <= len {
