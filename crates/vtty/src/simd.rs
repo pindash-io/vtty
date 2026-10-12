@@ -100,12 +100,7 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
 /// early-return — the bitmask + `trailing_zeros` alternative was slower here.
 #[inline(always)]
 fn first_set(mask: [i8; 16]) -> usize {
-    for (j, &m) in mask.iter().enumerate() {
-        if m != 0 {
-            return j;
-        }
-    }
-    16
+    mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
 
 /// SIMD-decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]`.
