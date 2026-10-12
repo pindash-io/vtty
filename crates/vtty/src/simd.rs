@@ -7,7 +7,10 @@
 #[cfg(not(target_arch = "aarch64"))]
 use std::sync::OnceLock;
 
-use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
+use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u16x8, u32x4};
+
+use crate::utf8::decode_utf8_n;
+use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 
 /// Best SIMD level for this target. On arm64 NEON is mandatory, so
 /// `Level::baseline()` is a compile-time constant (no `OnceLock` atomic load);
@@ -148,12 +151,133 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     ((ascii | middle) | high).into()
 }
 
-/// Decode four consecutive 3-byte code points at `bytes[i..i+12]` via the
-/// runtime-dispatched SIMD level, or `None` if the backend cannot run it.
+/// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
+/// `end_mask` (bit `i` = byte `i` ends a code point). Returns
+/// `(code_points_written, bytes_consumed)`. Mirrors simdutf's
+/// `convert_masked_utf8_to_utf32`: the `0x924` 3-byte fast path, then the
+/// table-driven general path.
 #[inline(always)]
-pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
+fn decode_utf8_12<S: Simd>(
+    simd: S,
+    bytes: &[u8],
+    end_mask: u64,
+    out: &mut [u32],
+) -> (usize, usize) {
+    let v = u8x16::from_slice(simd, bytes);
+    let m12 = (end_mask & 0xfff) as usize;
+
+    // 4 × 3-byte fast path.
+    if m12 == 0x924 {
+        let arr = decode_3byte(simd, bytes);
+        out[..4].copy_from_slice(&arr);
+        return (4, 12);
+    }
+
+    let idx = UTF8BIGINDEX[m12][0] as usize;
+    let consumed = UTF8BIGINDEX[m12][1] as usize;
+    if idx < 64 {
+        // Six code points (1/2-byte mix): u16x8 → widen.
+        let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
+        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let p: u16x8<S> = perm.bitcast();
+        let ascii = p & simd.splat_u16x8(0x7f);
+        let high = simd.shr_u16x8(p & simd.splat_u16x8(0x1f00), 2);
+        let composed = ascii | high;
+        let (lo, hi) = composed.widen();
+        let lo: [u32; 4] = lo.into();
+        let hi: [u32; 4] = hi.into();
+        out[..4].copy_from_slice(&lo);
+        out[4..6].copy_from_slice(&hi[..2]);
+        (6, consumed)
+    } else if idx < 145 {
+        // Four code points (2/3-byte mix).
+        let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
+        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let p: u32x4<S> = perm.bitcast();
+        let ascii = p & simd.splat_u32x4(0x7f);
+        let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
+        let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
+        let composed = (ascii | middle) | high;
+        let arr: [u32; 4] = composed.into();
+        out[..4].copy_from_slice(&arr);
+        (4, consumed)
+    } else if idx < 209 {
+        // Three code points (4-byte involved).
+        let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
+        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let p: u32x4<S> = perm.bitcast();
+        let ascii = p & simd.splat_u32x4(0x7f);
+        let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
+        let correct = simd.shr_u32x4(p & simd.splat_u32x4(0x400000), 1);
+        let middlehigh = simd.shr_u32x4(correct ^ (p & simd.splat_u32x4(0x3f0000)), 4);
+        let high = simd.shr_u32x4(p & simd.splat_u32x4(0x07000000), 6);
+        let composed = (ascii | middle) | (high | middlehigh);
+        let arr: [u32; 4] = composed.into();
+        out[..3].copy_from_slice(&arr[..3]);
+        (3, consumed)
+    } else {
+        (0, consumed)
+    }
+}
+
+/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (rio-vt/ghostty's
+/// amortized shape: one end-of-code-point mask per block, then 12-byte chunk
+/// loop with the `0x924` 3-byte fast path). Returns `(code_points_written,
+/// bytes_consumed)`. For a full block, `bytes_consumed` is 52 (the last 12
+/// bytes are re-scanned by the next call, overlapping the chunk boundary). For
+/// a sub-64-byte tail, a scalar loop consumes all remaining bytes.
+#[inline(always)]
+fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
+    let n = bytes.len();
+    let mut written = 0;
+    let mut pos = 0;
+    if n >= 76 {
+        // 64-bit continuation mask from four 16-byte loads.
+        let mut cont = 0_u64;
+        for k in 0..4 {
+            let v = u8x16::from_slice(simd, &bytes[k * 16..k * 16 + 16]);
+            let m = simd.simd_eq_u8x16(v & simd.splat_u8x16(0xc0), simd.splat_u8x16(0x80));
+            cont |= simd.to_bitmask_mask8x16(m) << (k * 16);
+        }
+        let mut end_mask = !(cont >> 1);
+        // Process up to 52 bytes; the last 12 overlap into the next block.
+        while pos < 52 {
+            let (count, consumed) =
+                decode_utf8_12(simd, &bytes[pos..pos + 16], end_mask, &mut out[written..]);
+            written += count;
+            pos += consumed;
+            end_mask >>= consumed;
+        }
+        return (written, pos);
+    }
+    // Sub-64-byte tail: scalar decode.
+    while pos < n {
+        let b0 = bytes[pos];
+        if b0 < 0x80 {
+            out[written] = b0 as u32;
+            written += 1;
+            pos += 1;
+        } else {
+            let (cp, len) = if (0xe0..=0xef).contains(&b0) {
+                (decode_utf8_n::<3>(&bytes[pos..]), 3)
+            } else if (0xf0..=0xf4).contains(&b0) {
+                (decode_utf8_n::<4>(&bytes[pos..]), 4)
+            } else {
+                (decode_utf8_n::<2>(&bytes[pos..]), 2)
+            };
+            out[written] = cp;
+            written += 1;
+            pos += len;
+        }
+    }
+    (written, pos)
+}
+
+/// Runtime-dispatched wrapper for [`decode_block`].
+#[inline(always)]
+pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let level = level();
-    dispatch!(level, simd => decode_3byte(simd, bytes))
+    dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
 #[cfg(test)]
@@ -166,8 +290,31 @@ mod tests {
         let bytes = [
             0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c, 0xac, 0, 0, 0, 0,
         ];
-        let out = decode_3byte_dispatch(&bytes);
+        let out = dispatch!(level(), simd => decode_3byte(simd, &bytes));
         assert_eq!(out, [0x4e2d, 0x6587, 0x65e5, 0x672c]);
+    }
+
+    #[test]
+    fn decode_block_decodes_mixed_utf8() {
+        // a日🚀e日 (ASCII + 3-byte + 4-byte + ASCII + 3-byte), plus padding to
+        // reach the 64-byte block threshold.
+        let s = "a日🚀e日";
+        let mut bytes = s.as_bytes().to_vec();
+        bytes.resize(128, b' ');
+        let mut out = [0_u32; 76];
+        let mut cps = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            let (c, k) = decode_block_dispatch(&bytes[i..], &mut out);
+            cps.extend_from_slice(&out[..c]);
+            i += k;
+        }
+        let decoded: Vec<char> = cps
+            .into_iter()
+            .take_while(|&cp| cp != b' ' as u32)
+            .map(|cp| char::from_u32(cp).unwrap())
+            .collect();
+        assert_eq!(decoded, ['a', '日', '🚀', 'e', '日']);
     }
 
     #[test]

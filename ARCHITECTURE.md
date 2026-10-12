@@ -177,6 +177,18 @@ time into a flat `[state][byte]` lookup:
 - `decode_utf8_n::<N>` (const-generic, in `utf8.rs`) decodes a validated
   `N`-byte code point; the `match N` folds to the exact per-length shifts at
   compile time.
+- `decode_block` is the rio-vt/ghostty-shaped UTF-8→UTF-32 transcode: it
+  processes a validated window in 64-byte blocks, computing one
+  end-of-code-point mask per block (`!(continuation_mask >> 1)`), then runs a
+  12-byte chunk loop that reuses the shifted mask. `decode_utf8_12` mirrors
+  simdutf's `convert_masked_utf8_to_utf32`: the `0x924` 3-byte fast path (four
+  CJK code points, one fixed shuffle), then the `utf8bigindex`/`shufutf8`
+  table-driven general path (6/4/3 code points, `u16→u32` widen for the
+  6-code-point case, spurious-high-bit `xor` for 4-byte code points). The last
+  12 bytes of each block overlap into the next to avoid splitting a code point
+  across the 64-byte boundary; a sub-76-byte tail falls back to scalar decode.
+  Tables are generated from simdutf's `src/tables/utf8_to_utf16_tables.h` and
+  kept in `utf8_tables.rs` (do not hand-edit).
 
 ### Public API surface
 

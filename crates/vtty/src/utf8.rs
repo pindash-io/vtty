@@ -26,7 +26,7 @@ const fn utf8_lead(lead: u8) -> (usize, u32) {
 /// generic, so the `match N` folds to the exact per-length decode at compile
 /// time (no loop, no length dispatch at runtime).
 #[inline(always)]
-const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
+pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
     match N {
         2 => ((b[0] as u32 & 0x1f) << 6) | (b[1] as u32 & 0x3f),
         3 => ((b[0] as u32 & 0x0f) << 12) | ((b[1] as u32 & 0x3f) << 6) | (b[2] as u32 & 0x3f),
@@ -188,102 +188,35 @@ pub(crate) fn decode_utf8<P: Perform>(
                 }
             }
             if let Ok(s) = simdutf8::basic::from_utf8(&bytes[pos..end]) {
-                // Consume the whole chunk with a scalar byte loop: tight ASCII-run
-                // scan (`print_bytes`), branchless decode of validated multi-byte
-                // chars (`print`/`execute` for C1), non-ESC C0 controls executed
-                // inline so the chunk spans lines. ESC ends the chunk so the
-                // state machine handles the sequence.
+                // Unified SIMD transcode (rio-vt/ghostty shape): process the
+                // ESC-capped, validated window in 64-byte blocks — one
+                // end-of-code-point mask per block — then 12-byte chunks with
+                // the `0x924` 3-byte fast path. C0/C1 controls are split out
+                // and executed inline; the rest is one `print_codepoints` run.
                 let s = s.as_bytes();
+                // Buffer holds the max code points one `decode_block` call can
+                // emit: the sub-76-byte scalar tail decodes 1 code point/byte
+                // (≤ 75), and the 64-byte SIMD block emits ≤ 54.
+                const BATCH: usize = 76;
+                let mut buf = [0_u32; BATCH];
                 let mut i = 0;
                 while i < s.len() {
-                    let b = s[i];
-                    match b {
-                        // ESC: leave it for the state-machine transition.
-                        0x1b => return i,
-                        // C0 control.
-                        0x00..=0x1f => {
-                            p.execute(b);
-                            i += 1;
-                        }
-                        // DEL is a C0 control (destructive backspace).
-                        0x7f => {
-                            p.execute(0x7f);
-                            i += 1;
-                        }
-                        // Printable ASCII run (0x20..=0x7e) — SIMD-scanned
-                        // like the ground state's hot path.
-                        0x20..=0x7e => {
-                            let n = crate::simd::first_non_printable(&s[i..]);
-                            p.print_bytes(&s[i..i + n]);
-                            i += n;
-                        }
-                        // Validated multi-byte lead: batch a run of code
-                        // points into one `print_codepoints` call (C1 controls
-                        // via `execute`). A 3-byte fast path skips the C1
-                        // check for the dominant CJK case (3-byte code points
-                        // are never in the C1 range).
-                        _ => {
-                            const BATCH: usize = 32;
-                            let mut buf = [0_u32; BATCH];
-                            let mut n = 0;
-                            loop {
-                                let b0 = s[i];
-                                if (0xe0..=0xef).contains(&b0) {
-                                    // 3-byte lead (CJK etc.) — never C1. When
-                                    // four consecutive 3-byte code points are
-                                    // available and fit in the batch, SIMD-decode
-                                    // them at once (simdutf's `0x924` path).
-                                    if i + 16 <= s.len()
-                                        && (0xe0..=0xef).contains(&s[i + 3])
-                                        && (0xe0..=0xef).contains(&s[i + 6])
-                                        && (0xe0..=0xef).contains(&s[i + 9])
-                                        && n + 4 <= BATCH
-                                    {
-                                        let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
-                                        buf[n..n + 4].copy_from_slice(&cps);
-                                        n += 4;
-                                        i += 12;
-                                    } else {
-                                        buf[n] = decode_utf8_n::<3>(&s[i..]);
-                                        n += 1;
-                                        if n == BATCH {
-                                            p.print_codepoints(&buf[..n]);
-                                            n = 0;
-                                        }
-                                        i += 3;
-                                    }
-                                } else {
-                                    // 2- or 4-byte lead.
-                                    let (cp, len) = if (0xf0..=0xf4).contains(&b0) {
-                                        (decode_utf8_n::<4>(&s[i..]), 4)
-                                    } else {
-                                        (decode_utf8_n::<2>(&s[i..]), 2)
-                                    };
-                                    if cp <= 0x9f {
-                                        if n > 0 {
-                                            p.print_codepoints(&buf[..n]);
-                                            n = 0;
-                                        }
-                                        p.execute(cp as u8);
-                                    } else {
-                                        buf[n] = cp;
-                                        n += 1;
-                                        if n == BATCH {
-                                            p.print_codepoints(&buf[..n]);
-                                            n = 0;
-                                        }
-                                    }
-                                    i += len;
-                                }
-                                if i >= s.len() || s[i] < 0x80 {
-                                    break;
-                                }
+                    let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
+                    let mut start = 0;
+                    for k in 0..count {
+                        let cp = buf[k];
+                        if cp < 0x20 || cp == 0x7f || (0x80..=0x9f).contains(&cp) {
+                            if start < k {
+                                p.print_codepoints(&buf[start..k]);
                             }
-                            if n > 0 {
-                                p.print_codepoints(&buf[..n]);
-                            }
+                            p.execute(cp as u8);
+                            start = k + 1;
                         }
                     }
+                    if start < count {
+                        p.print_codepoints(&buf[start..count]);
+                    }
+                    i += consumed;
                 }
                 return end - pos;
             }

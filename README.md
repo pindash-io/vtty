@@ -99,7 +99,8 @@ cc -O2 crates/vtty_ffi/examples/term_demo.c \
 
 ## Feature flags
 
-- `vtty` — `simd`: SIMD printable-run scanner + SIMD UTF-8 validation,
+- `vtty` — `simd`: SIMD printable-run scanner + SIMD UTF-8 validation and
+  UTF-8→UTF-32 transcode (64-byte-block, single-mask, rio-vt/ghostty-shaped),
   selected per-parser with `Parser::with_simd()` (scalar `Parser::new()` is
   the default).
 - `vtty_emoji` — `simd` + `baked` (default), or `icu` for runtime ICU4X
@@ -121,7 +122,7 @@ Results (median throughput, 2 MiB input; higher is better):
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- |
 | plain | 2.54 GiB/s | **12.72 GiB/s** | 1.37 GiB/s | 403 MiB/s | 1.46 GiB/s | 133 MiB/s |
-| utf8_mixed | 790 MiB/s | 1.10 GiB/s | 823 MiB/s | 225 MiB/s | **1.19 GiB/s** | 171 MiB/s |
+| utf8_mixed | 818 MiB/s | 1.21 GiB/s | 823 MiB/s | 225 MiB/s | 1.21 GiB/s | 171 MiB/s |
 | ansi_mixed | **682 MiB/s** | 680 MiB/s | 314 MiB/s | 188 MiB/s | 386 MiB/s | 176 MiB/s |
 | ansi_two_styles | 847 MiB/s | **856 MiB/s** | 332 MiB/s | 194 MiB/s | 354 MiB/s | 160 MiB/s |
 | ansi_bare_csi | 1.14 GiB/s | **1.24 GiB/s** | 492 MiB/s | 210 MiB/s | 459 MiB/s | 155 MiB/s |
@@ -132,6 +133,10 @@ Results (median throughput, 2 MiB input; higher is better):
 
 *vt100 is a full-screen emulator (no standalone parser), so it is not an
 apples-to-apples parser comparison.
+
+`utf8_mixed` (ASCII + CJK + emoji + combining marks) is a statistical tie
+between `vtty-simd` and `rio-vt` (both ≈ 1.21 GiB/s); the aligned 64-byte-block
+UTF-8→UTF-32 transcode closed what was previously an ~8% gap.
 
 ## Testing
 

@@ -25,7 +25,8 @@ impl Perform for Screen {
 let mut parser = Parser::new();
 parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 
-// With the `simd` feature enabled, opt into SIMD scanning + validation:
+// With the `simd` feature enabled, opt into SIMD scanning, validation and
+// UTF-8→UTF-32 transcode:
 let mut parser = Parser::with_simd();
 parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 ```
@@ -41,9 +42,9 @@ sink with line/cursor geometry), `Reply` (query reply builder), and
 - **Zero-allocation hot path** — printable ASCII runs dispatch via one
   `print_bytes` and non-ASCII via one `print_codepoints`; CSI/OSC/DCS state
   is inline (`SmallVec`). `Perform` callbacks, no event materialization.
-- **`no_std` by default** — the `simd` feature compiles in SIMD scanning +
-  validation; enable it per parser with `Parser::with_simd()` (scalar
-  `Parser::new()` is the default).
+- **`no_std` by default** — the `simd` feature compiles in SIMD scanning,
+  validation and UTF-8→UTF-32 transcode; enable it per parser with
+  `Parser::with_simd()` (scalar `Parser::new()` is the default).
 - **Byte-accurate UTF-8** — partial code points split across `advance` calls
   are carried over, never misdecoded to `U+FFFD`.
 - **W3C-correct malformed UTF-8** — each invalid maximal subpart becomes one
