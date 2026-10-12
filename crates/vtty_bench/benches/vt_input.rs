@@ -303,14 +303,43 @@ fn dcs_sixel(total: usize) -> Vec<u8> {
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
+/// Short lines and many newlines: mostly C0 line-feed traffic with tiny
+/// printable runs, the shape a scrolling log or `tail -f` produces.
+fn scroll_storm(total: usize) -> Vec<u8> {
+    let mut line = String::new();
+    for i in 0..100 {
+        line += &format!("line {i}\r\n");
+    }
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
+/// A foreground color change before nearly every character: heavy SGR and
+/// style traffic rather than raw glyph volume.
+fn sgr_churn(total: usize) -> Vec<u8> {
+    let text = "the quick brown fox jumps";
+    let mut line = String::new();
+    let mut color = 0_usize;
+    for _ in 0..10 {
+        for ch in text.chars() {
+            color = (color + 1) % 256;
+            line += &format!("\x1b[38;5;{color}m{ch}");
+        }
+        line += "\x1b[0m";
+    }
+    line += "\r\n";
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
 fn corpus() -> Vec<(&'static str, Vec<u8>)> {
     const BYTES: usize = 2 * 1024 * 1024;
     vec![
         ("plain", plain(BYTES)),
+        ("scroll_storm", scroll_storm(BYTES)),
         ("utf8_mixed", utf8_mixed(BYTES)),
         ("ansi_mixed", ansi_mixed(BYTES)),
         ("ansi_two_styles", ansi_two_styles(BYTES)),
         ("ansi_bare_csi", ansi_bare_csi(BYTES)),
+        ("sgr_churn", sgr_churn(BYTES)),
         ("truecolor_unique", truecolor_unique(BYTES)),
         ("bracketed_paste", bracketed_paste(BYTES)),
         ("osc_heavy", osc_heavy(BYTES)),
