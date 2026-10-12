@@ -705,7 +705,7 @@ impl Parser {
         }
         let room = MAX_OSC_PAYLOAD - self.osc.len();
         let take = run.len().min(room);
-        self.osc.extend_from_slice(&run[..take]);
+        self.osc.extend_from_slice_copy(&run[..take]);
         self.osc_overflow = take < run.len();
     }
 
