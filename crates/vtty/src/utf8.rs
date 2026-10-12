@@ -175,19 +175,26 @@ pub(crate) fn decode_utf8<P: Perform>(
                     while i < s.len() {
                         let (count, consumed) =
                             crate::simd::decode_block_dispatch(&s[i..], &mut buf);
-                        let mut start = 0;
-                        for k in 0..count {
-                            let cp = buf[k];
-                            if cp < 0x20 || cp == 0x7f || (0x80..=0x9f).contains(&cp) {
-                                if start < k {
-                                    p.print_codepoints(&buf[start..k]);
+                        // Fast path: when the block has no controls, dispatch
+                        // the whole run with one `print_codepoints` call
+                        // instead of the per-code-point split scan.
+                        if !crate::simd::any_control(&buf[..count]) {
+                            p.print_codepoints(&buf[..count]);
+                        } else {
+                            let mut start = 0;
+                            for k in 0..count {
+                                let cp = buf[k];
+                                if cp < 0x20 || cp == 0x7f || (0x80..=0x9f).contains(&cp) {
+                                    if start < k {
+                                        p.print_codepoints(&buf[start..k]);
+                                    }
+                                    p.execute(cp as u8);
+                                    start = k + 1;
                                 }
-                                p.execute(cp as u8);
-                                start = k + 1;
                             }
-                        }
-                        if start < count {
-                            p.print_codepoints(&buf[start..count]);
+                            if start < count {
+                                p.print_codepoints(&buf[start..count]);
+                            }
                         }
                         i += consumed;
                     }

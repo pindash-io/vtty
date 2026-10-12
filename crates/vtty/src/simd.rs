@@ -287,6 +287,40 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
+/// Whether any code point in `cps` is a control (`< 0x20`, `0x7f`, or
+/// `0x80..=0x9f`) — the ones the dispatch loop must split out via `execute`
+/// instead of a single `print_codepoints` run.
+#[cfg(feature = "simd-transcode")]
+#[inline(always)]
+pub(crate) fn any_control(cps: &[u32]) -> bool {
+    let level = level();
+    dispatch!(level, simd => any_control_impl(simd, cps))
+}
+
+#[cfg(feature = "simd-transcode")]
+fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
+    let (chunks, tail) = cps.as_chunks::<4>();
+    // Branch-free accumulate: an early `return true` serializes the loop on
+    // the movemask dependency; `|=` lets the SIMD iterations pipeline.
+    let mut any = false;
+    for chunk in chunks {
+        let v = u32x4::from_slice(simd, chunk);
+        let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(0x20));
+        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(0x7f))
+            & simd.simd_le_u32x4(v, simd.splat_u32x4(0x9f));
+        any |= simd.any_true_mask32x4(c0 | c1);
+    }
+    if any {
+        return true;
+    }
+    for &cp in tail {
+        if cp < 0x20 || (0x7f..=0x9f).contains(&cp) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

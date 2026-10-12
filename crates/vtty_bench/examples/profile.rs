@@ -44,7 +44,7 @@ fn main() {
     let total_bytes = iterations as u128 * bytes.len() as u128;
     let gibs = total_bytes as f64 / elapsed.as_secs_f64() / (1 << 30) as f64;
     println!("{case} simd={simd}: {iterations} iters, {:.2} GiB/s", gibs);
-    black_box(&sink);
+    black_box(sink);
 }
 
 #[derive(Default)]
