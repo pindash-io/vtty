@@ -69,6 +69,11 @@ pub struct Recording {
     pub events: Vec<Event>,
 }
 
+impl Recording {
+    /// An empty recording (no events).
+    pub const DEFAULT: Self = Self { events: Vec::new() };
+}
+
 impl Perform for Recording {
     fn print(&mut self, c: char) {
         self.events.push(Event::Print(c));

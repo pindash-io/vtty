@@ -28,6 +28,18 @@ pub struct MouseTracking {
     pub utf8: bool,
 }
 
+impl MouseTracking {
+    /// All tracking disabled.
+    pub const DEFAULT: Self = Self {
+        enabled: false,
+        x10: false,
+        sgr: false,
+        any_motion: false,
+        pixel: false,
+        utf8: false,
+    };
+}
+
 /// Mouse button/event codes for X10 and SGR encoding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
