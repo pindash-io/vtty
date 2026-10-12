@@ -150,6 +150,7 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
     enum Mode {
         Ground,
         Escape,
+        EscapeIntermediate,
         Csi,
         Dcs,
         Osc,
@@ -202,6 +203,7 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
             Mode::Escape => match b {
                 0x1b => {}
                 0x18 | 0x1a => mode = Mode::Ground,
+                0x20..=0x2f => mode = Mode::EscapeIntermediate,
                 b'[' => mode = Mode::Csi,
                 b'P' => mode = Mode::Dcs,
                 b']' => mode = Mode::Osc,
@@ -209,6 +211,17 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
                 b'X' | b'^' | b'_' => mode = Mode::DcsPassthrough,
                 0x30..=0x7e => mode = Mode::Ground,
                 _ => {}
+            },
+            // After an ESC intermediate (`0x20..=0x2f`) the introducers are
+            // no longer introducers: every `0x30..=0x7e` byte is an ESC final
+            // that dispatches and returns to ground (e.g. `ESC SP ]` is an
+            // EscDispatch, not OSC).
+            Mode::EscapeIntermediate => match b {
+                0x1b => mode = Mode::Escape,
+                0x18 | 0x1a => mode = Mode::Ground,
+                0x20..=0x2f => mode = Mode::EscapeIntermediate,
+                0x30..=0x7e => mode = Mode::Ground,
+                _ => mode = Mode::EscapeIntermediate,
             },
             Mode::Csi => match b {
                 0x1b => mode = Mode::Escape,
@@ -311,6 +324,7 @@ fn has_c1_divergence(data: &[u8]) -> bool {
     enum Mode {
         Ground,
         Escape,
+        EscapeIntermediate,
         Csi,
         Dcs,
         Osc,
@@ -368,6 +382,7 @@ fn has_c1_divergence(data: &[u8]) -> bool {
                 match b {
                     0x1b => {}
                     0x18 | 0x1a => mode = Mode::Ground,
+                    0x20..=0x2f => mode = Mode::EscapeIntermediate,
                     b'[' => mode = Mode::Csi,
                     b'P' => mode = Mode::Dcs,
                     b']' => mode = Mode::Osc,
@@ -376,6 +391,18 @@ fn has_c1_divergence(data: &[u8]) -> bool {
                     b'X' | b'^' | b'_' => return true,
                     0x30..=0x7e => mode = Mode::Ground,
                     _ => {}
+                }
+            }
+            Mode::EscapeIntermediate => {
+                if (0x80..=0x9f).contains(&b) {
+                    return true;
+                }
+                match b {
+                    0x1b => mode = Mode::Escape,
+                    0x18 | 0x1a => mode = Mode::Ground,
+                    0x20..=0x2f => mode = Mode::EscapeIntermediate,
+                    0x30..=0x7e => mode = Mode::Ground,
+                    _ => mode = Mode::EscapeIntermediate,
                 }
             }
             Mode::Csi => {
@@ -462,5 +489,20 @@ mod tests {
     fn escape_sequences_are_not_utf8() {
         // A CSI sequence containing 0xB8 in its params is NOT ground UTF-8.
         assert!(!has_rio_utf8_simd_divergence(b"\x1b[\xb8m"));
+        // OSC payload bytes are not ground UTF-8 either.
+        assert!(!has_rio_utf8_simd_divergence(b"\x1b]0;\xb8title\x07"));
+    }
+
+    #[test]
+    fn esc_intermediate_final_returns_to_ground() {
+        // `ESC SP ]` is an EscDispatch (final `]`), NOT OSC — so the bytes
+        // after it are ground-state UTF-8 again. The truncated `D5` lead
+        // followed by `1` must be flagged. (This is the exact shape of a
+        // CI fuzz-smoke divergence that escaped the pre-EscapeIntermediate
+        // filter.)
+        assert!(has_rio_utf8_simd_divergence(b"\x1b\xc2\xc2 \x5d\xd5\x31"));
+        // Without the `]` final, the escape sequence is still open: `D5 31`
+        // are escape-payload/ignored bytes, not ground UTF-8.
+        assert!(!has_rio_utf8_simd_divergence(b"\x1b\xc2\xc2 \xd5\x31"));
     }
 }
