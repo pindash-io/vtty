@@ -1,0 +1,70 @@
+[package]
+name = "vtty-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.vtty]
+path = "../crates/vtty"
+features = ["simd"]
+
+[dependencies.vte]
+version = "0.15.0"
+
+[dependencies.rio-vt]
+version = "0.5.28"
+default-features = false
+
+[dependencies.vt100]
+version = "0.16.2"
+
+[dependencies.vtparse]
+version = "0.7.0"
+
+[dependencies.smallvec]
+version = "1"
+
+# Prevent this crate from being treated as a member of the parent workspace
+# (cargo-fuzz drives it directly with the nightly toolchain).
+[workspace]
+
+[[bin]]
+name = "differential"
+path = "fuzz_targets/differential.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "differential-rio"
+path = "fuzz_targets/differential-rio.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "differential-simd"
+path = "fuzz_targets/differential-simd.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "robustness"
+path = "fuzz_targets/robustness.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "random"
+path = "fuzz_targets/random.rs"
+test = false
+doc = false
+bench = false

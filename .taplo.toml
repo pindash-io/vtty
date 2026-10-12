@@ -1,0 +1,14 @@
+# TOML formatting/linting configuration for the vtty workspace.
+# https://taplo.tamasfe.dev/configuration/file.html
+
+# Never format generated/checked-in artifacts under target/.
+exclude = ["target/**"]
+
+[formatting]
+# Aligning comments with the largest line creates
+# diff noise when neighboring lines are changed.
+align_comments = false
+
+# Matches how rustfmt formats Rust code
+column_width = 100
+indent_string = "    "

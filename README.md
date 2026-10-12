@@ -1,0 +1,128 @@
+# vtty
+
+Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and
+`no_std` support.
+
+## Workspace
+
+| crate | purpose |
+| --- | --- |
+| [`vtty`](crates/vtty) | byte-input DEC VT500 parser — the core crate |
+| [`vtty_emoji`](crates/vtty_emoji) | display cell width and emoji-sequence handling |
+| [`vtty_ffi`](crates/vtty_ffi) | raw C ABI over `vtty` (cdylib + staticlib) |
+| [`vtty_bench`](crates/vtty_bench) | throughput benchmarks vs `vte`, `vt100`, `vtparse`, `rio-vt` |
+
+## Highlights
+
+- **Panic-free** — no `unwrap`/`expect`/`panic`; malformed input is normal.
+- **Zero-allocation hot path** — printable runs dispatch via one `print_bytes`;
+  CSI/OSC/DCS state stays inline (`SmallVec`).
+- **`no_std` by default** — `alloc` only; optional `simd` feature adds SIMD
+  printable-run scanning + SIMD UTF-8 validation.
+- **Byte-accurate UTF-8** — partial code points split across `advance` calls
+  are carried over, never misdecoded to `U+FFFD`.
+- **Differential-tested** — the escape-sequence state machine is checked
+  against `vte` on a large corpus.
+
+## Usage
+
+### Rust parser
+
+```rust
+use vtty::{Parser, Perform};
+
+struct Screen;
+
+impl Perform for Screen {
+    fn print_bytes(&mut self, s: &[u8]) { /* printable ASCII run */ }
+    fn print(&mut self, c: char) { /* non-ASCII code point */ }
+    fn execute(&mut self, b: u8) { /* \n \t \x1b … */ }
+    fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
+        /* CSI Ps ; Ps final */
+    }
+    fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) { /* OSC */ }
+}
+
+let mut parser = Parser::new();
+parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
+```
+
+An owned enum API is also available: `parser.parse_events(bytes)` returns
+`Vec<Event>`. The crate also re-exports `State` (byte-cursor sink with
+line/cursor geometry), `Reply` (query reply builder), `ColorId`, `SgrFlags`,
+`TermFlags`, `KittyFlags`, `MouseButton`, `Charset`, and `Cap`.
+
+### Emoji cell widths
+
+```rust
+use vtty_emoji::{cell_advance, cell_width, cell_widths};
+
+cell_width('中');              // Some(2)
+cell_widths("⚠\u{FE0F}");      // [2, 0] — VS16 widens the base
+cell_advance(1.6, 10.0);       // 20.0 — snap a fractional advance to 2 cells
+```
+
+### C ABI
+
+```c
+#include "vtty_ffi.h"
+
+vt_state *s = vt_new();
+vt_advance(s, (const uint8_t *)"hello\nworld", 11);
+
+size_t rows = vt_line_count(s); // 2
+size_t len  = vt_text_len(s);   // 11
+
+vt_free(s);
+```
+
+Build the library with `cargo build -p vtty_ffi` (cdylib + staticlib).
+
+## Features
+
+- `vtty` — `simd`: SIMD printable-run scanner + SIMD UTF-8 validation,
+  selected per-parser with `Parser::with_simd()` (scalar `Parser::new()` is
+  the default).
+- `vtty_emoji` — `simd` + `baked` (default), or `icu` for runtime ICU4X
+  property lookups.
+
+## Benchmarks
+
+```bash
+cargo bench -p vtty_bench
+```
+
+Runs the same byte corpora (plain ASCII, multibyte UTF-8, ANSI/SGR-dense,
+truecolor, bracketed paste, OSC, DCS/Sixel) through scalar `vtty`, SIMD
+`vtty-simd`, `vte`, `vt100`, `vtparse`, and `rio-vt` with counting sinks, so
+the numbers reflect parser + dispatch cost.
+
+Results (median throughput, 2 MiB input; higher is better):
+
+| case | vtty | vtty-simd | vte | vtparse | rio-vt | vt100* |
+| --- | --- | --- | --- | --- | --- | --- |
+| plain | 2.54 GiB/s | **12.72 GiB/s** | 1.37 GiB/s | 403 MiB/s | 1.46 GiB/s | 133 MiB/s |
+| utf8_mixed | 758 MiB/s | 1.02 GiB/s | 828 MiB/s | 228 MiB/s | **1.22 GiB/s** | 172 MiB/s |
+| ansi_mixed | **682 MiB/s** | 680 MiB/s | 314 MiB/s | 188 MiB/s | 386 MiB/s | 176 MiB/s |
+| ansi_two_styles | 847 MiB/s | **856 MiB/s** | 332 MiB/s | 194 MiB/s | 354 MiB/s | 160 MiB/s |
+| ansi_bare_csi | 1.14 GiB/s | **1.24 GiB/s** | 492 MiB/s | 210 MiB/s | 459 MiB/s | 155 MiB/s |
+| truecolor_unique | **680 MiB/s** | 634 MiB/s | 340 MiB/s | 207 MiB/s | 478 MiB/s | 262 MiB/s |
+| bracketed_paste | **1.12 GiB/s** | 1.04 GiB/s | 733 MiB/s | 283 MiB/s | 739 MiB/s | 150 MiB/s |
+| osc_heavy | 1.67 GiB/s | **1.71 GiB/s** | 366 MiB/s | 133 MiB/s | 1.19 GiB/s | 153 MiB/s |
+| dcs_sixel | 4.38 GiB/s | **4.52 GiB/s** | 581 MiB/s | 437 MiB/s | 4.15 GiB/s | 461 MiB/s |
+
+*vt100 is a full-screen emulator (no standalone parser), so it is not an
+apples-to-apples parser comparison.
+
+## Testing
+
+```bash
+cargo test --workspace
+cargo test -p vtty --test vt_differential -- --nocapture      # parity vs vte
+cargo test -p vtty --test vt_differential_rio -- --nocapture  # parity vs rio-vt
+```
+
+## License
+
+Licensed under either of [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT)
+at your option.

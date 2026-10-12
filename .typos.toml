@@ -1,0 +1,9 @@
+# Spell-check configuration for the vtty workspace.
+# https://github.com/crate-ci/typos
+
+[default.extend-identifiers]
+# Terminfo capability "key end".
+kend = "kend"
+
+[default.extend-words]
+kend = "kend"

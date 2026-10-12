@@ -1,0 +1,20 @@
+[package]
+name = "vtty_ffi"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[lib]
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dependencies]
+vtty = { path = "../vtty", features = ["simd"] }
+
+[lints]
+workspace = true

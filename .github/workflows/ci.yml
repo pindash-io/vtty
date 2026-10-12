@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos,taplo,cargo-rdme
+
+      - name: Spell-check
+        run: typos
+
+      - name: TOML format check
+        run: taplo fmt --check
+
+      - name: README sync check
+        run: |
+          cargo rdme -w vtty --check
+          cargo rdme -w vtty_emoji --check
+          cargo rdme -w vtty_ffi --check
+
+      - name: Rust format check
+        run: cargo fmt --check --all
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: Tests (all features)
+        run: cargo test --workspace --all-features
+
+      - name: Docs
+        run: cargo doc --workspace --all-features --no-deps
+
+      - name: no_std check (bare-metal target)
+        run: |
+          rustup target add thumbv7em-none-eabihf
+          cargo check -p vtty --no-default-features --target thumbv7em-none-eabihf
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install glibc target
+        run: rustup target add x86_64-unknown-linux-gnu
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+
+      - name: Seed corpus
+        run: |
+          mkdir -p fuzz/corpus/differential fuzz/corpus/differential-simd fuzz/corpus/differential-rio
+          cp fuzz/seeds/* fuzz/corpus/differential/
+          cp fuzz/seeds/* fuzz/corpus/differential-simd/
+          cp fuzz/seeds/* fuzz/corpus/differential-rio/
+
+      - name: Fuzz smoke — vtty vs vte
+        run: cargo fuzz run differential --target x86_64-unknown-linux-gnu -- -max_total_time=30
+
+      - name: Fuzz smoke — vtty-simd vs vte
+        run: cargo fuzz run differential-simd --target x86_64-unknown-linux-gnu -- -max_total_time=30
+
+      - name: Fuzz smoke — vtty vs rio-vt
+        run: cargo fuzz run differential-rio --target x86_64-unknown-linux-gnu -- -max_total_time=30
+
+      - name: Fuzz smoke — structured random
+        run: cargo fuzz run random --target x86_64-unknown-linux-gnu -- -max_total_time=30
+
+      - name: Fuzz smoke — no-panic
+        run: cargo fuzz run robustness --target x86_64-unknown-linux-gnu -- -max_total_time=30

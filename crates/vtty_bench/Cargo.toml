@@ -1,0 +1,30 @@
+[package]
+name = "vtty_bench"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+# vtty is compiled with the `simd` feature so both the scalar (`Parser::new`)
+# and SIMD (`Parser::with_simd`) paths are available in one binary.
+vtty = { workspace = true, features = ["simd"] }
+vte.workspace = true
+vt100.workspace = true
+vtparse.workspace = true
+rio-vt.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "vt_input"
+harness = false
+
+[lints]
+workspace = true
