@@ -287,12 +287,8 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     if any {
         return true;
     }
-    for &cp in tail {
-        if cp < 0x20 || (0x7f..=0x9f).contains(&cp) {
-            return true;
-        }
-    }
-    false
+    tail.iter()
+        .any(|&cp| cp < 0x20 || (0x7f..=0x9f).contains(&cp))
 }
 
 #[cfg(test)]
