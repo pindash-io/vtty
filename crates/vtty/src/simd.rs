@@ -233,20 +233,15 @@ fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usiz
     // Sub-64-byte tail: scalar decode.
     while pos < n {
         let b0 = bytes[pos];
-        if b0 < 0x80 {
-            out[written] = b0 as u32;
-            written += 1;
-            pos += 1;
-        } else {
-            let (cp, len) = match b0 {
-                0xe0..=0xef => (decode_utf8_n::<3>(&bytes[pos..]), 3),
-                0xf0..=0xf4 => (decode_utf8_n::<4>(&bytes[pos..]), 4),
-                _ => (decode_utf8_n::<2>(&bytes[pos..]), 2),
-            };
-            out[written] = cp;
-            written += 1;
-            pos += len;
-        }
+        let (cp, len) = match b0 {
+            0x00..=0x7f => (b0 as u32, 1),
+            0xe0..=0xef => (decode_utf8_n::<3>(&bytes[pos..]), 3),
+            0xf0..=0xf4 => (decode_utf8_n::<4>(&bytes[pos..]), 4),
+            _ => (decode_utf8_n::<2>(&bytes[pos..]), 2),
+        };
+        out[written] = cp;
+        written += 1;
+        pos += len;
     }
     (written, pos)
 }
