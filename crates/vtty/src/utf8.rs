@@ -217,41 +217,55 @@ pub(crate) fn decode_utf8<P: Perform>(
                             p.print_bytes(&s[i..i + n]);
                             i += n;
                         }
-                        // Validated multi-byte lead: dispatch per code point
-                        // via `print` (C1 controls via `execute`). A 3-byte
-                        // fast path skips the match + C1 check for the
-                        // dominant CJK case. Per-char `print` measured faster
-                        // than a batched `print_codepoints` buffer here, and
-                        // it matches the scalar path's dispatch shape.
+                        // Validated multi-byte lead: batch a run of code
+                        // points into one `print_codepoints` call (C1 controls
+                        // via `execute`). A 3-byte fast path skips the C1
+                        // check for the dominant CJK case (3-byte code points
+                        // are never in the C1 range).
                         _ => {
+                            const BATCH: usize = 32;
+                            let mut buf = [0_u32; BATCH];
+                            let mut n = 0;
                             loop {
                                 let b0 = s[i];
-                                // Fast paths for 3-byte (CJK) and 4-byte
-                                // (emoji) leads: their code points are always
-                                // >= 0x800, so they are never C1 controls and
-                                // skip the C1 check. Only 2-byte leads can
-                                // decode into the C1 range (0x80..=0x9f).
                                 if (0xe0..=0xef).contains(&b0) {
-                                    let cp = decode_utf8_n::<3>(&s[i..]);
-                                    p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
+                                    // 3-byte lead (CJK etc.) — never C1.
+                                    buf[n] = decode_utf8_n::<3>(&s[i..]);
+                                    n += 1;
+                                    if n == BATCH {
+                                        p.print_codepoints(&buf[..n]);
+                                        n = 0;
+                                    }
                                     i += 3;
-                                } else if (0xf0..=0xf4).contains(&b0) {
-                                    let cp = decode_utf8_n::<4>(&s[i..]);
-                                    p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
-                                    i += 4;
                                 } else {
-                                    // 2-byte lead (0xc2..=0xdf).
-                                    let cp = decode_utf8_n::<2>(&s[i..]);
+                                    // 2- or 4-byte lead.
+                                    let (cp, len) = if (0xf0..=0xf4).contains(&b0) {
+                                        (decode_utf8_n::<4>(&s[i..]), 4)
+                                    } else {
+                                        (decode_utf8_n::<2>(&s[i..]), 2)
+                                    };
                                     if cp <= 0x9f {
+                                        if n > 0 {
+                                            p.print_codepoints(&buf[..n]);
+                                            n = 0;
+                                        }
                                         p.execute(cp as u8);
                                     } else {
-                                        p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
+                                        buf[n] = cp;
+                                        n += 1;
+                                        if n == BATCH {
+                                            p.print_codepoints(&buf[..n]);
+                                            n = 0;
+                                        }
                                     }
-                                    i += 2;
+                                    i += len;
                                 }
                                 if i >= s.len() || s[i] < 0x80 {
                                     break;
                                 }
+                            }
+                            if n > 0 {
+                                p.print_codepoints(&buf[..n]);
                             }
                         }
                     }
