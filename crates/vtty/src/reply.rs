@@ -3,10 +3,9 @@
 
 //! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP).
 
-use alloc::string::String;
 use core::fmt::Write as _;
 
-use smol_str::SmolStr;
+use smol_str::{SmolStr, SmolStrBuilder};
 
 use crate::hex::push_hex;
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
@@ -19,7 +18,7 @@ use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 /// one append + [`Self::finish`].
 #[derive(Default, Debug)]
 pub struct Reply {
-    buf: String,
+    buf: SmolStrBuilder,
 }
 
 impl Reply {
@@ -32,7 +31,7 @@ impl Reply {
     /// Whether nothing has been appended yet.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.buf.is_empty()
+        self.buf.finish().is_empty()
     }
 
     /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
@@ -140,14 +139,14 @@ impl Reply {
     /// Finish and return the accumulated reply.
     #[inline]
     pub fn finish(self) -> SmolStr {
-        SmolStr::new(self.buf)
+        SmolStr::from(self.buf)
     }
 }
 
 /// Append an SGR color to `s`: `;{base}9` (default), `;{base}8;5;n`
 /// (indexed), or `;{base}8;2;r;g;b` (RGB, resolved from the palette).
 /// `base` is 3 for fg, 4 for bg.
-fn push_sgr_color(s: &mut String, base: u8, id: ColorId, palette: &[u32]) {
+fn push_sgr_color(s: &mut SmolStrBuilder, base: u8, id: ColorId, palette: &[u32]) {
     match id {
         DEFAULT_FG_ID | DEFAULT_BG_ID => {
             let _ = write!(s, ";{base}9");

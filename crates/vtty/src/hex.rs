@@ -51,9 +51,9 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 }
 
 /// Append `bytes` to `s` as lowercase hex pairs (xterm XTGETTCAP encoding).
-pub(crate) fn push_hex(s: &mut String, bytes: &[u8]) {
+pub(crate) fn push_hex<W: core::fmt::Write>(s: &mut W, bytes: &[u8]) {
     for &b in bytes {
-        s.push(HEX_DIGITS[(b >> 4) as usize] as char);
-        s.push(HEX_DIGITS[(b & 0xf) as usize] as char);
+        let _ = s.write_char(HEX_DIGITS[(b >> 4) as usize] as char);
+        let _ = s.write_char(HEX_DIGITS[(b & 0xf) as usize] as char);
     }
 }
