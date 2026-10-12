@@ -81,12 +81,14 @@ macro_rules! impl_partial_eq {
         }
     };
 }
+
 impl PartialEq<u16> for ColorId {
     #[inline]
     fn eq(&self, other: &u16) -> bool {
         self.0 == *other
     }
 }
+
 impl_partial_eq!(i32);
 impl_partial_eq!(usize);
 

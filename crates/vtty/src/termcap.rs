@@ -340,6 +340,7 @@ impl Cap {
         }
     }
 }
+
 impl crate::Reply {
     /// Answer an XTGETTCAP capability query (`DCS + q <hex cap> ST`),
     /// appending the `DCS … ST` reply. The query may pack several
