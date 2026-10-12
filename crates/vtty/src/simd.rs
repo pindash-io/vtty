@@ -147,7 +147,7 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
         simd,
         &[2, 1, 0, 0xff, 5, 4, 3, 0xff, 8, 7, 6, 0xff, 11, 10, 9, 0xff],
     );
-    let perm = simd.swizzle_dyn_u8x16(v, sh);
+    let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
     let p: u32x4<S> = perm.bitcast();
     let ascii = p & simd.splat_u32x4(0x7f);
     let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
@@ -192,7 +192,7 @@ fn decode_utf8_12<S: Simd>(
     if idx < 64 {
         // Six code points (1/2-byte mix): u16x8 → widen.
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
-        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u16x8<S> = perm.bitcast();
         let ascii = p & simd.splat_u16x8(0x7f);
         let high = simd.shr_u16x8(p & simd.splat_u16x8(0x1f00), 2);
@@ -206,7 +206,7 @@ fn decode_utf8_12<S: Simd>(
     } else if idx < 145 {
         // Four code points (2/3-byte mix).
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
-        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u32x4<S> = perm.bitcast();
         let ascii = p & simd.splat_u32x4(0x7f);
         let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
@@ -218,7 +218,7 @@ fn decode_utf8_12<S: Simd>(
     } else if idx < 209 {
         // Three code points (4-byte involved).
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
-        let perm = simd.swizzle_dyn_u8x16(v, sh);
+        let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u32x4<S> = perm.bitcast();
         let ascii = p & simd.splat_u32x4(0x7f);
         let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
