@@ -5,7 +5,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use vtty_fuzz::{Event, has_intermediate_overflow, has_known_divergence, run_vtty};
+use vtty_fuzz::{
+    Event, has_intermediate_overflow, has_known_divergence, has_rio_utf8_simd_divergence, run_vtty,
+};
 
 struct RioRec {
     acts: Vec<Event>,
@@ -91,6 +93,11 @@ fuzz_target!(|data: &[u8]| {
     }
     // rio-vt allows up to four intermediates; vtty (and vte) cap at two.
     if has_intermediate_overflow(data, 2) {
+        return;
+    }
+    // rio-vt's simdutf backend mis-decodes malformed ground-state UTF-8 on
+    // x86_64 (upstream bug); vtty/vte are correct, so skip those inputs.
+    if has_rio_utf8_simd_divergence(data) {
         return;
     }
     let l = run_vtty(data);

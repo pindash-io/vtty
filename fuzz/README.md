@@ -51,12 +51,18 @@ Shared by the `vte`/`rio-vt` targets (`fuzz/src/lib.rs`):
   (kitty graphics), vte drops them.
 - rio-vt allows four intermediates; vtty/vte cap at two (filtered only in the
   `differential-rio` target).
+- rio-vt's SIMD UTF-8 decoder (the C++ `simdutf` backend) mis-decodes
+  malformed ground-state UTF-8 on x86_64 — it reports a wrong error offset,
+  corrupting the decode of valid glyphs *before* the error. vtty and vte (and
+  rio-vt's own scalar path) decode these correctly, so the `differential-rio`
+  target skips inputs with malformed ground-state UTF-8
+  (`has_rio_utf8_simd_divergence`).
 
-UTF-8 decode is **not** filtered: vtty, vte and rio-vt all implement W3C
-"Substitution of Maximal Subparts" (each invalid maximal subpart becomes one
-U+FFFD; a standalone C1 byte keeps `execute` semantics), so malformed UTF-8 —
-e.g. a truncated lead followed by printable ASCII and a C1 byte — decodes
-identically across all three and needs no special-casing.
+UTF-8 decode is otherwise **not** filtered: vtty, vte and rio-vt all implement
+W3C "Substitution of Maximal Subparts" (each invalid maximal subpart becomes
+one U+FFFD; a standalone C1 byte keeps `execute` semantics), so well-formed
+UTF-8 (and, on non-x86_64 targets, malformed UTF-8 too) decodes identically
+across all three and needs no special-casing.
 
 `vtparse` is not used as a differential baseline: its state machine diverges
 from DEC/vte (`CsiParam::P` fuses separators/private markers/intermediates,

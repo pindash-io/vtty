@@ -132,6 +132,111 @@ pub fn has_known_divergence(data: &[u8]) -> bool {
     has_c1_divergence(data)
 }
 
+/// rio-vt's SIMD UTF-8 decoder (the C++ `simdutf` backend) has an
+/// x86_64-only bug: when a ground-state decode chunk contains malformed
+/// UTF-8, `simdutf` reports the wrong error offset, so rio-vt mis-slices the
+/// valid prefix and corrupts the whole decode (dropping/reordering glyphs
+/// *before* the error as well). vtty and vte decode the same bytes correctly
+/// (W3C maximal-subpart), and the scalar rio-vt path agrees too — only the
+/// `simdutf` AVX2/AVX-512 error path is wrong. Detecting the trigger directly
+/// (any malformed UTF-8 in the ground state) keeps the `differential-rio`
+/// target from reporting rio-vt's known upstream bug as a vtty divergence.
+///
+/// Detects: a lone continuation byte (`0x80..=0xbf`), an invalid lead
+/// (`0xc0`/`0xc1`/`0xf5..=0xff`), or a truncated/ill-formed multi-byte
+/// sequence.
+pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mode {
+        Ground,
+        Escape,
+        Csi,
+        Dcs,
+        Osc,
+        DcsPassthrough,
+    }
+
+    let mut mode = Mode::Ground;
+    let mut pending = 0_u8; // expected UTF-8 continuation bytes (ground only)
+    let mut check_second = false; // next continuation is a constrained 2nd byte
+    let mut lead = 0_u8;
+
+    for &b in data {
+        match mode {
+            Mode::Ground => {
+                if b == 0x1b {
+                    // Leaving ground aborts any in-flight UTF-8 sequence.
+                    pending = 0;
+                    check_second = false;
+                    mode = Mode::Escape;
+                    continue;
+                }
+                if pending > 0 {
+                    let valid = (0x80..=0xbf).contains(&b)
+                        && !(check_second && !utf8_second_byte_valid(lead, b));
+                    if valid {
+                        pending -= 1;
+                        check_second = false;
+                        continue;
+                    }
+                    // Truncated / ill-formed sequence → simdutf error path.
+                    return true;
+                }
+                match b {
+                    // Lone continuation byte (no active sequence).
+                    0x80..=0xbf => return true,
+                    0xc2..=0xdf => {
+                        pending = 1;
+                        lead = b;
+                    }
+                    0xe0..=0xef | 0xf0..=0xf4 => {
+                        pending = if b < 0xf0 { 2 } else { 3 };
+                        check_second = true;
+                        lead = b;
+                    }
+                    // Overlong / out-of-range lead byte.
+                    0xc0 | 0xc1 | 0xf5..=0xff => return true,
+                    _ => {}
+                }
+            }
+            Mode::Escape => match b {
+                0x1b => {}
+                0x18 | 0x1a => mode = Mode::Ground,
+                b'[' => mode = Mode::Csi,
+                b'P' => mode = Mode::Dcs,
+                b']' => mode = Mode::Osc,
+                // SOS/PM/APC payload runs to ST; not ground-state UTF-8.
+                b'X' | b'^' | b'_' => mode = Mode::DcsPassthrough,
+                0x30..=0x7e => mode = Mode::Ground,
+                _ => {}
+            },
+            Mode::Csi => match b {
+                0x1b => mode = Mode::Escape,
+                0x18 | 0x1a => mode = Mode::Ground,
+                0x40..=0x7e => mode = Mode::Ground, // CSI final
+                _ => {}
+            },
+            Mode::Dcs => match b {
+                0x1b => mode = Mode::Escape,
+                0x18 | 0x1a => mode = Mode::Ground,
+                0x40..=0x7e => mode = Mode::DcsPassthrough, // DCS hook
+                _ => {}
+            },
+            Mode::Osc => match b {
+                0x1b => mode = Mode::Escape,
+                0x07 | 0x18 | 0x1a | 0x9c => mode = Mode::Ground,
+                _ => {}
+            },
+            Mode::DcsPassthrough => match b {
+                0x1b => mode = Mode::Escape,
+                0x18 | 0x1a | 0x9c => mode = Mode::Ground,
+                _ => {}
+            },
+        }
+    }
+    false
+}
+
 /// Some parsers cap escape-sequence intermediates at more than vtty's two
 /// (rio-vt uses four). Returns true when an escape sequence collects more
 /// than `limit` intermediate/private-marker bytes before its final byte.
@@ -319,4 +424,43 @@ fn has_c1_divergence(data: &[u8]) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_rio_utf8_simd_divergence;
+
+    #[test]
+    fn valid_utf8_is_not_flagged() {
+        // "a日b" — all well-formed.
+        assert!(!has_rio_utf8_simd_divergence(b"a\xe6\x97\xa5b"));
+        // Emoji + combining mark.
+        assert!(!has_rio_utf8_simd_divergence("🚀✨e\u{301}".as_bytes()));
+    }
+
+    #[test]
+    fn lone_continuation_is_flagged() {
+        // "a日" then a lone 0xB8 continuation byte.
+        assert!(has_rio_utf8_simd_divergence(b"a\xe6\x97\xa5\xb8b"));
+        // A run of lone continuation bytes.
+        assert!(has_rio_utf8_simd_divergence(b"\xb8\xb8\xb8"));
+    }
+
+    #[test]
+    fn truncated_sequence_is_flagged() {
+        // "a" then F0 AC (truncated 4-byte lead).
+        assert!(has_rio_utf8_simd_divergence(b"a\xf0\xac\xe8\xaa\x9e"));
+    }
+
+    #[test]
+    fn invalid_lead_is_flagged() {
+        assert!(has_rio_utf8_simd_divergence(b"a\xc0\xaf"));
+        assert!(has_rio_utf8_simd_divergence(b"a\xf5\x80\x80\x80"));
+    }
+
+    #[test]
+    fn escape_sequences_are_not_utf8() {
+        // A CSI sequence containing 0xB8 in its params is NOT ground UTF-8.
+        assert!(!has_rio_utf8_simd_divergence(b"\x1b[\xb8m"));
+    }
 }
