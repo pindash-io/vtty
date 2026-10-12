@@ -166,7 +166,11 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
         match mode {
             Mode::Ground => {
                 if b == 0x1b {
-                    // Leaving ground aborts any in-flight UTF-8 sequence.
+                    // ESC aborts an in-flight UTF-8 sequence, so a pending
+                    // lead is a truncated sequence (simdutf TooShort path).
+                    if pending > 0 {
+                        return true;
+                    }
                     pending = 0;
                     check_second = false;
                     mode = Mode::Escape;
@@ -246,6 +250,11 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
                 _ => {}
             },
         }
+    }
+    // A truncated sequence at the very end of the buffer also reaches
+    // simdutf's TooShort error path.
+    if pending > 0 {
+        return true;
     }
     false
 }
@@ -483,6 +492,21 @@ mod tests {
     fn invalid_lead_is_flagged() {
         assert!(has_rio_utf8_simd_divergence(b"a\xc0\xaf"));
         assert!(has_rio_utf8_simd_divergence(b"a\xf5\x80\x80\x80"));
+    }
+
+    #[test]
+    fn esc_aborts_truncated_sequence() {
+        // A 3-byte lead immediately followed by ESC is truncated.
+        assert!(has_rio_utf8_simd_divergence(b"a\xe6\x1b[200l"));
+        // A complete sequence before ESC is NOT truncated.
+        assert!(!has_rio_utf8_simd_divergence(b"a\xe6\x97\xa5\x1b"));
+    }
+
+    #[test]
+    fn trailing_truncated_sequence() {
+        // Input ending mid-sequence is truncated (simdutf TooShort).
+        assert!(has_rio_utf8_simd_divergence(b"a\xe6\x9c"));
+        assert!(has_rio_utf8_simd_divergence(b"\xf0\x9f\x92"));
     }
 
     #[test]
