@@ -225,7 +225,14 @@ impl Parser {
     /// buffered OSC payload (no allocation).
     #[inline]
     pub fn reset(&mut self) {
+        // Preserve the SIMD toggle: it is a per-parser config, not state.
+        #[cfg(feature = "simd")]
+        let simd = self.simd;
         *self = Self::DEFAULT;
+        #[cfg(feature = "simd")]
+        {
+            self.simd = simd;
+        }
     }
 
     /// Emit a pending partial UTF-8 code point as `U+FFFD` (W3C substitution)
@@ -1007,8 +1014,24 @@ fn first_dcs_boundary(bytes: &[u8]) -> usize {
 
 #[cfg(test)]
 mod swar_tests {
-    use super::{first_dcs_boundary, first_osc_boundary};
+    use super::{Parser, first_dcs_boundary, first_osc_boundary};
     use alloc::vec::Vec;
+
+    #[test]
+    fn reset_preserves_simd_config() {
+        let mut p = Parser::new();
+        assert!(!p.simd_enabled());
+        p.reset();
+        assert!(!p.simd_enabled());
+
+        #[cfg(feature = "simd")]
+        {
+            let mut q = Parser::with_simd();
+            assert!(q.simd_enabled());
+            q.reset();
+            assert!(q.simd_enabled(), "reset must preserve the SIMD config");
+        }
+    }
 
     fn scalar_osc(bytes: &[u8]) -> usize {
         bytes
