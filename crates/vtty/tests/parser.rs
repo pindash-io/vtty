@@ -220,6 +220,33 @@ fn osc_st_terminated() {
 }
 
 #[test]
+fn osc_sixteen_params_across_multiple_parsers() {
+    // A full 16-param OSC (`0;1;…;15`). Each parser must dispatch all 16
+    // independently — the `EMPTY` seed array is copied per call, so one
+    // parser's slices never leak into another, and no trailing empty slice
+    // is dispatched.
+    let mut bytes = vec![0x1b, b']'];
+    for i in 0..16 {
+        if i > 0 {
+            bytes.push(b';');
+        }
+        bytes.extend_from_slice(i.to_string().as_bytes());
+    }
+    bytes.push(0x07);
+
+    for _ in 0..3 {
+        let mut p = Parser::new();
+        let mut c = Collecting::default();
+        p.advance(&mut c, &bytes);
+        assert_eq!(c.osc.len(), 1);
+        assert_eq!(c.osc[0].len(), 16, "all 16 params must dispatch");
+        for (i, param) in c.osc[0].iter().enumerate() {
+            assert_eq!(param, i.to_string().as_bytes());
+        }
+    }
+}
+
+#[test]
 fn osc_payload_over_limit_is_discarded() {
     // A payload at/under the cap dispatches; one byte over is dropped whole.
     let mut under = Parser::new();
