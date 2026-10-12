@@ -289,21 +289,11 @@ pub fn vs_width(selector: char) -> Option<usize> {
 }
 
 /// Display cell width of a char: `None` (control), `Some(0)` (combining),
-/// `Some(1)` or `Some(2)` (printable).
-///
-/// Resolution order:
-/// 1. ASCII → `None` (control) or `Some(1)`.
-/// 2. Terminal overrides — skin-tone modifiers, halfwidth katakana, tags.
-/// 3. The baked composite width (0/1/2).
-/// 4. ICU4X `Emoji_Presentation` — a width-1 emoji-presentation char becomes
-///    width 2 (✅ ❤️ 😀 …).
-///
-/// The baked ICU4X table is a FIXED Unicode snapshot; the grid is enforced
-/// rather than measured.
-///
-/// The broader `Emoji` property is deliberately NOT used — it also covers
-/// text-default symbols the mono font owns at one cell (→ ✓ © ® ™ ● ○ …), and
-/// symbols the SYMBOL fallback (Menlo) owns at one cell (➜ ✗ ▼ …).
+/// `Some(1)`/`Some(2)` (printable). Resolves ASCII, terminal overrides
+/// (skin tones, halfwidth katakana, tags), the baked composite width, then
+/// ICU4X `Emoji_Presentation` (width-1 emoji → 2). The broader `Emoji`
+/// property is deliberately unused (it covers text-default symbols the mono
+/// font owns at one cell).
 #[inline]
 pub fn cell_width(c: char) -> Option<usize> {
     // ASCII fast path: printable = 1 cell, control = no width.
@@ -378,31 +368,18 @@ fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usi
     }
 }
 
-/// Per-char display cell widths for a string, with emoji sequences handled by
-/// the UTS #51 DFA ([`EmojiDFA`]) — the single structural source
-/// of truth (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15), so the width
-/// model never re-derives sequence structure by hand:
+/// Per-char display cell widths, with emoji sequences handled by the UTS #51
+/// [`EmojiDFA`]:
 ///
-/// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark
-///   (skin tone / combining) occupies one cell.
-/// - A lone ZWJ (`U+200D`) is ignored — always zero cells (it is a joiner,
-///   never a standalone glyph).
-/// - A multi-char sequence is one emoji glyph: 2 cells, except text
-///   presentation (VS15), a bare keycap without VS16, and a ZWJ sequence with
-///   a text-presentation leading char stay 1.
-/// - Every continuation char in a sequence is 0.
-/// - The first variation selector locks the width (`▶+VS16+VS15` = 2,
-///   `😐+VS15+VS16` = 1) — the DFA rejects the second selector and it starts
-///   a fresh (non-accepting) scan, so it is naturally excluded.
+/// - a lone char keeps its width; a lone width-0 mark occupies one cell;
+/// - a lone ZWJ is ignored (zero cells);
+/// - a multi-char sequence is one glyph (2 cells), except text presentation
+///   (VS15) and bare keycap stay 1; continuation chars are 0;
+/// - the first variation selector locks the width.
 ///
-/// The returned vector has one entry per `char` in `text`, so callers can zip
-/// it with `char_indices()` while keeping glyph/char counts in lockstep. This
-/// is the cell-grid width model; the single-char [`cell_width`] cannot see a
-/// following VS16/ZWJ and so cannot express emoji presentation sequences.
+/// Returns one entry per `char`, so callers can zip with `char_indices()`.
 pub fn cell_widths(text: &str) -> Vec<usize> {
-    // ASCII fast path: one cell per byte. Pure ASCII has no emoji sequence
-    // (keycap/VS/ZWJ/RI/tag all need at least one non-ASCII char), so the
-    // DFA pass and the per-char ICU lookups are both skipped.
+    // ASCII fast path: one cell per byte (no emoji sequence is pure ASCII).
     let ascii_len = first_non_ascii(text.as_bytes());
     if ascii_len == text.len() {
         return vec![1_usize; text.len()];
@@ -431,22 +408,18 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
             let cat = emoji_category(chars[j]);
             if j > i {
                 // Continuations only extend a run whose LEAD is an emoji
-                // starter. A ZWJ/VS/modifier after a non-emoji (CJK letter,
-                // `W`, …) is a STRAY — it must not swallow the char after it
-                // into a 0-width continuation (the DFA rejects the same
-                // transition from its Start state).
+                // starter. A ZWJ/VS/modifier after a non-emoji is a STRAY and
+                // must not swallow the next char (the DFA rejects it too).
                 let cont = lead_is_emoji
                     && (is_continuation(cat)
                         || (prev_zwj && is_zwj_target(chars[j]))
-                        // A flag is exactly TWO regional indicators; the
-                        // second continues the run, a third starts fresh.
+                        // A flag is exactly TWO regional indicators.
                         || (cat == EmojiSegmentationCategory::RegionalIndicator
                             && ri_count == 1)
-                        // A zero-width combining mark (Grapheme_Extend) is a
-                        // grapheme continuation: the DFA's `Other` transition
-                        // is a no-op (it stays in the current state), so a
-                        // keycap/VS16/… sequence still resolves even with
-                        // marks between the base and the selector — matching
+                        // A combining mark (Grapheme_Extend) is a grapheme
+                        // continuation — the DFA's `Other` is a no-op, so a
+                        // keycap/VS16 sequence resolves even with marks between
+                        // the base and selector.
                         // the cell screen's `set_cell`, which widens the base
                         // regardless of intervening combining marks.
                         || cell_width(chars[j]) == Some(0));
@@ -475,11 +448,8 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
         i = j;
     }
 
-    // A lone width-0 mark (combining) with no preceding base occupies its own
-    // cell (`width.max(1) = 1`); a mark after a base attaches (0). A lone ZWJ
-    // (U+200D), VS15 (U+FE0E) or VS16 (U+FE0F) is invisible — a joiner or
-    // presentation selector with no base to attach to, so it stays zero cells
-    // (dropped), matching the cell grid's drop of a standalone selector.
+    // A lone width-0 mark with no base occupies its own cell; a lone ZWJ/VS15/
+    // VS16 is invisible (no base to attach to), so it stays zero cells.
     let mut has_base = false;
     for (&c, w) in chars.iter().zip(widths.iter_mut()) {
         if *w == 0 && !has_base && !matches!(c, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') {
@@ -649,10 +619,9 @@ mod tests {
                 c as u32
             );
         }
-        // The derivation now matches unicode-width on every scalar value
-        // except: the 5 skin-tone modifiers (intentional — our terminal treats
-        // them as combining, width 0) and U+17D8 Khmer Sign Beyyal (unicode-width
-        // reports width 3, unrepresentable in our 0/1/2 cell grid).
+        // The derivation matches `unicode-width` on every scalar except the 5
+        // skin-tone modifiers (intentional: treated as combining, width 0) and
+        // U+17D8 Khmer Sign Beyyal (width 3, unrepresentable in 0/1/2).
         let mut diffs = 0_u32;
         for cp in 0..=0x10FFFF_u32 {
             let Some(c) = char::from_u32(cp) else {
@@ -798,10 +767,8 @@ fn starship_glyph_widths() {
 
 #[test]
 fn stray_zwj_after_non_emoji_does_not_swallow_next() {
-    // A ZWJ after a CJK char is a STRAY joiner (the DFA's Start state
-    // rejects it): the emoji after it is a fresh 2-cell glyph, not a
-    // 0-width ZWJ continuation. This is the `👍侞\u{200D}\u{200D}👍` REP
-    // case — the trailing 👍 must stay width 2.
+    // A ZWJ after a CJK char is a STRAY joiner (DFA Start rejects it): the
+    // emoji after it is a fresh 2-cell glyph, not a 0-width continuation.
     assert_eq!(cell_widths("侞\u{200D}\u{200D}👍"), vec![2, 0, 0, 2]);
     assert_eq!(
         cell_widths("👍侞\u{200D}\u{200D}👍侞"),

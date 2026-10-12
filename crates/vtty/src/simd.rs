@@ -50,12 +50,9 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
 }
 
 /// Return the index of the first ESC byte (`0x1b`), or `bytes.len()` if none.
-///
-/// Used by the SIMD UTF-8 decode path to cap its validated window at the next
-/// sequence introducer: the dispatch loop returns at ESC, so validating past it
-/// re-validates the same window for every isolated multi-byte char (the
-/// bracketed-paste O(n²) regression). Same runtime-dispatched SIMD classifier
-/// as `first_non_printable` / `first_csi_final`.
+/// Caps the SIMD UTF-8 decode window at the next sequence introducer — the
+/// dispatch loop returns at ESC, so validating past it re-validates the same
+/// window per isolated multi-byte char (bracketed-paste O(n²)).
 #[inline(always)]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = level();
@@ -119,10 +116,7 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
 }
 
 /// Index of the first non-zero lane in a 16-lane mask (`0`/`-1`). Scalar
-/// early-return scan — the magic-multiply bitmask + `trailing_zeros`
-/// alternative was *slower* here (the `[i8; 16] → [u8; 16]` `map` plus two
-/// `u64` multiplies cost more than the early return for the common
-/// low-position matches in CSI final bytes).
+/// early-return — the bitmask + `trailing_zeros` alternative was slower here.
 #[inline(always)]
 fn first_set(mask: [i8; 16]) -> usize {
     for (j, &m) in mask.iter().enumerate() {
@@ -134,10 +128,9 @@ fn first_set(mask: [i8; 16]) -> usize {
 }
 
 /// SIMD-decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]`.
-/// The caller guarantees `bytes` starts with four validated 3-byte sequences.
-/// This is the simdutf `0x924` fast path: one fixed byte shuffle gathers each
-/// 3-byte group into a u32 lane, then mask + shift + or assemble the code
-/// points (lead contributes its low 4 bits, each continuation its low 6).
+/// Caller guarantees four validated 3-byte sequences. The simdutf `0x924`
+/// fast path: one fixed shuffle gathers each 3-byte group into a u32 lane,
+/// then mask + shift + or.
 #[inline(always)]
 fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     let v = u8x16::from_slice(simd, bytes);
@@ -167,8 +160,7 @@ pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
 /// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
 /// `end_mask` (bit `i` = byte `i` ends a code point). Returns
 /// `(code_points_written, bytes_consumed)`. Mirrors simdutf's
-/// `convert_masked_utf8_to_utf32`: the `0x924` 3-byte fast path, then the
-/// table-driven general path.
+/// `convert_masked_utf8_to_utf32` (`0x924` 3-byte fast path, then the table).
 #[cfg(feature = "simd-transcode")]
 #[inline(always)]
 fn decode_utf8_12<S: Simd>(
@@ -234,12 +226,11 @@ fn decode_utf8_12<S: Simd>(
     }
 }
 
-/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (rio-vt/ghostty's
-/// amortized shape: one end-of-code-point mask per block, then 12-byte chunk
-/// loop with the `0x924` 3-byte fast path). Returns `(code_points_written,
-/// bytes_consumed)`. For a full block, `bytes_consumed` is 52 (the last 12
-/// bytes are re-scanned by the next call, overlapping the chunk boundary). For
-/// a sub-64-byte tail, a scalar loop consumes all remaining bytes.
+/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (rio-vt/ghostty
+/// shape: one end-of-code-point mask per block, then a 12-byte chunk loop).
+/// Returns `(code_points_written, bytes_consumed)`; a full block consumes 52
+/// bytes (the last 12 overlap into the next call), a sub-64-byte tail falls
+/// back to scalar decode.
 #[cfg(feature = "simd-transcode")]
 #[inline(always)]
 fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {

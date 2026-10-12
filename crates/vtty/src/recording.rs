@@ -8,13 +8,11 @@ use smallvec::SmallVec;
 
 use crate::perform::Perform;
 
-/// A parsed escape-sequence event — the dispatch as data, instead of a
-/// [`crate::Perform`] callback. Mirrors vtparse's `VTAction`; useful for
-/// differential testing and simple consumers.
-///
-/// Params and intermediates use inline `SmallVec`s (matching the parser's
-/// internal storage) so the common case (≤6 params, ≤2 intermediates) does not
-/// allocate; only OSC bodies are heap `Vec`s.
+/// A parsed escape-sequence event — the dispatch as data instead of a
+/// [`crate::Perform`] callback. Mirrors `vtparse`'s `VTAction`; useful for
+/// differential testing. Params/intermediates use inline `SmallVec`s (≤6
+/// params, ≤2 intermediates allocates nothing); only OSC bodies are heap
+/// `Vec`s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// A printable character (UTF-8 decoded).
@@ -24,25 +22,25 @@ pub enum Event {
     /// A CSI sequence: `ESC [ <params> <intermediates> <final>`.
     CsiDispatch {
         /// Collected numeric parameters (inline up to 6).
-        params: SmallVec<[i32; 6]>,
+        params: SmallVec<i32, 6>,
         /// Intermediate bytes: private markers + `0x20..0x2f`.
-        intermediates: SmallVec<[u8; 2]>,
+        intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
         final_byte: u8,
     },
     /// An escape sequence: `ESC <intermediates> <byte>`.
     EscDispatch {
         /// Intermediate bytes (`0x20..0x2f`).
-        intermediates: SmallVec<[u8; 2]>,
+        intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
         byte: u8,
     },
     /// A DCS header: `ESC P <params> <intermediates> <final>`.
     DcsHook {
         /// Collected numeric parameters (inline up to 6).
-        params: SmallVec<[i32; 6]>,
+        params: SmallVec<i32, 6>,
         /// Intermediate bytes: private markers + `0x20..0x2f`.
-        intermediates: SmallVec<[u8; 2]>,
+        intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
         final_byte: u8,
     },
@@ -55,7 +53,7 @@ pub enum Event {
     /// (variable-length byte strings have to be owned).
     OscDispatch {
         /// Parameters split on `;`, each an owned byte string.
-        params: SmallVec<[Vec<u8>; 8]>,
+        params: SmallVec<Vec<u8>, 8>,
         /// Whether the sequence was terminated by BEL (vs ST).
         bell_terminated: bool,
     },

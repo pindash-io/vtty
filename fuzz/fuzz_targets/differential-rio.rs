@@ -37,8 +37,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: smallvec::SmallVec<[i32; 6]> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -58,8 +57,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: smallvec::SmallVec<[i32; 6]> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),

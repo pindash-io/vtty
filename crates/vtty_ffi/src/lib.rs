@@ -225,16 +225,13 @@ pub unsafe extern "C" fn vt_cursor_col(state: *const VtState) -> usize {
     }
 }
 
-/// Fill `*start` and `*end` with the byte range of line `line` (0-based) into
-/// [`vt_text`]. `*end` is exclusive: it points at the line's `\n` byte, or at
-/// the end of the buffer for the last line.
-///
-/// Returns `false` (and leaves `*start`/`*end` untouched) when `line` is out
-/// of range.
+/// Fill `*start`/`*end` with the byte range of line `line` (0-based) into
+/// [`vt_text`]; `*end` is exclusive (points at the line's `\n`). Returns
+/// `false` (leaving the pointers untouched) when `line` is out of range.
 ///
 /// # Safety
-/// `state` must be a live [`vt_new`] pointer and `start`/`end` must be valid
-/// writable `usize` pointers.
+/// `state` must be a live [`vt_new`] pointer; `start`/`end` valid `usize`
+/// pointers.
 #[must_use]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vt_line_range(

@@ -20,11 +20,8 @@ const fn utf8_lead(lead: u8) -> (usize, u32) {
     }
 }
 
-/// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations) into the
-/// raw code point. `N` must be 2/3/4; the lead contributes its low
-/// 0x1f/0x0f/0x07 bits and each continuation its low 6 bits. `N` is a const
-/// generic, so the `match N` folds to the exact per-length decode at compile
-/// time (no loop, no length dispatch at runtime).
+/// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations). `N` is
+/// 2/3/4; the `match N` folds to per-length shifts at compile time.
 #[cfg(feature = "simd")]
 #[inline(always)]
 pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
@@ -41,9 +38,9 @@ pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
 }
 
 /// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
-/// leads and the unrestricted 3/4-byte leads accept any continuation byte;
-/// the four constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower
-/// ranges (UTF-8's non-shortest / non-surrogate / non-overlong rules).
+/// leads and unrestricted 3/4-byte leads accept any continuation; the four
+/// constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower ranges
+/// (UTF-8's non-shortest/non-surrogate/non-overlong rules).
 #[inline]
 const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     match lead {
@@ -55,10 +52,9 @@ const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     }
 }
 
-/// If `s` ends with a partial (incomplete) UTF-8 sequence, return
-/// `(valid_prefix_len, partial_codepoint, remaining_continuation_bytes)`.
-/// The partial code point (u32) is carried to the next `advance` call, which
-/// accumulates the remaining continuation bytes.
+/// If `s` ends with a partial UTF-8 sequence, return
+/// `(valid_prefix_len, partial_codepoint, remaining_continuation_bytes)`;
+/// the partial (u32) is carried to the next `advance` call.
 pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     let len = s.len();
     if len == 0 {
@@ -114,39 +110,18 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
 }
 
 /// Decode a run of multi-byte UTF-8 starting at `bytes[pos]` (a lead byte
-/// `>= 0xA0`), dispatching printable runs via `print_bytes`/`print_codepoints`
-/// and controls via `execute`.
-/// Returns the number of bytes consumed (at least 1).
+/// `>= 0xA0`). Returns bytes consumed (at least 1).
 ///
-/// With the `simd` feature this SIMD-validates a window via `simdutf8` and
-/// dispatches the WHOLE window (ASCII + non-ASCII) — like rio-vt — so the
-/// interleaved ASCII is not re-scanned. The window is `CHUNK` bytes, capped at
-/// the next ESC (see below). The scalar path decodes one code point at a time
-/// via `utf8_iter`.
+/// With `simd`, SIMD-validates a window via `simdutf8` and dispatches the
+/// whole window (ASCII + non-ASCII) at once; the scalar path decodes one code
+/// point at a time. The window is capped at the next ESC — ESC is never a
+/// UTF-8 continuation byte, so it is a safe cut point, and without the cap an
+/// emoji-before-ESC stream re-validates the same window per char (quadratic).
 ///
-/// # Why cap at ESC?
-///
-/// The dispatch loop returns at the first ESC so the state machine can handle
-/// the next sequence. Without the cap, `simdutf8` validates the full `CHUNK`
-/// window even when the ESC is a few bytes away, so a stream of *isolated*
-/// multi-byte chars each followed by an ESC (e.g. an emoji inside bracketed
-/// paste: `…🚀\x1b[201~…🚀\x1b[200~…`) re-validates the same window per char —
-/// O(n × CHUNK), i.e. quadratic. Capping at the ESC makes the window exactly
-/// the bytes the loop will consume. ESC is always a safe cut point: it is not
-/// a UTF-8 continuation byte, so the bytes before it are a complete sequence.
-///
-/// # Malformed UTF-8 (maximal subparts)
-///
-/// Both the scalar and SIMD paths follow W3C "Substitution of Maximal
-/// Subparts": a truncated or ill-formed sequence is replaced with a single
-/// U+FFFD spanning its maximal subpart, and a standalone C1 byte
-/// (`0x80..=0x9f`) is dispatched via [`Perform::execute`] instead of being
-/// replaced. This is the same contract as vte and rio-vt, so a run like
-/// `E3 83` `[` `0x88` (truncated 3-byte lead, printable ASCII, C1
-/// continuation) decodes identically in every parser: `Print('�')`,
-/// `Print('[')`, `Execute(136)`. The scalar path inherits this from
-/// `utf8_iter`; the SIMD path validates the window first and only falls back
-/// to scalar decoding when the window is short or invalid.
+/// Both paths follow W3C "Substitution of Maximal Subparts": a truncated or
+/// ill-formed sequence becomes one U+FFFD, and a standalone C1 byte
+/// (`0x80..=0x9f`) is dispatched via [`Perform::execute`] — the same contract
+/// as vte and rio-vt.
 #[inline(always)]
 pub(crate) fn decode_utf8<P: Perform>(
     p: &mut P,
@@ -166,20 +141,15 @@ pub(crate) fn decode_utf8<P: Perform>(
         if !short {
             const CHUNK: usize = 4096;
             let mut end = (pos + CHUNK).min(valid);
-            // Cap the validated window at the next ESC: the dispatch loop below
-            // returns at ESC anyway, so validating past it re-validates the same
-            // window for every isolated multi-byte char (an emoji inside
-            // bracketed paste) — quadratic on such streams. SIMD-scanned so the
-            // cap costs ~nothing on ESC-free UTF-8 runs. ESC is a safe boundary:
-            // it is never a UTF-8 continuation byte, so `bytes[pos..end]` is a
-            // complete code-point sequence.
+            // Cap the window at the next ESC: validating past it re-validates
+            // the same window per isolated multi-byte char (quadratic). ESC is
+            // never a UTF-8 continuation, so it is a safe boundary.
             let rel = crate::simd::first_esc(&bytes[pos..end]);
             if rel < end - pos {
                 end = pos + rel;
             }
             if end < valid {
-                // Back off to a UTF-8 char boundary so a multi-byte sequence is
-                // never split across the chunk.
+                // Back off to a UTF-8 char boundary so a sequence is never split.
                 let start = end;
                 while end > pos && (bytes[end] & 0xC0) == 0x80 {
                     end -= 1;
@@ -192,12 +162,10 @@ pub(crate) fn decode_utf8<P: Perform>(
                 let s = s.as_bytes();
                 #[cfg(feature = "simd-transcode")]
                 {
-                    // Unified SIMD transcode (rio-vt/ghostty): process
-                    // the ESC-capped, validated window in 64-byte blocks — one
-                    // end-of-code-point mask per block — then 12-byte chunks
-                    // with the `0x924` 3-byte fast path. C0/C1 controls are
-                    // split out and executed inline; the rest is one
-                    // `print_codepoints` run.
+                    // Unified SIMD transcode (rio-vt/ghostty): 64-byte blocks,
+                    // one end-of-code-point mask each, 12-byte chunks with the
+                    // `0x924` fast path. C0/C1 split out via `execute`; the rest
+                    // is one `print_codepoints` run.
                     // Buffer holds the max code points one `decode_block` call
                     // can emit: the sub-76-byte scalar tail decodes 1 code
                     // point/byte (≤ 75), and the 64-byte block emits ≤ 54.
@@ -228,12 +196,9 @@ pub(crate) fn decode_utf8<P: Perform>(
 
                 #[cfg(not(feature = "simd-transcode"))]
                 {
-                    // Scalar byte loop over the validated window: tight
-                    // ASCII-run scan (`print_bytes`), branchless decode of
-                    // multi-byte code points (`print_codepoints`/`execute` for
-                    // C1), non-ESC C0 controls executed inline so the chunk
-                    // spans lines. ESC ends the chunk so the state machine
-                    // handles the sequence.
+                    // Scalar byte loop: ASCII runs via `print_bytes`, multi-byte
+                    // via `print_codepoints`, C0/C1 via `execute`; ESC ends the
+                    // chunk for the state machine.
                     let mut i = 0;
                     while i < s.len() {
                         let b = s[i];

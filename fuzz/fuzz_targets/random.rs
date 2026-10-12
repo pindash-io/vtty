@@ -35,18 +35,18 @@ fuzz_target!(|data: &[u8]| {
     let mut buf = Vec::with_capacity(len);
     for _ in 0..len {
         buf.push(match rng.next() % 12 {
-            0 => 0x1b,                                  // ESC
-            1 => b'[',                                  // CSI
-            2 => b']',                                  // OSC
-            3 => b'P',                                  // DCS
-            4 => b';',                                  // param separator
-            5 => b':',                                  // subparam separator
-            6 => b'0' + (rng.next() % 10) as u8,        // digit
-            7 => 0x20 + (rng.next() % 0x5f) as u8,      // printable ASCII
-            8 => 0xc2 + (rng.next() % 30) as u8,        // 2-byte UTF-8 lead
-            9 => 0xe0 + (rng.next() % 16) as u8,        // 3-byte lead
-            10 => 0x80 + (rng.next() % 0x40) as u8,     // continuation
-            _ => rng.next() as u8,                      // anything
+            0 => 0x1b,                              // ESC
+            1 => b'[',                              // CSI
+            2 => b']',                              // OSC
+            3 => b'P',                              // DCS
+            4 => b';',                              // param separator
+            5 => b':',                              // subparam separator
+            6 => b'0' + (rng.next() % 10) as u8,    // digit
+            7 => 0x20 + (rng.next() % 0x5f) as u8,  // printable ASCII
+            8 => 0xc2 + (rng.next() % 30) as u8,    // 2-byte UTF-8 lead
+            9 => 0xe0 + (rng.next() % 16) as u8,    // 3-byte lead
+            10 => 0x80 + (rng.next() % 0x40) as u8, // continuation
+            _ => rng.next() as u8,                  // anything
         });
     }
 

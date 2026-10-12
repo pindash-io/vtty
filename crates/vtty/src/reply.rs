@@ -10,12 +10,9 @@ use smol_str::{SmolStr, SmolStrBuilder};
 use crate::hex::push_hex;
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
-/// Accumulates VT query replies into one buffer, in dispatch order, so a
-/// burst of queries (asciinema's XTVERSION + OSC 10/11 + OSC 4 + DA probe)
-/// is answered in order instead of dropping all but the last.
-///
-/// The free functions below are one-shot conveniences over [`Self::new`] +
-/// one append + [`Self::finish`].
+/// Accumulates VT query replies in dispatch order, so a burst of queries
+/// (`XTVERSION` + `OSC 10/11` + `OSC 4` + `DA`) is answered in order instead
+/// of dropping all but the last.
 #[derive(Default, Debug)]
 pub struct Reply {
     buf: SmolStrBuilder,

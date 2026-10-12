@@ -6,13 +6,9 @@
 use core::fmt;
 use core::ops::Deref;
 
-/// A palette index: 0..=255 are the dynamic 256-color table, 256/257 are the
-/// reserved default foreground/background, and 258+ are RGB truecolors
-/// inserted on demand.
-///
-/// `#[repr(transparent)]` over the `u16` field gives it the exact u16 ABI
-/// (2 bytes, align 2) — `#[repr(u16)]` itself is only valid on fieldless
-/// enums, not structs.
+/// A palette index: 0..=255 are the dynamic 256-color table, 256/257 the
+/// default fg/bg, 258+ RGB truecolors inserted on demand.
+/// `#[repr(transparent)]` over `u16` gives the exact u16 ABI.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ColorId(pub u16);

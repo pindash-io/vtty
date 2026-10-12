@@ -42,11 +42,8 @@ pub struct Parser {
     /// from a literal `0`.
     param_empty: bool,
     /// Collected CSI/DCS parameters, capped at [`MAX_PARAMS`]. A fixed array
-    /// with a separate length (instead of `SmallVec`) makes clearing an O(1)
-    /// length reset — `SmallVec::clear` walks every element dropping it,
-    /// which is pure overhead for `i32` (no drop glue) and cost ~2% of the
-    /// per-cell CSI path. 99.9% of sequences carry ≤5 params, but the array
-    /// still keeps the full 32-param conformance cap.
+    /// plus a separate length makes clearing an O(1) reset (vs
+    /// `SmallVec::clear`, which walks every element — ~2% on the CSI path).
     params: [i32; MAX_PARAMS],
     params_len: usize,
     /// Colon separators: bit `i` is set when parameter `i` was followed by
@@ -58,7 +55,7 @@ pub struct Parser {
     intermediates_len: usize,
     /// OSC payload accumulator. Inline up to 56 — nvim's longest OSC is 54
     /// bytes (clipboard base64), so common OSC payloads stay inline.
-    osc: SmallVec<[u8; 56]>,
+    osc: SmallVec<u8, 56>,
     /// Set when an OSC payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
     /// then discarded (xterm.js aborts oversized payloads the same way).
     osc_overflow: bool,
@@ -99,7 +96,7 @@ impl Parser {
         sep: 0,
         intermediates: [0; 2],
         intermediates_len: 0,
-        osc: SmallVec::new_const(),
+        osc: SmallVec::new(),
         osc_overflow: false,
         osc_starts: [0; MAX_OSC_PARAMS + 1],
         osc_num_starts: 0,
@@ -140,12 +137,9 @@ impl Parser {
         false
     }
 
-    /// Parse bytes, collecting every dispatch into a `Vec<Event>`. This is the
-    /// convenience enum API; the [`Self::advance`] + [`Perform`] path is the
-    /// zero-allocation hot path.
-    ///
-    /// This allocates one `Event` per dispatch into an unbounded `Vec`, so it is
-    /// for tests/tooling, not untrusted input.
+    /// Parse bytes, collecting every dispatch into a `Vec<Event>` — the
+    /// convenience enum API; [`Self::advance`] + [`Perform`] is the
+    /// zero-allocation hot path. Unbounded `Vec`, so tests/tooling only.
     pub fn parse_events(&mut self, bytes: &[u8]) -> Vec<Event> {
         let mut c = Recording::default();
         self.advance(&mut c, bytes);
@@ -168,11 +162,8 @@ impl Parser {
         // Complete a partially-decoded UTF-8 code point carried over from the
         // previous call (accumulate continuation bytes into the u32).
         if self.partial_need > 0 {
-            // `completed` distinguishes a FULLY consumed partial (emit one
-            // char) from an ABORTED one (emit U+FFFD once, no second char).
-            // Without the flag, an abort fell through to the emission block
-            // and re-decoded the stale truncated code point (a spurious
-            // control char after the replacement char).
+            // `completed` separates a fully-consumed partial (emit one char)
+            // from an aborted one (emit U+FFFD once, no second char).
             let mut completed = false;
             while self.partial_need > 0 && i < bytes.len() {
                 let b = bytes[i];
@@ -245,11 +236,9 @@ impl Parser {
         valid_end: usize,
     ) -> usize {
         let run = &bytes[i..];
-        // `valid` is the prefix BEFORE the trailing partial (relative to
-        // `run`); the partial bytes are consumed here and completed next call.
-        // An escape sequence can consume past `valid_end` (its payload is raw
-        // bytes, not UTF-8), so a later ground re-entry must clear the stale
-        // stashed partial and process the remainder directly.
+        // `valid` is the prefix BEFORE the trailing partial; an escape
+        // sequence can consume past `valid_end` (raw bytes), so a later ground
+        // re-entry clears the stale partial.
         let valid = if i <= valid_end {
             valid_end - i
         } else {
@@ -271,21 +260,13 @@ impl Parser {
                 break;
             }
             let mut b = run[pos];
-            // Bulk CSI fast path: `ESC [ params final` — SIMD-scan for the
-            // final byte and dispatch in one pass, skipping the per-byte
-            // state machine. This dominates full-screen TUIs (cacademo's
-            // 171k SGR sequences) and halves the per-sequence call chain.
+            // Bulk CSI fast path: `ESC [ params final` — dispatch in one pass.
             if b == 0x1b && run.get(pos + 1) == Some(&b'[') {
                 let seq = &run[pos + 2..valid];
                 let f = first_csi_final(seq);
                 if f < seq.len() {
-                    // Reset + parse in ONE pass. The old code first ran a
-                    // separate `all(is_digit || ; || :)` validation pass over
-                    // the params (a second per-byte scan) before parsing; a
-                    // non-param byte now just breaks the loop and the
-                    // fall-through `ESC` arm below re-enters the state
-                    // machine (`clear_seq_state` there discards the partial
-                    // parse).
+                    // Reset + parse in one pass; a non-param byte breaks the
+                    // loop and the `ESC` arm below re-enters the state machine.
                     self.params_len = 0;
                     self.param = 0;
                     self.param_empty = true;
@@ -358,12 +339,10 @@ impl Parser {
                     }
                 }
                 0x80..=0x9f => {
-                    // Raw 8-bit C1 control byte (0x80-0x9f): the introducers
-                    // (DCS/SOS/CSI/OSC/PM/APC) start their sequence; ST is a
-                    // no-op; other C1 controls execute. A lone 0x80-0x9f byte
-                    // is invalid UTF-8 (a continuation byte with no lead), so
-                    // this is the correct C1 fallback.
-                    // Reference: <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+                    // Raw 8-bit C1: introducers start their sequence; ST is
+                    // a no-op; other C1 controls execute (a lone C1 byte is
+                    // invalid UTF-8, so this is the correct fallback).
+                    // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
                     let (action, next) = Self::c1_transition(b);
                     self.apply(p, action, b);
                     if next != ParseState::Ground {
@@ -382,13 +361,10 @@ impl Parser {
         i + run.len()
     }
 
-    /// 8-bit C1 (0x80-0x9f) arriving inside a non-ground state: abort the
-    /// sequence and either terminate a string (ST 0x9c) or execute/re-enter
-    /// the introducer. Mirrors DEC's "anywhere" transitions.
-    ///
-    /// Reference: <https://vt100.net/emu/dec_ansi_parser> — the "anywhere"
-    /// invariant: "All C1 controls cancel any escape sequence, control
-    /// sequence or control string in progress and are executed."
+    /// 8-bit C1 (0x80-0x9f) inside a non-ground state: abort the sequence and
+    /// either terminate a string (ST `0x9c`) or execute/re-enter the
+    /// introducer — DEC's "anywhere" invariant
+    /// (<https://vt100.net/emu/dec_ansi_parser>).
     #[inline]
     fn c1_in_sequence(state: ParseState, b: u8) -> (Action, ParseState) {
         // String states end with their exit action on ST.
@@ -400,12 +376,9 @@ impl Parser {
         }
     }
 
-    /// Raw 8-bit C1 → (action, next state). The introducers start their
-    /// sequence; ST is a no-op; other C1 controls execute and return to ground.
-    ///
-    /// Reference: <https://vt100.net/emu/dec_ansi_parser> — the "anywhere"
-    /// box maps 0x90 DCS, 0x98 SOS, 0x9b CSI, 0x9d OSC, 0x9e PM, 0x9f APC to
-    /// their states; 0x9c ST is a no-op terminator (xterm ctlseqs §C1).
+    /// Raw 8-bit C1 → (action, next state). Introducers start their sequence;
+    /// ST `0x9c` is a no-op; other C1 controls execute and return to ground
+    /// (<https://vt100.net/emu/dec_ansi_parser>).
     #[inline]
     fn c1_transition(b: u8) -> (Action, ParseState) {
         match b {
@@ -429,11 +402,9 @@ impl Parser {
             self.clear_seq_state();
         }
 
-        // 8-bit C1 (0x80-0x9f): DEC's "anywhere" rule — abort the current
-        // sequence, execute the control, and the introducers re-enter their
-        // state (ST 0x9c is a no-op terminator). Without this a lone C1 byte
-        // inside CSI/ESC/DCS was silently swallowed instead of cancelling.
-        // Reference: <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+        // 8-bit C1: DEC's "anywhere" rule — abort the sequence, execute the
+        // control, introducers re-enter their state (ST `0x9c` is a no-op).
+        // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
         if (0x80..=0x9f).contains(&b) {
             self.clear_seq_state();
             let (action, next) = Self::c1_in_sequence(state, b);
@@ -708,10 +679,8 @@ impl Parser {
     }
 
     /// Record the start of the next OSC param. `;` separators are not buffered
-    /// into `osc`, so consecutive param ranges merge at their shared boundary.
-    /// `offset` is the byte offset of the boundary (input-relative while
-    /// deferred, `osc`-relative once accumulated). Params past the 16th are
-    /// dropped.
+    /// into `osc`, so consecutive ranges merge at their boundary. Params past
+    /// the 16th are dropped.
     #[inline]
     fn osc_param_boundary(&mut self, offset: u32) {
         if self.osc_num_starts <= MAX_OSC_PARAMS {
@@ -747,13 +716,9 @@ impl Parser {
     }
 
     /// Dispatch a collected OSC command and reset the OSC state. An oversized
-    /// payload is discarded wholesale — a truncated OSC 52 would otherwise
-    /// decode into garbage and hit the clipboard. `bell` selects BEL (vs ST)
-    /// termination.
-    ///
-    /// With `bytes`/`end_pos` (the inline BEL/ESC terminator path) the params
-    /// are sliced straight out of the input when the payload is still deferred,
-    /// avoiding the copy into `osc`; otherwise they are sliced from `osc`.
+    /// payload is discarded wholesale (a truncated OSC 52 would otherwise
+    /// decode into garbage). With `bytes`/`end_pos` the params are sliced
+    /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
         let deferring = self.osc_deferring;
@@ -822,11 +787,8 @@ impl Parser {
             p.print(byte as char);
         }
         if action.contains(Action::CSI_DISPATCH) {
-            // A param-less CSI (`CSI H`, `CSI m`) dispatches with `params = []`
-            // instead of `[0]`, so decoders can distinguish it from an
-            // explicit `CSI 0 …` (e.g. `CSI s` ANSI SC vs `CSI 0 s` DECSLRM).
-            // A trailing empty is the `-1` sentinel (not `0`), so SGR can
-            // ignore it instead of resetting the pen.
+            // A param-less CSI dispatches `[]` (not `[0]`); a trailing empty is
+            // the `-1` sentinel, so SGR can ignore it instead of resetting.
             if !self.param_empty || self.params_len != 0 {
                 self.push_param(if self.param_empty { -1 } else { self.param });
             }
@@ -911,12 +873,8 @@ impl Parser {
 const MAX_PARAMS: usize = 32;
 
 /// Return the index of the first CSI final byte (`0x40..=0x7e`), or
-/// `bytes.len()` if none — used by the bulk CSI fast path to skip the
-/// per-byte state machine for SGR/CSI-heavy streams (cacademo).
-///
-/// CSI parameters are short (a handful of digits), so a scalar scan always
-/// beats the SIMD dispatch + chunk setup; SIMD is only worthwhile for long
-/// printable runs and UTF-8 validation.
+/// `bytes.len()` if none — the bulk CSI fast path. Params are short, so a
+/// scalar scan beats SIMD dispatch here.
 #[inline(always)]
 fn first_csi_final(bytes: &[u8]) -> usize {
     bytes
@@ -925,12 +883,9 @@ fn first_csi_final(bytes: &[u8]) -> usize {
         .unwrap_or(bytes.len())
 }
 
-/// Return the length of the leading run of printable ASCII (0x20..=0x7e) —
-/// the ground state's bulk `print_bytes` hot path. With the `simd` feature this
-/// is a 16-byte-at-a-time vectorized scan; otherwise it is the scalar fallback.
-///
-/// DEL (0x7f) is a C0 control (dispatched via `execute`), NOT printable — the
-/// terminal treats it as destructive backspace.
+/// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
+/// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
+/// DEL (`0x7f`) is a C0 control, not printable.
 #[inline(always)]
 fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     #[cfg(feature = "simd")]

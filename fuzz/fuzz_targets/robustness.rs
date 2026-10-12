@@ -37,7 +37,13 @@ impl vtparse::VTActor for VtparseNoop {
         _byte: u8,
     ) {
     }
-    fn csi_dispatch(&mut self, _params: &[vtparse::CsiParam], _parameters_truncated: bool, _byte: u8) {}
+    fn csi_dispatch(
+        &mut self,
+        _params: &[vtparse::CsiParam],
+        _parameters_truncated: bool,
+        _byte: u8,
+    ) {
+    }
     fn osc_dispatch(&mut self, _params: &[&[u8]]) {}
     fn apc_dispatch(&mut self, _data: Vec<u8>) {}
 }

@@ -15,8 +15,7 @@ impl vte::Perform for VteRec {
         self.acts.push(Event::Execute(b));
     }
     fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: smallvec::SmallVec<[i32; 6]> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -30,8 +29,7 @@ impl vte::Perform for VteRec {
         });
     }
     fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: smallvec::SmallVec<[i32; 6]> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -76,7 +74,7 @@ pub fn run_vtty_simd(bytes: &[u8]) -> Vec<Event> {
 fn run_vtty_parser(mut p: vtty::Parser, bytes: &[u8]) -> Vec<Event> {
     let mut events = p.parse_events(bytes);
     for e in &mut events {
-        let params: &mut smallvec::SmallVec<[i32; 6]> = match e {
+        let params: &mut smallvec::SmallVec<i32, 6> = match e {
             Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => params,
             _ => continue,
         };
@@ -104,27 +102,17 @@ fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     }
 }
 
-/// Known, intentional divergences between vtty and the vte-family parsers
-/// (documented in `crates/vtty/tests/vt_differential.rs`). Returns true when
-/// `data` contains a byte/sequence that triggers one, so the fuzzer skips it:
+/// Known, intentional divergences between vtty and the vte-family parsers.
+/// Returns true when `data` triggers one, so the fuzzer skips it:
 ///
-/// - `0x7f` DEL: vtty dispatches it as a C0 control, vte prints it.
-/// - Raw 8-bit C1 (`0x80..=0x9f`): vtty follows DEC's "anywhere" rule and
-///   executes/recognizes C1 controls even inside escape sequences; vte
-///   predates 8-bit-clean C1 and drops them there. In the ground state only
-///   the seven introducers (`0x90 0x98 0x9b 0x9c 0x9d 0x9e 0x9f`) diverge.
-/// - `ESC X` / `ESC ^` / `ESC _` (SOS/PM/APC): vtty dispatches them as
-///   hook/put/unhook (kitty graphics), vte drops them.
+/// - `0x7f` DEL — vtty executes it, vte prints it.
+/// - Raw 8-bit C1 — vtty follows DEC "anywhere"; vte drops it in sequences.
+/// - `ESC X`/`ESC ^`/`ESC _` (SOS/PM/APC) — vtty dispatches hook/put/unhook,
+///   vte drops them.
 ///
-/// UTF-8 decode is deliberately *not* filtered: vtty, vte and rio-vt all
-/// implement W3C "Substitution of Maximal Subparts" — each invalid maximal
-/// subpart becomes a single U+FFFD, and a standalone C1 byte (`0x80..=0x9f`)
-/// keeps `execute` semantics instead of being replaced. A malformed run such
-/// as a truncated 3-byte lead (`E3 83`) followed by printable ASCII (`[`) and
-/// a C1 continuation byte (`0x88`) therefore decodes identically everywhere:
-/// `Print('�'), Print('['), Execute(136)`. Because the three parsers share
-/// this contract, no UTF-8-malformation case needs filtering here (verified
-/// against the `utf8_mixed` corpus and single-byte mutations of it).
+/// UTF-8 is deliberately *not* filtered: all three parsers share W3C
+/// maximal-subpart substitution (one U+FFFD per invalid subpart; standalone C1
+/// keeps `execute`).
 pub fn has_known_divergence(data: &[u8]) -> bool {
     if data.contains(&0x7f) {
         return true;
@@ -132,19 +120,11 @@ pub fn has_known_divergence(data: &[u8]) -> bool {
     has_c1_divergence(data)
 }
 
-/// rio-vt's SIMD UTF-8 decoder (the C++ `simdutf` backend) has an
-/// x86_64-only bug: when a ground-state decode chunk contains malformed
-/// UTF-8, `simdutf` reports the wrong error offset, so rio-vt slices the
-/// valid prefix and corrupts the whole decode (dropping/reordering glyphs
-/// *before* the error as well). vtty and vte decode the same bytes correctly
-/// (W3C maximal-subpart), and the scalar rio-vt path agrees too — only the
-/// `simdutf` AVX2/AVX-512 error path is wrong. Detecting the trigger directly
-/// (any malformed UTF-8 in the ground state) keeps the `differential-rio`
-/// target from reporting rio-vt's known upstream bug as a vtty divergence.
-///
-/// Detects: a lone continuation byte (`0x80..=0xbf`), an invalid lead
-/// (`0xc0`/`0xc1`/`0xf5..=0xff`), or a truncated/ill-formed multi-byte
-/// sequence.
+/// rio-vt's SIMD decoder (C++ `simdutf`) reports the wrong error offset on
+/// x86_64 when a ground-state chunk is malformed, corrupting the decode.
+/// vtty/vte decode it correctly, so `differential-rio` skips any malformed
+/// ground-state UTF-8: a lone continuation, an invalid lead
+/// (`0xc0`/`0xc1`/`0xf5..=0xff`), or a truncated/ill-formed sequence.
 pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
     #[derive(Clone, Copy, PartialEq)]
     enum Mode {
@@ -194,7 +174,7 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
                         pending = 1;
                         lead = b;
                     }
-                    0xe0..=0xef | 0xf0..=0xf4 => {
+                    0xe0..=0xf4 => {
                         pending = if b < 0xf0 { 2 } else { 3 };
                         check_second = true;
                         lead = b;
@@ -376,7 +356,7 @@ fn has_c1_divergence(data: &[u8]) -> bool {
                         pending = 1;
                         lead = b;
                     }
-                    0xe0..=0xef | 0xf0..=0xf4 => {
+                    0xe0..=0xf4 => {
                         pending = if b < 0xf0 { 2 } else { 3 };
                         check_second = true;
                         lead = b;

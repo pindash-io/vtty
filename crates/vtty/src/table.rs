@@ -76,16 +76,11 @@ bitflags::bitflags! {
     }
 }
 
-/// The DEC VT500 transition table for the non-ground states.
-///
-/// Each `ParseState` arm corresponds to a "State Definitions" entry on
-/// <https://vt100.net/emu/dec_ansi_parser>: ground · escape · escape
-/// intermediate · csi entry · csi param · csi intermediate · csi ignore ·
-/// dcs entry · dcs param · dcs intermediate · dcs passthrough · dcs ignore ·
-/// osc string · sos/pm/apc string.
-///
-/// This is the compile-time evaluator; it is expanded into the flat [`TABLE`]
-/// and the runtime [`transition`] is a single indexed load.
+/// The DEC VT500 transition table for the non-ground states (each `ParseState`
+/// arm maps to a "State Definitions" entry on
+/// <https://vt100.net/emu/dec_ansi_parser>). This is the compile-time
+/// evaluator, expanded into the flat [`TABLE`]; runtime [`transition`] is one
+/// indexed load.
 const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
     match state {
         ParseState::Escape => match b {

@@ -22,7 +22,7 @@ pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
     let mut p = vtty::Parser::new();
     let mut events = p.parse_events(bytes);
     for e in &mut events {
-        let params: &mut SmallVec<[i32; 6]> = match e {
+        let params: &mut SmallVec<i32, 6> = match e {
             Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => params,
             _ => continue,
         };
@@ -51,7 +51,7 @@ impl vte::Perform for VteRec {
         self.acts.push(Event::Execute(b));
     }
     fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: SmallVec<[i32; 6]> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -65,7 +65,7 @@ impl vte::Perform for VteRec {
         });
     }
     fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: SmallVec<[i32; 6]> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -124,7 +124,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: SmallVec<[i32; 6]> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -144,7 +144,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: SmallVec<[i32; 6]> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -174,11 +174,8 @@ pub(crate) fn run_rio(bytes: &[u8]) -> Vec<Event> {
 }
 
 /// Build the corpus: all C0/C1 controls, ESC/CSI/OSC/DCS variants, UTF-8.
-///
-/// The DEL (0x7f), raw 8-bit C1 (0x80..=0x9f), and SOS/PM/APC sequences are
-/// intentionally excluded: vtty diverges from the vte family there on
-/// purpose (documented in `parser.rs`), and those cases are covered by
-/// vtty's own parser tests instead.
+/// DEL (`0x7f`), raw 8-bit C1, and SOS/PM/APC are excluded — vtty diverges
+/// from the vte family there on purpose (documented in `parser.rs`).
 pub(crate) fn corpus() -> Vec<Vec<u8>> {
     let mut v: Vec<Vec<u8>> = Vec::new();
 
@@ -190,13 +187,10 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
         v.push(vec![b]);
     }
 
-    // Raw 8-bit C1 (0x80..=0x9f) is INTENTIONALLY divergent: vtty follows
-    // DEC's "anywhere" rule and recognizes DCS/SOS/CSI/OSC/PM/APC/ST (0x90/
-    // 0x98/0x9b/0x9d/0x9e/0x9f/0x9c), while vte predates 8-bit-clean C1 and
-    // executes every 0x80..0x9f byte. See vt100.net/emu/dec_ansi_parser
-    // ("anywhere" transitions) and vtty's parser.rs c1_transition. These
-    // cases are covered by vtty's own parser tests instead of the vte
-    // differential baseline.
+    // Raw 8-bit C1 is INTENTIONALLY divergent: vtty follows DEC "anywhere"
+    // (recognizes DCS/SOS/CSI/OSC/PM/APC/ST), vte executes every 0x80..0x9f
+    // byte. See <https://vt100.net/emu/dec_ansi_parser> and `parser.rs`
+    // `c1_transition`; covered by vtty's own tests.
 
     // C1 controls as two-byte UTF-8 (U+0080..=U+009F) — both decode+execute,
     // so these still match vte.
@@ -245,10 +239,9 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     v.push(b"\x1b]0;title\x1a".to_vec());
     v.push(b"\x1b]0;title\x18".to_vec());
 
-    // SOS / PM / APC: vtty intentionally dispatches these as hook/put/unhook
-    // (for kitty graphics APC `_G`), while vte predates kitty graphics and
-    // drops them. They are excluded from the differential baseline and covered
-    // by the cell screen kitty-graphics tests instead.
+    // SOS/PM/APC: vtty dispatches hook/put/unhook (kitty graphics `_G`), vte
+    // drops them — excluded from the differential baseline, covered by the
+    // cell-screen kitty-graphics tests.
 
     // UTF-8: 2/3/4-byte chars, plus an overlong/invalid byte.
     v.push("héllo 世界 🚀".as_bytes().to_vec());
@@ -262,7 +255,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     v.push(vec![0xff, 0xf1, 0xfb]); // invalid lead + valid lead + invalid byte
     // Invalid second byte on a constrained lead: NOT a truncated partial —
     // both parsers decode it as U+FFFD.
-    v.push(vec![0xf4, 0xad]); // 0xF4 requires 0x80..=0x8F
+    v.push(vec![0xf4, 0xad]);
     v.push(vec![0xe0, 0x80]); // 0xE0 requires 0xA0..=0xBF
     v.push(vec![0xed, 0xa0, 0x80]); // 0xED excludes surrogates
     v.push(vec![0xf0, 0x80, 0x80, 0x80]); // 0xF0 requires 0x90..=0xBF

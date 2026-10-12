@@ -36,23 +36,14 @@
 //!
 //! ## Design
 //!
-//! - **Panic-free** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`;
-//!   malformed PTY input is normal.
-//! - **Zero-allocation hot path** — printable ASCII runs dispatch via one
-//!   `print_bytes` and non-ASCII via one `print_codepoints`; CSI/OSC/DCS state
-//!   is inline (`SmallVec`). `Perform` callbacks, no event materialization.
-//! - **`no_std` by default** — the `simd` feature compiles in SIMD scanning
-//!   and UTF-8 validation; `simd-transcode` (implies `simd`) adds the
-//!   UTF-8→UTF-32 transcode with compile-time lookup tables. Enable either
-//!   per parser with `Parser::with_simd()` (scalar `Parser::new()` is the
-//!   default).
-//! - **Byte-accurate UTF-8** — partial code points split across `advance` calls
-//!   are carried over, never misdecoded to `U+FFFD`.
-//! - **W3C-correct malformed UTF-8** — each invalid maximal subpart becomes one
-//!   `U+FFFD`, and a standalone C1 byte keeps `execute` semantics — the same
-//!   contract as `vte`, `rio-vt`, and ghostty.
-//! - **8-bit clean (DEC “anywhere”)** — raw C1 controls abort any sequence in
-//!   progress and execute, instead of being swallowed.
+//! - **Panic-free** — `#![forbid(unsafe_code)]`; malformed PTY input never
+//!   crashes.
+//! - **Zero-allocation hot path** — one `print_bytes` per ASCII run, one
+//!   `print_codepoints` per non-ASCII run; CSI/OSC/DCS state is inline.
+//! - **`no_std` by default** — optional `simd` (scanning + validation) and
+//!   `simd-transcode` (UTF-8→UTF-32) features, enabled per parser.
+//! - **W3C-correct UTF-8** — maximal-subpart substitution; 8-bit clean
+//!   (DEC “anywhere”).
 //!
 //! ## Test
 //!

@@ -13,19 +13,14 @@ use icu_properties::props::{
     DefaultIgnorableCodePoint, EastAsianWidth, GeneralCategory, GraphemeClusterBreak,
 };
 
-/// ICU4X-backed display width — an alternative derivation to `unicode-width`.
+/// ICU4X-backed display width — an alternative to `unicode-width`.
 ///
-/// The cell width is derived from two Unicode properties:
-/// - `GeneralCategory`: control (`Cc`)/surrogate (`Cs`)/unassigned (`Cn`) have
-///   no width (`None`); combining (`Mn`/`Me`), format (`Cf`), and line/paragraph
-///   separators are zero-width (`Some(0)`).
-/// - `EastAsianWidth`: `Wide`/`Fullwidth` → `Some(2)`, everything else
-///   (including `Ambiguous`) → `Some(1)` — matching `unicode-width`'s
-///   ambiguous = 1 default.
+/// - `GeneralCategory`: control/surrogate/unassigned → `None`; combining,
+///   format, separators → `Some(0)`.
+/// - `EastAsianWidth`: `Wide`/`Fullwidth` → `Some(2)`, else `Some(1)`.
 ///
-/// [`crate::cell_width`] uses the baked table; this exists as the ICU4X
-/// runtime alternative (and the source for baking the width into the
-/// `PackTab` table).
+/// [`crate::cell_width`] uses the baked table; this is the ICU4X runtime
+/// alternative.
 pub fn width_icu(cp: char) -> Option<usize> {
     thread_local! {
         static GC: CodePointMapDataBorrowed<'static, GeneralCategory> =

@@ -9,30 +9,12 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-
-[dependencies.vtty]
-path = "../crates/vtty"
-features = ["simd"]
-
-[dependencies.vte]
-version = "0.15.0"
-
-[dependencies.rio-vt]
-version = "0.5.28"
-default-features = false
-
-[dependencies.vt100]
-version = "0.16.2"
-
-[dependencies.vtparse]
-version = "0.7.0"
-
-[dependencies.smallvec]
-version = "1"
-
-# Prevent this crate from being treated as a member of the parent workspace
-# (cargo-fuzz drives it directly with the nightly toolchain).
-[workspace]
+smallvec.workspace = true
+vt100.workspace = true
+vte.workspace = true
+vtparse.workspace = true
+rio-vt.workspace = true
+vtty = { workspace = true, features = ["simd"] }
 
 [[bin]]
 name = "differential"

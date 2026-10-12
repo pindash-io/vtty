@@ -1,24 +1,12 @@
 //! Compile-time UTF-8→UTF-32 transcode lookup tables.
 //!
-//! These are simdutf's `shufutf8` / `utf8bigindex` tables, computed by
-//! `const fn` from the same algorithm as
-//! `simdutf/scripts/sse_utf8_utf16_decode.py` — no table data is checked in.
-//!
-//! For a 12-bit end-of-code-point mask (`bit i = byte i ends a code point`),
-//! the code-point sizes are the gaps between set bits (the first gap is the
-//! position + 1). The mask is classified as:
-//!
-//! - `case12`: ≥ 6 code points, first six each 1..=2 bytes → 6 lanes of u16;
-//! - `case123`: ≥ 4 code points, first four each 1..=3 bytes → 4 lanes of u32;
-//! - `case1234`: ≥ 3 code points, first three each 1..=4 bytes → 3 lanes of
-//!   u32 (the 4-byte case);
-//! - otherwise an error sentinel `(209, 12)`.
-//!
-//! `UTF8BIGINDEX[mask]` maps the mask to `(shuffle index, consumed bytes)`;
-//! `SHUFUTF8[idx]` is the byte-shuffle that gathers each code point's bytes
-//! into one lane. The canonical order is lexicographic within each case —
-//! 64 + 81 + 64 = 209 patterns — which `rank6`/`rank4`/`rank3` reproduce
-//! without sorting.
+//! Computed by `const fn` from simdutf's `shufutf8`/`utf8bigindex` algorithm
+//! — no table data is checked in. A 12-bit end-of-code-point mask (`bit i =
+//! byte i ends a code point`) yields code-point sizes (gaps between set bits),
+//! classified as `case12` (6×1-2-byte), `case123` (4×1-3-byte), or `case1234`
+//! (3×1-4-byte); otherwise an error sentinel `(209, 12)`. `UTF8BIGINDEX[mask]`
+//! maps to `(shuffle index, consumed bytes)`; `SHUFUTF8[idx]` is the shuffle
+//! that gathers each code point's bytes into one lane.
 
 /// 209 × 16-byte shuffle patterns.
 pub(crate) const SHUFUTF8: [[u8; 16]; 209] = build_shufutf8();

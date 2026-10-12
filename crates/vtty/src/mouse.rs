@@ -5,12 +5,10 @@
 
 use smol_str::{SmolStr, SmolStrBuilder};
 
-/// Active mouse-tracking configuration, derived from the DEC mouse flags.
-///
-/// This is the screen-independent core of mouse reporting: every terminal
-/// screen (cell, line) maps its own mode flags into this and delegates to
-/// [`MouseButton::encode`], so the X10/SGR selection and motion-gating rules
-/// live in exactly one place.
+/// Active mouse-tracking configuration, derived from the DEC mouse flags —
+/// the screen-independent core: every screen maps its flags into this and
+/// delegates to [`MouseButton::encode`], so X10/SGR selection and motion
+/// gating live in one place.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MouseTracking {
     /// Any tracking enabled: DEC 9 (X10), 1000 (press), 1002 (drag), or
@@ -57,11 +55,10 @@ pub enum MouseButton {
 }
 
 impl MouseButton {
-    /// Encode this event as an SGR (`CSI < … M/m`) escape sequence.
-    /// `x`/`y` are 0-based cell or pixel coordinates; the emitted protocol
-    /// is always 1-based (xterm/herdr treat the top-left cell *and* pixel as
-    /// `1;1`). The button code is the same for press and release (0/1/2);
-    /// only the final byte differs (`M` press / `m` release).
+    /// Encode this event as an SGR (`CSI < … M/m`) sequence. `x`/`y` are
+    /// 0-based cell/pixel coordinates; the emitted protocol is always 1-based
+    /// (`xterm`/`herdr` treat the top-left cell *and* pixel as `1;1`). The
+    /// button code is the same for press/release; only the final byte differs.
     #[inline]
     pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> SmolStr {
         let final_byte = if pressed { 'M' } else { 'm' };
@@ -76,11 +73,11 @@ impl MouseButton {
     /// `Cx`/`Cy` are RAW bytes (`32 + coord`, truncated) — they may be
     /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
-    pub fn encode_x10(self, x: u16, y: u16) -> smallvec::SmallVec<[u8; 8]> {
+    pub fn encode_x10(self, x: u16, y: u16) -> smallvec::SmallVec<u8, 8> {
         let cb = (self as u8).wrapping_add(32);
         let cx = x.wrapping_add(1).wrapping_add(32) as u8;
         let cy = y.wrapping_add(1).wrapping_add(32) as u8;
-        smallvec::smallvec![0x1b, b'[', b'M', cb, cx, cy]
+        smallvec::SmallVec::from([0x1b, b'[', b'M', cb, cx, cy])
     }
 
     /// Encode this event in DEC 1005 UTF-8 mouse style — X10's `CSI M Cb`
@@ -101,16 +98,13 @@ impl MouseButton {
 
     /// Encode a mouse event under the given tracking configuration, or `None`
     /// when tracking is disabled. `x`/`y` are 0-based cell coordinates.
-    ///
-    /// The X10/SGR selection, the generic X10 release code, and the
-    /// any-motion gating for X10 motion are all handled here.
     pub fn encode(
         self,
         tracking: MouseTracking,
         x: u16,
         y: u16,
         pressed: bool,
-    ) -> Option<smallvec::SmallVec<[u8; 8]>> {
+    ) -> Option<smallvec::SmallVec<u8, 8>> {
         if !tracking.enabled {
             return None;
         }
@@ -119,7 +113,7 @@ impl MouseButton {
             return None;
         }
         if tracking.sgr || tracking.pixel {
-            return Some(smallvec::SmallVec::from_slice(
+            return Some(smallvec::SmallVec::from_slice_copy(
                 self.encode_sgr(x, y, pressed).as_bytes(),
             ));
         }
@@ -130,7 +124,7 @@ impl MouseButton {
             return None;
         }
         if tracking.utf8 {
-            Some(smallvec::SmallVec::from_slice(
+            Some(smallvec::SmallVec::from_slice_copy(
                 b.encode_utf8(x, y).as_bytes(),
             ))
         } else {
