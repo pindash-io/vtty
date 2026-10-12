@@ -39,6 +39,7 @@ impl MouseTracking {
 /// Mouse button/event codes for X10 and SGR encoding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum MouseButton {
     /// Left button (button 0).
     Left = 0,

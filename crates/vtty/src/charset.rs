@@ -46,6 +46,7 @@ pub const fn dec_special_graphics(c: char) -> char {
 
 /// A designated charset for G0/G1 (`ESC ( 0` = DEC Special Graphics).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum Charset {
     /// US-ASCII (the default).
     Ascii,

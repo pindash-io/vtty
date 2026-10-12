@@ -14,6 +14,7 @@ use crate::perform::Perform;
 /// params, ≤2 intermediates allocates nothing); only OSC bodies are heap
 /// `Vec`s.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Event {
     /// A printable character (UTF-8 decoded).
     Print(char),

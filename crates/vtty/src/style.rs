@@ -126,6 +126,7 @@ const _: () = {
 /// SGR underline style (`4:0..5` / SGR 21).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum UnderlineStyle {
     /// No underline (`SGR 24` / `4:0`).
     #[default]
@@ -163,6 +164,7 @@ impl UnderlineStyle {
 /// DECSCUSR cursor shape (`CSI Ps SP q`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum CursorStyle {
     /// No cursor drawn (DECTCEM `CSI ?25l`, or an invalid DECSCUSR code).
     #[default]

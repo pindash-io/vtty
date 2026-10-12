@@ -27,6 +27,7 @@ const OS_NAME: &[u8] = if cfg!(target_os = "macos") {
 
 /// The reply value for a capability.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub enum CapValue {
     /// Unknown / unsupported — reply is the `DCS 0 + r` error.
     None,
