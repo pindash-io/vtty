@@ -3,6 +3,7 @@
 
 //! Mouse event encoding (X10 / SGR).
 
+use smallvec::SmallVec;
 use smol_str::{SmolStr, SmolStrBuilder};
 
 bitflags::bitflags! {
@@ -80,11 +81,11 @@ impl MouseButton {
     /// `Cx`/`Cy` are RAW bytes (`32 + coord`, truncated) — they may be
     /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
-    pub fn encode_x10(self, x: u16, y: u16) -> smallvec::SmallVec<u8, 8> {
+    pub fn encode_x10(self, x: u16, y: u16) -> SmallVec<u8, 8> {
         let cb = (self as u8).wrapping_add(32);
         let cx = x.wrapping_add(1).wrapping_add(32) as u8;
         let cy = y.wrapping_add(1).wrapping_add(32) as u8;
-        smallvec::SmallVec::from([0x1b, b'[', b'M', cb, cx, cy])
+        SmallVec::from([0x1b, b'[', b'M', cb, cx, cy])
     }
 
     /// Encode this event in DEC 1005 UTF-8 mouse style — X10's `CSI M Cb`
@@ -111,7 +112,7 @@ impl MouseButton {
         x: u16,
         y: u16,
         pressed: bool,
-    ) -> Option<smallvec::SmallVec<u8, 8>> {
+    ) -> Option<SmallVec<u8, 8>> {
         if !tracking.contains(MouseTracking::ENABLED) {
             return None;
         }
@@ -120,7 +121,7 @@ impl MouseButton {
             return None;
         }
         if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {
-            return Some(smallvec::SmallVec::from_slice_copy(
+            return Some(SmallVec::from_slice_copy(
                 self.encode_sgr(x, y, pressed).as_bytes(),
             ));
         }
@@ -131,9 +132,7 @@ impl MouseButton {
             return None;
         }
         if tracking.contains(MouseTracking::UTF8) {
-            Some(smallvec::SmallVec::from_slice_copy(
-                b.encode_utf8(x, y).as_bytes(),
-            ))
+            Some(SmallVec::from_slice_copy(b.encode_utf8(x, y).as_bytes()))
         } else {
             // X10's single-byte coordinates top out at 222: `32 + coord + 1`
             // must fit in one byte (≤ 255), so a coordinate ≥ 223 would wrap
