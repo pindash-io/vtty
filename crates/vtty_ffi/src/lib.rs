@@ -20,8 +20,8 @@
 //! ```
 //!
 //! API: `vt_version` · `vt_new` · `vt_free` · `vt_reset` · `vt_advance` ·
-//! `vt_text` · `vt_text_len` · `vt_cursor` · `vt_line_count` · `vt_cursor_row` ·
-//! `vt_cursor_col` · `vt_line_range`.
+//! `vt_flush` · `vt_text` · `vt_text_len` · `vt_cursor` · `vt_line_count` ·
+//! `vt_cursor_row` · `vt_cursor_col` · `vt_line_range`.
 //!
 //! Build: `cargo build -p vtty_ffi` (cdylib + staticlib).
 //!
