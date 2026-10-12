@@ -225,6 +225,7 @@ pub(crate) fn decode_utf8<P: Perform>(
                     }
                     return end - pos;
                 }
+
                 #[cfg(not(feature = "simd-transcode"))]
                 {
                     // Scalar byte loop over the validated window: tight
