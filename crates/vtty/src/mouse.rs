@@ -132,16 +132,15 @@ impl MouseButton {
             return None;
         }
         if tracking.contains(MouseTracking::UTF8) {
-            Some(SmallVec::from_slice_copy(b.encode_utf8(x, y).as_bytes()))
-        } else {
-            // X10's single-byte coordinates top out at 222: `32 + coord + 1`
-            // must fit in one byte (≤ 255), so a coordinate ≥ 223 would wrap
-            // and corrupt the byte stream. Ghostty's X10 encoder drops the
-            // event instead (`cell.x > 222 || cell.y > 222` → return).
-            if x > 222 || y > 222 {
-                return None;
-            }
-            Some(b.encode_x10(x, y))
+            return Some(SmallVec::from_slice_copy(b.encode_utf8(x, y).as_bytes()));
         }
+        // X10's single-byte coordinates top out at 222: `32 + coord + 1`
+        // must fit in one byte (≤ 255), so a coordinate ≥ 223 would wrap
+        // and corrupt the byte stream. Ghostty's X10 encoder drops the
+        // event instead (`cell.x > 222 || cell.y > 222` → return).
+        if x > 222 || y > 222 {
+            return None;
+        }
+        Some(b.encode_x10(x, y))
     }
 }
