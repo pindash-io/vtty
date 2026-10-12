@@ -330,6 +330,37 @@ fn sgr_churn(total: usize) -> Vec<u8> {
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
+/// CSI cursor positioning before every write (`\x1b[{line};{col}H` + char),
+/// sweeping the grid. Exercises the CSI fast path with positional params.
+fn cursor_motion(total: usize) -> Vec<u8> {
+    let text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let mut line = String::new();
+    for r in 0..ROWS {
+        for c in 0..COLS {
+            let ch = text.as_bytes()[(r * COLS + c) as usize % 26] as char;
+            line += &format!("\x1b[{r};{c}H{ch}");
+        }
+    }
+    line += "\r\n";
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
+/// DEC 2026 Synchronized Output: escape-heavy repaint frames wrapped in
+/// `\x1b[?2026h` / `\x1b[?2026l` (begin/end sync).
+fn sync_churn(total: usize) -> Vec<u8> {
+    let mut line = String::new();
+    for _ in 0..5 {
+        line += "\x1b[?2026h";
+        for i in 0..8 {
+            line += &format!("\x1b[38;5;{}mstyled text\x1b[0m ", (i * 31) % 256);
+        }
+        line += "\x1b[2J\x1b[H";
+        line += "\x1b[?2026l";
+    }
+    line += "\r\n";
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
 fn corpus() -> Vec<(&'static str, Vec<u8>)> {
     const BYTES: usize = 2 * 1024 * 1024;
     vec![
@@ -340,6 +371,8 @@ fn corpus() -> Vec<(&'static str, Vec<u8>)> {
         ("ansi_two_styles", ansi_two_styles(BYTES)),
         ("ansi_bare_csi", ansi_bare_csi(BYTES)),
         ("sgr_churn", sgr_churn(BYTES)),
+        ("cursor_motion", cursor_motion(BYTES)),
+        ("sync_churn", sync_churn(BYTES)),
         ("truecolor_unique", truecolor_unique(BYTES)),
         ("bracketed_paste", bracketed_paste(BYTES)),
         ("osc_heavy", osc_heavy(BYTES)),
