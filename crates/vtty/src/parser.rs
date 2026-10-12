@@ -176,12 +176,12 @@ impl Parser {
                     // Not a continuation byte — abort the partial, leave the
                     // byte for the main loop.
                     self.partial_need = 0;
-                    p.print('\u{FFFD}');
+                    p.print(char::REPLACEMENT_CHARACTER);
                     break;
                 }
             }
             if completed {
-                let c = char::from_u32(self.partial).unwrap_or('\u{FFFD}');
+                let c = char::from_u32(self.partial).unwrap_or(char::REPLACEMENT_CHARACTER);
                 if matches!(c, '\u{0}'..='\u{1f}' | '\u{7f}' | '\u{80}'..='\u{9f}') {
                     p.execute(c as u8);
                 } else {

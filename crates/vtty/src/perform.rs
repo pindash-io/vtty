@@ -22,7 +22,7 @@ pub trait Perform {
     /// per-char dispatch.
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         for &cp in codepoints {
-            let c = char::from_u32(cp).unwrap_or('\u{FFFD}');
+            let c = char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER);
             self.print(c);
         }
     }
