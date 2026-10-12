@@ -84,9 +84,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    /// Compile-time default: `new()` copies this instead of field-initializing
-    /// (the struct is `Default` only for ergonomics; a memcpy of a constant is
-    /// cheaper and never allocates).
+    /// Compile-time default: an empty parser in the ground state.
     pub const DEFAULT: Self = Self {
         state: ParseState::Ground,
         param: 0,

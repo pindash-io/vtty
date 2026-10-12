@@ -19,14 +19,14 @@ pub struct Reply {
 }
 
 impl Reply {
-    /// An empty reply buffer.
+    /// Compile-time default: an empty reply buffer.
     pub const DEFAULT: Self = Self {
         buf: SmolStrBuilder::new(),
     };
 
     /// An empty reply buffer.
     #[inline]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self::DEFAULT
     }
 

@@ -70,8 +70,14 @@ pub struct Recording {
 }
 
 impl Recording {
-    /// An empty recording (no events).
+    /// Compile-time default: an empty recording.
     pub const DEFAULT: Self = Self { events: Vec::new() };
+
+    /// An empty recording (no events).
+    #[inline]
+    pub const fn new() -> Self {
+        Self::DEFAULT
+    }
 }
 
 impl Perform for Recording {
