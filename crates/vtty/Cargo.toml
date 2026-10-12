@@ -14,7 +14,7 @@ readme = "README.md"
 default = []
 # SIMD-accelerated printable-run scanning + UTF-8 validation.
 simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8"]
-# SIMD UTF-8→UTF-32 transcode (adds ~70 KB of lookup tables). Implies `simd`.
+# SIMD UTF-8→UTF-32 transcode (compile-time lookup tables). Implies `simd`.
 simd-transcode = ["simd"]
 
 [dependencies]

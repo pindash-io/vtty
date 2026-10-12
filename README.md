@@ -103,8 +103,7 @@ cc -O2 crates/vtty_ffi/examples/term_demo.c \
   selected per-parser with `Parser::with_simd()` (scalar `Parser::new()` is
   the default).
 - `vtty` — `simd-transcode`: implies `simd`; adds the UTF-8→UTF-32 transcode
-  (64-byte-block, single-mask, rio-vt/ghostty) and its ~70 KB of lookup
-  tables.
+  (64-byte-block, single-mask, rio-vt/ghostty) with compile-time lookup tables.
 - `vtty_emoji` — `simd` + `baked` (default), or `icu` for runtime ICU4X
   property lookups.
 

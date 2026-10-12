@@ -43,7 +43,7 @@
 //!   is inline (`SmallVec`). `Perform` callbacks, no event materialization.
 //! - **`no_std` by default** — the `simd` feature compiles in SIMD scanning
 //!   and UTF-8 validation; `simd-transcode` (implies `simd`) adds the
-//!   UTF-8→UTF-32 transcode with its ~70 KB of lookup tables. Enable either
+//!   UTF-8→UTF-32 transcode with compile-time lookup tables. Enable either
 //!   per parser with `Parser::with_simd()` (scalar `Parser::new()` is the
 //!   default).
 //! - **Byte-accurate UTF-8** — partial code points split across `advance` calls

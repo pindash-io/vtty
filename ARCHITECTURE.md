@@ -190,9 +190,9 @@ time into a flat `[state][byte]` lookup:
   6-code-point case, spurious-high-bit `xor` for 4-byte code points). The last
   12 bytes of each block overlap into the next to avoid splitting a code point
   across the 64-byte boundary; a sub-76-byte tail falls back to scalar decode.
-  Tables are generated from simdutf's `src/tables/utf8_to_utf16_tables.h` and
-  kept in `utf8_tables.rs` (do not hand-edit); they cost ~70 KB, which is why
-  they are behind the opt-in `simd-transcode` feature rather than `simd`.
+  Tables are computed by `const fn` from simdutf's
+  `scripts/sse_utf8_utf16_decode.py` algorithm (rank formulas instead of sort)
+  and kept in `utf8_tables.rs` — no table data is checked in.
 
 ### Public API surface
 
