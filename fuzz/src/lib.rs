@@ -134,7 +134,7 @@ pub fn has_known_divergence(data: &[u8]) -> bool {
 
 /// rio-vt's SIMD UTF-8 decoder (the C++ `simdutf` backend) has an
 /// x86_64-only bug: when a ground-state decode chunk contains malformed
-/// UTF-8, `simdutf` reports the wrong error offset, so rio-vt mis-slices the
+/// UTF-8, `simdutf` reports the wrong error offset, so rio-vt slices the
 /// valid prefix and corrupts the whole decode (dropping/reordering glyphs
 /// *before* the error as well). vtty and vte decode the same bytes correctly
 /// (W3C maximal-subpart), and the scalar rio-vt path agrees too — only the

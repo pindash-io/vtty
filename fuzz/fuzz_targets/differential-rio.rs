@@ -95,7 +95,7 @@ fuzz_target!(|data: &[u8]| {
     if has_intermediate_overflow(data, 2) {
         return;
     }
-    // rio-vt's simdutf backend mis-decodes malformed ground-state UTF-8 on
+    // rio-vt's simdutf backend decodes malformed ground-state UTF-8 wrongly on
     // x86_64 (upstream bug); vtty/vte are correct, so skip those inputs.
     if has_rio_utf8_simd_divergence(data) {
         return;
