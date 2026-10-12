@@ -44,6 +44,9 @@ void vt_reset(vt_state *state);
 /* Feed `len` bytes to the parser. */
 void vt_advance(vt_state *state, const uint8_t *bytes, size_t len);
 
+/* Close the stream: emit a pending partial UTF-8 code point as U+FFFD. */
+void vt_flush(vt_state *state);
+
 /* The accumulated text (valid UTF-8, NOT NUL-terminated). */
 const char *vt_text(const vt_state *state);
 

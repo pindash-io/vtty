@@ -119,7 +119,7 @@ pub unsafe extern "C" fn vt_free(state: *mut VtState) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vt_reset(state: *mut VtState) {
     if let Some(s) = unsafe { state_mut(state) } {
-        s.parser = vtty::Parser::with_simd();
+        s.parser.reset();
         s.state = vtty::State::new();
     }
 }
@@ -139,6 +139,17 @@ pub unsafe extern "C" fn vt_advance(state: *mut VtState, bytes: *const u8, len: 
         // SAFETY: `bytes` is valid for `len` bytes (caller contract).
         let bytes = unsafe { std::slice::from_raw_parts(bytes, len) };
         s.parser.advance(&mut s.state, bytes);
+    }
+}
+
+/// Close the stream: emit a pending partial UTF-8 code point as U+FFFD.
+///
+/// # Safety
+/// `state` must be a live [`vt_new`] pointer (or null, which is a no-op).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vt_flush(state: *mut VtState) {
+    if let Some(s) = unsafe { state_mut(state) } {
+        s.parser.flush(&mut s.state);
     }
 }
 
