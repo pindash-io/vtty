@@ -14,15 +14,24 @@ Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and
 
 ## Highlights
 
-- **Panic-free** — no `unwrap`/`expect`/`panic`; malformed input is normal.
-- **Zero-allocation hot path** — printable runs dispatch via one `print_bytes`;
-  CSI/OSC/DCS state stays inline (`SmallVec`).
-- **`no_std` by default** — `alloc` only; optional `simd` feature adds SIMD
-  printable-run scanning + SIMD UTF-8 validation.
-- **Byte-accurate UTF-8** — partial code points split across `advance` calls
-  are carried over, never misdecoded to `U+FFFD`.
-- **Differential-tested** — the escape-sequence state machine is checked
-  against `vte` on a large corpus.
+- **Panic-free** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`;
+  malformed PTY input is normal, never a crash.
+- **Zero-allocation hot path** — printable ASCII runs dispatch via one
+  `print_bytes`, non-ASCII via one `print_codepoints`; CSI/OSC/DCS state stays
+  inline (`SmallVec`). `Perform` callbacks, no event materialization.
+- **`no_std` by default** — `alloc` only; the optional `simd` feature adds
+  SIMD printable-run scanning + SIMD UTF-8 validation (per-parser opt-in with
+  `Parser::with_simd()`).
+- **Byte-accurate UTF-8** — code points split across `advance` calls are
+  carried over as a partial, never misdecoded to `U+FFFD`.
+- **W3C-correct malformed UTF-8** — each invalid maximal subpart becomes one
+  `U+FFFD`, and a standalone C1 byte keeps `execute` semantics — the same
+  contract as `vte`, `rio-vt`, and ghostty.
+- **8-bit clean (DEC “anywhere”)** — raw C1 controls abort any sequence in
+  progress and execute, instead of being swallowed.
+- **Differential + fuzz tested** — event-stream parity against `vte` and
+  `rio-vt`, plus libFuzzer targets (`differential`, `differential-simd`,
+  `differential-rio`, `robustness`, `random`).
 
 ## Usage
 
@@ -78,7 +87,7 @@ vt_free(s);
 
 Build the library with `cargo build -p vtty_ffi` (cdylib + staticlib).
 
-## Features
+## Feature flags
 
 - `vtty` — `simd`: SIMD printable-run scanner + SIMD UTF-8 validation,
   selected per-parser with `Parser::with_simd()` (scalar `Parser::new()` is

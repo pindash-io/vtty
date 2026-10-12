@@ -56,7 +56,11 @@ Shared by the `vte`/`rio-vt` targets (`fuzz/src/lib.rs`):
   corrupting the decode of valid glyphs *before* the error. vtty and vte (and
   rio-vt's own scalar path) decode these correctly, so the `differential-rio`
   target skips inputs with malformed ground-state UTF-8
-  (`has_rio_utf8_simd_divergence`).
+  (`has_rio_utf8_simd_divergence`). Root cause: rio-vt bundles `simdutf`
+  7.7.1, whose SIMD error-offset recovery (`rewind_and_*`) reports the error
+  position wrongly; this was fixed in the 9.x series (ghostty vendors 9.0.0
+  with the same `convert_utf8_to_utf32_with_errors` + `MaximalSubpart` call
+  pattern and is unaffected).
 
 UTF-8 decode is otherwise **not** filtered: vtty, vte and rio-vt all implement
 W3C "Substitution of Maximal Subparts" (each invalid maximal subpart becomes

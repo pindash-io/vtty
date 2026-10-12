@@ -163,6 +163,11 @@ time into a flat `[state][byte]` lookup:
 - `decode_utf8` dispatches multi-byte code points; with `simd` it validates a
   window via `simdutf8` and batch-dispatches the whole window (ASCII runs via
   `print_bytes`, non-ASCII via `print_codepoints`, C1 via `execute`).
+- Malformed input follows W3C “Substitution of Maximal Subparts”: each invalid
+  maximal subpart becomes one `U+FFFD`, and a standalone C1 byte (`0x80..=0x9f`)
+  keeps `execute` semantics — the same contract as `vte`, `rio-vt`, and ghostty
+  (whose `UTF8Decoder.zig` DFA and `MaximalSubpart` in `src/simd/vt.cpp` are the
+  equivalent reference implementations).
 
 ### SIMD (`simd.rs`, `simd` feature)
 
@@ -206,6 +211,13 @@ time into a flat `[state][byte]` lookup:
   normalizes, and asserts identical event streams.
 - `tests/vt_differential_rio.rs` — the same corpus against `rio-vt` (which
   allows four intermediates where vtty/vte cap at two, so those are skipped).
+- `fuzz/` — libFuzzer targets: `differential` (vtty vs `vte`),
+  `differential-simd` (vtty-simd vs `vte`), `differential-rio` (vtty vs
+  `rio-vt`), `robustness` (no-panic across vtty/vte/vt100/vtparse/rio-vt),
+  and `random` (structured random VT bytes). The rio-vt target skips malformed
+  ground-state UTF-8: rio-vt bundles C++ `simdutf` 7.7.1, whose SIMD error-offset
+  recovery reports the error position wrongly on x86_64 (fixed in the 9.x
+  series; ghostty vendors 9.0.0) — see `fuzz/README.md`.
 - `crates/vtty_bench` — throughput comparisons (counting sinks), including the
   `vtty` scalar vs `vtty-simd` split.
 
