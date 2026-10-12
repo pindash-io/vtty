@@ -221,6 +221,24 @@ impl Parser {
         }
     }
 
+    /// Reset to the ground state, clearing any pending partial code point and
+    /// buffered OSC payload (no allocation).
+    #[inline]
+    pub fn reset(&mut self) {
+        *self = Self::DEFAULT;
+    }
+
+    /// Emit a pending partial UTF-8 code point as `U+FFFD` (W3C substitution)
+    /// at end-of-stream. Call once after the final [`Self::advance`].
+    #[inline]
+    pub fn flush<P: Perform>(&mut self, p: &mut P) {
+        if self.partial_need == 0 {
+            return;
+        }
+        self.partial_need = 0;
+        p.print(char::REPLACEMENT_CHARACTER);
+    }
+
     /// Ground state: SIMD-scan for the next non-printable byte (control OR
     /// high-bit — which includes ESC), bulk-dispatch printable ASCII runs via
     /// `print_bytes`, and decode multi-byte chars one at a time. The hot path —

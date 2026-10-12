@@ -318,6 +318,30 @@ fn utf8_partial_abort_after_continuation_emits_single_replacement() {
 }
 
 #[test]
+fn utf8_flush_emits_pending_partial_as_replacement() {
+    // A trailing partial at end-of-stream becomes one U+FFFD (W3C), and a
+    // second flush is a no-op.
+    let mut p = Parser::new();
+    let mut c = Collecting::default();
+    p.advance(&mut c, &[0xe4]); // 3-byte lead, 2 continuations expected
+    assert!(c.printed.is_empty());
+    p.flush(&mut c);
+    assert_eq!(c.printed, "\u{FFFD}");
+    p.flush(&mut c);
+    assert_eq!(c.printed, "\u{FFFD}");
+}
+
+#[test]
+fn parser_reset_clears_state_and_partial() {
+    let mut p = Parser::new();
+    let mut c = Collecting::default();
+    p.advance(&mut c, &[0xe4]); // pending partial
+    p.reset();
+    p.flush(&mut c);
+    assert!(c.printed.is_empty(), "reset must clear the pending partial");
+}
+
+#[test]
 fn paramless_csi_after_aborted_csi_dispatches_empty() {
     // `CSI 1` (digit, no final) followed by `ESC [ H` must reset the partial
     // parameter, so the param-less `CSI H` dispatches `[]` (not `[0]` from a
