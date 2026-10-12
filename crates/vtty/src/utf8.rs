@@ -191,14 +191,12 @@ pub(crate) fn decode_utf8<P: Perform>(
                             p.execute(0x7f);
                             i += 1;
                         }
-                        // Printable ASCII run (0x20..=0x7e).
+                        // Printable ASCII run (0x20..=0x7e) — SIMD-scanned
+                        // like the ground state's hot path.
                         0x20..=0x7e => {
-                            let start = i;
-                            i += 1;
-                            while i < s.len() && s[i] >= 0x20 && s[i] < 0x7f {
-                                i += 1;
-                            }
-                            p.print_bytes(&s[start..i]);
+                            let n = crate::simd::first_non_printable(&s[i..]);
+                            p.print_bytes(&s[i..i + n]);
+                            i += n;
                         }
                         // Validated multi-byte lead: batch a run of
                         // printable code points into one
