@@ -131,12 +131,12 @@ impl MouseButton {
                 self.encode_sgr(x, y, pressed).as_bytes(),
             ));
         }
-        // X10 encodes release as `Cb = 3` (button 0 released) and only
-        // reports motion in any-motion (1003) mode.
-        let b = if pressed { self } else { Self::Release };
-        if b == Self::Motion && !tracking.contains(MouseTracking::ANY_MOTION) {
+        // Drag motion reports only in any-motion (1003) mode; release is
+        // `Cb = 3`.
+        if pressed && self == Self::Motion && !tracking.contains(MouseTracking::ANY_MOTION) {
             return None;
         }
+        let b = if pressed { self } else { Self::Release };
         if tracking.contains(MouseTracking::UTF8) {
             return Some(SmallVec::from_slice_copy(b.encode_utf8(x, y).as_bytes()));
         }
