@@ -11,9 +11,9 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-# vtty is compiled with the `simd` feature so both the scalar (`Parser::new`)
-# and SIMD (`Parser::with_simd`) paths are available in one binary.
-vtty = { workspace = true, features = ["simd"] }
+# vtty is compiled with the `simd-transcode` feature so both the scalar
+# (`Parser::new`) and full SIMD (`Parser::with_simd`) paths are available.
+vtty = { workspace = true, features = ["simd-transcode"] }
 vte.workspace = true
 vt100.workspace = true
 vtparse.workspace = true

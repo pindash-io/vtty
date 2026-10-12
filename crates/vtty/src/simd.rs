@@ -7,9 +7,13 @@
 #[cfg(not(target_arch = "aarch64"))]
 use std::sync::OnceLock;
 
-use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u16x8, u32x4};
+#[cfg(feature = "simd-transcode")]
+use fearless_simd::u16x8;
+use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
 
+#[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
+#[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 
 /// Best SIMD level for this target. On arm64 NEON is mandatory, so
@@ -151,11 +155,21 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     ((ascii | middle) | high).into()
 }
 
+/// Decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]` via
+/// the runtime-dispatched SIMD level (used by the non-transcode scalar loop).
+#[cfg(not(feature = "simd-transcode"))]
+#[inline(always)]
+pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
+    let level = level();
+    dispatch!(level, simd => decode_3byte(simd, bytes))
+}
+
 /// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
 /// `end_mask` (bit `i` = byte `i` ends a code point). Returns
 /// `(code_points_written, bytes_consumed)`. Mirrors simdutf's
 /// `convert_masked_utf8_to_utf32`: the `0x924` 3-byte fast path, then the
 /// table-driven general path.
+#[cfg(feature = "simd-transcode")]
 #[inline(always)]
 fn decode_utf8_12<S: Simd>(
     simd: S,
@@ -226,6 +240,7 @@ fn decode_utf8_12<S: Simd>(
 /// bytes_consumed)`. For a full block, `bytes_consumed` is 52 (the last 12
 /// bytes are re-scanned by the next call, overlapping the chunk boundary). For
 /// a sub-64-byte tail, a scalar loop consumes all remaining bytes.
+#[cfg(feature = "simd-transcode")]
 #[inline(always)]
 fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let n = bytes.len();
@@ -274,6 +289,7 @@ fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usiz
 }
 
 /// Runtime-dispatched wrapper for [`decode_block`].
+#[cfg(feature = "simd-transcode")]
 #[inline(always)]
 pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let level = level();
@@ -295,6 +311,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "simd-transcode")]
     fn decode_block_decodes_mixed_utf8() {
         // a日🚀e日 (ASCII + 3-byte + 4-byte + ASCII + 3-byte), plus padding to
         // reach the 64-byte block threshold.

@@ -169,7 +169,7 @@ time into a flat `[state][byte]` lookup:
   (whose `UTF8Decoder.zig` DFA and `MaximalSubpart` in `src/simd/vt.cpp` are the
   equivalent reference implementations).
 
-### SIMD (`simd.rs`, `simd` feature)
+### SIMD (`simd.rs`, `simd` and `simd-transcode` features)
 
 - `fearless_simd` runtime-dispatches to `SSE2`/`SSE4.2`/`AVX2`/`AVX-512`/`NEON`.
 - `first_non_printable` / `first_esc` scan 16 bytes at a time, with a scalar
@@ -177,7 +177,10 @@ time into a flat `[state][byte]` lookup:
 - `decode_utf8_n::<N>` (const-generic, in `utf8.rs`) decodes a validated
   `N`-byte code point; the `match N` folds to the exact per-length shifts at
   compile time.
-- `decode_block` is the rio-vt/ghostty-shaped UTF-8→UTF-32 transcode: it
+- `simd` alone uses a scalar byte loop over the validated window (ASCII runs
+  via `print_bytes` + a `0x924` 3-byte fast path); `simd-transcode` replaces
+  that loop with `decode_block`, the rio-vt/ghostty UTF-8→UTF-32
+  transcode: it
   processes a validated window in 64-byte blocks, computing one
   end-of-code-point mask per block (`!(continuation_mask >> 1)`), then runs a
   12-byte chunk loop that reuses the shifted mask. `decode_utf8_12` mirrors
@@ -188,7 +191,8 @@ time into a flat `[state][byte]` lookup:
   12 bytes of each block overlap into the next to avoid splitting a code point
   across the 64-byte boundary; a sub-76-byte tail falls back to scalar decode.
   Tables are generated from simdutf's `src/tables/utf8_to_utf16_tables.h` and
-  kept in `utf8_tables.rs` (do not hand-edit).
+  kept in `utf8_tables.rs` (do not hand-edit); they cost ~70 KB, which is why
+  they are behind the opt-in `simd-transcode` feature rather than `simd`.
 
 ### Public API surface
 
