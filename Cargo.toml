@@ -37,7 +37,7 @@ vtparse = "0.7.0"
 rio-vt = { version = "0.5.28", default-features = false }
 
 ## dev
-criterion = { version = "0.6", default-features = false, features = ["html_reports"] }
+criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 
 [workspace.lints]
 rust.keyword_idents_2024 = "forbid"
