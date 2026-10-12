@@ -198,42 +198,36 @@ pub(crate) fn decode_utf8<P: Perform>(
                             p.print_bytes(&s[i..i + n]);
                             i += n;
                         }
-                        // Validated multi-byte lead: batch a run of
-                        // printable code points into one
-                        // `print_codepoints` call (C1 controls are still
-                        // dispatched via `execute`).
+                        // Validated multi-byte lead: dispatch per code point
+                        // via `print` (C1 controls via `execute`). A 3-byte
+                        // fast path skips the match + C1 check for the
+                        // dominant CJK case. Per-char `print` measured faster
+                        // than a batched `print_codepoints` buffer here, and
+                        // it matches the scalar path's dispatch shape.
                         _ => {
-                            const BATCH: usize = 32;
-                            let mut buf = [0_u32; BATCH];
-                            let mut n = 0;
                             loop {
-                                let (cp, len) = crate::simd::decode_validated(&s[i..]);
-                                if (0x80..=0x9f).contains(&cp) {
-                                    if n > 0 {
-                                        p.print_codepoints(&buf[..n]);
-                                        n = 0;
-                                    }
-                                    p.execute(cp as u8);
+                                let b0 = s[i];
+                                // Fast path: 3-byte lead (CJK etc.) — cp is
+                                // always >= 0x800, so it is never a C1
+                                // control and needs no C1 check.
+                                if (0xe0..=0xef).contains(&b0) {
+                                    let cp = ((b0 as u32 & 0x0f) << 12)
+                                        | ((s[i + 1] as u32 & 0x3f) << 6)
+                                        | (s[i + 2] as u32 & 0x3f);
+                                    p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
+                                    i += 3;
                                 } else {
-                                    buf[n] = cp;
-                                    n += 1;
-                                    if n == BATCH {
-                                        p.print_codepoints(&buf[..n]);
-                                        n = 0;
+                                    let (cp, len) = crate::simd::decode_validated(&s[i..]);
+                                    if (0x80..=0x9f).contains(&cp) {
+                                        p.execute(cp as u8);
+                                    } else {
+                                        p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
                                     }
+                                    i += len;
                                 }
-                                i += len;
-                                // Continue while the next byte is still a
-                                // multi-byte lead. In validated UTF-8 any
-                                // byte >= 0x80 at a char boundary is a lead
-                                // (continuation/invalid bytes cannot appear
-                                // there).
                                 if i >= s.len() || s[i] < 0x80 {
                                     break;
                                 }
-                            }
-                            if n > 0 {
-                                p.print_codepoints(&buf[..n]);
                             }
                         }
                     }
