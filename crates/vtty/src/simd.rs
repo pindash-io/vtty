@@ -126,35 +126,6 @@ fn first_set(mask: [i8; 16]) -> usize {
     16
 }
 
-/// Branchless decode of a UTF-8 code point that `simdutf8` already validated.
-/// Assumes `b[0]` is a 2/3/4-byte lead with its continuation bytes present.
-/// Returns the raw `u32` code point (always a valid `char` for validated input)
-/// plus the byte length — the caller converts to `char` only when it needs one.
-#[inline(always)]
-pub(crate) fn decode_validated(b: &[u8]) -> (u32, usize) {
-    match b[0] {
-        // 2-byte: 0xC2..=0xDF
-        0xC2..=0xDF => {
-            let cp = ((b[0] as u32 & 0x1F) << 6) | (b[1] as u32 & 0x3F);
-            (cp, 2)
-        }
-        // 3-byte: 0xE0..=0xEF
-        0xE0..=0xEF => {
-            let cp =
-                ((b[0] as u32 & 0x0F) << 12) | ((b[1] as u32 & 0x3F) << 6) | (b[2] as u32 & 0x3F);
-            (cp, 3)
-        }
-        // 4-byte: 0xF0..=0xF4 (validated input, so `_` is only this range)
-        _ => {
-            let cp = ((b[0] as u32 & 0x07) << 18)
-                | ((b[1] as u32 & 0x3F) << 12)
-                | ((b[2] as u32 & 0x3F) << 6)
-                | (b[3] as u32 & 0x3F);
-            (cp, 4)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -20,6 +20,25 @@ const fn utf8_lead(lead: u8) -> (usize, u32) {
     }
 }
 
+/// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations) into the
+/// raw code point. `N` must be 2/3/4; the lead contributes its low
+/// 0x1f/0x0f/0x07 bits and each continuation its low 6 bits. `N` is a const
+/// generic, so the `match N` folds to the exact per-length decode at compile
+/// time (no loop, no length dispatch at runtime).
+#[inline(always)]
+const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
+    match N {
+        2 => ((b[0] as u32 & 0x1f) << 6) | (b[1] as u32 & 0x3f),
+        3 => ((b[0] as u32 & 0x0f) << 12) | ((b[1] as u32 & 0x3f) << 6) | (b[2] as u32 & 0x3f),
+        _ => {
+            ((b[0] as u32 & 0x07) << 18)
+                | ((b[1] as u32 & 0x3f) << 12)
+                | ((b[2] as u32 & 0x3f) << 6)
+                | (b[3] as u32 & 0x3f)
+        }
+    }
+}
+
 /// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
 /// leads and the unrestricted 3/4-byte leads accept any continuation byte;
 /// the four constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower
@@ -207,23 +226,28 @@ pub(crate) fn decode_utf8<P: Perform>(
                         _ => {
                             loop {
                                 let b0 = s[i];
-                                // Fast path: 3-byte lead (CJK etc.) — cp is
-                                // always >= 0x800, so it is never a C1
-                                // control and needs no C1 check.
+                                // Fast paths for 3-byte (CJK) and 4-byte
+                                // (emoji) leads: their code points are always
+                                // >= 0x800, so they are never C1 controls and
+                                // skip the C1 check. Only 2-byte leads can
+                                // decode into the C1 range (0x80..=0x9f).
                                 if (0xe0..=0xef).contains(&b0) {
-                                    let cp = ((b0 as u32 & 0x0f) << 12)
-                                        | ((s[i + 1] as u32 & 0x3f) << 6)
-                                        | (s[i + 2] as u32 & 0x3f);
+                                    let cp = decode_utf8_n::<3>(&s[i..]);
                                     p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
                                     i += 3;
+                                } else if (0xf0..=0xf4).contains(&b0) {
+                                    let cp = decode_utf8_n::<4>(&s[i..]);
+                                    p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
+                                    i += 4;
                                 } else {
-                                    let (cp, len) = crate::simd::decode_validated(&s[i..]);
-                                    if (0x80..=0x9f).contains(&cp) {
+                                    // 2-byte lead (0xc2..=0xdf).
+                                    let cp = decode_utf8_n::<2>(&s[i..]);
+                                    if cp <= 0x9f {
                                         p.execute(cp as u8);
                                     } else {
                                         p.print(char::from_u32(cp).unwrap_or('\u{FFFD}'));
                                     }
-                                    i += len;
+                                    i += 2;
                                 }
                                 if i >= s.len() || s[i] < 0x80 {
                                     break;
