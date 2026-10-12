@@ -299,7 +299,7 @@ impl Parser {
                     for &pb in &seq[..f] {
                         match pb {
                             b'0'..=b'9' => {
-                                self.param = (self.param * 10 + (pb - b'0') as i32).min(65535);
+                                self.param = (self.param * 10 + (pb - b'0') as i32).min(MAX_PARAM);
                                 self.param_empty = false;
                             }
                             b';' => {
@@ -480,7 +480,7 @@ impl Parser {
                         .param
                         .saturating_mul(10)
                         .saturating_add((b - b'0') as i32)
-                        .min(65535);
+                        .min(MAX_PARAM);
                     self.param_empty = false;
                 }
                 b';' => {
@@ -673,7 +673,7 @@ impl Parser {
                         .param
                         .saturating_mul(10)
                         .saturating_add((bytes[j] - b'0') as i32)
-                        .min(65535);
+                        .min(MAX_PARAM);
                     self.param_empty = false;
                     j += 1;
                 }
@@ -894,6 +894,9 @@ impl Parser {
 
 /// Cap on CSI/DCS parameters (vte/rio-vt = 32, xterm = 16).
 const MAX_PARAMS: usize = 32;
+
+/// Max CSI/DCS parameter value: DEC VT500 params are 16-bit (`0..=65535`).
+const MAX_PARAM: i32 = 65535;
 
 /// Return the index of the first CSI final byte (`0x40..=0x7e`), or
 /// `bytes.len()` if none — the bulk CSI fast path. Params are short, so a
