@@ -52,8 +52,14 @@ fn corpus() -> Vec<u8> {
 }
 
 fn main() {
-    println!("size_of vtty::Parser      = {} B", size_of::<vtty::Parser>());
-    println!("size_of rio_vt::Parser    = {} B", size_of::<rio_vt::performer::parser::Parser>());
+    println!(
+        "size_of vtty::Parser      = {} B",
+        size_of::<vtty::Parser>()
+    );
+    println!(
+        "size_of rio_vt::Parser    = {} B",
+        size_of::<rio_vt::performer::parser::Parser>()
+    );
     println!("size_of vte::Parser       = {} B", size_of::<vte::Parser>());
     let bytes = corpus();
 
