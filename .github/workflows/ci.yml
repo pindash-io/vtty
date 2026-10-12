@@ -8,7 +8,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  quality:
+  lint:
+    # Platform-independent checks; run once.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +37,23 @@ jobs:
       - name: Rust format check
         run: cargo fmt --check --all
 
+  test:
+    # Compile + test on Linux (x86_64) and macOS (aarch64), so both the
+    # x86 SSE/AVX and ARM NEON SIMD backends are exercised.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Tests
         run: cargo test --workspace
@@ -45,8 +61,19 @@ jobs:
       - name: Tests (all features)
         run: cargo test --workspace --all-features
 
+      - name: Tests (no default features)
+        run: cargo test --workspace --no-default-features
+
       - name: Docs
         run: cargo doc --workspace --all-features --no-deps
+
+  no-std:
+    # True no_std check against a bare-metal target (no allocator, no std).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: no_std check (bare-metal target)
         run: |
@@ -54,14 +81,22 @@ jobs:
           cargo check -p vtty --no-default-features --target thumbv7em-none-eabihf
 
   fuzz-smoke:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
 
-      - name: Install glibc target
-        run: rustup target add x86_64-unknown-linux-gnu
+      - name: Install target
+        run: rustup target add ${{ matrix.target }}
 
       - uses: taiki-e/install-action@v2
         with:
@@ -75,16 +110,16 @@ jobs:
           cp fuzz/seeds/* fuzz/corpus/differential-rio/
 
       - name: Fuzz smoke — vtty vs vte
-        run: cargo fuzz run differential --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo fuzz run differential --target ${{ matrix.target }} -- -max_total_time=30
 
       - name: Fuzz smoke — vtty-simd vs vte
-        run: cargo fuzz run differential-simd --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo fuzz run differential-simd --target ${{ matrix.target }} -- -max_total_time=30
 
       - name: Fuzz smoke — vtty vs rio-vt
-        run: cargo fuzz run differential-rio --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo fuzz run differential-rio --target ${{ matrix.target }} -- -max_total_time=30
 
       - name: Fuzz smoke — structured random
-        run: cargo fuzz run random --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo fuzz run random --target ${{ matrix.target }} -- -max_total_time=30
 
       - name: Fuzz smoke — no-panic
-        run: cargo fuzz run robustness --target x86_64-unknown-linux-gnu -- -max_total_time=30
+        run: cargo fuzz run robustness --target ${{ matrix.target }} -- -max_total_time=30
