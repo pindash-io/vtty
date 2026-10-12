@@ -63,6 +63,18 @@ pub enum MouseButton {
 }
 
 impl MouseButton {
+    /// X10 `Cb` byte: button code + 32.
+    #[inline]
+    const fn x10_button(self) -> u8 {
+        (self as u8).wrapping_add(32)
+    }
+
+    /// X10 `Cx`/`Cy` value: 1-based coordinate + 32 (`coord + 33`).
+    #[inline]
+    const fn x10_coord(c: u16) -> u16 {
+        c.wrapping_add(33)
+    }
+
     /// Encode this event as an SGR (`CSI < … M/m`) sequence. `x`/`y` are
     /// 0-based cell/pixel coordinates; the emitted protocol is always 1-based
     /// (`xterm`/`herdr` treat the top-left cell *and* pixel as `1;1`). The
@@ -82,9 +94,9 @@ impl MouseButton {
     /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
     pub fn encode_x10(self, x: u16, y: u16) -> SmallVec<u8, 8> {
-        let cb = (self as u8).wrapping_add(32);
-        let cx = x.wrapping_add(1).wrapping_add(32) as u8;
-        let cy = y.wrapping_add(1).wrapping_add(32) as u8;
+        let cb = self.x10_button();
+        let cx = Self::x10_coord(x) as u8;
+        let cy = Self::x10_coord(y) as u8;
         SmallVec::from([0x1b, b'[', b'M', cb, cx, cy])
     }
 
@@ -93,9 +105,9 @@ impl MouseButton {
     /// bytes. Built on the stack via [`SmolStrBuilder`] (no heap `String`).
     #[inline]
     pub fn encode_utf8(self, x: u16, y: u16) -> SmolStr {
-        let cb = (self as u8).wrapping_add(32);
-        let cx = x.wrapping_add(1).wrapping_add(32);
-        let cy = y.wrapping_add(1).wrapping_add(32);
+        let cb = self.x10_button();
+        let cx = Self::x10_coord(x);
+        let cy = Self::x10_coord(y);
         let mut b = SmolStrBuilder::new();
         b.push_str("\x1b[M");
         b.push(cb as char);
