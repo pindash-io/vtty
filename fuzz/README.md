@@ -52,6 +52,12 @@ Shared by the `vte`/`rio-vt` targets (`fuzz/src/lib.rs`):
 - rio-vt allows four intermediates; vtty/vte cap at two (filtered only in the
   `differential-rio` target).
 
+UTF-8 decode is **not** filtered: vtty, vte and rio-vt all implement W3C
+"Substitution of Maximal Subparts" (each invalid maximal subpart becomes one
+U+FFFD; a standalone C1 byte keeps `execute` semantics), so malformed UTF-8 —
+e.g. a truncated lead followed by printable ASCII and a C1 byte — decodes
+identically across all three and needs no special-casing.
+
 `vtparse` is not used as a differential baseline: its state machine diverges
 from DEC/vte (`CsiParam::P` fuses separators/private markers/intermediates,
 invalid UTF-8 is dropped instead of U+FFFD-replaced, a leading `:` enters

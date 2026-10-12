@@ -115,6 +115,16 @@ fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
 ///   the seven introducers (`0x90 0x98 0x9b 0x9c 0x9d 0x9e 0x9f`) diverge.
 /// - `ESC X` / `ESC ^` / `ESC _` (SOS/PM/APC): vtty dispatches them as
 ///   hook/put/unhook (kitty graphics), vte drops them.
+///
+/// UTF-8 decode is deliberately *not* filtered: vtty, vte and rio-vt all
+/// implement W3C "Substitution of Maximal Subparts" — each invalid maximal
+/// subpart becomes a single U+FFFD, and a standalone C1 byte (`0x80..=0x9f`)
+/// keeps `execute` semantics instead of being replaced. A malformed run such
+/// as a truncated 3-byte lead (`E3 83`) followed by printable ASCII (`[`) and
+/// a C1 continuation byte (`0x88`) therefore decodes identically everywhere:
+/// `Print('�'), Print('['), Execute(136)`. Because the three parsers share
+/// this contract, no UTF-8-malformation case needs filtering here (verified
+/// against the `utf8_mixed` corpus and single-byte mutations of it).
 pub fn has_known_divergence(data: &[u8]) -> bool {
     if data.contains(&0x7f) {
         return true;

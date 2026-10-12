@@ -124,6 +124,19 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
 /// O(n × CHUNK), i.e. quadratic. Capping at the ESC makes the window exactly
 /// the bytes the loop will consume. ESC is always a safe cut point: it is not
 /// a UTF-8 continuation byte, so the bytes before it are a complete sequence.
+///
+/// # Malformed UTF-8 (maximal subparts)
+///
+/// Both the scalar and SIMD paths follow W3C "Substitution of Maximal
+/// Subparts": a truncated or ill-formed sequence is replaced with a single
+/// U+FFFD spanning its maximal subpart, and a standalone C1 byte
+/// (`0x80..=0x9f`) is dispatched via [`Perform::execute`] instead of being
+/// replaced. This is the same contract as vte and rio-vt, so a run like
+/// `E3 83` `[` `0x88` (truncated 3-byte lead, printable ASCII, C1
+/// continuation) decodes identically in every parser: `Print('�')`,
+/// `Print('[')`, `Execute(136)`. The scalar path inherits this from
+/// `utf8_iter`; the SIMD path validates the window first and only falls back
+/// to scalar decoding when the window is short or invalid.
 #[inline(always)]
 pub(crate) fn decode_utf8<P: Perform>(
     p: &mut P,

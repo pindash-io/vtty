@@ -15,9 +15,6 @@ rust-version = "1.89"
 
 [workspace.dependencies]
 vtty = { path = "crates/vtty", default-features = false }
-vtty_bench = { path = "crates/vtty_bench" }
-vtty_emoji = { path = "crates/vtty_emoji" }
-vtty_ffi = { path = "crates/vtty_ffi" }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.1", default-features = false }
