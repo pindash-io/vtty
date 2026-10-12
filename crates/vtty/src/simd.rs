@@ -326,12 +326,12 @@ mod tests {
             cps.extend_from_slice(&out[..c]);
             i += k;
         }
-        let decoded: Vec<char> = cps
+        let decoded: Vec<u32> = cps
             .into_iter()
             .take_while(|&cp| cp != b' ' as u32)
-            .map(|cp| char::from_u32(cp).unwrap())
             .collect();
-        assert_eq!(decoded, ['a', '日', '🚀', 'e', '日']);
+        let expected: [u32; 5] = ['a', '日', '🚀', 'e', '日'].map(|c| c as u32);
+        assert_eq!(decoded.as_slice(), expected.as_slice());
     }
 
     #[test]
