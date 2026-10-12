@@ -88,6 +88,11 @@ rustdoc.broken_intra_doc_links = "deny"
 
 [profile.release]
 opt-level = 3
+
+# LTO + single codegen unit only for the benchmark profile: `cargo bench`
+# benefits from cross-crate inlining, but `lto = "fat"` breaks the fuzz
+# sanitizer-coverage (sancov) linking on the `release` profile.
+[profile.bench]
 lto = "fat"
 codegen-units = 1
 
