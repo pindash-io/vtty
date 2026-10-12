@@ -174,8 +174,9 @@ time into a flat `[state][byte]` lookup:
 - `fearless_simd` runtime-dispatches to `SSE2`/`SSE4.2`/`AVX2`/`AVX-512`/`NEON`.
 - `first_non_printable` / `first_esc` scan 16 bytes at a time, with a scalar
   probe of the first byte to skip dispatch on escape-dense streams.
-- `decode_validated` branchless-decodes a UTF-8 code point after `simdutf8`
-  validation.
+- `decode_utf8_n::<N>` (const-generic, in `utf8.rs`) decodes a validated
+  `N`-byte code point; the `match N` folds to the exact per-length shifts at
+  compile time.
 
 ### Public API surface
 

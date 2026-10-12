@@ -121,7 +121,7 @@ Results (median throughput, 2 MiB input; higher is better):
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- |
 | plain | 2.54 GiB/s | **12.72 GiB/s** | 1.37 GiB/s | 403 MiB/s | 1.46 GiB/s | 133 MiB/s |
-| utf8_mixed | 758 MiB/s | 1.02 GiB/s | 828 MiB/s | 228 MiB/s | **1.22 GiB/s** | 172 MiB/s |
+| utf8_mixed | 790 MiB/s | 1.10 GiB/s | 823 MiB/s | 225 MiB/s | **1.19 GiB/s** | 171 MiB/s |
 | ansi_mixed | **682 MiB/s** | 680 MiB/s | 314 MiB/s | 188 MiB/s | 386 MiB/s | 176 MiB/s |
 | ansi_two_styles | 847 MiB/s | **856 MiB/s** | 332 MiB/s | 194 MiB/s | 354 MiB/s | 160 MiB/s |
 | ansi_bare_csi | 1.14 GiB/s | **1.24 GiB/s** | 492 MiB/s | 210 MiB/s | 459 MiB/s | 155 MiB/s |
