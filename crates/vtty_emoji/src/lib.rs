@@ -514,7 +514,7 @@ mod tests {
         assert_eq!(vs_width('x'), None);
         assert_eq!(vs_width('\u{200D}'), None);
     }
-
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn is_zero_width_covers_continuations_and_controls() {
         // Combining, VS15/VS16, ZWJ, skin tone, tags — grapheme continuations.
@@ -532,7 +532,7 @@ mod tests {
         assert!(!is_zero_width('中'));
         assert!(!is_zero_width('👍'));
     }
-
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn cell_widths_merges_vs16_and_zwj_emoji() {
         // VS16 widens a width-1 text-default base to 2 and stays zero-width.
@@ -586,7 +586,7 @@ mod tests {
             vec![2, 0, 0, 0, 0, 0, 0, 1]
         );
     }
-
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn lone_zwj_is_ignored() {
         // A standalone ZWJ is a degenerate joiner — zero cells (the cell grid
@@ -664,7 +664,7 @@ mod tests {
         assert_eq!(cell_advance(28.9, cw), 2.0 * cw);
         assert_eq!(cell_advance(32.0, cw), 2.0 * cw);
     }
-
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn cell_col_byte_widths_steps_over_merged_emoji() {
         // 中 is 2 cells, so cell 2 is the byte after it (3 bytes).
@@ -683,7 +683,7 @@ mod tests {
         assert_eq!(cell_col_byte_widths("a中b", 2), 1);
         assert_eq!(cell_col_byte_widths("⚠\u{FE0F}x", 1), 0);
     }
-
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn halfwidth_katakana_sound_marks_are_one_cell() {
         // U+FF9E/U+FF9F are Grapheme_Extend (unicode-width says 0), but
@@ -726,7 +726,7 @@ fn tui_symbols_are_single_cell() {
         );
     }
 }
-
+#[cfg(any(feature = "baked", feature = "icu"))]
 #[test]
 fn starship_glyph_widths() {
     // The starship default-prompt glyph vocabulary: width-2 emoji and
@@ -764,7 +764,7 @@ fn starship_glyph_widths() {
     // `↕` + VS16 (emoji presentation) widens to 2; alone it stays 1.
     assert_eq!(cell_widths("\u{2195}\u{FE0F}"), vec![2, 0]);
 }
-
+#[cfg(any(feature = "baked", feature = "icu"))]
 #[test]
 fn stray_zwj_after_non_emoji_does_not_swallow_next() {
     // A ZWJ after a CJK char is a STRAY joiner (DFA Start rejects it): the
