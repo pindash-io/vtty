@@ -263,10 +263,9 @@ pub(crate) fn decode_utf8<P: Perform>(
                                         }
                                     } else {
                                         // 2- or 4-byte lead.
-                                        let (cp, len) = if (0xf0..=0xf4).contains(&b0) {
-                                            (decode_utf8_n::<4>(&s[i..]), 4)
-                                        } else {
-                                            (decode_utf8_n::<2>(&s[i..]), 2)
+                                        let (cp, len) = match b0 {
+                                            0xf0..=0xf4 => (decode_utf8_n::<4>(&s[i..]), 4),
+                                            _ => (decode_utf8_n::<2>(&s[i..]), 2),
                                         };
                                         if cp <= 0x9f {
                                             if n > 0 {

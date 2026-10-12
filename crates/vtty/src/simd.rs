@@ -240,12 +240,10 @@ fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usiz
             written += 1;
             pos += 1;
         } else {
-            let (cp, len) = if (0xe0..=0xef).contains(&b0) {
-                (decode_utf8_n::<3>(&bytes[pos..]), 3)
-            } else if (0xf0..=0xf4).contains(&b0) {
-                (decode_utf8_n::<4>(&bytes[pos..]), 4)
-            } else {
-                (decode_utf8_n::<2>(&bytes[pos..]), 2)
+            let (cp, len) = match b0 {
+                0xe0..=0xef => (decode_utf8_n::<3>(&bytes[pos..]), 3),
+                0xf0..=0xf4 => (decode_utf8_n::<4>(&bytes[pos..]), 4),
+                _ => (decode_utf8_n::<2>(&bytes[pos..]), 2),
             };
             out[written] = cp;
             written += 1;
