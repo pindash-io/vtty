@@ -332,44 +332,50 @@ impl Parser {
                     }
                 }
             }
-            if b == 0x1b {
-                // ESC → enter the escape state (the byte is consumed).
-                self.clear_seq_state();
-                self.state = ParseState::Escape;
-                return i + pos + 1;
-            } else if b == 0x7f || b < 0x20 {
-                // C0 controls (and DEL) often cluster — `\r\n`, `\t\t`, etc.
-                // Execute the whole run in a tight loop without re-scanning
-                // for printable bytes between them. ESC (0x1b) breaks out so
-                // the outer loop enters the escape state, not `execute`.
-                loop {
-                    p.execute(b);
-                    pos += 1;
-                    if pos >= valid {
-                        break;
-                    }
-                    b = run[pos];
-                    if b == 0x1b || !(b == 0x7f || b < 0x20) {
-                        break;
-                    }
-                }
-            } else if b <= 0x9f {
-                // Raw 8-bit C1 control byte (0x80-0x9f): the introducers
-                // (DCS/SOS/CSI/OSC/PM/APC) start their sequence; ST is a
-                // no-op; other C1 controls execute. A lone 0x80-0x9f byte is
-                // invalid UTF-8 (a continuation byte with no lead), so this is
-                // the correct C1 fallback.
-                // Reference: <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
-                let (action, next) = Self::c1_transition(b);
-                self.apply(p, action, b);
-                if next != ParseState::Ground {
-                    self.state = next;
+            match b {
+                0x1b => {
+                    // ESC → enter the escape state (the byte is consumed).
+                    self.clear_seq_state();
+                    self.state = ParseState::Escape;
                     return i + pos + 1;
                 }
-                pos += 1;
-            } else {
-                // Multi-byte UTF-8.
-                pos += decode_utf8(p, run, valid, pos, self.simd_enabled());
+                0x00..=0x1f | 0x7f => {
+                    // C0 controls (and DEL) often cluster — `\r\n`, `\t\t`,
+                    // etc. Execute the whole run in a tight loop without
+                    // re-scanning for printable bytes between them. ESC
+                    // (0x1b) breaks out so the outer loop enters the escape
+                    // state, not `execute`.
+                    loop {
+                        p.execute(b);
+                        pos += 1;
+                        if pos >= valid {
+                            break;
+                        }
+                        b = run[pos];
+                        if b == 0x1b || !(b == 0x7f || b < 0x20) {
+                            break;
+                        }
+                    }
+                }
+                0x80..=0x9f => {
+                    // Raw 8-bit C1 control byte (0x80-0x9f): the introducers
+                    // (DCS/SOS/CSI/OSC/PM/APC) start their sequence; ST is a
+                    // no-op; other C1 controls execute. A lone 0x80-0x9f byte
+                    // is invalid UTF-8 (a continuation byte with no lead), so
+                    // this is the correct C1 fallback.
+                    // Reference: <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+                    let (action, next) = Self::c1_transition(b);
+                    self.apply(p, action, b);
+                    if next != ParseState::Ground {
+                        self.state = next;
+                        return i + pos + 1;
+                    }
+                    pos += 1;
+                }
+                _ => {
+                    // Multi-byte UTF-8 lead (>= 0xa0).
+                    pos += decode_utf8(p, run, valid, pos, self.simd_enabled());
+                }
             }
         }
         // Consume the whole run (including any carried-over partial bytes).
