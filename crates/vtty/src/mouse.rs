@@ -5,39 +5,34 @@
 
 use smol_str::{SmolStr, SmolStrBuilder};
 
-/// Active mouse-tracking configuration, derived from the DEC mouse flags —
-/// the screen-independent core: every screen maps its flags into this and
-/// delegates to [`MouseButton::encode`], so X10/SGR selection and motion
-/// gating live in one place.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct MouseTracking {
-    /// Any tracking enabled: DEC 9 (X10), 1000 (press), 1002 (drag), or
-    /// 1003 (any-motion).
-    pub enabled: bool,
-    /// DEC 9 — X10 press-only mode: report button presses, but not
-    /// releases (1000 and up report both).
-    pub x10: bool,
-    /// DEC 1006 — SGR protocol (`CSI < b ; x ; y M/m`).
-    pub sgr: bool,
-    /// DEC 1003 — any-motion tracking. Required for X10 motion reports.
-    pub any_motion: bool,
-    /// DEC 1016 — SGR-pixel protocol: coordinates are 1-based pixels, just
-    /// like the cell form is 1-based.
-    pub pixel: bool,
-    /// DEC 1005 — UTF-8 mouse protocol (X10 with UTF-8 coordinates).
-    pub utf8: bool,
+bitflags::bitflags! {
+    /// Active mouse-tracking configuration, derived from the DEC mouse flags —
+    /// the screen-independent core: every screen maps its flags into this and
+    /// delegates to [`MouseButton::encode`], so X10/SGR selection and motion
+    /// gating live in one place.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct MouseTracking: u8 {
+        /// Any tracking enabled: DEC 9 (X10), 1000 (press), 1002 (drag), or
+        /// 1003 (any-motion).
+        const ENABLED = 1 << 0;
+        /// DEC 9 — X10 press-only mode: report button presses, but not
+        /// releases (1000 and up report both).
+        const X10 = 1 << 1;
+        /// DEC 1006 — SGR protocol (`CSI < b ; x ; y M/m`).
+        const SGR = 1 << 2;
+        /// DEC 1003 — any-motion tracking. Required for X10 motion reports.
+        const ANY_MOTION = 1 << 3;
+        /// DEC 1016 — SGR-pixel protocol: coordinates are 1-based pixels, just
+        /// like the cell form is 1-based.
+        const PIXEL = 1 << 4;
+        /// DEC 1005 — UTF-8 mouse protocol (X10 with UTF-8 coordinates).
+        const UTF8 = 1 << 5;
+    }
 }
 
 impl MouseTracking {
     /// All tracking disabled.
-    pub const DEFAULT: Self = Self {
-        enabled: false,
-        x10: false,
-        sgr: false,
-        any_motion: false,
-        pixel: false,
-        utf8: false,
-    };
+    pub const DEFAULT: Self = Self::empty();
 }
 
 /// Mouse button/event codes for X10 and SGR encoding.
@@ -117,14 +112,14 @@ impl MouseButton {
         y: u16,
         pressed: bool,
     ) -> Option<smallvec::SmallVec<u8, 8>> {
-        if !tracking.enabled {
+        if !tracking.contains(MouseTracking::ENABLED) {
             return None;
         }
         // X10 (DEC 9) reports only button PRESSES, never releases.
-        if tracking.x10 && !pressed {
+        if tracking.contains(MouseTracking::X10) && !pressed {
             return None;
         }
-        if tracking.sgr || tracking.pixel {
+        if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {
             return Some(smallvec::SmallVec::from_slice_copy(
                 self.encode_sgr(x, y, pressed).as_bytes(),
             ));
@@ -132,10 +127,10 @@ impl MouseButton {
         // X10 encodes release as `Cb = 3` (button 0 released) and only
         // reports motion in any-motion (1003) mode.
         let b = if pressed { self } else { Self::Release };
-        if b == Self::Motion && !tracking.any_motion {
+        if b == Self::Motion && !tracking.contains(MouseTracking::ANY_MOTION) {
             return None;
         }
-        if tracking.utf8 {
+        if tracking.contains(MouseTracking::UTF8) {
             Some(smallvec::SmallVec::from_slice_copy(
                 b.encode_utf8(x, y).as_bytes(),
             ))

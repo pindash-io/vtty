@@ -123,25 +123,11 @@ fn mouse_x10_encoding() {
 #[test]
 fn mouse_encode_shared_encoder() {
     // Tracking off → no report.
-    let off = MouseTracking {
-        enabled: false,
-        x10: false,
-        sgr: false,
-        any_motion: false,
-        pixel: false,
-        utf8: false,
-    };
+    let off = MouseTracking::empty();
     assert_eq!(MouseButton::Left.encode(off, 0, 0, true), None);
 
     // SGR (1006) uses the SGR sequence; release keeps the button code.
-    let sgr = MouseTracking {
-        enabled: true,
-        x10: false,
-        sgr: true,
-        any_motion: false,
-        pixel: false,
-        utf8: false,
-    };
+    let sgr = MouseTracking::ENABLED | MouseTracking::SGR;
     assert_eq!(
         MouseButton::Left.encode(sgr, 3, 4, true).as_deref(),
         Some(&b"\x1b[<0;4;5M"[..])
@@ -152,14 +138,7 @@ fn mouse_encode_shared_encoder() {
     );
 
     // X10 release uses the generic button-3 code.
-    let x10 = MouseTracking {
-        enabled: true,
-        x10: false,
-        sgr: false,
-        any_motion: false,
-        pixel: false,
-        utf8: false,
-    };
+    let x10 = MouseTracking::ENABLED;
     assert_eq!(
         MouseButton::Left.encode(x10, 0, 0, true).as_deref(),
         Some(&b"\x1b[M !!"[..])
@@ -170,14 +149,7 @@ fn mouse_encode_shared_encoder() {
     );
 
     // DEC 9 X10 press-only mode suppresses releases (1000 reports both).
-    let x10_mode = MouseTracking {
-        enabled: true,
-        x10: true,
-        sgr: false,
-        any_motion: false,
-        pixel: false,
-        utf8: false,
-    };
+    let x10_mode = MouseTracking::ENABLED | MouseTracking::X10;
     assert_eq!(
         MouseButton::Left.encode(x10_mode, 0, 0, true).as_deref(),
         Some(&b"\x1b[M !!"[..])
@@ -190,14 +162,7 @@ fn mouse_encode_shared_encoder() {
 
     // SGR-pixel (1016): 1-based pixel coordinates (herdr maps pixel 1,1 to
     // the top-left cell and rejects 0).
-    let px = MouseTracking {
-        enabled: true,
-        x10: false,
-        sgr: false,
-        any_motion: false,
-        pixel: true,
-        utf8: false,
-    };
+    let px = MouseTracking::ENABLED | MouseTracking::PIXEL;
     assert_eq!(
         MouseButton::Left.encode(px, 27, 72, true).as_deref(),
         Some(&b"\x1b[<0;28;73M"[..])
@@ -205,14 +170,7 @@ fn mouse_encode_shared_encoder() {
 
     // X10 motion is only emitted in any-motion (1003) mode.
     assert_eq!(MouseButton::Motion.encode(x10, 0, 0, true), None);
-    let x10_any = MouseTracking {
-        enabled: true,
-        x10: false,
-        sgr: false,
-        any_motion: true,
-        pixel: false,
-        utf8: false,
-    };
+    let x10_any = MouseTracking::ENABLED | MouseTracking::ANY_MOTION;
     assert_eq!(
         MouseButton::Motion.encode(x10_any, 0, 0, true).as_deref(),
         Some(&b"\x1b[M@!!"[..])
