@@ -4,9 +4,6 @@
 //! SIMD-accelerated byte-scan and UTF-8 decode helpers for the parser's hot
 //! path. Compiled only with the `simd` feature (which also implies `std`).
 
-#[cfg(not(target_arch = "aarch64"))]
-use std::sync::OnceLock;
-
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
 use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
@@ -15,22 +12,6 @@ use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
-
-/// Best SIMD level for this target. On arm64 NEON is mandatory, so
-/// `Level::baseline()` is a compile-time constant (no `OnceLock` atomic load);
-/// on x86 the level is detected once and cached.
-#[inline(always)]
-fn level() -> Level {
-    #[cfg(target_arch = "aarch64")]
-    {
-        Level::baseline()
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        static LEVEL: OnceLock<Level> = OnceLock::new();
-        *LEVEL.get_or_init(Level::new)
-    }
-}
 
 /// Return the index of the first byte that is NOT printable ASCII
 /// (`0x20..=0x7e` — DEL `0x7f` is a C0 control, dispatched via `execute`),
@@ -45,7 +26,7 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     {
         return 0;
     }
-    let level = level();
+    let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
 }
 
@@ -55,7 +36,7 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
 /// window per isolated multi-byte char (bracketed-paste O(n²)).
 #[inline(always)]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
-    let level = level();
+    let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
@@ -153,7 +134,7 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
 #[cfg(not(feature = "simd-transcode"))]
 #[inline(always)]
 pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
-    let level = level();
+    let level = Level::new();
     dispatch!(level, simd => decode_3byte(simd, bytes))
 }
 
@@ -283,7 +264,7 @@ fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usiz
 #[cfg(feature = "simd-transcode")]
 #[inline(always)]
 pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
-    let level = level();
+    let level = Level::new();
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
@@ -293,7 +274,7 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
 #[cfg(feature = "simd-transcode")]
 #[inline(always)]
 pub(crate) fn any_control(cps: &[u32]) -> bool {
-    let level = level();
+    let level = Level::new();
     dispatch!(level, simd => any_control_impl(simd, cps))
 }
 
@@ -331,7 +312,7 @@ mod tests {
         let bytes = [
             0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c, 0xac, 0, 0, 0, 0,
         ];
-        let out = dispatch!(level(), simd => decode_3byte(simd, &bytes));
+        let out = dispatch!(Level::new(), simd => decode_3byte(simd, &bytes));
         assert_eq!(out, [0x4e2d, 0x6587, 0x65e5, 0x672c]);
     }
 
