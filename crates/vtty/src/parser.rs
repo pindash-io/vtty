@@ -24,9 +24,6 @@ const MAX_OSC_PAYLOAD: usize = 1_048_576;
 /// Cap on OSC parameters (vte/rio-vt = 16); the remaining payload is dropped.
 const MAX_OSC_PARAMS: usize = 16;
 
-/// All-empty slice array used to seed the OSC param buffer.
-const EMPTY_PARAM_SLICES: [&[u8]; MAX_OSC_PARAMS] = [&[]; MAX_OSC_PARAMS];
-
 /// The byte-input VT parser: UTF-8 decoding plus per-codepoint dispatch.
 ///
 /// Feed bytes with [`Parser::advance`]; the [`Perform`] sink receives the
@@ -747,6 +744,7 @@ impl Parser {
     /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
+        const EMPTY: [&[u8]; MAX_OSC_PARAMS] = [&[]; MAX_OSC_PARAMS];
         let deferring = self.osc_deferring;
         let n = self.osc_num_starts;
         // The cap applies to the `;`-free payload bytes. In deferred mode the
@@ -766,7 +764,7 @@ impl Parser {
             let shift = deferring as usize;
             let last_end = if deferring { end_pos } else { self.osc.len() };
             let src: &[u8] = if deferring { bytes } else { &self.osc };
-            let mut params = EMPTY_PARAM_SLICES;
+            let mut params = EMPTY;
             for (k, dst) in params.iter_mut().enumerate().take(m) {
                 let start = base + self.osc_starts[k] as usize + k * shift;
                 let end = if k + 1 < n {
