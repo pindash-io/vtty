@@ -270,7 +270,7 @@ impl Parser {
             if pos >= valid {
                 break;
             }
-            let b = run[pos];
+            let mut b = run[pos];
             // Bulk CSI fast path: `ESC [ params final` — SIMD-scan for the
             // final byte and dispatch in one pass, skipping the per-byte
             // state machine. This dominates full-screen TUIs (cacademo's
@@ -337,13 +337,22 @@ impl Parser {
                 self.clear_seq_state();
                 self.state = ParseState::Escape;
                 return i + pos + 1;
-            } else if b == 0x7f {
-                // DEL is a C0 control (destructive backspace), not printable.
-                p.execute(0x7f);
-                pos += 1;
-            } else if b < 0x20 {
-                p.execute(b);
-                pos += 1;
+            } else if b == 0x7f || b < 0x20 {
+                // C0 controls (and DEL) often cluster — `\r\n`, `\t\t`, etc.
+                // Execute the whole run in a tight loop without re-scanning
+                // for printable bytes between them. ESC (0x1b) breaks out so
+                // the outer loop enters the escape state, not `execute`.
+                loop {
+                    p.execute(b);
+                    pos += 1;
+                    if pos >= valid {
+                        break;
+                    }
+                    b = run[pos];
+                    if b == 0x1b || !(b == 0x7f || b < 0x20) {
+                        break;
+                    }
+                }
             } else if b <= 0x9f {
                 // Raw 8-bit C1 control byte (0x80-0x9f): the introducers
                 // (DCS/SOS/CSI/OSC/PM/APC) start their sequence; ST is a
