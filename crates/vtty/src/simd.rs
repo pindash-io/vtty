@@ -7,7 +7,7 @@
 #[cfg(not(target_arch = "aarch64"))]
 use std::sync::OnceLock;
 
-use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16};
+use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
 
 /// Best SIMD level for this target. On arm64 NEON is mandatory, so
 /// `Level::baseline()` is a compile-time constant (no `OnceLock` atomic load);
@@ -126,9 +126,49 @@ fn first_set(mask: [i8; 16]) -> usize {
     16
 }
 
+/// SIMD-decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]`.
+/// The caller guarantees `bytes` starts with four validated 3-byte sequences.
+/// This is the simdutf `0x924` fast path: one fixed byte shuffle gathers each
+/// 3-byte group into a u32 lane, then mask + shift + or assemble the code
+/// points (lead contributes its low 4 bits, each continuation its low 6).
+#[inline(always)]
+fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
+    let v = u8x16::from_slice(simd, bytes);
+    // Gather [2,1,0] [5,4,3] [8,7,6] [11,10,9] into four little-endian u32
+    // lanes (0xff pads the high byte of each lane).
+    let sh = u8x16::from_slice(
+        simd,
+        &[2, 1, 0, 0xff, 5, 4, 3, 0xff, 8, 7, 6, 0xff, 11, 10, 9, 0xff],
+    );
+    let perm = simd.swizzle_dyn_u8x16(v, sh);
+    let p: u32x4<S> = perm.bitcast();
+    let ascii = p & simd.splat_u32x4(0x7f);
+    let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
+    let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
+    ((ascii | middle) | high).into()
+}
+
+/// Decode four consecutive 3-byte code points at `bytes[i..i+12]` via the
+/// runtime-dispatched SIMD level, or `None` if the backend cannot run it.
+#[inline(always)]
+pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
+    let level = level();
+    dispatch!(level, simd => decode_3byte(simd, bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decode_3byte_decodes_four_cjk() {
+        // 中 (U+4E2D) 文 (U+6587) 日 (U+65E5) 本 (U+672C)
+        let bytes = [
+            0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c, 0xac, 0, 0, 0, 0,
+        ];
+        let out = decode_3byte_dispatch(&bytes);
+        assert_eq!(out, [0x4e2d, 0x6587, 0x65e5, 0x672c]);
+    }
 
     #[test]
     fn first_set_finds_first_lane() {

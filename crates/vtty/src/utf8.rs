@@ -229,14 +229,29 @@ pub(crate) fn decode_utf8<P: Perform>(
                             loop {
                                 let b0 = s[i];
                                 if (0xe0..=0xef).contains(&b0) {
-                                    // 3-byte lead (CJK etc.) — never C1.
-                                    buf[n] = decode_utf8_n::<3>(&s[i..]);
-                                    n += 1;
-                                    if n == BATCH {
-                                        p.print_codepoints(&buf[..n]);
-                                        n = 0;
+                                    // 3-byte lead (CJK etc.) — never C1. When
+                                    // four consecutive 3-byte code points are
+                                    // available and fit in the batch, SIMD-decode
+                                    // them at once (simdutf's `0x924` path).
+                                    if i + 16 <= s.len()
+                                        && (0xe0..=0xef).contains(&s[i + 3])
+                                        && (0xe0..=0xef).contains(&s[i + 6])
+                                        && (0xe0..=0xef).contains(&s[i + 9])
+                                        && n + 4 <= BATCH
+                                    {
+                                        let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
+                                        buf[n..n + 4].copy_from_slice(&cps);
+                                        n += 4;
+                                        i += 12;
+                                    } else {
+                                        buf[n] = decode_utf8_n::<3>(&s[i..]);
+                                        n += 1;
+                                        if n == BATCH {
+                                            p.print_codepoints(&buf[..n]);
+                                            n = 0;
+                                        }
+                                        i += 3;
                                     }
-                                    i += 3;
                                 } else {
                                     // 2- or 4-byte lead.
                                     let (cp, len) = if (0xf0..=0xf4).contains(&b0) {
