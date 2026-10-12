@@ -5,28 +5,18 @@
 
 use crate::perform::Perform;
 
-/// Expected UTF-8 byte length for a lead byte (0 = invalid/continuation).
+/// Expected byte length and initial code-point bits for a UTF-8 lead byte —
+/// the two facts the partial-decoder needs, from one range dispatch. Returns
+/// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
+/// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
 #[inline]
-const fn utf8_expected(lead: u8) -> usize {
+const fn utf8_lead(lead: u8) -> (usize, u32) {
     match lead {
-        0x00..=0x7f => 1,
-        0xc2..=0xdf => 2,
-        0xe0..=0xef => 3,
-        0xf0..=0xf4 => 4,
-        _ => 0,
-    }
-}
-
-/// Code-point bits contributed by a UTF-8 lead byte (the u32 accumulator's
-/// initial value — the ICU4X incremental-decode shape).
-#[inline]
-const fn utf8_lead_cp(lead: u8) -> u32 {
-    match lead {
-        0x00..=0x7f => lead as u32,
-        0xc0..=0xdf => (lead & 0x1f) as u32,
-        0xe0..=0xef => (lead & 0x0f) as u32,
-        0xf0..=0xf7 => (lead & 0x07) as u32,
-        _ => 0,
+        0x00..=0x7f => (1, lead as u32),
+        0xc2..=0xdf => (2, (lead & 0x1f) as u32),
+        0xe0..=0xef => (3, (lead & 0x0f) as u32),
+        0xf0..=0xf4 => (4, (lead & 0x07) as u32),
+        _ => (0, 0),
     }
 }
 
@@ -60,8 +50,8 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     }
     if (0xc2..=0xf4).contains(&last) {
         // A lead byte at the very end.
-        let expected = utf8_expected(last);
-        return Some((len - 1, utf8_lead_cp(last), (expected - 1) as u8));
+        let (expected, cp) = utf8_lead(last);
+        return Some((len - 1, cp, (expected - 1) as u8));
     }
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
     // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
@@ -86,7 +76,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     }
     let lead_idx = len - 1 - back;
     let lead = s[lead_idx];
-    let expected = utf8_expected(lead);
+    let (expected, lead_cp) = utf8_lead(lead);
     let have = back + 1;
     if expected == 0 || have >= expected {
         return None;
@@ -96,7 +86,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     if have >= 2 && !utf8_second_byte_valid(lead, s[lead_idx + 1]) {
         return None;
     }
-    let mut cp = utf8_lead_cp(lead);
+    let mut cp = lead_cp;
     for &b in &s[lead_idx + 1..] {
         cp = (cp << 6) | (b & 0x3f) as u32;
     }
