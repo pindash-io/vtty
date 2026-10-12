@@ -79,10 +79,8 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
         offset += 16;
     }
     // Scalar tail (< 16 bytes).
-    for (j, &b) in remainder.iter().enumerate() {
-        if matches_kind(b, kind) {
-            return offset + j;
-        }
+    if let Some(j) = remainder.iter().position(|&b| matches_kind(b, kind)) {
+        return offset + j;
     }
     bytes.len()
 }
