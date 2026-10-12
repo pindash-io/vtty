@@ -880,7 +880,7 @@ fn first_csi_final(bytes: &[u8]) -> usize {
     bytes
         .iter()
         .position(|&b| (0x40..=0x7e).contains(&b))
-        .unwrap_or_else(|| bytes.len())
+        .unwrap_or(bytes.len())
 }
 
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
