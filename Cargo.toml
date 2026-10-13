@@ -5,8 +5,8 @@ members = ["crates/*", "fuzz"]
 [workspace.package]
 authors = ["Fangdun Tsai <fundon@pindash.io>"]
 description = "Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and no_std support."
-keywords = ["terminal", "vt100", "vt500", "ansi", "parser", "escape"]
-categories = ["emulators", "parsing", "text-processing", "tty"]
+keywords = ["terminal", "vt", "ansi", "parser", "escape"]
+categories = ["parsing", "text-processing"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pindash-io/vtty"

@@ -9,6 +9,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
+publish = false
 
 [dependencies]
 # vtty is compiled with the `simd-transcode` feature so both the scalar
