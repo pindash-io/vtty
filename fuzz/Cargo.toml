@@ -15,6 +15,7 @@ vte.workspace = true
 vtparse.workspace = true
 rio-vt.workspace = true
 vtty = { workspace = true, features = ["simd"] }
+vtty_codec.workspace = true
 
 [[bin]]
 name = "differential"
@@ -47,6 +48,13 @@ bench = false
 [[bin]]
 name = "random"
 path = "fuzz_targets/random.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "codec"
+path = "fuzz_targets/codec.rs"
 test = false
 doc = false
 bench = false

@@ -1,0 +1,37 @@
+[package]
+name = "vtty_core"
+version.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[features]
+default = []
+# SIMD-accelerated printable-run scanning + UTF-8 validation.
+simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8", "base64/simd-unsafe"]
+# SIMD UTF-8→UTF-32 transcode (compile-time lookup tables). Implies `simd`.
+simd-transcode = ["simd"]
+
+[dependencies]
+fearless_simd = { workspace = true, optional = true }
+simdutf8 = { workspace = true, optional = true }
+
+base64.workspace = true
+bitflags.workspace = true
+const-hex.workspace = true
+smallvec.workspace = true
+smol_str.workspace = true
+utf8_iter.workspace = true
+
+[dev-dependencies]
+smallvec.workspace = true
+vte.workspace = true
+rio-vt.workspace = true
+
+[lints]
+workspace = true

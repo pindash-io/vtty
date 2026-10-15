@@ -11,6 +11,7 @@ Differential fuzzing against reference parsers, plus a robustness target.
 | `differential-rio` | vtty vs `rio-vt` | stable |
 | `robustness` | no-panic for vtty/vte/vt100/vtparse/rio-vt | stable |
 | `random` | structured random VT bytes, vtty vs vte | stable |
+| `codec` | event/parser/state encode→decode round-trip + no-panic | stable |
 
 ## Setup
 
@@ -26,6 +27,8 @@ cargo fuzz run differential
 cargo fuzz run differential-simd
 cargo fuzz run differential-rio
 cargo fuzz run robustness
+cargo fuzz run random
+cargo fuzz run codec
 ```
 
 ## Seed corpus

@@ -2,7 +2,8 @@
 
 <!-- cargo-rdme start -->
 
-Raw C ABI over `vtty` (byte-cursor parser). Declared in `vtty_ffi.h`.
+Raw C ABI over `vtty`'s byte-cursor state (`vtty::State`). Declared in
+`vtty_ffi.h`.
 
 ## Usage
 

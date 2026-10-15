@@ -5,6 +5,8 @@
 **Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and
 `no_std` support**
 
+[![crates.io](https://img.shields.io/crates/v/vtty.svg)](https://crates.io/crates/vtty)
+[![docs.rs](https://docs.rs/vtty/badge.svg)](https://docs.rs/vtty)
 [![dependency status](https://deps.rs/repo/github/pindash-io/vtty/status.svg)](https://deps.rs/repo/github/pindash-io/vtty)
 [![Apache 2.0 or MIT license.](https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue.svg)](#license)
 [![Build status](https://github.com/pindash-io/vtty/workflows/CI/badge.svg)](https://github.com/pindash-io/vtty/actions)
@@ -15,17 +17,26 @@
 
 | crate | purpose |
 | --- | --- |
-| [`vtty`](crates/vtty) | the parser — core crate |
+| [`vtty`](crates/vtty) | the parser (core) |
+| [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec + vtty type impls |
 | [`vtty_emoji`](crates/vtty_emoji) | display cell width + emoji sequences |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
 | [`vtty_bench`](crates/vtty_bench) | throughput benchmarks |
 
-## Highlights
+## Features
 
-- **Panic-free** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`.
-- **Zero-allocation hot path** — bulk `print_bytes` / `print_codepoints`.
-- **`no_std` by default** — optional `simd` / `simd-transcode` features.
-- **W3C-correct UTF-8** — maximal-subpart substitution; 8-bit clean.
+- **Safety** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`.
+- **Zero-allocation** — bulk `print_bytes` / `print_codepoints`.
+- **`no_std`** — optional `simd` / `simd-transcode` features.
+- **UTF-8** — maximal-subpart substitution; 8-bit C1 controls.
+- **Serialization** — compact, `no_std`, zero-allocation `Encode`/`Decode` codec
+  (`vtty_codec`) for events, replies, terminal state, and parser checkpoints.
+
+## Install
+
+```bash
+cargo add vtty
+```
 
 ## Usage
 
@@ -35,20 +46,40 @@ use vtty::{Parser, Perform};
 struct Screen;
 
 impl Perform for Screen {
-    fn print_bytes(&mut self, s: &[u8]) {}
-    fn print(&mut self, c: char) {}
-    fn execute(&mut self, b: u8) {}
-    fn csi_dispatch(&mut self, params: &[i32], sep: u16, i: &[u8], f: u8) {}
-    fn osc_dispatch(&mut self, params: &[&[u8]], bell: bool) {}
+    fn print_bytes(&mut self, s: &[u8]) { /* printable ASCII run */ }
+    fn print(&mut self, c: char) { /* non-ASCII code point */ }
+    fn execute(&mut self, b: u8) { /* \n \t \x1b … */ }
+    fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
+        /* CSI Ps ; Ps final */
+    }
+    fn osc_dispatch(&mut self, params: &[&[u8]], bell: bool) { /* OSC */ }
 }
 
 let mut parser = Parser::new();
 parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 ```
 
-Owned events: `parser.parse_events(bytes)` → `Vec<Event>`. Also re-exports
-`State`, `Reply`, `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`,
-`MouseButton`, `Charset`, `Cap`.
+## Serialization
+
+Events, replies, terminal state and parser checkpoints round-trip through a
+compact, `no_std`, zero-allocation binary codec:
+
+```rust
+use vtty_codec::{decode_from_slice, encode_to_vec};
+use vtty::{Parser, Recording};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Checkpoint a paused CSI sequence and resume it later:
+    let mut parser = Parser::new();
+    parser.advance(&mut Recording::default(), b"\x1b[1;31"); // mid-CSI
+
+    let checkpoint = encode_to_vec(&parser)?;
+    let mut restored = decode_from_slice::<Parser>(&checkpoint)?;
+
+    assert_eq!(parser.parse_events(b"mX"), restored.parse_events(b"mX"));
+    Ok(())
+}
+```
 
 ## Benchmarks
 

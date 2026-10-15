@@ -16,8 +16,15 @@ cell_widths("👨\u{200D}👩\u{200D}👧");    // [2, 0, 0, 0, 0] — ZWJ famil
 cell_advance(1.6, 10.0);             // 20.0 — snap a fractional advance to 2 cells
 ```
 
-Also: `cell_col_byte_widths`, `Properties` (packed emoji flags + width), the
-`emoji` segmentation DFA (`scan`/`classify`), and `width_icu` (`icu` feature).
+## API
+
+- **Width** — `cell_width`, `cell_widths`, `cell_col_byte_widths`,
+  `vs_width`, `is_zero_width`, `cell_advance`.
+- **Emoji segmentation** — `mark_attaches`, `mark_is_stray`, `is_vs_target`,
+  `is_zwj_target`, and the `EmojiDFA` DFA (`scan`/`classify`), re-exported
+  with `EmojiPresentationStyle` / `EmojiSegmentationCategory`.
+- **`Properties`** — packed emoji flags + width in one lookup.
+- **`width_icu`** — runtime ICU4X width (`icu` feature).
 
 ## Features
 
@@ -25,6 +32,6 @@ Also: `cell_col_byte_widths`, `Properties` (packed emoji flags + width), the
 
 ## Credits
 
-The emoji DFA is ported from [`chansen/c-emoji`](https://github.com/chansen/c-emoji) (MIT).
+The emoji DFA is provided by [`parley_emoji`](https://github.com/linebender/parley) (MIT).
 
 <!-- cargo-rdme end -->

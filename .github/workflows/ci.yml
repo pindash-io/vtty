@@ -78,7 +78,7 @@ jobs:
       - name: no_std check (bare-metal target)
         run: |
           rustup target add thumbv7em-none-eabihf
-          cargo check -p vtty --no-default-features --target thumbv7em-none-eabihf
+          cargo check -p vtty_core --no-default-features --target thumbv7em-none-eabihf
 
   fuzz-smoke:
     strategy:
@@ -104,10 +104,11 @@ jobs:
 
       - name: Seed corpus
         run: |
-          mkdir -p fuzz/corpus/differential fuzz/corpus/differential-simd fuzz/corpus/differential-rio
+          mkdir -p fuzz/corpus/differential fuzz/corpus/differential-simd fuzz/corpus/differential-rio fuzz/corpus/codec
           cp fuzz/seeds/* fuzz/corpus/differential/
           cp fuzz/seeds/* fuzz/corpus/differential-simd/
           cp fuzz/seeds/* fuzz/corpus/differential-rio/
+          cp fuzz/seeds/* fuzz/corpus/codec/
 
       - name: Fuzz smoke — vtty vs vte
         run: cargo fuzz run differential --target ${{ matrix.target }} -- -max_total_time=30
@@ -123,3 +124,6 @@ jobs:
 
       - name: Fuzz smoke — no-panic
         run: cargo fuzz run robustness --target ${{ matrix.target }} -- -max_total_time=30
+
+      - name: Fuzz smoke — codec round-trip
+        run: cargo fuzz run codec --target ${{ matrix.target }} -- -max_total_time=30

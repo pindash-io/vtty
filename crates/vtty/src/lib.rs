@@ -4,6 +4,10 @@
 //! Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding
 //! and `no_std` support.
 //!
+//! This is the public facade: it re-exports the `vtty_core` engine. The
+//! engine crate holds the parser state machine; `vtty_codec` provides the
+//! compact binary `Encode`/`Decode` implementations.
+//!
 //! ## Usage
 //!
 //! ```rust,ignore
@@ -31,70 +35,49 @@
 //! ```
 //!
 //! Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
-//! sink with line/cursor geometry), `Reply` (query reply builder), and
-//! `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`, `Charset`, `Cap`.
+//! sink with line/cursor geometry), `Reply` (query reply builder),
+//! `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`, `Charset`,
+//! `Cap`, and a compact binary `vtty_codec` crate (`Encode`/`Decode`) covering
+//! all of the above.
 //!
-//! ## Design
+//! ## Serialization
 //!
-//! - **Panic-free** — `#![forbid(unsafe_code)]`; malformed PTY input never
+//! Every owned type round-trips through the compact, `no_std` binary codec:
+//!
+//! ```
+//! use vtty_codec::{decode_from_slice, encode_to_vec};
+//! use vtty::{Event, Parser};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Owned events encode/decode as data:
+//! let mut parser = Parser::new();
+//! let events = parser.parse_events(b"\x1b[1;31mhi");
+//! let bytes = encode_to_vec(&events)?;
+//! assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Features
+//!
+//! - **Safety** — `#![forbid(unsafe_code)]`; malformed PTY input never
 //!   crashes.
-//! - **Zero-allocation hot path** — one `print_bytes` per ASCII run, one
+//! - **Zero-allocation** — one `print_bytes` per ASCII run, one
 //!   `print_codepoints` per non-ASCII run; CSI/OSC/DCS state is inline.
-//! - **`no_std` by default** — optional `simd` (scanning + validation) and
+//! - **`no_std`** — optional `simd` (scanning + validation) and
 //!   `simd-transcode` (UTF-8→UTF-32) features, enabled per parser.
-//! - **W3C-correct UTF-8** — maximal-subpart substitution; 8-bit clean
-//!   (DEC “anywhere”).
+//! - **UTF-8** — maximal-subpart substitution; 8-bit C1 controls (DEC
+//!   “anywhere”).
 //!
 //! ## Test
 //!
 //! ```bash
 //! cargo test -p vtty
-//! cargo test -p vtty --test vt_differential -- --nocapture  # parity vs vte
+//! cargo test -p vtty_core --test vt_differential -- --nocapture     # parity vs vte
+//! cargo test -p vtty_core --test vt_differential_rio -- --nocapture # parity vs rio-vt
 //! ```
 #![forbid(unsafe_code)]
-#![cfg_attr(not(feature = "simd"), no_std)]
-#![expect(
-    clippy::cast_possible_truncation,
-    reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
-)]
-// The parser must never panic on untrusted input (a malformed PTY stream is
-// normal, not exceptional). These lints keep `unwrap`/`expect`/`panic` out.
-#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![warn(missing_debug_implementations)]
+#![no_std]
 #![deny(missing_docs)]
 
-extern crate alloc;
-
-mod charset;
-mod color;
-mod hex;
-mod keyboard;
-mod mode;
-mod mouse;
-mod parser;
-mod perform;
-mod recording;
-mod reply;
-#[cfg(feature = "simd")]
-mod simd;
-mod state;
-mod style;
-mod table;
-mod termcap;
-mod utf8;
-#[cfg(feature = "simd-transcode")]
-mod utf8_tables;
-
-pub use charset::{Charset, Charsets, dec_special_graphics};
-pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID};
-pub use hex::{hex_decode, hex_encode};
-pub use keyboard::KittyFlags;
-pub use mode::{MOUSE_MASK, TermFlags};
-pub use mouse::{MouseButton, MouseTracking};
-pub use parser::Parser;
-pub use perform::Perform;
-pub use recording::{Event, Recording};
-pub use reply::Reply;
-pub use state::State;
-pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
-pub use termcap::{Cap, CapValue};
+pub use vtty_core::*;

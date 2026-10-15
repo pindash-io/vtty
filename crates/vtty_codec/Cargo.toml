@@ -1,0 +1,19 @@
+[package]
+name = "vtty_codec"
+version.workspace = true
+description = "Compact, `no_std`, panic-free binary serialization."
+keywords = ["serialization", "codec", "binary", "no-std"]
+categories = ["encoding"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+vtty_core = { path = "../vtty_core", default-features = false }
+smallvec.workspace = true
+smol_str.workspace = true
+
+[lints]
+workspace = true

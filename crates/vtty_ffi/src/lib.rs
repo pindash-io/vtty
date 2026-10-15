@@ -1,7 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Raw C ABI over `vtty` (byte-cursor parser). Declared in `vtty_ffi.h`.
+//! Raw C ABI over `vtty`'s byte-cursor state (`vtty::State`). Declared in
+//! `vtty_ffi.h`.
 //!
 //! ## Usage
 //!
@@ -55,11 +56,10 @@ pub struct VtState {
 #[inline]
 unsafe fn state_ref(state: *const VtState) -> Option<&'static VtState> {
     if state.is_null() {
-        None
-    } else {
-        // SAFETY: non-null, and the caller upholds the pointer contract.
-        Some(unsafe { &*state })
+        return None;
     }
+    // SAFETY: non-null, and the caller upholds the pointer contract.
+    Some(unsafe { &*state })
 }
 
 /// Borrow a non-null state pointer mutably for the duration of the call.
@@ -69,11 +69,10 @@ unsafe fn state_ref(state: *const VtState) -> Option<&'static VtState> {
 #[inline]
 unsafe fn state_mut(state: *mut VtState) -> Option<&'static mut VtState> {
     if state.is_null() {
-        None
-    } else {
-        // SAFETY: non-null, and the caller upholds the pointer contract.
-        Some(unsafe { &mut *state })
+        return None;
     }
+    // SAFETY: non-null, and the caller upholds the pointer contract.
+    Some(unsafe { &mut *state })
 }
 
 /// The ABI version as `(major << 16) | (minor << 8) | patch` — a compile-time
@@ -337,16 +336,16 @@ mod tests {
         }
     }
 
-    /// `\r` is normalized to `\n`, so a CRLF pair becomes two line breaks in
-    /// this byte-cursor state.
+    /// CR returns to column 0; LF advances the line — so a CRLF pair is one
+    /// line break.
     #[test]
-    fn cr_is_a_line_break() {
+    fn crlf_is_one_line_break() {
         unsafe {
             let s = vt_new();
             vt_advance(s, b"a\r\nb".as_ptr(), 4);
-            assert_eq!(vt_text_len(s), 4);
-            assert_eq!(vt_line_count(s), 3); // "a", "", "b"
-            assert_eq!(vt_cursor_row(s), 2);
+            assert_eq!(vt_text_len(s), 3);
+            assert_eq!(vt_line_count(s), 2); // "a", "b"
+            assert_eq!(vt_cursor_row(s), 1);
             assert_eq!(vt_cursor_col(s), 1);
             vt_free(s);
         }

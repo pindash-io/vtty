@@ -1,7 +1,7 @@
 # vtty_bench
 
-Criterion throughput benchmarks comparing `vtty` (scalar and SIMD) against
-`vte`, `vt100`, `vtparse`, and `rio-vt`.
+Criterion throughput benchmarks: `vtty` (scalar and SIMD) vs `vte`, `vt100`,
+`vtparse`, and `rio-vt`.
 
 ```bash
 cargo bench -p vtty_bench
@@ -9,8 +9,9 @@ cargo bench -p vtty_bench
 
 ## Method
 
-2 MiB byte corpora, counting sinks (so the numbers reflect parser + dispatch
-cost, not grid mutation), median throughput.
+Each benchmark feeds a 2 MiB corpus through a counting sink (no grid
+mutation) and reports median throughput, isolating parser + dispatch cost
+from screen updates.
 
 Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 `ansi_two_styles`, `ansi_bare_csi`, `sgr_churn`, `cursor_motion`, `sync_churn`,
@@ -36,7 +37,5 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
-`utf8_mixed` is a statistical tie between `vtty-simd` and `rio-vt`
-(≈ 1.21 GiB/s); the aligned 64-byte-block UTF-8→UTF-32 transcode closed what
-was previously an ~8% gap. Numbers carry ~10% run-to-run variance (AVX
-frequency scaling).
+Numbers carry ~10% run-to-run variance (CPU frequency scaling). `utf8_mixed`
+is a statistical tie between `vtty-simd` and `rio-vt` (≈1.21 GiB/s).
