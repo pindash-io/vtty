@@ -451,94 +451,222 @@ fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usi
 /// Returns one entry per `char`, so callers can zip with `char_indices()`.
 /// The total cell width of `text` — `cell_widths(text).iter().sum()` in one
 /// call.
-pub fn cell_width_sum(text: &str) -> usize {
-    cell_widths(text).iter().sum()
+struct Run {
+    dfa: EmojiDFA,
+    lead: char,
+    lead_w1: usize,
+    lead_ep: bool,
+    lead_cat: EmojiSegmentationCategory,
+    lead_index: usize,
+    len: usize,
+    prev_zwj: bool,
+    ri_count: u8,
+    keycap_end: bool,
 }
 
-/// Per-char display widths (the cell-width model).
+/// Whether `c` continues the open run `r` — the spec's `cont_t` predicate: the
+/// parley DFA's transition from the run's accumulated state (keycap/RI leads
+/// have no `→ ZWJ`, so a ZWJ after them is a stray) plus the deliberate
+/// combining-mark exception (`w₁ = 0` non-selector attaches to any emoji
+/// base).
+#[inline]
+fn run_continues(r: &Run, c: char) -> bool {
+    let cat = emoji_category(c);
+    if !is_emoji_starter(r.lead_cat) {
+        return false;
+    }
+    match r.lead_cat {
+        EmojiSegmentationCategory::KeycapBase => matches!(
+            cat,
+            EmojiSegmentationCategory::Vs15
+                | EmojiSegmentationCategory::Vs16
+                | EmojiSegmentationCategory::KeycapEnd
+        ),
+        EmojiSegmentationCategory::RegionalIndicator => {
+            cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1
+        }
+        _ => {
+            is_continuation(cat)
+                || (r.prev_zwj && is_zwj_target(c))
+                || (cat == EmojiSegmentationCategory::RegionalIndicator
+                    && r.ri_count == 1)
+                || cell_width(c) == Some(0)
+        }
+    }
+}
+
+/// The finalized width of the run's LEAD, with the lone-mark fix folded in: a
+/// lone 0-width mark occupies its own cell (1) unless it is a selector
+/// (invisible, 0) or a base precedes it (attaches, 0).
+#[inline]
+fn finalize_lead(r: &Run, has_base: &mut bool) -> usize {
+    let lead_w = if r.len > 1 && is_emoji_starter(r.lead_cat) {
+        run_width(&r.dfa, r.lead, r.lead_ep, r.keycap_end)
+    } else {
+        r.lead_w1
+    };
+    let w = if lead_w == 0 {
+        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') {
+            0
+        } else if *has_base {
+            0
+        } else {
+            1
+        }
+    } else {
+        lead_w
+    };
+    if w > 0 {
+        *has_base = true;
+    }
+    w
+}
+
+
+/// Per-char display cell widths for a string, with emoji sequences handled by
+/// the UTS #51 DFA ([`EmojiDFA`]) — the single structural source
+/// of truth (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15), so the width
+/// model never re-derives sequence structure by hand:
+///
+/// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark
+///   (skin tone / combining) occupies one cell.
+/// - A lone ZWJ (`U+200D`) is ignored — always zero cells (it is a joiner,
+///   never a standalone glyph).
+/// - A multi-char sequence is one emoji glyph: 2 cells, except text
+///   presentation (VS15), a bare keycap without VS16, and a ZWJ sequence with
+///   a text-presentation leading char stay 1.
+/// - Every continuation char in a sequence is 0.
+/// - The first variation selector locks the width (`▶+VS16+VS15` = 2,
+///   `😐+VS15+VS16` = 1) — the DFA rejects the second selector and it starts
+///   a fresh (non-accepting) scan, so it is naturally excluded.
+///
+/// The returned vector has one entry per `char` in `text`, so callers can zip
+/// it with `char_indices()` while keeping glyph/char counts in lockstep. This
+/// is the cell-grid model the RENDERER snaps glyphs and backgrounds to; the
+/// single-char [`cell_width`] cannot see a following VS16/ZWJ and so cannot
+/// express emoji presentation sequences.
+///
+/// Spec: Layer 2 `w₂` in `docs/width-model-spec.md`.
 pub fn cell_widths(text: &str) -> Vec<usize> {
-    // ASCII fast path: one cell per byte (no emoji sequence is pure ASCII).
     let ascii_len = first_non_ascii(text.as_bytes());
     if ascii_len == text.len() {
         return vec![1_usize; text.len()];
     }
-
-    // Per-char base widths (the overrides in `cell_width` — skin tone = 0,
-    // halfwidth dakuten = 1, tag chars = 0, emoji-presentation = 2).
-    let chars: Vec<char> = text.chars().collect();
-    let mut widths: Vec<usize> = chars.iter().map(|&c| cell_width(c).unwrap_or(0)).collect();
-
-    // Greedy emoji runs: a base char + its zero-width continuations (VS / ZWJ /
-    // keycap-end / tag / modifier) + a ZWJ's target. Each run is classified by
-    // `parley_emoji`'s DFA and the leading char takes the presentation width.
-    let n = chars.len();
-    let mut i = 0;
-    while i < n {
-        let lead = chars[i];
-        let lead_cat = emoji_category(lead);
-        let lead_is_emoji = is_emoji_starter(lead_cat);
-        let lead_ep = Properties::get(lead).is_emoji_presentation();
-        let mut dfa = EmojiDFA::new();
-        let mut j = i;
-        let mut prev_zwj = false;
-        let mut ri_count = 0_u8;
-        while j < n {
-            let cat = emoji_category(chars[j]);
-            if j > i {
-                // Continuations only extend a run whose LEAD is an emoji
-                // starter. A ZWJ/VS/modifier after a non-emoji is a STRAY and
-                // must not swallow the next char (the DFA rejects it too).
-                let cont = lead_is_emoji
-                    && (is_continuation(cat)
-                        || (prev_zwj && is_zwj_target(chars[j]))
-                        // A flag is exactly TWO regional indicators.
-                        || (cat == EmojiSegmentationCategory::RegionalIndicator
-                            && ri_count == 1)
-                        // A combining mark (Grapheme_Extend) is a grapheme
-                        // continuation — the DFA's `Other` is a no-op, so a
-                        // keycap/VS16 sequence resolves even with marks between
-                        // the base and selector.
-                        // the cell screen's `set_cell`, which widens the base
-                        // regardless of intervening combining marks.
-                        || cell_width(chars[j]) == Some(0));
-                if !cont {
-                    break;
-                }
-            }
-            dfa.step_record(cat);
-            if cat == EmojiSegmentationCategory::RegionalIndicator {
-                ri_count += 1;
-            } else {
-                ri_count = 0;
-            }
-            prev_zwj = cat == EmojiSegmentationCategory::Zwj;
-            j += 1;
-        }
-        // A lone char keeps its base `cell_width` (CJK 2, text emoji 1, …);
-        // only a multi-char run with a real emoji base overrides it.
-        if j > i + 1 && lead_is_emoji {
-            let keycap_end = chars[i..j]
-                .iter()
-                .any(|&c| emoji_category(c) == EmojiSegmentationCategory::KeycapEnd);
-            widths[i] = run_width(&dfa, lead, lead_ep, keycap_end);
-        }
-        widths[i + 1..j].fill(0);
-        i = j;
-    }
-
-    // A lone width-0 mark with no base occupies its own cell; a lone ZWJ/VS15/
-    // VS16 is invisible (no base to attach to), so it stays zero cells.
+    let mut widths = Vec::with_capacity(text.len());
     let mut has_base = false;
-    for (&c, w) in chars.iter().zip(widths.iter_mut()) {
-        if *w == 0 && !has_base && !matches!(c, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') {
-            *w = 1;
+    let mut run: Option<Run> = None;
+    for c in text.chars() {
+        let cat = emoji_category(c);
+        if let Some(r) = &mut run {
+            if run_continues(r, c) {
+                r.dfa.step_record(cat);
+                r.len += 1;
+                r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
+                r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator
+                {
+                    r.ri_count + 1
+                } else {
+                    0
+                };
+                r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
+                widths.push(0);
+                continue;
+            }
         }
-        if *w > 0 {
-            has_base = true;
+        if let Some(r) = run.take() {
+            let w = finalize_lead(&r, &mut has_base);
+            widths[r.lead_index] = w;
         }
+        let mut dfa = EmojiDFA::new();
+        dfa.step_record(cat);
+        let lead_index = widths.len();
+        widths.push(0);
+        run = Some(Run {
+            dfa,
+            lead: c,
+            lead_w1: cell_width(c).unwrap_or(0),
+            lead_ep: Properties::get(c).is_emoji_presentation(),
+            lead_cat: cat,
+            lead_index,
+            len: 1,
+            prev_zwj: cat == EmojiSegmentationCategory::Zwj,
+            ri_count: if cat == EmojiSegmentationCategory::RegionalIndicator {
+                1
+            } else {
+                0
+            },
+            keycap_end: false,
+        });
+    }
+    if let Some(r) = run.take() {
+        let w = finalize_lead(&r, &mut has_base);
+        widths[r.lead_index] = w;
     }
     widths
 }
+
+/// The total cell width of `text` in ONE allocation-free pass — the streaming
+/// counterpart of `cell_widths(text).iter().sum()`, used by `line_cell_width`.
+///
+/// Spec: `Σ w₂` in `docs/width-model-spec.md`.
+pub fn cell_width_sum(text: &str) -> usize {
+    let ascii_len = first_non_ascii(text.as_bytes());
+    if ascii_len == text.len() {
+        return text.len();
+    }
+    let mut total = 0_usize;
+    let mut has_base = false;
+    let mut run: Option<Run> = None;
+    for c in text.chars() {
+        let cat = emoji_category(c);
+        if let Some(r) = &mut run {
+            if run_continues(r, c) {
+                r.dfa.step_record(cat);
+                r.len += 1;
+                r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
+                r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator
+                {
+                    r.ri_count + 1
+                } else {
+                    0
+                };
+                r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
+                continue;
+            }
+        }
+        if let Some(r) = run.take() {
+            total += finalize_lead(&r, &mut has_base);
+        }
+        let mut dfa = EmojiDFA::new();
+        dfa.step_record(cat);
+        run = Some(Run {
+            dfa,
+            lead: c,
+            lead_w1: cell_width(c).unwrap_or(0),
+            lead_ep: Properties::get(c).is_emoji_presentation(),
+            lead_cat: cat,
+            lead_index: 0,
+            len: 1,
+            prev_zwj: cat == EmojiSegmentationCategory::Zwj,
+            ri_count: if cat == EmojiSegmentationCategory::RegionalIndicator {
+                1
+            } else {
+                0
+            },
+            keycap_end: false,
+        });
+    }
+    if let Some(r) = run.take() {
+        total += finalize_lead(&r, &mut has_base);
+    }
+    total
+}
+
+
+
+/// Snap a font glyph advance to the terminal cell grid: wide glyphs
+/// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,
+/// and zero-width glyphs (combining marks) none. The renderer and the screen
 
 /// Snap a font glyph advance to the terminal cell grid: wide glyphs
 /// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,
