@@ -23,6 +23,7 @@ extern crate alloc;
 mod charset;
 mod color;
 mod event;
+mod hex;
 mod keyboard;
 mod mode;
 mod mouse;
@@ -35,6 +36,7 @@ mod termcap;
 
 pub use charset::{Charset, Charsets, dec_special_graphics};
 pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID};
+pub use hex::{hex_decode, hex_encode};
 pub use event::{Event, Recording};
 pub use keyboard::KittyFlags;
 pub use mode::{MOUSE_MASK, TermFlags};

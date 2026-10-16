@@ -24,7 +24,8 @@ use std::path::PathBuf;
 
 use icu_properties::props::{
     DefaultIgnorableCodePoint, EastAsianWidth, Emoji, EmojiModifier, EmojiModifierBase,
-    EmojiPresentation, GeneralCategory, GraphemeClusterBreak, RegionalIndicator,
+    EmojiPresentation, ExtendedPictographic, GeneralCategory, GraphemeClusterBreak,
+    RegionalIndicator,
 };
 use icu_properties::{CodePointMapData, CodePointSetData};
 
@@ -72,14 +73,17 @@ fn main() {
     let modifier = CodePointSetData::new::<EmojiModifier>();
     let modifier_base = CodePointSetData::new::<EmojiModifierBase>();
     let regional_indicator = CodePointSetData::new::<RegionalIndicator>();
+    let extended_pictographic =
+        CodePointSetData::new::<ExtendedPictographic>();
     let default_ignorable = CodePointSetData::new::<DefaultIgnorableCodePoint>();
     let gc = CodePointMapData::<GeneralCategory>::new();
     let eaw = CodePointMapData::<EastAsianWidth>::new();
     let gcb = CodePointMapData::<GraphemeClusterBreak>::new();
 
     // Bit 0 = Emoji, bit 1 = Emoji_Presentation, bit 2 = Emoji_Modifier,
-    // bit 3 = Emoji_Modifier_Base, bit 4 = Regional_Indicator, bits 5-6 =
-    // display width (0/1/2, derived from ICU4X). Mirrors parley_data's
+    // bit 3 = Emoji_Modifier_Base, bit 4 = Regional_Indicator,
+    // bit 7 = Extended_Pictographic, bits 5-6 = display width (0/1/2,
+    // derived from ICU4X). Mirrors parley_data's
     // `Properties` emoji flags.
     let mut data = vec![0_i64; N];
     for (cp, slot) in data.iter_mut().enumerate() {
@@ -102,6 +106,9 @@ fn main() {
         }
         if regional_indicator.contains(c) {
             b |= 1 << 4;
+        }
+        if extended_pictographic.contains(c) {
+            b |= 1 << 7;
         }
         let w = match cp as u32 {
             // unicode-width's documented special cases (reproduced here so the

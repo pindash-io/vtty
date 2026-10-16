@@ -52,39 +52,89 @@ pub use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCatego
 pub use icu::width_icu;
 
 /// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
-/// a ZWJ needs an emoji ZWJ target, VS15/VS16 need an emoji base, and a
-/// combining mark accepts any non-space base. The caller still checks that
-/// the base is a real visible glyph (non-space, width ≥ 1).
-#[inline]
-pub fn mark_attaches(mark: char, base: char) -> bool {
-    match mark {
-        '\u{200D}' => is_zwj_target(base),
-        '\u{FE0F}' | '\u{FE0E}' => is_vs_target(base),
-        _ => true,
+/// A variation selector or ZWJ — the zero-width marks that MODIFY a base's
+/// emoji presentation (VS15/VS16) or join a ZWJ sequence. Combining marks
+/// are NOT selectors: they accept any non-space base instead of rejecting
+/// non-emoji bases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Selector {
+    /// VS16 (U+FE0F): forces emoji presentation (width 2).
+    Vs16,
+    /// VS15 (U+FE0E): forces text presentation (width 1).
+    Vs15,
+    /// ZWJ (U+200D): joins the next emoji element (no width change).
+    Zwj,
+}
+
+impl Selector {
+    /// Classify a zero-width mark; `None` for combining marks.
+    #[inline]
+    pub fn from_char(c: char) -> Option<Self> {
+        match c {
+            '\u{FE0F}' => Some(Self::Vs16),
+            '\u{FE0E}' => Some(Self::Vs15),
+            '\u{200D}' => Some(Self::Zwj),
+            _ => None,
+        }
+    }
+
+    /// Whether the selector attaches to `base`: the base's category must be
+    /// a valid target, otherwise the selector is a STRAY and is dropped.
+    /// VS15/VS16 use [`is_vs_base`] (ExtPict — the ATTACH predicate); ZWJ
+    /// uses [`is_zwj_target`].
+    #[inline]
+    pub fn attaches_to(self, base: char) -> bool {
+        match self {
+            Self::Zwj => is_zwj_target(base),
+            Self::Vs16 | Self::Vs15 => is_vs_base(base),
+        }
+    }
+
+    /// The base's TARGET cell width when this selector applies, or `None`
+    /// for ZWJ (a joiner never changes the width) and for a VS whose base
+    /// is NOT a variation base.
+    #[inline]
+    pub fn target_width(self, base: char) -> Option<usize> {
+        match self {
+            Self::Vs16 if is_vs_target(base) => Some(2),
+            Self::Vs15 if is_vs_target(base) => Some(1),
+            _ => None,
+        }
     }
 }
 
-/// Whether a char is a valid VS15/VS16 target — Ghostty's
-/// `grapheme_break == .extended_pictographic`. Keycap bases (`0-9`, `#`, `*`)
-/// carry the `Emoji` property but are NOT pictographs: a VS16 there is a
-/// stray unless the full keycap sequence (`U+20E3`) follows.
+/// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
+/// a ZWJ needs an emoji ZWJ target, VS15/VS16 need an emoji base, and a
+/// combining mark accepts any non-space base.
+#[inline]
+pub fn mark_attaches(mark: char, base: char) -> bool {
+    Selector::from_char(mark).is_none_or(|s| s.attaches_to(base))
+}
+
+/// Whether a char is a valid VS15/VS16 ATTACH base — the
+/// `Extended_Pictographic` binary property (includes the reserved emoji
+/// ranges). Keycap bases (`0-9`, `#`, `*`) carry `Emoji` but are NOT ExtPict.
+#[inline]
+pub fn is_vs_base(c: char) -> bool {
+    Properties::get(c).is_extended_pictographic()
+}
+
+/// Whether a VS15/VS16 CHANGES the width of `c` — the `Emoji` property minus
+/// keycap bases.
 #[inline]
 pub fn is_vs_target(c: char) -> bool {
     Properties::get(c).is_emoji() && emoji_category(c) != EmojiSegmentationCategory::KeycapBase
 }
 
 /// Whether a zero-width `mark` is a STRAY for `base` — the inverse of
-/// [`mark_attaches`] for the ZWJ/VS family. A combining mark is never stray
-/// by this test (it just attaches, or is dropped for lack of a base).
+/// [`mark_attaches`] for the ZWJ/VS family.
 #[inline]
 pub fn mark_is_stray(mark: char, base: char) -> bool {
-    matches!(mark, '\u{200D}' | '\u{FE0F}' | '\u{FE0E}') && !mark_attaches(mark, base)
+    Selector::from_char(mark).is_some_and(|s| !s.attaches_to(base))
 }
 
 /// Whether a char can be the TARGET of a preceding ZWJ (a ZWJ-sequence
-/// continuation): the DFA's `Zwj` state advances on `Emoji`,
-/// `Emoji_Presentation` or `Emoji_Modifier_Base` — a keycap base (`9`/`#`/`*`)
-/// carries the `Emoji` property but REJECTS, so it is NOT a target.
+/// continuation).
 #[inline]
 pub fn is_zwj_target(c: char) -> bool {
     matches!(
@@ -122,6 +172,7 @@ impl Properties {
     const EMOJI_MODIFIER: u8 = 1 << 2;
     const MODIFIER_BASE: u8 = 1 << 3;
     const REGIONAL_INDICATOR: u8 = 1 << 4;
+    const EXTENDED_PICTOGRAPHIC: u8 = 1 << 7;
     const WIDTH_SHIFT: u8 = 5;
     const WIDTH_MASK: u8 = 0b11;
 
@@ -175,6 +226,13 @@ impl Properties {
         self.0 & Self::REGIONAL_INDICATOR != 0
     }
 
+    /// The `Extended_Pictographic` binary property (includes the reserved
+    /// emoji ranges — the VS15/VS16 base predicate).
+    #[inline]
+    pub const fn is_extended_pictographic(self) -> bool {
+        self.0 & Self::EXTENDED_PICTOGRAPHIC != 0
+    }
+
     /// The display width (0/1/2).
     #[inline]
     pub const fn width(self) -> u8 {
@@ -188,7 +246,8 @@ impl Properties {
         use icu_properties::CodePointSetData;
         use icu_properties::CodePointSetDataBorrowed;
         use icu_properties::props::{
-            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation, RegionalIndicator,
+            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation,
+            ExtendedPictographic, RegionalIndicator,
         };
         thread_local! {
             static EMOJI: CodePointSetDataBorrowed<'static> =
@@ -201,6 +260,8 @@ impl Properties {
                 const { CodePointSetData::new::<EmojiModifierBase>() };
             static RI: CodePointSetDataBorrowed<'static> =
                 const { CodePointSetData::new::<RegionalIndicator>() };
+            static EXT_PICT: CodePointSetDataBorrowed<'static> =
+                const { CodePointSetData::new::<ExtendedPictographic>() };
         }
         let mut b = 0_u8;
         if EMOJI.with(|p| p.contains(ch)) {
@@ -218,6 +279,9 @@ impl Properties {
         if RI.with(|p| p.contains(ch)) {
             b |= Self::REGIONAL_INDICATOR;
         }
+        if EXT_PICT.with(|p| p.contains(ch)) {
+            b |= Self::EXTENDED_PICTOGRAPHIC;
+        }
         b |= (width_icu(ch).unwrap_or(0) as u8) << Self::WIDTH_SHIFT;
         Self(b)
     }
@@ -227,7 +291,7 @@ impl Properties {
 /// whole slice is ASCII. With the `simd` feature this is a 16-byte-at-a-time
 /// vectorized scan; otherwise a scalar fallback.
 #[inline(always)]
-fn first_non_ascii(bytes: &[u8]) -> usize {
+pub fn first_non_ascii(bytes: &[u8]) -> usize {
     #[cfg(feature = "simd")]
     {
         simd::first_non_ascii(bytes)
@@ -385,6 +449,13 @@ fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usi
 /// - the first variation selector locks the width.
 ///
 /// Returns one entry per `char`, so callers can zip with `char_indices()`.
+/// The total cell width of `text` — `cell_widths(text).iter().sum()` in one
+/// call.
+pub fn cell_width_sum(text: &str) -> usize {
+    cell_widths(text).iter().sum()
+}
+
+/// Per-char display widths (the cell-width model).
 pub fn cell_widths(text: &str) -> Vec<usize> {
     // ASCII fast path: one cell per byte (no emoji sequence is pure ASCII).
     let ascii_len = first_non_ascii(text.as_bytes());
