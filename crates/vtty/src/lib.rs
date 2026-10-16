@@ -1,12 +1,12 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding
-//! and `no_std` support.
+//! A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
+//! **UTF-8** decoding and **`no_std`** support.
 //!
 //! This is the public facade: it re-exports the `vtty_core` engine. The
 //! engine crate holds the parser state machine; `vtty_codec` provides the
-//! compact binary `Encode`/`Decode` implementations.
+//! **compact** binary `Encode`/`Decode` implementations.
 //!
 //! ## Usage
 //!
