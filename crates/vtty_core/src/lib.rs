@@ -1,13 +1,21 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Terminal model types and the [`Perform`] callback trait for `vtty`.
+//! The irreducible core of `vtty`: the [`Perform`] callback contract, the
+//! owned [`Event`]/[`Recording`] API, the terminal model types (`ColorId`,
+//! `SgrFlags`, `Charset`, `TermFlags`, …), and the reference byte-cursor
+//! [`State`] sink.
 //!
-//! This is the data plane: the [`Perform`] trait, the owned
-//! [`Event`]/[`Recording`] API, and the terminal model types (`ColorId`,
-//! `SgrFlags`, `Charset`, `ProgramStatus`, …). The `vtty` parser crate depends
-//! on it and re-exports its API; `vtty_codec` depends on it so serialization
-//! does not have to pull in the parser.
+//! This crate is split out so the `vtty` parser facade and `vtty_codec` can
+//! share it without the codec depending on the parser. `vtty` re-exports its
+//! API.
+//!
+//! # Features
+//!
+//! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting ([`Reply`]).
+//! - `termcap` — XTGETTCAP terminfo capability table ([`Cap`]/[`CapValue`]);
+//!   implies `reply`.
+//! - `status` — OSC 7501 Program Status Protocol ([`ProgramStatus`]).
 #![forbid(unsafe_code)]
 #![no_std]
 #![expect(
@@ -20,6 +28,7 @@
 
 extern crate alloc;
 
+#[cfg(feature = "reply")]
 pub use const_hex;
 
 mod charset;
@@ -29,10 +38,13 @@ mod keyboard;
 mod mode;
 mod mouse;
 mod perform;
+#[cfg(feature = "reply")]
 mod reply;
 mod state;
+#[cfg(feature = "status")]
 mod status;
 mod style;
+#[cfg(feature = "termcap")]
 mod termcap;
 
 pub use charset::{Charset, Charsets, dec_special_graphics};
@@ -42,8 +54,11 @@ pub use keyboard::KittyFlags;
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
 pub use perform::Perform;
+#[cfg(feature = "reply")]
 pub use reply::Reply;
 pub use state::State;
+#[cfg(feature = "status")]
 pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
 pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
+#[cfg(feature = "termcap")]
 pub use termcap::{Cap, CapValue};

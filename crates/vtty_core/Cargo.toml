@@ -1,0 +1,30 @@
+[package]
+name = "vtty_core"
+version.workspace = true
+description = "The irreducible core of vtty: the Perform contract, model types, and the State sink."
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[features]
+default = []
+# DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
+reply = ["dep:const-hex"]
+# XTGETTCAP terminfo capability table (`Cap`/`CapValue`); implies `reply`.
+termcap = ["reply"]
+# OSC 7501 Program Status Protocol (`ProgramStatus`).
+status = ["dep:base64"]
+
+[dependencies]
+base64 = { workspace = true, optional = true }
+bitflags.workspace = true
+const-hex = { workspace = true, features = ["alloc"], optional = true }
+smallvec.workspace = true
+smol_str.workspace = true
+
+[lints]
+workspace = true

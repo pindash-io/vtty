@@ -11,7 +11,7 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-vtty_types = { path = "../vtty_types", default-features = false }
+vtty_core = { path = "../vtty_core", default-features = false, features = ["reply", "status"] }
 smallvec.workspace = true
 smol_str.workspace = true
 

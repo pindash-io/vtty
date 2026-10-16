@@ -5,7 +5,7 @@ Compact, `no_std`, panic-free binary serialization.
 A generic `Encode`/`Decode` codec (fixed-width little-endian primitives,
 LEB128 length prefixes, tag + payload enums), plus streaming (`Decoder`) and
 iterator (`decode_iter`) decoders. `vtty_codec` also provides codec
-implementations for the `vtty_types` data types (events, replies, sequence
+implementations for the `vtty_core` data types (events, replies, sequence
 primitives).
 
 ## License

@@ -5,7 +5,13 @@ relies on.
 
 ## Workspace
 
-- `vtty` — the core byte-input DEC VT500 parser (`no_std` by default).
+- `vtty` — the parser facade: re-exports `vtty_core` plus feature-gated wire
+  protocols.
+- `vtty_core` — the irreducible core: the `Perform`/`Event`/`Recording`
+  contract, terminal model types, and the byte-cursor `State` sink. Shared
+  with `vtty_codec`.
+- `vtty_codec` — `no_std` binary `Encode`/`Decode` codec (generic + `vtty_core`
+  impls).
 - `vtty_emoji` — display cell width + emoji sequences (ICU4X/parley).
 - `vtty_ffi` — raw C ABI over `vtty`.
 - `vtty_bench` — throughput benchmarks vs `vte`/`vt100`/`vtparse`/`rio-vt`.
@@ -37,20 +43,29 @@ tests/tooling, not untrusted input.
 
 ## Modules
 
+`vtty` (engine):
+
 | file | role |
 | --- | --- |
 | `parser.rs` | `Parser` state machine, inline per-state dispatch, boundary scans |
 | `table.rs` | compile-time DEC VT500 transition table |
+| `scan.rs` | SWAR boundary scanners |
 | `utf8.rs` | incremental UTF-8 decoding |
 | `simd.rs` | SIMD byte scans + UTF-8 transcode (`simd`/`simd-transcode`) |
-| `perform.rs` | `Perform` callback trait |
-| `recording.rs` | owned `Event` + `Recording` |
+| `utf8_tables.rs` | compile-time SIMD transcode tables (`simd-transcode`) |
+
+`vtty_core` (contract + model + wire):
+
+| file | role |
+| --- | --- |
+| `perform.rs` | `Perform` callback contract |
+| `event.rs` | owned `Event` + `Recording` |
 | `state.rs` | byte-cursor `State` sink |
 | `mode.rs` / `style.rs` / `color.rs` | `TermFlags`, `SgrFlags`, `ColorId`, … |
 | `charset.rs` | ISO 2022 charsets + DEC Special Graphics |
 | `keyboard.rs` / `mouse.rs` | kitty flags, mouse encoding |
-| `reply.rs` / `termcap.rs` | query replies (DECRQSS/DECRQM/XTGETTCAP) |
-| `hex.rs` | hex encode/decode |
+| `reply.rs` / `termcap.rs` | query replies (DECRQSS/DECRQM/XTGETTCAP) — `reply`/`termcap` features |
+| `status.rs` | OSC 7501 Program Status Protocol — `status` feature |
 
 ## Parser data flow
 
@@ -102,7 +117,8 @@ next `ParseState`. `transition` is one indexed load.
 - **Callback**: `Perform` + `Parser::advance`.
 - **Owned events**: `Event` + `Recording` (`parse_events`).
 - **Byte-cursor**: `State`.
-- **Replies**: `Reply` + `Cap`/`CapValue`.
+- **Replies**: `Reply` + `Cap`/`CapValue` (`reply`/`termcap` features).
+- **Status**: `ProgramStatus` (`status` feature).
 - **Types**: `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`,
   `Charset`, etc.
 

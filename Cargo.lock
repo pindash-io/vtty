@@ -1036,7 +1036,7 @@ dependencies = [
  "utf8_iter",
  "vte",
  "vtty_codec",
- "vtty_types",
+ "vtty_core",
 ]
 
 [[package]]
@@ -1071,7 +1071,18 @@ version = "0.1.0"
 dependencies = [
  "smallvec 2.0.0-beta.2",
  "smol_str",
- "vtty_types",
+ "vtty_core",
+]
+
+[[package]]
+name = "vtty_core"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bitflags",
+ "const-hex",
+ "smallvec 2.0.0-beta.2",
+ "smol_str",
 ]
 
 [[package]]
@@ -1090,17 +1101,6 @@ name = "vtty_ffi"
 version = "0.1.0"
 dependencies = [
  "vtty",
-]
-
-[[package]]
-name = "vtty_types"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bitflags",
- "const-hex",
- "smallvec 2.0.0-beta.2",
- "smol_str",
 ]
 
 [[package]]

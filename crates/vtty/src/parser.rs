@@ -13,8 +13,8 @@ use smallvec::SmallVec;
 use crate::scan::{first_dcs_boundary, first_non_printable, first_osc_boundary};
 use crate::table::{Action, ParseState, transition};
 use crate::utf8::{decode_utf8, trailing_partial};
-use vtty_types::Perform;
-use vtty_types::{Event, Recording};
+use vtty_core::Perform;
+use vtty_core::{Event, Recording};
 
 /// Maximum buffered OSC payload. A hostile program can otherwise stream a
 /// gigabyte into `ESC ] … ST` and OOM the parser; xterm.js caps OSC/DCS at
