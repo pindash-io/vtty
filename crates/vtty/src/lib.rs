@@ -91,37 +91,14 @@
 
 extern crate alloc;
 
-mod charset;
-mod color;
-mod event;
-mod keyboard;
-mod mode;
-mod mouse;
 mod parser;
-mod perform;
-mod reply;
 mod scan;
 #[cfg(feature = "simd")]
 mod simd;
-mod state;
-mod status;
-mod style;
 mod table;
-mod termcap;
 mod utf8;
 #[cfg(feature = "simd-transcode")]
 mod utf8_tables;
 
-pub use charset::{Charset, Charsets, dec_special_graphics};
-pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID};
-pub use event::{Event, Recording};
-pub use keyboard::KittyFlags;
-pub use mode::{MOUSE_MASK, TermFlags};
-pub use mouse::{MouseButton, MouseTracking};
 pub use parser::Parser;
-pub use perform::Perform;
-pub use reply::Reply;
-pub use state::State;
-pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
-pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
-pub use termcap::{Cap, CapValue};
+pub use vtty_types::*;

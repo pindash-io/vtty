@@ -5,9 +5,9 @@
 //!
 //! Reference: <https://vt100.net/emu/dec_ansi_parser>.
 
-/// Sink for the byte parser's decoded output. [`crate::Parser::advance`]
-/// calls these as it decodes; every method has a no-op default, so a screen
-/// overrides only what it cares about. [`crate::Event`] is the owned,
+/// Sink for the byte parser's decoded output. `Parser::advance` calls these
+/// as it decodes; every method has a no-op default, so a screen overrides
+/// only what it cares about. [`Event`](crate::Event) is the owned,
 /// trait-free alternative.
 pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).

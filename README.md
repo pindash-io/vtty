@@ -17,8 +17,9 @@
 
 | crate | purpose |
 | --- | --- |
-| [`vtty`](crates/vtty) | the parser + terminal model types |
-| [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec + vtty type impls |
+| [`vtty`](crates/vtty) | the parser (re-exports `vtty_types`) |
+| [`vtty_types`](crates/vtty_types) | terminal model types + `Perform` |
+| [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec for `vtty_types` |
 | [`vtty_emoji`](crates/vtty_emoji) | display cell width + emoji sequences |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
 | [`vtty_bench`](crates/vtty_bench) | throughput benchmarks |

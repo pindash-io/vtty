@@ -13,19 +13,17 @@ readme = "README.md"
 [features]
 default = []
 # SIMD-accelerated printable-run scanning + UTF-8 validation.
-simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8", "base64/simd-unsafe"]
+simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8"]
 # SIMD UTF-8→UTF-32 transcode (compile-time lookup tables). Implies `simd`.
 simd-transcode = ["simd"]
 
 [dependencies]
 fearless_simd = { workspace = true, optional = true }
 simdutf8 = { workspace = true, optional = true }
+vtty_types = { path = "../vtty_types", default-features = false }
 
-base64.workspace = true
 bitflags.workspace = true
-const-hex = { workspace = true, features = ["alloc"] }
 smallvec.workspace = true
-smol_str.workspace = true
 utf8_iter.workspace = true
 
 [dev-dependencies]

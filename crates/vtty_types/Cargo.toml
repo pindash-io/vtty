@@ -1,0 +1,21 @@
+[package]
+name = "vtty_types"
+version.workspace = true
+description = "Terminal model types and the Perform callback trait for vtty."
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+base64.workspace = true
+bitflags.workspace = true
+const-hex = { workspace = true, features = ["alloc"] }
+smallvec.workspace = true
+smol_str.workspace = true
+
+[lints]
+workspace = true

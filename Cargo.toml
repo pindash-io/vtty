@@ -15,6 +15,7 @@ rust-version = "1.89"
 
 [workspace.dependencies]
 vtty = { path = "crates/vtty", default-features = false }
+vtty_types = { path = "crates/vtty_types", default-features = false }
 vtty_codec = { path = "crates/vtty_codec" }
 
 # Optional SIMD ground-state run classifier.

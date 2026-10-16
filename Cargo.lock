@@ -1028,17 +1028,15 @@ dependencies = [
 name = "vtty"
 version = "0.1.0"
 dependencies = [
- "base64",
  "bitflags",
- "const-hex",
  "fearless_simd",
  "rio-vt",
  "simdutf8",
  "smallvec 2.0.0-beta.2",
- "smol_str",
  "utf8_iter",
  "vte",
  "vtty_codec",
+ "vtty_types",
 ]
 
 [[package]]
@@ -1073,7 +1071,7 @@ version = "0.1.0"
 dependencies = [
  "smallvec 2.0.0-beta.2",
  "smol_str",
- "vtty",
+ "vtty_types",
 ]
 
 [[package]]
@@ -1092,6 +1090,17 @@ name = "vtty_ffi"
 version = "0.1.0"
 dependencies = [
  "vtty",
+]
+
+[[package]]
+name = "vtty_types"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bitflags",
+ "const-hex",
+ "smallvec 2.0.0-beta.2",
+ "smol_str",
 ]
 
 [[package]]

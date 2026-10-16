@@ -3,7 +3,7 @@
 
 //! Incremental UTF-8 decoding for the byte parser.
 
-use crate::perform::Perform;
+use vtty_types::Perform;
 
 /// Expected byte length and initial code-point bits for a UTF-8 lead byte —
 /// the two facts the partial-decoder needs, from one range dispatch. Returns
