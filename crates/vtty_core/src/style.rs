@@ -141,12 +141,12 @@ pub enum UnderlineStyle {
     Dashed = 5,
 }
 
-impl UnderlineStyle {
+impl From<u8> for UnderlineStyle {
     /// Map an SGR `4:<n>` sub-parameter to a style: `0` → [`Self::None`],
     /// `2..=5` → the specific style, anything else → [`Self::Single`] (the
     /// plain-`4` default).
     #[inline]
-    pub const fn from_u8(v: u8) -> Self {
+    fn from(v: u8) -> Self {
         match v {
             0 => Self::None,
             2 => Self::Double,
