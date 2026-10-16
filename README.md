@@ -17,7 +17,8 @@
 
 | crate | purpose |
 | --- | --- |
-| [`vtty`](crates/vtty) | the parser (core) |
+| [`vtty`](crates/vtty) | public facade (re-exports the engine) |
+| [`vtty_core`](crates/vtty_core) | the parser engine |
 | [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec + vtty type impls |
 | [`vtty_emoji`](crates/vtty_emoji) | display cell width + emoji sequences |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
@@ -30,7 +31,7 @@
 - **`no_std`** — optional `simd` / `simd-transcode` features.
 - **UTF-8** — maximal-subpart substitution; 8-bit C1 controls.
 - **Serialization** — compact, `no_std`, zero-allocation `Encode`/`Decode` codec
-  (`vtty_codec`) for events, replies, terminal state, and parser checkpoints.
+  (`vtty_codec`) for events, replies, and terminal state.
 
 ## Install
 
@@ -61,22 +62,22 @@ parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 
 ## Serialization
 
-Events, replies, terminal state and parser checkpoints round-trip through a
-compact, `no_std`, zero-allocation binary codec:
+Owned events, replies and terminal state round-trip through a compact,
+`no_std` binary codec:
 
 ```rust
 use vtty_codec::{decode_from_slice, encode_to_vec};
-use vtty::{Parser, Recording};
+use vtty::{Event, Parser};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Checkpoint a paused CSI sequence and resume it later:
+    // Owned events encode/decode as data:
     let mut parser = Parser::new();
-    parser.advance(&mut Recording::default(), b"\x1b[1;31"); // mid-CSI
+    let events = parser.parse_events(b"\x1b[1;31mhi");
 
-    let checkpoint = encode_to_vec(&parser)?;
-    let mut restored = decode_from_slice::<Parser>(&checkpoint)?;
+    let bytes = encode_to_vec(&events)?;
+    let restored = decode_from_slice::<Vec<Event>>(&bytes)?;
 
-    assert_eq!(parser.parse_events(b"mX"), restored.parse_events(b"mX"));
+    assert_eq!(events, restored);
     Ok(())
 }
 ```
@@ -90,8 +91,8 @@ Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt` — see
 
 ```bash
 cargo test --workspace
-cargo test -p vtty --test vt_differential -- --nocapture      # parity vs vte
-cargo test -p vtty --test vt_differential_rio -- --nocapture  # parity vs rio-vt
+cargo test -p vtty_core --test vt_differential -- --nocapture      # parity vs vte
+cargo test -p vtty_core --test vt_differential_rio -- --nocapture  # parity vs rio-vt
 ```
 
 ## License
