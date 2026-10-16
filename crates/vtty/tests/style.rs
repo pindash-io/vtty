@@ -77,12 +77,12 @@ fn style_flag_bits_mirror_sgr() {
 
 #[test]
 fn underline_style_from_u8() {
-    assert_eq!(UnderlineStyle::from_u8(0), UnderlineStyle::None);
-    assert_eq!(UnderlineStyle::from_u8(1), UnderlineStyle::Single);
-    assert_eq!(UnderlineStyle::from_u8(2), UnderlineStyle::Double);
-    assert_eq!(UnderlineStyle::from_u8(3), UnderlineStyle::Curly);
-    assert_eq!(UnderlineStyle::from_u8(4), UnderlineStyle::Dotted);
-    assert_eq!(UnderlineStyle::from_u8(5), UnderlineStyle::Dashed);
+    assert_eq!(UnderlineStyle::from(0), UnderlineStyle::None);
+    assert_eq!(UnderlineStyle::from(1), UnderlineStyle::Single);
+    assert_eq!(UnderlineStyle::from(2), UnderlineStyle::Double);
+    assert_eq!(UnderlineStyle::from(3), UnderlineStyle::Curly);
+    assert_eq!(UnderlineStyle::from(4), UnderlineStyle::Dotted);
+    assert_eq!(UnderlineStyle::from(5), UnderlineStyle::Dashed);
     // Unknown sub-params default to single (plain `4`).
-    assert_eq!(UnderlineStyle::from_u8(9), UnderlineStyle::Single);
+    assert_eq!(UnderlineStyle::from(9), UnderlineStyle::Single);
 }
