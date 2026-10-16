@@ -224,3 +224,83 @@ pub const MOUSE_MASK: TermFlags = TermFlags::MOUSE_X10
     .union(TermFlags::MOUSE_PIXEL)
     .union(TermFlags::MOUSE_URXVT)
     .union(TermFlags::UTF8_MOUSE);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mode_private_param_roundtrip() {
+        assert_eq!(TermFlags::from_private_param(1), TermFlags::CURSOR_KEYS);
+        assert_eq!(TermFlags::from_private_param(6), TermFlags::ORIGIN);
+        assert_eq!(TermFlags::from_private_param(25), TermFlags::CURSOR_VISIBLE);
+        assert_eq!(TermFlags::from_private_param(12), TermFlags::CURSOR_BLINK);
+        assert_eq!(TermFlags::from_private_param(1000), TermFlags::MOUSE_NORMAL);
+        assert_eq!(TermFlags::from_private_param(1006), TermFlags::MOUSE_SGR);
+        assert_eq!(
+            TermFlags::from_private_param(1047),
+            TermFlags::ALT_SCREEN_1047
+        );
+        assert_eq!(
+            TermFlags::from_private_param(1049),
+            TermFlags::ALT_SCREEN_1049
+        );
+        // 4 (IRM) is an ANSI mode, not a DEC private mode.
+        assert_eq!(TermFlags::from_private_param(4), TermFlags::NONE);
+        assert_eq!(TermFlags::from_private_param(999), TermFlags::NONE);
+    }
+
+    #[test]
+    fn mode_private_param_values() {
+        assert_eq!(TermFlags::CURSOR_KEYS.private_param(), 1);
+        assert_eq!(TermFlags::CURSOR_VISIBLE.private_param(), 25);
+        assert_eq!(TermFlags::CURSOR_BLINK.private_param(), 12);
+        assert_eq!(TermFlags::SYNC_OUTPUT.private_param(), 2026);
+        // Insert (ANSI), LNM (ANSI) and None have no private parameter.
+        assert_eq!(TermFlags::INSERT.private_param(), 0);
+        assert_eq!(TermFlags::LINEFEED.private_param(), 0);
+        assert_eq!(TermFlags::NONE.private_param(), 0);
+    }
+
+    #[test]
+    fn mode_line_mouse_paste_table() {
+        assert_eq!(TermFlags::from_private_param(9), TermFlags::MOUSE_X10);
+        assert_eq!(
+            TermFlags::from_private_param(2004),
+            TermFlags::BRACKETED_PASTE
+        );
+        assert_eq!(TermFlags::MOUSE_X10.private_param(), 9);
+        assert_eq!(TermFlags::BRACKETED_PASTE.private_param(), 2004);
+    }
+
+    #[test]
+    fn mode_code_ansi_vs_private() {
+        // ANSI modes (no `?`): IRM 4 and LNM 20.
+        assert_eq!(TermFlags::from_mode_code(4, false), TermFlags::INSERT);
+        assert_eq!(TermFlags::from_mode_code(20, false), TermFlags::LINEFEED);
+        // They are not DEC private modes, so the `?` form is unknown.
+        assert_eq!(TermFlags::from_mode_code(4, true), TermFlags::NONE);
+        assert_eq!(TermFlags::from_mode_code(20, true), TermFlags::NONE);
+        // DEC private modes only resolve in the `?` form.
+        assert_eq!(
+            TermFlags::from_mode_code(25, true),
+            TermFlags::CURSOR_VISIBLE
+        );
+        assert_eq!(TermFlags::from_mode_code(25, false), TermFlags::NONE);
+        assert_eq!(TermFlags::from_mode_code(1006, true), TermFlags::MOUSE_SGR);
+        assert_eq!(TermFlags::from_mode_code(1006, false), TermFlags::NONE);
+        // Unknown in both forms.
+        assert_eq!(TermFlags::from_mode_code(999, false), TermFlags::NONE);
+        assert_eq!(TermFlags::from_mode_code(999, true), TermFlags::NONE);
+    }
+
+    #[test]
+    fn mode_code_any_lookup() {
+        // DECRQM/XTSAVE/XTRESTORE look up any tracked mode by code, ANSI or DEC.
+        assert_eq!(TermFlags::from_any_mode_code(4), TermFlags::INSERT);
+        assert_eq!(TermFlags::from_any_mode_code(20), TermFlags::LINEFEED);
+        assert_eq!(TermFlags::from_any_mode_code(25), TermFlags::CURSOR_VISIBLE);
+        assert_eq!(TermFlags::from_any_mode_code(1006), TermFlags::MOUSE_SGR);
+        assert_eq!(TermFlags::from_any_mode_code(999), TermFlags::NONE);
+    }
+}

@@ -154,3 +154,111 @@ impl MouseButton {
         Some(b.encode_x10(x, y))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mouse_sgr_encoding() {
+        assert_eq!(MouseButton::Left.encode_sgr(3, 4, true), "\x1b[<0;4;5M");
+        assert_eq!(MouseButton::Left.encode_sgr(3, 4, false), "\x1b[<0;4;5m");
+        assert_eq!(MouseButton::Right.encode_sgr(4, 9, false), "\x1b[<2;5;10m");
+        assert_eq!(
+            MouseButton::WheelUp.encode_sgr(10, 20, true),
+            "\x1b[<64;11;21M"
+        );
+        // Pure motion (no button) is button 3 in SGR: 32 | 3 = 35.
+        assert_eq!(
+            MouseButton::MotionNoButton.encode_sgr(3, 4, true),
+            "\x1b[<35;4;5M"
+        );
+        // Motion with the left button held (drag) is button 0: 32.
+        assert_eq!(MouseButton::Motion.encode_sgr(3, 4, true), "\x1b[<32;4;5M");
+        // DEC 1005 UTF-8 mouse: X10 prefix + UTF-8 coordinates.
+        assert_eq!(MouseButton::Left.encode_utf8(0, 0), "\x1b[M !!");
+        // Coordinates past 0x7F encode as 2-byte UTF-8 (U+0080).
+        assert_eq!(MouseButton::Left.encode_utf8(95, 95), "\x1b[M \u{80}\u{80}");
+    }
+
+    #[test]
+    fn mouse_x10_encoding() {
+        // Left button at (0,0): cb=32(' '), cx=33('!'), cy=33('!').
+        assert_eq!(
+            MouseButton::Left.encode_x10(0, 0).as_slice(),
+            &b"\x1b[M !!"[..]
+        );
+        // Coordinate 95 → cx = 128 = 0x80: a RAW non-UTF-8 byte, not the UTF-8
+        // encoding of U+0080.
+        assert_eq!(
+            MouseButton::Left.encode_x10(95, 95).as_slice(),
+            &[0x1b, b'[', b'M', b' ', 0x80, 0x80]
+        );
+    }
+
+    #[test]
+    fn mouse_encode_shared_encoder() {
+        // Tracking off → no report.
+        let off = MouseTracking::empty();
+        assert_eq!(MouseButton::Left.encode(off, 0, 0, true), None);
+
+        // SGR (1006) uses the SGR sequence; release keeps the button code.
+        let sgr = MouseTracking::ENABLED | MouseTracking::SGR;
+        assert_eq!(
+            MouseButton::Left.encode(sgr, 3, 4, true).as_deref(),
+            Some(&b"\x1b[<0;4;5M"[..])
+        );
+        assert_eq!(
+            MouseButton::Left.encode(sgr, 3, 4, false).as_deref(),
+            Some(&b"\x1b[<0;4;5m"[..])
+        );
+
+        // X10 release uses the generic button-3 code.
+        let x10 = MouseTracking::ENABLED;
+        assert_eq!(
+            MouseButton::Left.encode(x10, 0, 0, true).as_deref(),
+            Some(&b"\x1b[M !!"[..])
+        );
+        assert_eq!(
+            MouseButton::Left.encode(x10, 0, 0, false).as_deref(),
+            Some(&b"\x1b[M#!!"[..])
+        );
+
+        // DEC 9 X10 press-only mode suppresses releases (1000 reports both).
+        let x10_mode = MouseTracking::ENABLED | MouseTracking::X10;
+        assert_eq!(
+            MouseButton::Left.encode(x10_mode, 0, 0, true).as_deref(),
+            Some(&b"\x1b[M !!"[..])
+        );
+        assert_eq!(
+            MouseButton::Left.encode(x10_mode, 0, 0, false),
+            None,
+            "DEC 9 reports no releases"
+        );
+
+        // SGR-pixel (1016): 1-based pixel coordinates (herdr maps pixel 1,1 to
+        // the top-left cell and rejects 0).
+        let px = MouseTracking::ENABLED | MouseTracking::PIXEL;
+        assert_eq!(
+            MouseButton::Left.encode(px, 27, 72, true).as_deref(),
+            Some(&b"\x1b[<0;28;73M"[..])
+        );
+
+        // X10 motion is only emitted in any-motion (1003) mode.
+        assert_eq!(MouseButton::Motion.encode(x10, 0, 0, true), None);
+        let x10_any = MouseTracking::ENABLED | MouseTracking::ANY_MOTION;
+        assert_eq!(
+            MouseButton::Motion.encode(x10_any, 0, 0, true).as_deref(),
+            Some(&b"\x1b[M@!!"[..])
+        );
+
+        // X10's single-byte coordinates top out at 222 (222 + 1 + 32 = 255);
+        // a larger coordinate would wrap and must be dropped (Ghostty).
+        assert_eq!(
+            MouseButton::Left.encode(x10, 222, 0, true).as_deref(),
+            Some(&b"\x1b[M \xff!"[..])
+        );
+        assert_eq!(MouseButton::Left.encode(x10, 223, 0, true), None);
+        assert_eq!(MouseButton::Left.encode(x10, 0, 223, true), None);
+    }
+}

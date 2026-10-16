@@ -208,3 +208,62 @@ fn push_sgr_color(
         rgb & 0xff
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decrqm_reply_format() {
+        assert_eq!(Reply::new().decrqm(25, true, 1).finish(), "\x1b[?25;1$y");
+        assert_eq!(Reply::new().decrqm(25, true, 2).finish(), "\x1b[?25;2$y");
+        assert_eq!(Reply::new().decrqm(25, true, 0).finish(), "\x1b[?25;0$y");
+        assert_eq!(Reply::new().decrqm(4, false, 2).finish(), "\x1b[4;2$y");
+    }
+
+    #[test]
+    fn decrqss_reply_format() {
+        assert_eq!(Reply::new().decrqss(true, "m").finish(), "\x1bP1$rm\x1b\\");
+        assert_eq!(Reply::new().decrqss(false, "x").finish(), "\x1bP0$rx\x1b\\");
+    }
+
+    #[test]
+    fn sgr_reply_format() {
+        let pal = [0_u32; 256];
+        assert_eq!(
+            Reply::new()
+                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &pal,)
+                .finish(),
+            "0;39;49"
+        );
+        assert_eq!(
+            Reply::new()
+                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::BOLD, &pal)
+                .finish(),
+            "0;1;39;49"
+        );
+        // 5 = indexed, 258 = an RGB id (0x112233) in the palette.
+        let mut pal = [0_u32; 259];
+        pal[258] = 0x112233;
+        assert_eq!(
+            Reply::new()
+                .sgr(ColorId(5), ColorId(258), SgrFlags::empty(), &pal)
+                .finish(),
+            "0;38;5;5;48;2;17;34;51"
+        );
+    }
+
+    #[test]
+    fn reply_is_empty() {
+        assert!(Reply::new().is_empty());
+        assert!(!Reply::new().decrqss(true, "m").is_empty());
+        assert!(!Reply::new().decrqm(25, true, 1).is_empty());
+        assert!(
+            !Reply::new()
+                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &[])
+                .is_empty()
+        );
+        assert!(!Reply::new().xtgettcap_reply(b"TN", b"xterm").is_empty());
+        assert!(!Reply::new().xtgettcap_num(b"co", 80).is_empty());
+    }
+}
