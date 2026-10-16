@@ -15,24 +15,14 @@
 //! cell_advance(1.6, 10.0);             // 20.0 — snap a fractional advance to 2 cells
 //! ```
 //!
-//! ## Modules
-//!
-//! - [`properties`] — per-codepoint lookup: [`Properties`], [`cell_width`],
-//!   [`vs_width`], [`is_zero_width`], [`first_non_ascii`].
-//! - [`emoji`] — UTS #51 segmentation: [`Selector`], [`mark_attaches`],
-//!   [`mark_is_stray`], [`is_vs_base`], [`is_vs_target`], [`is_zwj_target`].
-//! - [`width`] — the string-level width model: [`cell_widths`],
-//!   [`cell_width_sum`], [`cell_col_byte_widths`], [`cell_advance`].
-//!
 //! ## API
 //!
 //! - **Width** — `cell_width`, `cell_widths`, `cell_width_sum`,
-//!   `cell_col_byte_widths`, `vs_width`, `is_zero_width`, `cell_advance`.
+//!   `cell_col_byte_widths`, `cell_advance`.
+//! - **Predicates** — `vs_width`, `is_zero_width`.
 //! - **Emoji segmentation** — `mark_attaches`, `mark_is_stray`, `is_vs_base`,
-//!   `is_vs_target`, `is_zwj_target`, and the `EmojiDFA` DFA (`scan`/`classify`),
-//!   re-exported with `EmojiPresentationStyle` / `EmojiSegmentationCategory`.
+//!   `is_vs_target`, `is_zwj_target`.
 //! - **`Properties`** — packed emoji flags + width in one lookup.
-//! - **`width_icu`** — runtime ICU4X width (`icu` feature).
 //!
 //! ## Features
 //!
