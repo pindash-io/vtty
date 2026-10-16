@@ -246,8 +246,8 @@ impl Properties {
         use icu_properties::CodePointSetData;
         use icu_properties::CodePointSetDataBorrowed;
         use icu_properties::props::{
-            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation,
-            ExtendedPictographic, RegionalIndicator,
+            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation, ExtendedPictographic,
+            RegionalIndicator,
         };
         thread_local! {
             static EMOJI: CodePointSetDataBorrowed<'static> =
@@ -488,8 +488,7 @@ fn run_continues(r: &Run, c: char) -> bool {
         _ => {
             is_continuation(cat)
                 || (r.prev_zwj && is_zwj_target(c))
-                || (cat == EmojiSegmentationCategory::RegionalIndicator
-                    && r.ri_count == 1)
+                || (cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1)
                 || cell_width(c) == Some(0)
         }
     }
@@ -519,7 +518,6 @@ fn finalize_lead(r: &Run, has_base: &mut bool) -> usize {
     }
     w
 }
-
 
 /// Per-char display cell widths for a string, with emoji sequences handled by
 /// the UTS #51 DFA ([`EmojiDFA`]) — the single structural source
@@ -556,20 +554,20 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
     for c in text.chars() {
         let cat = emoji_category(c);
         if let Some(r) = &mut run
-            && run_continues(r, c) {
-                r.dfa.step_record(cat);
-                r.len += 1;
-                r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
-                r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator
-                {
-                    r.ri_count + 1
-                } else {
-                    0
-                };
-                r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
-                widths.push(0);
-                continue;
-            }
+            && run_continues(r, c)
+        {
+            r.dfa.step_record(cat);
+            r.len += 1;
+            r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
+            r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator {
+                r.ri_count + 1
+            } else {
+                0
+            };
+            r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
+            widths.push(0);
+            continue;
+        }
         if let Some(r) = run.take() {
             let w = finalize_lead(&r, &mut has_base);
             widths[r.lead_index] = w;
@@ -617,19 +615,19 @@ pub fn cell_width_sum(text: &str) -> usize {
     for c in text.chars() {
         let cat = emoji_category(c);
         if let Some(r) = &mut run
-            && run_continues(r, c) {
-                r.dfa.step_record(cat);
-                r.len += 1;
-                r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
-                r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator
-                {
-                    r.ri_count + 1
-                } else {
-                    0
-                };
-                r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
-                continue;
-            }
+            && run_continues(r, c)
+        {
+            r.dfa.step_record(cat);
+            r.len += 1;
+            r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
+            r.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator {
+                r.ri_count + 1
+            } else {
+                0
+            };
+            r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
+            continue;
+        }
         if let Some(r) = run.take() {
             total += finalize_lead(&r, &mut has_base);
         }
@@ -657,8 +655,6 @@ pub fn cell_width_sum(text: &str) -> usize {
     }
     total
 }
-
-
 
 /// Snap a font glyph advance to the terminal cell grid: wide glyphs
 /// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,

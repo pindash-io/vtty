@@ -73,8 +73,7 @@ fn main() {
     let modifier = CodePointSetData::new::<EmojiModifier>();
     let modifier_base = CodePointSetData::new::<EmojiModifierBase>();
     let regional_indicator = CodePointSetData::new::<RegionalIndicator>();
-    let extended_pictographic =
-        CodePointSetData::new::<ExtendedPictographic>();
+    let extended_pictographic = CodePointSetData::new::<ExtendedPictographic>();
     let default_ignorable = CodePointSetData::new::<DefaultIgnorableCodePoint>();
     let gc = CodePointMapData::<GeneralCategory>::new();
     let eaw = CodePointMapData::<EastAsianWidth>::new();
