@@ -320,8 +320,18 @@ impl Parser {
                             f += 1;
                         }
                         0x3c..=0x3f => {
-                            // Private marker (`> = < ?`) — an intermediate.
-                            // Params may follow, so keep scanning.
+                            // Private marker (`> = < ?`) — only valid as a CSI
+                            // prefix (CsiEntry), before any param or marker.
+                            // After params (CsiParam) the DEC state machine
+                            // transitions to CsiIgnore and drops the whole
+                            // sequence, so bail to the cold path.
+                            if self.params_len != 0
+                                || !self.param_empty
+                                || self.intermediates_len != 0
+                            {
+                                ok = false;
+                                break;
+                            }
                             self.push_intermediate(seq[f]);
                             f += 1;
                         }

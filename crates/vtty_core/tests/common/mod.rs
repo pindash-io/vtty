@@ -226,6 +226,18 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
         v.push(seq.to_vec());
     }
 
+    // Private markers (`<=>?`) are only a valid CSI prefix. After a param
+    // (or another marker) the DEC state machine enters CsiIgnore and drops
+    // the whole sequence — these must produce no dispatch.
+    for seq in [
+        &b"\x1b[1>m"[..],
+        &b"\x1b[1;2?m"[..],
+        &b"\x1b[?1>m"[..],
+        &b"\x1b[>?m"[..],
+    ] {
+        v.push(seq.to_vec());
+    }
+
     // DCS (with and without params) terminated by ST and BEL.
     v.push(b"\x1bP1;2|payload\x1b\\".to_vec());
     v.push(b"\x1bPqpayload\x07".to_vec());
