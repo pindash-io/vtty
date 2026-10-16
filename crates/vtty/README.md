@@ -6,9 +6,9 @@ A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
 **UTF-8** decoding and **`no_std`** support.
 
 `vtty` turns bytes into typed events via the `Perform` callback trait and
-owns the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …); the
-companion `vtty_codec` crate provides the compact binary `Encode`/`Decode`
-implementations for the owned types.
+re-exports the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …)
+from `vtty_core`; the companion `vtty_codec` crate provides the compact
+binary `Encode`/`Decode` implementations for the owned types.
 
 ## Usage
 
@@ -67,6 +67,10 @@ assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
   `simd-transcode` (UTF-8→UTF-32) features, enabled per parser.
 - **UTF-8** — maximal-subpart substitution; 8-bit C1 controls (DEC
   “anywhere”).
+- **Wire protocols** (on by default, opt out with
+  `default-features = false`) — `reply` (DECRQSS/DECRQM/XTGETTCAP),
+  `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (OSC 7501
+  `ProgramStatus`).
 
 ## Test
 
