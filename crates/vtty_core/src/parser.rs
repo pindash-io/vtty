@@ -282,10 +282,11 @@ impl Parser {
             }
             let mut b = run[pos];
             // Bulk CSI fast path: `ESC [ params final` — scan for the final
-            // byte and parse params (and `?`/`>`/`=`/`<` private markers) in
-            // one pass. Anything else (a `0x20..=0x2f` intermediate, C0/DEL/
-            // high-bit) bails out to the state machine, which also enforces
-            // the CsiIntermediate → CsiIgnore transition.
+            // byte and parse params (plus a leading `?`/`>`/`=`/`<` private
+            // marker) in one pass. Anything else — a `0x20..=0x2f`
+            // intermediate, a private marker after params, C0/DEL, or
+            // high-bit — bails to the state machine, which enforces the
+            // CsiIntermediate/CsiParam → CsiIgnore transitions.
             if b == 0x1b && run.get(pos + 1) == Some(&b'[') {
                 let seq = &run[pos + 2..valid];
                 self.params_len = 0;
