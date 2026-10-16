@@ -134,6 +134,37 @@ impl Reply {
         self
     }
 
+    /// Append an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
+    /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
+    /// convention).
+    #[inline]
+    pub fn osc_color(mut self, code: u16, rgb: u32) -> Self {
+        self.buf
+            .push_str(&crate::color::format_osc_color_reply(code, rgb));
+        self.empty = false;
+        self
+    }
+
+    /// Append an OSC 4 palette-entry reply
+    /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
+    #[inline]
+    pub fn osc_palette(mut self, index: usize, rgb: u32) -> Self {
+        self.buf
+            .push_str(&crate::color::format_osc_palette_reply(index, rgb));
+        self.empty = false;
+        self
+    }
+
+    /// Append the fixed OSC 11 background reply `ESC]11;rgb:… ESC\`.
+    #[inline]
+    pub fn osc_background(mut self, c: [f32; 4]) -> Self {
+        let buf = crate::color::format_osc_background(c);
+        // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
+        self.buf.push_str(core::str::from_utf8(&buf).unwrap_or_default());
+        self.empty = false;
+        self
+    }
+
     /// Append a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
     /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
     /// includes the `?` for `CSI ?Ps$p` queries.

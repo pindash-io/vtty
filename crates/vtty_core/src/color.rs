@@ -102,3 +102,211 @@ impl Deref for ColorId {
 pub const DEFAULT_FG_ID: ColorId = ColorId(256);
 /// Reserved palette index for the default background (SGR 49).
 pub const DEFAULT_BG_ID: ColorId = ColorId(257);
+
+// ── RGB packing / unpacking ──────────────────────────────────────────
+
+/// Pack three 0..255 channels into RGB8 (`0x00RRGGBB`).
+#[inline]
+pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
+    // Little-endian bytes lay out [B, G, R, 0] — a single `from_le_bytes`
+    // (a native u32 bit-cast on LE targets) instead of two shifts + two ORs.
+    u32::from_le_bytes([
+        clamp_channel(b),
+        clamp_channel(g),
+        clamp_channel(r),
+        0,
+    ])
+}
+
+/// Clamp one 0..255 channel. `i32::clamp` is not const-stable (`Ord` as a
+/// const trait is still nightly), so the clamp is an explicit branch.
+#[inline]
+const fn clamp_channel(v: i32) -> u8 {
+    if v < 0 {
+        0
+    } else if v > 255 {
+        255
+    } else {
+        v as u8
+    }
+}
+
+/// Convert packed 0xRRGGBB to [R, G, B, 1.0].
+#[inline]
+pub const fn u32_to_rgba(rgb: u32) -> [f32; 4] {
+    [
+        ((rgb >> 16) & 0xff) as f32 / 255.0,
+        ((rgb >> 8) & 0xff) as f32 / 255.0,
+        (rgb & 0xff) as f32 / 255.0,
+        1.0,
+    ]
+}
+
+/// Convert [R, G, B, A] (0..1 floats) to packed 0xRRGGBB.
+#[inline]
+pub const fn rgba_to_u32(c: [f32; 4]) -> u32 {
+    let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0) as u32;
+    let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0) as u32;
+    let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0) as u32;
+    (r << 16) | (g << 8) | b
+}
+
+/// Round a 0..255 float channel to its byte. `f32::round` is `std`-only, so
+/// the `no_std` crate rounds with `+0.5` before the truncating cast.
+#[inline]
+const fn round_channel(v: f32) -> u8 {
+    (v + 0.5) as u8
+}
+
+// ── OSC color parsing ─────────────────────────────────────────────────
+
+/// Parse an RRGGBB / RGB hex string into [R, G, B, 1.0].
+#[inline]
+pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
+    let s = s.trim_start_matches('#');
+    let bytes = const_hex::decode(s.as_bytes()).ok()?;
+    let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
+    Some([
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+        1.0,
+    ])
+}
+
+/// Parse an OSC color (`rgb:RR/GG/BB`, `rgb:RRRR/GGGG/BBBB`, or
+/// `#RRGGBB`) into a 0xRRGGBB `u32`.
+///
+/// `rgb:` channels of 1..4 hex digits are scaled to 8 bits (`XParseColor`
+/// semantics), matching Ghostty and Zellij.
+pub fn parse(s: &[u8]) -> Option<u32> {
+    let s = core::str::from_utf8(s).ok()?;
+    if let Some(rest) = s.strip_prefix("rgb:") {
+        let mut parts = rest.split('/');
+        let (a, b, c) = (parts.next()?, parts.next()?, parts.next()?);
+        if parts.next().is_some() {
+            return None;
+        }
+        let mut rgb = 0_u32;
+        for (i, part) in [a, b, c].iter().enumerate() {
+            let v = u32::from_str_radix(part, 16).ok()?;
+            let divisor = match part.len() {
+                1 => 0xF,
+                2 => 0xFF,
+                3 => 0xFFF,
+                4 => 0xFFFF,
+                _ => return None,
+            };
+            rgb |= (v * 255 / divisor) << (16 - 8 * i);
+        }
+        return Some(rgb);
+    }
+    if let Some(rest) = s.strip_prefix('#') && rest.len() == 6 {
+        let bytes = const_hex::decode(rest.as_bytes()).ok()?;
+        let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
+        return Some(((r as u32) << 16) | ((g as u32) << 8) | b as u32);
+    }
+    None
+}
+
+// ── OSC color replies ─────────────────────────────────────────────────
+
+/// Format an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
+/// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
+/// convention).
+#[inline]
+pub fn format_osc_color_reply(code: u16, rgb: u32) -> alloc::string::String {
+    let r = (rgb >> 16) & 0xff;
+    let g = (rgb >> 8) & 0xff;
+    let b = rgb & 0xff;
+    alloc::format!(
+        "\x1b]{code};rgb:{}/{}/{}\x1b\\",
+        const_hex::encode([r as u8, r as u8]),
+        const_hex::encode([g as u8, g as u8]),
+        const_hex::encode([b as u8, b as u8])
+    )
+}
+
+/// Format an OSC 4 palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
+#[inline]
+pub fn format_osc_palette_reply(
+    index: usize,
+    rgb: u32,
+) -> alloc::string::String {
+    let r = (rgb >> 16) & 0xff;
+    let g = (rgb >> 8) & 0xff;
+    let b = rgb & 0xff;
+    alloc::format!(
+        "\x1b]4;{index};rgb:{}/{}/{}\x1b\\",
+        const_hex::encode([r as u8, r as u8]),
+        const_hex::encode([g as u8, g as u8]),
+        const_hex::encode([b as u8, b as u8])
+    )
+}
+
+/// Format the full OSC 11 background reply as a fixed 25-byte buffer:
+/// `\x1b]11;rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\`
+/// (8-bit channels repeated to 4 hex digits, the xterm convention
+/// lazygit/others expect).
+#[inline]
+pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
+    let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
+    let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);
+    let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0);
+    let [rh, rl] = hex_pair(r);
+    let [gh, gl] = hex_pair(g);
+    let [bh, bl] = hex_pair(b);
+    [
+        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl,
+        b'/', gh, gl, gh, gl, b'/', bh, bl, bh, bl, 0x1b, b'\\',
+    ]
+}
+
+/// The two lowercase hex digits of a byte (the const fallback for the fixed
+/// OSC background buffer; the allocating replies use [`const_hex::encode`]).
+#[inline]
+const fn hex_pair(v: u8) -> [u8; 2] {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    [DIGITS[(v >> 4) as usize], DIGITS[(v & 0xf) as usize]]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rgb_clamps_channels() {
+        assert_eq!(rgb(255, 0, 0), 0xff0000);
+        assert_eq!(rgb(0, 300, 0), 0x00ff00);
+        assert_eq!(rgb(-1, 0, 0), 0x000000);
+    }
+
+    #[test]
+    fn parse_color_forms() {
+        assert_eq!(parse(b"rgb:ff/00/00"), Some(0xff0000));
+        assert_eq!(parse(b"rgb:ffff/0000/0000"), Some(0xff0000));
+        assert_eq!(parse(b"#00ff00"), Some(0x00ff00));
+        assert_eq!(parse(b"nonsense"), None);
+    }
+
+    #[test]
+    fn parse_scales_16bit_channels() {
+        // 0x8080 = 128·257 → scales to 128, not the high byte (also 128).
+        assert_eq!(parse(b"rgb:8080/0000/0000"), Some(0x800000));
+        // 0x0100 ≈ 0.0039 → scales to 0 (high-byte would give 1).
+        assert_eq!(parse(b"rgb:0100/0000/0000"), Some(0x000000));
+        // 3-digit and 1-digit channels scale too.
+        assert_eq!(parse(b"rgb:fff/000/000"), Some(0xff0000));
+        assert_eq!(parse(b"rgb:f/0/0"), Some(0xff0000));
+        // Malformed channel length is rejected.
+        assert_eq!(parse(b"rgb:fffff/0000/0000"), None);
+    }
+
+    #[test]
+    fn osc_background_reply_is_fixed_size_and_wrapped() {
+        // [1.0, 0.988235, 0.988235, 1.0] ≈ 0xff/0xfc/0xfc.
+        let reply = format_osc_background([1.0, 0.988235, 0.988235, 1.0]);
+        assert_eq!(reply.len(), 25);
+        assert_eq!(&reply, b"\x1b]11;rgb:ffff/fcfc/fcfc\x1b\\");
+    }
+}

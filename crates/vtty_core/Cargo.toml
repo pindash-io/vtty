@@ -13,7 +13,7 @@ readme = "README.md"
 [features]
 default = []
 # DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
-reply = ["dep:const-hex"]
+reply = []
 # XTGETTCAP terminfo capability table (`Cap`/`CapValue`); implies `reply`.
 termcap = ["reply"]
 # OSC 7501 Program Status Protocol (`ProgramStatus`).
@@ -22,7 +22,7 @@ status = ["dep:base64"]
 [dependencies]
 base64 = { workspace = true, optional = true }
 bitflags.workspace = true
-const-hex = { workspace = true, features = ["alloc"], optional = true }
+const-hex = { workspace = true, features = ["alloc"] }
 smallvec.workspace = true
 smol_str.workspace = true
 
