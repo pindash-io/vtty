@@ -80,7 +80,7 @@ impl Selector {
 
     /// Whether the selector attaches to `base`: the base's category must be
     /// a valid target, otherwise the selector is a STRAY and is dropped.
-    /// VS15/VS16 use [`is_vs_base`] (ExtPict — the ATTACH predicate); ZWJ
+    /// VS15/VS16 use [`is_vs_base`] (`ExtPict` — the ATTACH predicate); ZWJ
     /// uses [`is_zwj_target`].
     #[inline]
     pub fn attaches_to(self, base: char) -> bool {
@@ -113,7 +113,7 @@ pub fn mark_attaches(mark: char, base: char) -> bool {
 
 /// Whether a char is a valid VS15/VS16 ATTACH base — the
 /// `Extended_Pictographic` binary property (includes the reserved emoji
-/// ranges). Keycap bases (`0-9`, `#`, `*`) carry `Emoji` but are NOT ExtPict.
+/// ranges). Keycap bases (`0-9`, `#`, `*`) carry `Emoji` but are NOT `ExtPict`.
 #[inline]
 pub fn is_vs_base(c: char) -> bool {
     Properties::get(c).is_extended_pictographic()
@@ -506,9 +506,7 @@ fn finalize_lead(r: &Run, has_base: &mut bool) -> usize {
         r.lead_w1
     };
     let w = if lead_w == 0 {
-        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') {
-            0
-        } else if *has_base {
+        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') || *has_base {
             0
         } else {
             1
@@ -557,8 +555,8 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
     let mut run: Option<Run> = None;
     for c in text.chars() {
         let cat = emoji_category(c);
-        if let Some(r) = &mut run {
-            if run_continues(r, c) {
+        if let Some(r) = &mut run
+            && run_continues(r, c) {
                 r.dfa.step_record(cat);
                 r.len += 1;
                 r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
@@ -572,7 +570,6 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
                 widths.push(0);
                 continue;
             }
-        }
         if let Some(r) = run.take() {
             let w = finalize_lead(&r, &mut has_base);
             widths[r.lead_index] = w;
@@ -619,8 +616,8 @@ pub fn cell_width_sum(text: &str) -> usize {
     let mut run: Option<Run> = None;
     for c in text.chars() {
         let cat = emoji_category(c);
-        if let Some(r) = &mut run {
-            if run_continues(r, c) {
+        if let Some(r) = &mut run
+            && run_continues(r, c) {
                 r.dfa.step_record(cat);
                 r.len += 1;
                 r.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
@@ -633,7 +630,6 @@ pub fn cell_width_sum(text: &str) -> usize {
                 r.keycap_end |= cat == EmojiSegmentationCategory::KeycapEnd;
                 continue;
             }
-        }
         if let Some(r) = run.take() {
             total += finalize_lead(&r, &mut has_base);
         }
@@ -663,10 +659,6 @@ pub fn cell_width_sum(text: &str) -> usize {
 }
 
 
-
-/// Snap a font glyph advance to the terminal cell grid: wide glyphs
-/// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,
-/// and zero-width glyphs (combining marks) none. The renderer and the screen
 
 /// Snap a font glyph advance to the terminal cell grid: wide glyphs
 /// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,
