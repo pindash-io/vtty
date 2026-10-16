@@ -142,6 +142,17 @@ pub const fn u32_to_rgba(rgb: u32) -> [f32; 4] {
     ]
 }
 
+/// Convert packed 0xRRGGBB to its three 8-bit channels (the integer
+/// counterpart of [`u32_to_rgba`], for luma/table math).
+#[inline]
+pub const fn u32_to_rgb(rgb: u32) -> [u8; 3] {
+    [
+        ((rgb >> 16) & 0xff) as u8,
+        ((rgb >> 8) & 0xff) as u8,
+        (rgb & 0xff) as u8,
+    ]
+}
+
 /// Convert [R, G, B, A] (0..1 floats) to packed 0xRRGGBB.
 #[inline]
 pub const fn rgba_to_u32(c: [f32; 4]) -> u32 {
