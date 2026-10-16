@@ -1,14 +1,14 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Codec implementations for `vtty_core` (the `vtty` parser engine) types.
+//! Codec implementations for the `vtty` parser types.
 
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use smallvec::SmallVec;
 
-use vtty_core::{
+use vtty::{
     Charset, Charsets, ColorId, CursorStyle, Event, KittyFlags, MouseButton, MouseTracking,
     ProgramStatus, Recording, Reply, SgrFlags, State, StatusKind, StatusState, StyleFlags,
     TermFlags, UnderlineStyle,
@@ -352,7 +352,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use core::fmt;
-    use vtty_core::Perform;
+    use vtty::Perform;
 
     use crate::{decode_from_slice, decode_iter, encode_to_vec};
 

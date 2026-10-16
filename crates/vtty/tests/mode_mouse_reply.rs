@@ -3,7 +3,7 @@
 
 //! Mode table, mouse encoding, and query/response formatting.
 
-use vtty_core::{
+use vtty::{
     ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, MouseButton, MouseTracking, Reply, SgrFlags, TermFlags,
 };
 

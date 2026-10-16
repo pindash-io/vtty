@@ -5,9 +5,10 @@
 A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
 **UTF-8** decoding and **`no_std`** support.
 
-This is the public facade: it re-exports the `vtty_core` engine. The
-engine crate holds the parser state machine; `vtty_codec` provides the
-**compact** binary `Encode`/`Decode` implementations.
+`vtty` turns bytes into typed events via the `Perform` callback trait and
+owns the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …); the
+companion `vtty_codec` crate provides the compact binary `Encode`/`Decode`
+implementations for the owned types.
 
 ## Usage
 
@@ -71,8 +72,8 @@ assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
 
 ```bash
 cargo test -p vtty
-cargo test -p vtty_core --test vt_differential -- --nocapture     # parity vs vte
-cargo test -p vtty_core --test vt_differential_rio -- --nocapture # parity vs rio-vt
+cargo test -p vtty --test vt_differential -- --nocapture     # parity vs vte
+cargo test -p vtty --test vt_differential_rio -- --nocapture # parity vs rio-vt
 ```
 
 <!-- cargo-rdme end -->

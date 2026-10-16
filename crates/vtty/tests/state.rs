@@ -3,7 +3,7 @@
 
 //! `State` byte-cursor geometry tests: line iteration and cursor position.
 
-use vtty_core::{Parser, State};
+use vtty::{Parser, State};
 
 fn drive(bytes: &[u8]) -> State {
     let mut parser = Parser::new();

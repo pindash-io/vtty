@@ -3,7 +3,7 @@
 
 //! Kitty keyboard protocol flags.
 
-use vtty_core::KittyFlags;
+use vtty::KittyFlags;
 
 #[test]
 fn kitty_flag_bits() {

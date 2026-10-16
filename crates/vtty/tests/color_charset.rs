@@ -3,7 +3,7 @@
 
 //! Charset translation tests.
 
-use vtty_core::{Charset, Charsets, dec_special_graphics};
+use vtty::{Charset, Charsets, dec_special_graphics};
 
 #[test]
 fn dec_special_graphics_translation() {

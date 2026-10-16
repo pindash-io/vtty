@@ -4,9 +4,10 @@
 //! A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
 //! **UTF-8** decoding and **`no_std`** support.
 //!
-//! This is the public facade: it re-exports the `vtty_core` engine. The
-//! engine crate holds the parser state machine; `vtty_codec` provides the
-//! **compact** binary `Encode`/`Decode` implementations.
+//! `vtty` turns bytes into typed events via the `Perform` callback trait and
+//! owns the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …); the
+//! companion `vtty_codec` crate provides the compact binary `Encode`/`Decode`
+//! implementations for the owned types.
 //!
 //! ## Usage
 //!
@@ -73,11 +74,54 @@
 //!
 //! ```bash
 //! cargo test -p vtty
-//! cargo test -p vtty_core --test vt_differential -- --nocapture     # parity vs vte
-//! cargo test -p vtty_core --test vt_differential_rio -- --nocapture # parity vs rio-vt
+//! cargo test -p vtty --test vt_differential -- --nocapture     # parity vs vte
+//! cargo test -p vtty --test vt_differential_rio -- --nocapture # parity vs rio-vt
 //! ```
 #![forbid(unsafe_code)]
-#![no_std]
+#![cfg_attr(not(feature = "simd"), no_std)]
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
+)]
+// The parser must never panic on untrusted input (a malformed PTY stream is
+// normal, not exceptional). These lints keep `unwrap`/`expect`/`panic` out.
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![warn(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-pub use vtty_core::*;
+extern crate alloc;
+
+mod charset;
+mod color;
+mod event;
+mod keyboard;
+mod mode;
+mod mouse;
+mod parser;
+mod perform;
+mod reply;
+mod scan;
+#[cfg(feature = "simd")]
+mod simd;
+mod state;
+mod status;
+mod style;
+mod table;
+mod termcap;
+mod utf8;
+#[cfg(feature = "simd-transcode")]
+mod utf8_tables;
+
+pub use charset::{Charset, Charsets, dec_special_graphics};
+pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID};
+pub use event::{Event, Recording};
+pub use keyboard::KittyFlags;
+pub use mode::{MOUSE_MASK, TermFlags};
+pub use mouse::{MouseButton, MouseTracking};
+pub use parser::Parser;
+pub use perform::Perform;
+pub use reply::Reply;
+pub use state::State;
+pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
+pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
+pub use termcap::{Cap, CapValue};

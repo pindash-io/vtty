@@ -78,7 +78,7 @@ jobs:
       - name: no_std check (bare-metal target)
         run: |
           rustup target add thumbv7em-none-eabihf
-          cargo check -p vtty_core --no-default-features --target thumbv7em-none-eabihf
+          cargo check -p vtty --no-default-features --target thumbv7em-none-eabihf
 
   fuzz-smoke:
     strategy:

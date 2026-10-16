@@ -13,13 +13,13 @@
 )]
 
 use smallvec::SmallVec;
-use vtty_core::Event;
+use vtty::Event;
 
 /// Run vtty (scalar path) and normalize to the vte-family convention:
 /// - the `-1` empty-colon sentinel becomes 0 (vte uses 0 for an empty param);
 /// - a param-less CSI/DCS dispatches `[]` in vtty but `[0]` in vte/rio-vt.
 pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
-    let mut p = vtty_core::Parser::new();
+    let mut p = vtty::Parser::new();
     let mut events = p.parse_events(bytes);
     for e in &mut events {
         let params: &mut SmallVec<i32, 6> = match e {

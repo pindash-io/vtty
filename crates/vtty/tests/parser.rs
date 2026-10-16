@@ -3,7 +3,7 @@
 
 //! Parser end-to-end tests (ported from the old `vt` crate's parser suite).
 
-use vtty_core::{Event, Parser, Perform};
+use vtty::{Event, Parser, Perform};
 
 #[derive(Default)]
 #[allow(

@@ -3,7 +3,7 @@
 
 //! SGR flag code-mapping, decoration subset, and style-enum parsing.
 
-use vtty_core::{SgrFlags, StyleFlags, UnderlineStyle};
+use vtty::{SgrFlags, StyleFlags, UnderlineStyle};
 
 #[test]
 fn sgr_set_code_maps_to_flag() {

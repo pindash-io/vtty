@@ -17,8 +17,7 @@
 
 | crate | purpose |
 | --- | --- |
-| [`vtty`](crates/vtty) | public facade (re-exports the engine) |
-| [`vtty_core`](crates/vtty_core) | the parser engine |
+| [`vtty`](crates/vtty) | the parser + terminal model types |
 | [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec + vtty type impls |
 | [`vtty_emoji`](crates/vtty_emoji) | display cell width + emoji sequences |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
@@ -91,8 +90,8 @@ Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt` — see
 
 ```bash
 cargo test --workspace
-cargo test -p vtty_core --test vt_differential -- --nocapture      # parity vs vte
-cargo test -p vtty_core --test vt_differential_rio -- --nocapture  # parity vs rio-vt
+cargo test -p vtty --test vt_differential -- --nocapture      # parity vs vte
+cargo test -p vtty --test vt_differential_rio -- --nocapture  # parity vs rio-vt
 ```
 
 ## License

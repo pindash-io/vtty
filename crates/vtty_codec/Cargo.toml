@@ -11,7 +11,7 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
-vtty_core = { path = "../vtty_core", default-features = false }
+vtty = { path = "../vtty", default-features = false }
 smallvec.workspace = true
 smol_str.workspace = true
 
