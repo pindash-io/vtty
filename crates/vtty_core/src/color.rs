@@ -158,6 +158,15 @@ const fn round_channel(v: f32) -> u8 {
     (v + 0.5) as u8
 }
 
+/// Blend RGB `a` 50% toward RGB `b` per channel (the SGR 2 faint/dim effect).
+#[inline]
+pub const fn blend_faint(a: u32, b: u32) -> u32 {
+    let r = (((a >> 16) & 0xff) + ((b >> 16) & 0xff)) >> 1;
+    let g = (((a >> 8) & 0xff) + ((b >> 8) & 0xff)) >> 1;
+    let bl = ((a & 0xff) + (b & 0xff)) >> 1;
+    (r << 16) | (g << 8) | bl
+}
+
 // ── OSC color parsing ─────────────────────────────────────────────────
 
 /// Parse an RRGGBB / RGB hex string into [R, G, B, 1.0].
@@ -253,21 +262,13 @@ pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
     let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
     let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);
     let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0);
-    let [rh, rl] = hex_pair(r);
-    let [gh, gl] = hex_pair(g);
-    let [bh, bl] = hex_pair(b);
+    let [rh, rl] = *const_hex::const_encode::<1, false>(&[r]).as_byte_array::<2>();
+    let [gh, gl] = *const_hex::const_encode::<1, false>(&[g]).as_byte_array::<2>();
+    let [bh, bl] = *const_hex::const_encode::<1, false>(&[b]).as_byte_array::<2>();
     [
         0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl,
         b'/', gh, gl, gh, gl, b'/', bh, bl, bh, bl, 0x1b, b'\\',
     ]
-}
-
-/// The two lowercase hex digits of a byte (the const fallback for the fixed
-/// OSC background buffer; the allocating replies use [`const_hex::encode`]).
-#[inline]
-const fn hex_pair(v: u8) -> [u8; 2] {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    [DIGITS[(v >> 4) as usize], DIGITS[(v & 0xf) as usize]]
 }
 
 #[cfg(test)]

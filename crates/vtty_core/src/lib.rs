@@ -47,7 +47,7 @@ mod style;
 mod termcap;
 
 pub use charset::{Charset, Charsets, dec_special_graphics};
-pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, format_osc_background, format_osc_color_reply, format_osc_palette_reply, parse, parse_hex_color, rgb, rgba_to_u32, u32_to_rgba};
+pub use color::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, blend_faint, format_osc_background, format_osc_color_reply, format_osc_palette_reply, parse, parse_hex_color, rgb, rgba_to_u32, u32_to_rgba};
 pub use event::{Event, Recording};
 pub use keyboard::KittyFlags;
 pub use mode::{MOUSE_MASK, TermFlags};

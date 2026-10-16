@@ -170,10 +170,10 @@ pub enum CursorStyle {
     None = 0,
     /// Solid block covering the cell.
     Block = 1,
-    /// Vertical bar (I-beam) at the left of the cell.
-    Bar = 2,
     /// Horizontal underline at the bottom of the cell.
-    Underline = 3,
+    Underline = 2,
+    /// Vertical bar (I-beam) at the left of the cell.
+    Bar = 3,
 }
 
 impl CursorStyle {

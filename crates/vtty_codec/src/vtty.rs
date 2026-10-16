@@ -216,8 +216,8 @@ impl_tagged_codec!(
     CursorStyle,
     0 => CursorStyle::None,
     1 => CursorStyle::Block,
-    2 => CursorStyle::Bar,
-    3 => CursorStyle::Underline,
+    2 => CursorStyle::Underline,
+    3 => CursorStyle::Bar,
 );
 
 impl_tagged_codec!(
