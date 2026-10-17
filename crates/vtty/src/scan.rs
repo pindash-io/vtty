@@ -5,16 +5,19 @@
 //! scanner and the OSC/DCS payload-boundary scanners. Eight bytes per
 //! iteration, `no_std`, no allocation.
 
-/// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
-/// contains byte `b`. (`x.wrapping_sub(LO) & !x & HI` is the classic zero-byte
-/// detector applied to `w ^ b`.)
-const LO: u64 = 0x0101_0101_0101_0101;
-const HI: u64 = 0x8080_8080_8080_8080;
+/// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
+const SPLAT_01: u64 = 0x0101_0101_0101_0101;
+const SPLAT_20: u64 = 0x2020_2020_2020_2020;
+const SPLAT_7F: u64 = 0x7f7f_7f7f_7f7f_7f7f;
+const SPLAT_80: u64 = 0x8080_8080_8080_8080;
 
+/// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
+/// contains byte `b` (`x.wrapping_sub(SPLAT_01) & !x & SPLAT_80` is the
+/// classic zero-byte detector applied to `w ^ b`).
 #[inline(always)]
 const fn swar_byte_eq(w: u64, b: u64) -> u64 {
-    let x = w ^ (LO * b);
-    x.wrapping_sub(LO) & !x & HI
+    let x = w ^ (SPLAT_01 * b);
+    x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
@@ -29,21 +32,26 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     #[cfg(not(feature = "simd"))]
     let _ = simd;
 
-    // SWAR: scan 8 bytes at a time for the first non-printable byte
-    // (`b < 0x20 || b >= 0x7f`). `MASK_xx` splats byte `xx` across every lane.
-    const MASK_01: u64 = 0x0101_0101_0101_0101;
-    const MASK_20: u64 = 0x2020_2020_2020_2020;
-    const MASK_7F: u64 = 0x7f7f_7f7f_7f7f_7f7f;
-    const MASK_80: u64 = 0x8080_8080_8080_8080;
+    // Fast path: 0- and 1-byte printable runs are the ANSI-dense pattern
+    // (`ESC [ … m X ESC [ …`), where a full 8-byte SWAR word is overkill.
+    // `0x20..=0x7e` is printable ASCII (space through `~`); anything else is
+    // a control byte, DEL, or a UTF-8 lead byte.
+    match bytes {
+        [b, ..] if !(0x20..=0x7e).contains(b) => return 0,
+        [_, b, ..] if !(0x20..=0x7e).contains(b) => return 1,
+        _ => {}
+    }
 
+    // SWAR: scan 8 bytes at a time for the first non-printable byte
+    // (`b < 0x20 || b >= 0x7f`).
     let (chunks, remainder) = bytes.as_chunks::<8>();
     let mut i = 0;
     for chunk in chunks {
         let word = u64::from_ne_bytes(*chunk);
-        let lt_20 = word.wrapping_sub(MASK_20) & !word & MASK_80; // b < 0x20
-        let ge_80 = word & MASK_80; // b >= 0x80
-        let x = word ^ MASK_7F;
-        let eq_7f = x.wrapping_sub(MASK_01) & !x & MASK_80; // b == 0x7f
+        let lt_20 = word.wrapping_sub(SPLAT_20) & !word & SPLAT_80; // b < 0x20
+        let ge_80 = word & SPLAT_80; // b >= 0x80
+        let x = word ^ SPLAT_7F;
+        let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == 0x7f
         let mask = lt_20 | ge_80 | eq_7f;
         if mask != 0 {
             return i + (mask.trailing_zeros() / 8) as usize;
@@ -80,7 +88,7 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
         ]);
         // C0 (`< 0x20`) and C1 (`0x80..=0x9f`) both have bits 6..=5 clear, so
         // `(b & 0x60) == 0` covers both in one SWAR zero-byte test.
-        let c0_c1 = swar_byte_eq(w & (LO * 0x60), 0);
+        let c0_c1 = swar_byte_eq(w & (SPLAT_01 * 0x60), 0);
         // `;` is the OSC param separator.
         let eq3b = swar_byte_eq(w, 0x3b);
         let stop = c0_c1 | eq3b;
@@ -117,7 +125,7 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
             bytes[i + 6],
             bytes[i + 7],
         ]);
-        let stop = (w & HI)
+        let stop = (w & SPLAT_80)
             | swar_byte_eq(w, 0x18)
             | swar_byte_eq(w, 0x1a)
             | swar_byte_eq(w, 0x1b)

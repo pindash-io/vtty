@@ -933,7 +933,6 @@ const MAX_PARAM_COUNT: usize = 32;
 const MAX_PARAM_VALUE: i32 = 65535;
 
 #[cfg(test)]
-#[cfg(test)]
 mod tests {
     use super::Parser;
 
