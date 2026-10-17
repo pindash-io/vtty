@@ -10,12 +10,12 @@
 //! share it without the codec depending on the parser. `vtty` re-exports its
 //! API.
 //!
-//! # Features
+//! ## Features
 //!
-//! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting ([`Reply`]).
-//! - `termcap` — XTGETTCAP terminfo capability table ([`Cap`]/[`CapValue`]);
+//! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
+//! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
-//! - `status` — OSC 7501 Program Status Protocol ([`ProgramStatus`]).
+//! - `status` — OSC 7501 Program Status Protocol (`ProgramStatus`).
 #![forbid(unsafe_code)]
 #![no_std]
 #![expect(

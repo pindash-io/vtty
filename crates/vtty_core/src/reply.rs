@@ -11,6 +11,19 @@ use smol_str::{SmolStr, SmolStrBuilder};
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
+/// DCS/OSC string terminator (`ESC \`).
+const ST: &str = "\x1b\\";
+
+/// XTGETTCAP answer prefix — `DCS 1 + r` (supported/valid).
+const XTGETTCAP_OK: &str = "\x1bP1+r";
+/// XTGETTCAP answer prefix — `DCS 0 + r` (unsupported/error).
+const XTGETTCAP_ERR: &str = "\x1bP0+r";
+
+/// DECRQSS answer prefix — `DCS 1 $ r` (valid).
+const DECRQSS_OK: &str = "\x1bP1$r";
+/// DECRQSS answer prefix — `DCS 0 $ r` (invalid).
+const DECRQSS_ERR: &str = "\x1bP0$r";
+
 /// Accumulates VT query replies in dispatch order, so a burst of queries
 /// (`XTVERSION` + `OSC 10/11` + `OSC 4` + `DA`) is answered in order instead
 /// of dropping all but the last.
@@ -42,11 +55,9 @@ impl Reply {
 
     /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
     pub fn decrqss(mut self, valid: bool, value: &str) -> Self {
-        let _ = write!(
-            self.buf,
-            "\x1bP{}$r{value}\x1b\\",
-            if valid { "1" } else { "0" }
-        );
+        self.buf.push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
+        self.buf.push_str(value);
+        self.buf.push_str(ST);
         self.empty = false;
         self
     }
@@ -55,13 +66,13 @@ impl Reply {
     /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
     /// failure messages.
     fn xtgettcap(mut self, ok: bool, key: &[u8], value: Option<&[u8]>) -> Self {
-        self.buf.push_str(if ok { "\x1bP1+r" } else { "\x1bP0+r" });
+        self.buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
         self.buf.push_str(&const_hex::encode(key));
         if let Some(value) = value {
             self.buf.push('=');
             self.buf.push_str(&const_hex::encode(value));
         }
-        self.buf.push_str("\x1b\\");
+        self.buf.push_str(ST);
         self.empty = false;
         self
     }
@@ -88,7 +99,7 @@ impl Reply {
     /// Append an XTGETTCAP answer with a decimal integer value, hex-encoding
     /// the digits directly (no `to_string` allocation).
     pub fn xtgettcap_num(mut self, key: &[u8], n: usize) -> Self {
-        self.buf.push_str("\x1bP1+r");
+        self.buf.push_str(XTGETTCAP_OK);
         self.buf.push_str(&const_hex::encode(key));
         self.buf.push('=');
         // Decimal digits → their hex pairs: '0'..'9' = 0x30..0x39 → "30".."39".
@@ -107,7 +118,7 @@ impl Reply {
             self.buf.push('3');
             self.buf.push(d as char);
         }
-        self.buf.push_str("\x1b\\");
+        self.buf.push_str(ST);
         self.empty = false;
         self
     }
