@@ -110,12 +110,7 @@ pub const DEFAULT_BG_ID: ColorId = ColorId(257);
 pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
     // Little-endian bytes lay out [B, G, R, 0] — a single `from_le_bytes`
     // (a native u32 bit-cast on LE targets) instead of two shifts + two ORs.
-    u32::from_le_bytes([
-        clamp_channel(b),
-        clamp_channel(g),
-        clamp_channel(r),
-        0,
-    ])
+    u32::from_le_bytes([clamp_channel(b), clamp_channel(g), clamp_channel(r), 0])
 }
 
 /// Clamp one 0..255 channel. `i32::clamp` is not const-stable (`Ord` as a
@@ -186,12 +181,7 @@ pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
     let s = s.trim_start_matches('#');
     let bytes = const_hex::decode(s.as_bytes()).ok()?;
     let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
-    Some([
-        r as f32 / 255.0,
-        g as f32 / 255.0,
-        b as f32 / 255.0,
-        1.0,
-    ])
+    Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
 }
 
 /// Parse an OSC color (`rgb:RR/GG/BB`, `rgb:RRRR/GGGG/BBBB`, or
@@ -221,7 +211,9 @@ pub fn parse(s: &[u8]) -> Option<u32> {
         }
         return Some(rgb);
     }
-    if let Some(rest) = s.strip_prefix('#') && rest.len() == 6 {
+    if let Some(rest) = s.strip_prefix('#')
+        && rest.len() == 6
+    {
         let bytes = const_hex::decode(rest.as_bytes()).ok()?;
         let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
         return Some(((r as u32) << 16) | ((g as u32) << 8) | b as u32);
@@ -249,10 +241,7 @@ pub fn format_osc_color_reply(code: u16, rgb: u32) -> alloc::string::String {
 
 /// Format an OSC 4 palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
-pub fn format_osc_palette_reply(
-    index: usize,
-    rgb: u32,
-) -> alloc::string::String {
+pub fn format_osc_palette_reply(index: usize, rgb: u32) -> alloc::string::String {
     let r = (rgb >> 16) & 0xff;
     let g = (rgb >> 8) & 0xff;
     let b = rgb & 0xff;
@@ -277,8 +266,8 @@ pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
     let [gh, gl] = *const_hex::const_encode::<1, false>(&[g]).as_byte_array::<2>();
     let [bh, bl] = *const_hex::const_encode::<1, false>(&[b]).as_byte_array::<2>();
     [
-        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl,
-        b'/', gh, gl, gh, gl, b'/', bh, bl, bh, bl, 0x1b, b'\\',
+        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl, b'/', gh, gl, gh, gl,
+        b'/', bh, bl, bh, bl, 0x1b, b'\\',
     ]
 }
 

@@ -31,6 +31,25 @@ pub trait Perform {
     /// A C0/C1 control byte (e.g. `\n`, `\t`, `\x1b`).
     fn execute(&mut self, _byte: u8) {}
 
+    /// A printable ASCII run followed IMMEDIATELY by a bare `\n` — the
+    /// raw-LF streaming hot path (`cat`). Default: [`print_bytes`](Perform::print_bytes)
+    /// then [`execute`](Perform::execute) of `\n`. Screens may fuse the two into
+    /// one pass (skipping the per-dispatch setup) when the result is
+    /// identical.
+    fn print_line(&mut self, s: &[u8]) {
+        self.print_bytes(s);
+        self.execute(b'\n');
+    }
+
+    /// A printable ASCII run followed immediately by `\r\n` — the OPOST/PTY
+    /// streaming hot path. Default: print then CR then LF. Screens may fuse
+    /// the three into one pass when the result is identical.
+    fn print_crlf_line(&mut self, s: &[u8]) {
+        self.print_bytes(s);
+        self.execute(b'\r');
+        self.execute(b'\n');
+    }
+
     /// A CSI sequence's final byte, with parameters and intermediates
     /// (private markers `?` `>` `=` `<` + `0x20..0x2f`). Params are `i32`
     /// (clamped to `0..=65535`); an empty colon param is the `-1` sentinel.

@@ -55,7 +55,8 @@ impl Reply {
 
     /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
     pub fn decrqss(mut self, valid: bool, value: &str) -> Self {
-        self.buf.push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
+        self.buf
+            .push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
         self.buf.push_str(value);
         self.buf.push_str(ST);
         self.empty = false;
@@ -66,7 +67,8 @@ impl Reply {
     /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
     /// failure messages.
     fn xtgettcap(mut self, ok: bool, key: &[u8], value: Option<&[u8]>) -> Self {
-        self.buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
+        self.buf
+            .push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
         self.buf.push_str(&const_hex::encode(key));
         if let Some(value) = value {
             self.buf.push('=');
@@ -171,7 +173,8 @@ impl Reply {
     pub fn osc_background(mut self, c: [f32; 4]) -> Self {
         let buf = crate::color::format_osc_background(c);
         // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
-        self.buf.push_str(core::str::from_utf8(&buf).unwrap_or_default());
+        self.buf
+            .push_str(core::str::from_utf8(&buf).unwrap_or_default());
         self.empty = false;
         self
     }

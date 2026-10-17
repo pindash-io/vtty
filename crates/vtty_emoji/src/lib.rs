@@ -54,7 +54,7 @@ pub use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCatego
 #[cfg(feature = "icu")]
 pub use icu::width_icu;
 
-pub use emoji::{Selector, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray};
+pub use emoji::{Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray};
 pub use properties::{Properties, cell_width, first_non_ascii, is_zero_width, vs_width};
 pub use width::{cell_advance, cell_col_byte_widths, cell_width_sum, cell_widths};
 

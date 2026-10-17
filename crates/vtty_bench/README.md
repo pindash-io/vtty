@@ -21,21 +21,23 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- |
-| plain | 2.54 GiB/s | **12.72 GiB/s** | 1.37 GiB/s | 403 MiB/s | 1.46 GiB/s | 133 MiB/s |
-| scroll_storm | 1.55 GiB/s | **1.65 GiB/s** | 1.34 GiB/s | 375 MiB/s | 1.31 GiB/s | 74 MiB/s |
-| utf8_mixed | 818 MiB/s | 1.21 GiB/s | 823 MiB/s | 225 MiB/s | 1.21 GiB/s | 171 MiB/s |
-| ansi_mixed | **682 MiB/s** | 680 MiB/s | 314 MiB/s | 188 MiB/s | 386 MiB/s | 176 MiB/s |
-| ansi_two_styles | 847 MiB/s | **856 MiB/s** | 332 MiB/s | 194 MiB/s | 354 MiB/s | 160 MiB/s |
-| ansi_bare_csi | 1.14 GiB/s | **1.24 GiB/s** | 492 MiB/s | 210 MiB/s | 459 MiB/s | 155 MiB/s |
-| sgr_churn | **675 MiB/s** | 648 MiB/s | 335 MiB/s | 181 MiB/s | 439 MiB/s | 229 MiB/s |
-| cursor_motion | **681 MiB/s** | 647 MiB/s | 216 MiB/s | 192 MiB/s | 420 MiB/s | 271 MiB/s |
-| sync_churn | 726 MiB/s | **738 MiB/s** | 294 MiB/s | 234 MiB/s | 483 MiB/s | 103 MiB/s |
-| truecolor_unique | **680 MiB/s** | 634 MiB/s | 340 MiB/s | 207 MiB/s | 478 MiB/s | 262 MiB/s |
-| bracketed_paste | **1.12 GiB/s** | 1.04 GiB/s | 733 MiB/s | 283 MiB/s | 739 MiB/s | 150 MiB/s |
-| osc_heavy | 1.67 GiB/s | **1.71 GiB/s** | 366 MiB/s | 133 MiB/s | 1.19 GiB/s | 153 MiB/s |
-| dcs_sixel | 4.38 GiB/s | **4.52 GiB/s** | 581 MiB/s | 437 MiB/s | 4.15 GiB/s | 461 MiB/s |
+| plain | 4.16 GiB/s | **6.39 GiB/s** | 848 MiB/s | 295 MiB/s | 735 MiB/s | 71 MiB/s |
+| scroll_storm | 767 MiB/s | **967 MiB/s** | 607 MiB/s | 276 MiB/s | 817 MiB/s | 47 MiB/s |
+| utf8_mixed | 686 MiB/s | **825 MiB/s** | 455 MiB/s | 166 MiB/s | 792 MiB/s | 112 MiB/s |
+| ansi_mixed | 606 MiB/s | **667 MiB/s** | 169 MiB/s | 125 MiB/s | 231 MiB/s | 117 MiB/s |
+| ansi_two_styles | 652 MiB/s | **729 MiB/s** | 242 MiB/s | 140 MiB/s | 237 MiB/s | 105 MiB/s |
+| ansi_bare_csi | **1000 MiB/s** | 831 MiB/s | 299 MiB/s | 162 MiB/s | 251 MiB/s | 94 MiB/s |
+| sgr_churn | **790 MiB/s** | 700 MiB/s | 186 MiB/s | 144 MiB/s | 299 MiB/s | 165 MiB/s |
+| cursor_motion | **708 MiB/s** | 676 MiB/s | 240 MiB/s | 146 MiB/s | 261 MiB/s | 151 MiB/s |
+| sync_churn | **1.02 GiB/s** | 811 MiB/s | 227 MiB/s | 167 MiB/s | 281 MiB/s | 56 MiB/s |
+| truecolor_unique | **715 MiB/s** | 499 MiB/s | 204 MiB/s | 134 MiB/s | 272 MiB/s | 163 MiB/s |
+| bracketed_paste | **1.17 GiB/s** | 1.07 GiB/s | 418 MiB/s | 181 MiB/s | 442 MiB/s | 83 MiB/s |
+| osc_heavy | 1.07 GiB/s | **1.14 GiB/s** | 238 MiB/s | 94 MiB/s | 632 MiB/s | 85 MiB/s |
+| dcs_sixel | 2.52 GiB/s | 2.91 GiB/s | 391 MiB/s | 318 MiB/s | **3.03 GiB/s** | 294 MiB/s |
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
-Numbers carry ~10% run-to-run variance (CPU frequency scaling). `utf8_mixed`
-is a statistical tie between `vtty-simd` and `rio-vt` (≈1.21 GiB/s).
+Measured on Apple Silicon (aarch64). Numbers are medians of 20 Criterion
+samples from a full-suite run; throughput is sensitive to thermal throttling,
+so a full suite heats the CPU and depresses later cases (a fresh single-case
+run of `plain` measures ~2× higher on this hardware).

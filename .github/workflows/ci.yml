@@ -36,6 +36,8 @@ jobs:
       - name: README sync check
         run: |
           cargo rdme -w vtty --check
+          cargo rdme -w vtty_core --check
+          cargo rdme -w vtty_codec --check
           cargo rdme -w vtty_emoji --check
           cargo rdme -w vtty_ffi --check
 

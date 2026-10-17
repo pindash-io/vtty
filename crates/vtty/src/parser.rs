@@ -275,8 +275,24 @@ impl Parser {
                 // Printable ASCII is valid UTF-8 by construction (the SIMD
                 // classifier already rejected control/high-bit bytes), so no
                 // `from_utf8` re-validation is needed here.
-                p.print_bytes(&run[pos..pos + n]);
-                pos += n;
+                let end = pos + n;
+                // Fused print+LF fast path: the printable run is followed by
+                // a bare `\n` (raw LF) or `\r\n` (OPOST) — dispatch ONE fused
+                // call instead of `print_bytes` + one/two `execute`s. The
+                // default `print_line`/`print_crlf_line` delegate back to
+                // those, so a screen that does not specialize is unaffected.
+                if end < valid && run[end] == b'\n' {
+                    p.print_line(&run[pos..end]);
+                    pos = end + 1;
+                    continue;
+                }
+                if end + 1 < valid && run[end] == b'\r' && run[end + 1] == b'\n' {
+                    p.print_crlf_line(&run[pos..end]);
+                    pos = end + 2;
+                    continue;
+                }
+                p.print_bytes(&run[pos..end]);
+                pos = end;
             }
             if pos >= valid {
                 break;

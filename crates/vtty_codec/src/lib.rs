@@ -6,7 +6,7 @@
 //! [`Encode`] turns a value into a **deterministic** byte stream and
 //! [`Decode`] turns that stream back into a value.
 //!
-//! # Wire format
+//! ## Wire format
 //!
 //! - Integers — fixed-width little-endian.
 //! - Floats — IEEE-754 bit patterns, little-endian (`f32`↔`u32`, `f64`↔`u64`).
@@ -17,7 +17,7 @@
 //!   the items.
 //! - Enums — one discriminant byte followed by the variant payload.
 //!
-//! # Safety
+//! ## Safety
 //!
 //! Encoding never allocates or panics. Decoding allocates only in proportion
 //! to the bytes actually read, so a bogus length prefix cannot force a large

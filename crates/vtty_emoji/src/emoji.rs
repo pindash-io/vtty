@@ -94,6 +94,15 @@ pub fn mark_is_stray(mark: char, base: char) -> bool {
     Selector::from_char(mark).is_some_and(|s| !s.attaches_to(base))
 }
 
+/// Whether a char is a KEYCAP BASE (`#`, `*`, `0-9`). A buffered VS16/VS15
+/// after it ATTACHES (the DFA groups it into the keycap sequence — the base
+/// widens to 2 cells only in the COMPLETE `base VS16 U+20E3`); a DIRECT lone
+/// selector is still dropped (Ghostty's `ExtPict` rule).
+#[inline]
+pub fn is_keycap_base(c: char) -> bool {
+    emoji_category(c) == EmojiSegmentationCategory::KeycapBase
+}
+
 /// Whether a char can be the TARGET of a preceding ZWJ (a ZWJ-sequence
 /// continuation).
 #[inline]
