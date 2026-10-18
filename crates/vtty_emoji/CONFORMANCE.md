@@ -22,7 +22,7 @@ terminal divergences.
 | `emoji-zwj-sequences.txt` | RGI_Emoji_ZWJ_Sequence | `[2,0,…]` | 1614/1614 |
 | `emoji-test.txt` | fully-qualified | `[2,0,…]` | 3944/3944 |
 | | minimally-qualified | `[2,0,…]` | 1029/1029 |
-| | unqualified | `[1]` / `[2]` (CJK) / `[2,0,…]` (ZWJ) / `[1,0]` (keycap) | 243/243 |
+| | unqualified | `[2]` (`Emoji=Yes`) / `[2]` (CJK) / `[2,0,…]` (ZWJ) / `[1,0]` (keycap) | 243/243 |
 | | component | `[2]` (hair) / `[1]` (skin tone) | 9/9 |
 | `emoji-variation-sequences.txt` | text style | `[1,0]` | 371/371 |
 | | emoji style | `[2,0]` | 359/371 + 12 keycap |
