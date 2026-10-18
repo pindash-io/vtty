@@ -217,10 +217,30 @@ pub(crate) fn decode_utf8<P: Perform>(
                                 i += 1;
                             }
                             // Printable ASCII run (0x20..=0x7e) — SIMD-scanned.
+                            // Use the SAME print+LF fusion as `advance_ground`:
+                            // a run followed by `\n`/`\r\n` dispatches the fused
+                            // `print_line`/`print_crlf_line` (the cell/line
+                            // screens specialize it), instead of `print_bytes` +
+                            // two per-byte `execute`s. Without this the SIMD
+                            // UTF-8 window loses the fusion for EVERY line after
+                            // the first emoji in a chunk (2.6x more `execute`
+                            // calls — the mixed-corpus SIMD slowdown).
                             0x20..=0x7e => {
                                 let n = crate::simd::first_non_printable(&s[i..]);
-                                p.print_bytes(&s[i..i + n]);
-                                i += n;
+                                let end = i + n;
+                                if end + 1 < s.len() && s[end] == b'\n' {
+                                    p.print_line(&s[i..end]);
+                                    i = end + 1;
+                                } else if end + 2 < s.len()
+                                    && s[end] == b'\r'
+                                    && s[end + 1] == b'\n'
+                                {
+                                    p.print_crlf_line(&s[i..end]);
+                                    i = end + 2;
+                                } else {
+                                    p.print_bytes(&s[i..end]);
+                                    i = end;
+                                }
                             }
                             // DEL is a C0 control (destructive backspace).
                             0x7f => {
