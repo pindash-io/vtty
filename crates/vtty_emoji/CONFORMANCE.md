@@ -1,12 +1,11 @@
-# Emoji conformance taxonomy & analytical engine
+# Emoji conformance: taxonomy, model, engine
 
-`vtty_emoji` resolves display cell width through a single width function
-`cell_widths: Σ* → ℕ*`. Its Unicode authority is UTS #51 as of **Unicode
-17.0.0** (ICU4X 2.3.0 bakes the per-codepoint properties; `parley_emoji`
-0.12.0 supplies the version-agnostic DFA). This document classifies the
-authoritative data files, gives the width model a mathematical form, and
-specifies the analytical engine (`examples/conformance.rs`) that validates
-every sequence in one pass.
+`vtty_emoji` maps a string to per-grapheme cell widths via one function,
+`cell_widths: Σ* → ℕ*`. The width model follows UTS #51 as of **Unicode
+17.0.0** — ICU4X 2.3.0 bakes the per-codepoint properties, `parley_emoji`
+0.12.0 supplies the version-agnostic DFA. This document classifies the
+authoritative data files, states the model formally, and describes the
+analytical engine (`examples/conformance.rs`) that checks every sequence.
 
 ## 1. Classification & summary
 
@@ -39,37 +38,49 @@ accounted for.
 | **K₂ — keycap-no-VS16** | `s = c U+20E3`, `c ∈ {# * 0-9}` | `[1,0]` | without the VS16 the keycap is text presentation. |
 | **S — lone skin tone** | `s = c`, `c ∈ {1F3FB..1F3FF}` | `[1]` | a skin-tone modifier is a 0-width combining mark; a LONE one is one cell. |
 
-These are deliberate, Ghostty-aligned terminal overrides, not defects; the
-fixtures `vs16_keycap_base.in` etc. lock them.
+These are deliberate, Ghostty-aligned terminal overrides, not defects.
 
-## 2. Mathematical model
+## 2. Width model
 
-Let `w(s) = [w₁, …, wₙ] = cell_widths(s)`. The **collapse** predicate says a
-sequence is ONE 2-cell grapheme:
+Let `w(s) = [w₁, …, wₙ] = cell_widths(s)`. A sequence **collapses** into one
+2-cell grapheme when:
 
 ```math
 \mathsf{collapse}(s) \;\equiv\; w_1 = 2 \;\land\; \forall i > 1:\ w_i = 0
 ```
 
-The width function factors as a **presentation resolution** followed by a
-**cluster split**. A sequence is classified by its structure:
+A grapheme is one emoji member, optionally with a skin tone; a ZWJ sequence
+joins members:
 
 ```math
 \mathsf{member} = \mathsf{Emoji}\ [\mathsf{SkinTone}], \qquad
 \mathsf{ZWJ}(s) = \mathsf{member}\ (\mathsf{ZWJ}\ \mathsf{member})^*
 ```
 
-and the expected signatures are
+VS16/VS15 select the presentation style; the lead width combines presentation
+with collapse:
 
-| class | signature |
-|---|---|
-| $\mathsf{Basic},\ \mathsf{Flag},\ \mathsf{Modifier},\ \mathsf{Tag},\ \mathsf{ZWJ}$ | $\mathsf{collapse}(s)$ |
-| $\mathsf{Keycap}$ | $w = [2,0,0]$ |
-| $\mathsf{TextStyle}$ (`c VS15`) | $w = [1,0]$ |
-| $\mathsf{EmojiStyle}$ (`c VS16`) | $w = [2,0]$ |
+```math
+\sigma(\mathsf{VS16}) = \mathsf{Emoji},\qquad
+\sigma(\mathsf{VS15}) = \mathsf{Text},\qquad
+w_1 =
+\begin{cases}
+2 & \sigma = \mathsf{Emoji} \lor \mathsf{collapse}(s) \\
+1 & \sigma = \mathsf{Text}
+\end{cases}
+```
 
-The three terminal overrides are predicates that INTERSECT the Unicode
-catalogue and rewrite the signature:
+Expected signatures by class:
+
+- `Basic`, `Flag`, `Modifier`, `Tag`, `ZWJ` — `collapse(s)`
+- `Keycap` — `[2,0,0]`
+- `TextStyle` (`c VS15`) — `[1,0]`
+- `EmojiStyle` (`c VS16`) — `[2,0]`
+
+Every continuation is 0-width (`w_i = 0` for `i > 1`): skin tones, ZWJ,
+selectors, keycap-ends, and tag chars never add cells.
+
+The three terminal overrides (K₁/K₂/S, §1) narrow the catalogue:
 
 ```math
 \begin{aligned}
@@ -82,28 +93,15 @@ catalogue and rewrite the signature:
 \end{aligned}
 ```
 
-The presentation selector rule ($\sigma$ is the presentation style):
-
-```math
-\sigma(\mathsf{VS16}) = \mathsf{Emoji},\qquad
-\sigma(\mathsf{VS15}) = \mathsf{Text},\qquad
-w_1 =
-\begin{cases}
-2 & \sigma = \mathsf{Emoji} \lor \mathsf{collapse}(s) \\
-1 & \sigma = \mathsf{Text}
-\end{cases}
-```
-
-and a skin-tone / ZWJ / VS / keycap-end / tag char is always a 0-width
-continuation ($w_i = 0,\ i > 1$).
-
 ## 3. Analytical engine
 
-`examples/conformance.rs` runs all four files in one pass. For each entry it
-(1) parses the codepoint field (expanding `CP..CP` ranges), (2) classifies the
-entry by file + sequence type / qualification, (3) applies `cell_widths`, and
-(4) checks the class signature against the three overrides. It prints the
-unified table and any mismatch.
+`examples/conformance.rs` runs all four files in one pass and prints the
+classification table plus any mismatch. For each entry it:
+
+1. parses the codepoint field, expanding `CP..CP` ranges;
+2. classifies by file, sequence type, and qualification;
+3. applies `cell_widths`;
+4. checks the signature against the three overrides.
 
 ```bash
 cargo run --release -p vtty_emoji --example conformance -- \
