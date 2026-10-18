@@ -181,7 +181,10 @@ impl Run {
             dfa,
             lead: c,
             lead_w1: cell_width(c).unwrap_or(0),
-            lead_ep: Properties::get(c).is_emoji_presentation(),
+            // The DFA's `presentation_style` takes the lead's presentation:
+            // pass `Emoji` (not `Emoji_Presentation`) so text-default emoji
+            // like ❤ U+2764 resolve to Emoji (2 cells), matching `cell_width`.
+            lead_ep: Properties::get(c).is_emoji(),
             lead_cat: cat,
             len: 1,
             prev_zwj: cat == EmojiSegmentationCategory::Zwj,

@@ -92,13 +92,13 @@ mod tests {
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
-    fn text_default_emoji_stay_one_cell() {
-        // U+2764 ❤ is Emoji=Yes but Emoji_Presentation=No: text-default, so
-        // it is ONE cell without a VS16 (matching Ghostty + the DFA's
-        // `presentation_style`). Only the VS16 widens it to 2.
-        assert_eq!(cell_width('❤'), Some(1));
-        assert_eq!(cell_width('↕'), Some(1));
-        assert_eq!(cell_widths("❤"), vec![1]);
+    fn emoji_presentation_resolves_to_two_cells() {
+        // U+2764 ❤ is Emoji=Yes (Emoji_Presentation=No): parley renders it as
+        // a color emoji glyph, so the DFA's presentation_style(Emoji) resolves
+        // to Emoji — 2 cells. The VS16 form also collapses to [2,0].
+        assert_eq!(cell_width('❤'), Some(2));
+        assert_eq!(cell_width('↕'), Some(2));
+        assert_eq!(cell_widths("❤"), vec![2]);
         assert_eq!(cell_widths("❤\u{FE0F}"), vec![2, 0]);
         assert_eq!(cell_widths("↕\u{FE0F}"), vec![2, 0]);
     }
@@ -321,7 +321,7 @@ fn starship_glyph_widths() {
         ('=', 1),
         ('$', 1),
         ('…', 1),
-        ('↕', 1),
+        ('↕', 2),
         ('✦', 1),
         ('🐧', 2),
         ('🍎', 2),
