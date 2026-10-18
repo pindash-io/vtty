@@ -11,7 +11,9 @@
 //!   curl -sL https://www.unicode.org/Public/17.0.0/emoji/emoji-sequences.txt -o /tmp/seqs.txt
 //!   cargo run --release -p vtty_emoji --example sequences_conformance -- /tmp/seqs.txt
 fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "/tmp/seqs.txt".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "/tmp/seqs.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
     let mut basic_ok = 0usize;
     let mut basic_bad = 0usize;
@@ -46,7 +48,12 @@ fn main() {
                 seq.push(char::from_u32(a).unwrap());
                 let _ = b;
             } else {
-                seq.push(u32::from_str_radix(tok, 16).ok().and_then(char::from_u32).unwrap());
+                seq.push(
+                    u32::from_str_radix(tok, 16)
+                        .ok()
+                        .and_then(char::from_u32)
+                        .unwrap(),
+                );
             }
         }
         let s: String = seq.iter().collect();

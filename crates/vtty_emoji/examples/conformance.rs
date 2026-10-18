@@ -23,7 +23,12 @@ fn parse_cps(field: &str) -> Vec<char> {
             out.push(char::from_u32(a).unwrap());
             let _ = b;
         } else {
-            out.push(u32::from_str_radix(tok, 16).ok().and_then(char::from_u32).unwrap());
+            out.push(
+                u32::from_str_radix(tok, 16)
+                    .ok()
+                    .and_then(char::from_u32)
+                    .unwrap(),
+            );
         }
     }
     out
@@ -78,15 +83,18 @@ fn emoji_test(data: &str) -> (Tally, Tally, Tally, Tally, Vec<String>) {
         let s: String = chars.iter().collect();
         let ok = match qual {
             "fully-qualified" | "minimally-qualified" => {
-                let t = if qual == "fully-qualified" { &mut fq } else { &mut mq };
+                let t = if qual == "fully-qualified" {
+                    &mut fq
+                } else {
+                    &mut mq
+                };
                 let ok = collapse(&w);
                 t.bump(ok);
                 ok
             }
             "unqualified" => {
                 let ok = if chars.len() == 1 {
-                    let wide_cjk =
-                        w == [2] && vtty_emoji::cell_width(chars[0]) == Some(2);
+                    let wide_cjk = w == [2] && vtty_emoji::cell_width(chars[0]) == Some(2);
                     w == [1] || wide_cjk
                 } else if chars.contains(&'\u{200D}') {
                     collapse(&w)
@@ -274,12 +282,18 @@ fn main() {
         vkeycap.ok + vkeycap.bad,
     );
     println!("emoji-sequences.txt");
-    println!("  basic: {}/{}, keycap: {}/{}, flag: {}/{}, modifier: {}/{}, tag: {}/{}",
-        basic.ok, basic.ok + basic.bad,
-        keycap.ok, keycap.ok + keycap.bad,
-        flag.ok, flag.ok + flag.bad,
-        modifier.ok, modifier.ok + modifier.bad,
-        tag.ok, tag.ok + tag.bad,
+    println!(
+        "  basic: {}/{}, keycap: {}/{}, flag: {}/{}, modifier: {}/{}, tag: {}/{}",
+        basic.ok,
+        basic.ok + basic.bad,
+        keycap.ok,
+        keycap.ok + keycap.bad,
+        flag.ok,
+        flag.ok + flag.bad,
+        modifier.ok,
+        modifier.ok + modifier.bad,
+        tag.ok,
+        tag.ok + tag.bad,
     );
 
     let mut any_bad = false;

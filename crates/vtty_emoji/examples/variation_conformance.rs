@@ -80,9 +80,7 @@ fn main() {
         }
     }
     println!("text style  (VS15): {text_ok} ok, {text_bad} bad");
-    println!(
-        "emoji style (VS16): {emoji_ok} ok, {keycap} keycap-incomplete, {emoji_bad} bad"
-    );
+    println!("emoji style (VS16): {emoji_ok} ok, {keycap} keycap-incomplete, {emoji_bad} bad");
     for b in bad {
         println!("  {b}");
     }

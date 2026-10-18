@@ -78,8 +78,7 @@ fn main() {
                     // Unqualified means TEXT-default: width is the East Asian
                     // width, so wide CJK symbols (〰 〽 🈂 🈷 ㊗ ㊙ …) are 2,
                     // everything else 1.
-                    let wide_cjk =
-                        w == [2] && vtty_emoji::cell_width(chars[0]) == Some(2);
+                    let wide_cjk = w == [2] && vtty_emoji::cell_width(chars[0]) == Some(2);
                     want = "[1]".into();
                     if w == [1] || wide_cjk {
                         unq_ok += 1;
