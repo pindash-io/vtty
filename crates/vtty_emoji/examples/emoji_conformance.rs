@@ -11,21 +11,24 @@
 //! - COMPONENT entries (hair components) are `[2]`.
 //!
 //! Run:
-//!   curl -sL https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt -o /tmp/emtest.txt
-//!   cargo run --release -p vtty_emoji --example emoji_conformance -- /tmp/emtest.txt
+//!
+//! ```bash
+//! curl -sL <https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt> -o /tmp/emtest.txt
+//! cargo run --release -p vtty_emoji --example emoji_conformance -- /tmp/emtest.txt
+//! ```
 fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "/tmp/emtest.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
-    let mut fq = 0usize;
-    let mut fq_ok = 0usize;
-    let mut mq = 0usize;
-    let mut mq_ok = 0usize;
-    let mut unq = 0usize;
-    let mut unq_ok = 0usize;
-    let mut comp = 0usize;
-    let mut comp_ok = 0usize;
+    let mut fq = 0_usize;
+    let mut fq_ok = 0_usize;
+    let mut mq = 0_usize;
+    let mut mq_ok = 0_usize;
+    let mut unq = 0_usize;
+    let mut unq_ok = 0_usize;
+    let mut comp = 0_usize;
+    let mut comp_ok = 0_usize;
     let mut bad: Vec<String> = Vec::new();
     for line in data.lines() {
         let line = line.trim();

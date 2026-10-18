@@ -8,23 +8,26 @@
 //! - `RGI_Emoji_Tag_Sequence` (subdivision flag) must collapse to `[2, 0, …]`.
 //!
 //! Run:
-//!   curl -sL https://www.unicode.org/Public/17.0.0/emoji/emoji-sequences.txt -o /tmp/seqs.txt
-//!   cargo run --release -p vtty_emoji --example sequences_conformance -- /tmp/seqs.txt
+//!
+//! ```bash
+//! curl -sL <https://www.unicode.org/Public/17.0.0/emoji/emoji-sequences.txt> -o /tmp/seqs.txt
+//! cargo run --release -p vtty_emoji --example sequences_conformance -- /tmp/seqs.txt
+//! ```
 fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "/tmp/seqs.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
-    let mut basic_ok = 0usize;
-    let mut basic_bad = 0usize;
-    let mut keycap_ok = 0usize;
-    let mut keycap_bad = 0usize;
-    let mut flag_ok = 0usize;
-    let mut flag_bad = 0usize;
-    let mut modifier_ok = 0usize;
-    let mut modifier_bad = 0usize;
-    let mut tag_ok = 0usize;
-    let mut tag_bad = 0usize;
+    let mut basic_ok = 0_usize;
+    let mut basic_bad = 0_usize;
+    let mut keycap_ok = 0_usize;
+    let mut keycap_bad = 0_usize;
+    let mut flag_ok = 0_usize;
+    let mut flag_bad = 0_usize;
+    let mut modifier_ok = 0_usize;
+    let mut modifier_bad = 0_usize;
+    let mut tag_ok = 0_usize;
+    let mut tag_bad = 0_usize;
     let mut bad: Vec<String> = Vec::new();
     for line in data.lines() {
         // `cps ; kind ; name # …` — three `;`-fields, then a comment.

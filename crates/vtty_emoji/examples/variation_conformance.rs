@@ -10,18 +10,21 @@
 //!   normally.
 //!
 //! Run:
-//!   curl -sL https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-variation-sequences.txt -o /tmp/variation.txt
-//!   cargo run --release -p vtty_emoji --example variation_conformance -- /tmp/variation.txt
+//!
+//! ```bash
+//! curl -sL <https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-variation-sequences.txt> -o /tmp/variation.txt
+//! cargo run --release -p vtty_emoji --example variation_conformance -- /tmp/variation.txt
+//! ```
 fn main() {
     let path = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "/tmp/variation.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
-    let mut text_ok = 0usize;
-    let mut text_bad = 0usize;
-    let mut emoji_ok = 0usize;
-    let mut keycap = 0usize;
-    let mut emoji_bad = 0usize;
+    let mut text_ok = 0_usize;
+    let mut text_bad = 0_usize;
+    let mut emoji_ok = 0_usize;
+    let mut keycap = 0_usize;
+    let mut emoji_bad = 0_usize;
     let mut bad: Vec<String> = Vec::new();
     for line in data.lines() {
         let line = line.split('#').next().unwrap_or("").trim();

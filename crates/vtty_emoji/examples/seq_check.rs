@@ -1,3 +1,6 @@
+//! Manual UTS #51 §2.7.1 probe: a VS15 (text selector) inside a ZWJ family
+//! breaks it. Prints `cell_widths` for the `👩👨👧` family with and without the
+//! VS15 on `👧`, plus a defective VS16 skin-tone modifier (`✌️🏻`).
 fn main() {
     // UTS #51 §2.7.1: a VS15 (text selector) inside a ZWJ family BREAKS it.
     // 👩 ZWJ 👨 ZWJ 👧 VS15  →  the VS15 on 👧 breaks the family.
