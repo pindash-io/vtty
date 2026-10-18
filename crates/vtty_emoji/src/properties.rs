@@ -257,8 +257,11 @@ pub fn cell_width(c: char) -> Option<usize> {
 
     let p = Properties::get(c);
     let w = p.width() as usize;
-    // Emoji_Presentation: a width-1 emoji-presentation char becomes 2 cells.
-    if w <= 1 && p.is_emoji_presentation() {
+    // Emoji (UTS #51): a width-1 emoji char becomes 2 cells. The broader
+    // `Emoji` property (not just `Emoji_Presentation`) — text-default emoji
+    // like ❤ U+2764 are rendered as emoji glyphs by the font pipeline
+    // (parley/glyfo), so the grid must advance them 2 cells to match.
+    if w <= 1 && p.is_emoji() {
         return Some(2);
     }
     Some(w)

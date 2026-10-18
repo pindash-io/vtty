@@ -309,7 +309,7 @@ fn starship_glyph_widths() {
         ('=', 1),
         ('$', 1),
         ('…', 1),
-        ('↕', 1),
+        ('↕', 2),
         ('✦', 1),
         ('🐧', 2),
         ('🍎', 2),
@@ -319,7 +319,8 @@ fn starship_glyph_widths() {
     ] {
         assert_eq!(cell_width(c), Some(w), "U+{:04X} {c:?}", c as u32);
     }
-    // `↕` + VS16 (emoji presentation) widens to 2; alone it stays 1.
+    // `↕` + VS16 (emoji presentation) widens to 2; alone it is ALREADY 2
+    // (Emoji=Yes — parley renders it as a color emoji).
     assert_eq!(cell_widths("\u{2195}\u{FE0F}"), vec![2, 0]);
 }
 #[cfg(any(feature = "baked", feature = "icu"))]
