@@ -6,7 +6,7 @@
 
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
-use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16, u32x4};
+use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
 
 #[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
@@ -47,6 +47,16 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
+/// Return the index of the first ASCII byte (`b < 0x80`), or `bytes.len()` if
+/// none. Ends the SIMD UTF-8 decode window at the non-ASCII run's end, so
+/// `decode_utf8` consumes only the contiguous multi-byte sequence and hands
+/// the following ASCII back to the ground loop (no 4096-byte re-validation).
+#[inline(always)]
+pub(crate) fn first_ascii(bytes: &[u8]) -> usize {
+    let level = Level::new();
+    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Ascii))
+}
+
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
 enum ScanKind {
@@ -54,37 +64,74 @@ enum ScanKind {
     NonPrintable,
     /// The ESC byte (`0x1b`) — the state-machine sequence introducer.
     Esc,
+    /// Any ASCII byte (`b < 0x80`) — the end of a non-ASCII run.
+    Ascii,
 }
 
-/// Reusable 16-bytes-at-a-time byte scan: return the index of the first
-/// byte matching `kind`, or `bytes.len()` if none. The SIMD classifier runs
-/// on full 16-byte chunks (`as_chunks`); the final (<16) tail falls back to a
-/// scalar predicate.
+/// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
+#[inline(always)]
+fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
+    match kind {
+        ScanKind::NonPrintable => {
+            // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
+            simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
+                | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
+        }
+        ScanKind::Esc => {
+            // b == 0x1b.
+            simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
+        }
+        ScanKind::Ascii => {
+            // b < 0x80.
+            simd.simd_lt_u8x16(v, simd.splat_u8x16(0x80))
+        }
+    }
+}
+
+/// Reusable byte scan: return the index of the first byte matching `kind`, or
+/// `bytes.len()` if none. Runs 4×16-byte chunks per iteration for ILP — the
+/// independent loads pipeline the classification and mask reductions, cutting
+/// loop overhead on the long printable runs that dominate throughput. The
+/// final (<16) tail falls back to a scalar predicate.
 #[inline(always)]
 fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     let (chunks, remainder) = bytes.as_chunks::<16>();
     let mut offset = 0;
-    for chunk in chunks {
-        let v = u8x16::from_slice(simd, chunk);
-        let special = match kind {
-            ScanKind::NonPrintable => {
-                // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
-                simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
-                    | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
-            }
-            ScanKind::Esc => {
-                // b == 0x1b.
-                simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
-            }
-        };
-        // Fast path: most chunks match nothing — skip the mask
-        // extraction + first-hit reduction entirely.
-        if simd.any_true_mask8x16(special) {
-            let mask: [i8; 16] = special.into();
-            return offset + first_set(mask);
+
+    // Unroll 4× (64 bytes/iter), classifying each chunk lazily so an early
+    // match returns before the later chunks are loaded. The long printable
+    // runs (the common no-match case) still pipeline: the loads are pure, so
+    // the branch predictor speculates through the not-taken checks.
+    let (quads, leftover) = chunks.as_chunks::<4>();
+    for quad in quads {
+        let m0 = classify_scan(simd, u8x16::from_slice(simd, &quad[0]), kind);
+        if simd.any_true_mask8x16(m0) {
+            return offset + first_set(m0.into());
+        }
+        let m1 = classify_scan(simd, u8x16::from_slice(simd, &quad[1]), kind);
+        if simd.any_true_mask8x16(m1) {
+            return offset + 16 + first_set(m1.into());
+        }
+        let m2 = classify_scan(simd, u8x16::from_slice(simd, &quad[2]), kind);
+        if simd.any_true_mask8x16(m2) {
+            return offset + 32 + first_set(m2.into());
+        }
+        let m3 = classify_scan(simd, u8x16::from_slice(simd, &quad[3]), kind);
+        if simd.any_true_mask8x16(m3) {
+            return offset + 48 + first_set(m3.into());
+        }
+        offset += 64;
+    }
+
+    // Leftover full chunks (0..=3).
+    for chunk in leftover {
+        let m = classify_scan(simd, u8x16::from_slice(simd, chunk), kind);
+        if simd.any_true_mask8x16(m) {
+            return offset + first_set(m.into());
         }
         offset += 16;
     }
+
     // Scalar tail (< 16 bytes).
     if let Some(j) = remainder.iter().position(|&b| matches_kind(b, kind)) {
         return offset + j;
@@ -98,6 +145,7 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {
         ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
         ScanKind::Esc => b == 0x1b,
+        ScanKind::Ascii => b < 0x80,
     }
 }
 
@@ -107,8 +155,6 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
 fn first_set(mask: [i8; 16]) -> usize {
     mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
-
-/// SIMD-decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]`.
 /// Caller guarantees four validated 3-byte sequences. The simdutf `0x924`
 /// fast path: one fixed shuffle gathers each 3-byte group into a u32 lane,
 /// then mask + shift + or.

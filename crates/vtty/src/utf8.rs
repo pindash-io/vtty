@@ -140,10 +140,14 @@ pub(crate) fn decode_utf8<P: Perform>(
         if !short {
             const CHUNK: usize = 4096;
             let mut end = (pos + CHUNK).min(valid);
-            // Cap the window at the next ESC: validating past it re-validates
-            // the same window per isolated multi-byte char (quadratic). ESC is
-            // never a UTF-8 continuation, so it is a safe boundary.
-            let rel = crate::simd::first_esc(&bytes[pos..end]);
+            // Cap the window at the first ASCII byte (b < 0x80) — the end of
+            // the contiguous non-ASCII run. This also subsumes the old ESC cap
+            // (ESC is 0x1b < 0x80). Without it, `decode_utf8` validates + re-
+            // dispatches the WHOLE rest of the chunk per emoji run (sparse
+            // emoji in plain text: O(chunk) re-validation, the mixed-corpus
+            // SIMD slowdown). Consume only the multi-byte sequence; the ground
+            // loop handles the following ASCII with its fused fast path.
+            let rel = crate::simd::first_ascii(&bytes[pos..end]);
             if rel < end - pos {
                 end = pos + rel;
             }
