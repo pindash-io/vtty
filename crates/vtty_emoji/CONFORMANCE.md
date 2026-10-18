@@ -47,17 +47,17 @@ fixtures `vs16_keycap_base.in` etc. lock them.
 Let `w(s) = [w₁, …, wₙ] = cell_widths(s)`. The **collapse** predicate says a
 sequence is ONE 2-cell grapheme:
 
-$$
+```math
 \mathsf{collapse}(s) \;\equiv\; w_1 = 2 \;\land\; \forall i > 1:\ w_i = 0
-$$
+```
 
 The width function factors as a **presentation resolution** followed by a
 **cluster split**. A sequence is classified by its structure:
 
-$$
+```math
 \mathsf{member} = \mathsf{Emoji}\ [\mathsf{SkinTone}], \qquad
 \mathsf{ZWJ}(s) = \mathsf{member}\ (\mathsf{ZWJ}\ \mathsf{member})^*
-$$
+```
 
 and the expected signatures are
 
@@ -71,7 +71,7 @@ and the expected signatures are
 The three terminal overrides are predicates that INTERSECT the Unicode
 catalogue and rewrite the signature:
 
-$$
+```math
 \begin{aligned}
 \mathsf{K_1}(s) &\equiv \exists\, c \in \{ \#,\ *,\ 0..9 \}:\ s = c\ \mathsf{VS16}
   & w &= [1,0] \\
@@ -80,11 +80,11 @@ $$
 \mathsf{S}(s)   &\equiv \exists\, c \in [U{+}1F3FB, U{+}1F3FF]:\ s = c
   & w &= [1]
 \end{aligned}
-$$
+```
 
 The presentation selector rule ($\sigma$ is the presentation style):
 
-$$
+```math
 \sigma(\mathsf{VS16}) = \mathsf{Emoji},\qquad
 \sigma(\mathsf{VS15}) = \mathsf{Text},\qquad
 w_1 =
@@ -92,7 +92,7 @@ w_1 =
 2 & \sigma = \mathsf{Emoji} \lor \mathsf{collapse}(s) \\
 1 & \sigma = \mathsf{Text}
 \end{cases}
-$$
+```
 
 and a skin-tone / ZWJ / VS / keycap-end / tag char is always a 0-width
 continuation ($w_i = 0,\ i > 1$).
