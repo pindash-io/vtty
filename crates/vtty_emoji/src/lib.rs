@@ -101,6 +101,12 @@ mod tests {
         assert_eq!(cell_widths("❤"), vec![1]);
         assert_eq!(cell_widths("❤\u{FE0F}"), vec![2, 0]);
         assert_eq!(cell_widths("↕\u{FE0F}"), vec![2, 0]);
+        // A combining mark attaches to the text-default base WITHOUT widening
+        // it — only VS16/VS15 or a ZWJ-family membership changes the width.
+        assert_eq!(cell_widths("❤\u{301}"), vec![1, 0]);
+        assert_eq!(cell_widths("↕\u{301}"), vec![1, 0]);
+        // An Emoji_Presentation base stays 2 cells with a combining mark.
+        assert_eq!(cell_widths("👍\u{301}"), vec![2, 0]);
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]

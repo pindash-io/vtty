@@ -181,10 +181,13 @@ impl Run {
             dfa,
             lead: c,
             lead_w1: cell_width(c).unwrap_or(0),
-            // The DFA's `presentation_style` takes the lead's presentation:
-            // pass `Emoji` (not `Emoji_Presentation`) so text-default emoji
-            // like ❤ U+2764 resolve to Emoji (2 cells), matching `cell_width`.
-            lead_ep: Properties::get(c).is_emoji(),
+            // The DFA's `presentation_style` takes the lead's presentation for
+            // the BASIC sequence case (lead + combining marks, no VS16/ZWJ):
+            // pass `Emoji_Presentation` so a text-default emoji like ❤ stays 1
+            // cell with a combining mark. VS16/VS15/ZWJ-family membership
+            // (non-basic sequences) is decided by `presentation_style` itself,
+            // independent of this flag.
+            lead_ep: Properties::get(c).is_emoji_presentation(),
             lead_cat: cat,
             len: 1,
             prev_zwj: cat == EmojiSegmentationCategory::Zwj,
