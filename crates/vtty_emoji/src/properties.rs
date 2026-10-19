@@ -257,10 +257,11 @@ pub fn cell_width(c: char) -> Option<usize> {
 
     let p = Properties::get(c);
     let w = p.width() as usize;
-    // Emoji (UTS #51): a width-1 emoji char becomes 2 cells — parley renders
-    // `Emoji=Yes` text-default chars (❤ U+2764) as color emoji glyphs, so the
-    // DFA's presentation_style(Emoji) resolves to Emoji and the grid matches.
-    if w <= 1 && p.is_emoji() {
+    // Emoji_Presentation: a width-1 emoji-presentation char becomes 2 cells.
+    // Text-default emoji like ❤ U+2764 (Emoji=Yes, Emoji_Presentation=No)
+    // stay ONE cell; only VS16 or a ZWJ-family membership widens them (the
+    // DFA's `presentation_style(Emoji)` handles that via `lead_ep`).
+    if w <= 1 && p.is_emoji_presentation() {
         return Some(2);
     }
     Some(w)
