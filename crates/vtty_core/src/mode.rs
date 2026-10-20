@@ -43,6 +43,12 @@ bitflags::bitflags! {
         const ALT_SCREEN = 1 << 14;
         /// DEC 66 — application keypad mode (DECNKM).
         const DECNKM = 1 << 24;
+        /// DEC 67 — backarrow key mode (DECBKM): Backspace sends `\x08`
+        /// instead of `\x7f`.
+        const DECBKM = 1 << 33;
+        /// DEC 1035 (`CSI ?1035 h/l`) — ignore the numlock state for the
+        /// keypad (the keypad is always numeric, never application).
+        const NUMLOCK = 1 << 34;
         /// DEC 69 — left/right margin mode (DECLRMM).
         const DECLRMM = 1 << 23;
         /// DEC 80 — Sixel display mode (scrolling vs. fixed). Tracked only;
@@ -128,6 +134,8 @@ impl TermFlags {
             4194304 => 45,      // REVERSE_WRAP
             8388608 => 69,      // DECLRMM
             16777216 => 66,     // DECNKM
+            8589934592 => 67,   // DECBKM
+            17179869184 => 1035, // NUMLOCK
             33554432 => 2027,   // UNICODE_CORE
             67108864 => 1016,   // MOUSE_PIXEL
             134217728 => 80,    // DECSDM
@@ -158,6 +166,8 @@ impl TermFlags {
             45 => Self::REVERSE_WRAP,
             47 => Self::ALT_SCREEN,
             66 => Self::DECNKM,
+            67 => Self::DECBKM,
+            1035 => Self::NUMLOCK,
             69 => Self::DECLRMM,
             80 => Self::DECSDM,
             1000 => Self::MOUSE_NORMAL,
@@ -245,6 +255,9 @@ mod tests {
             TermFlags::from_private_param(1049),
             TermFlags::ALT_SCREEN_1049
         );
+        assert_eq!(TermFlags::from_private_param(66), TermFlags::DECNKM);
+        assert_eq!(TermFlags::from_private_param(67), TermFlags::DECBKM);
+        assert_eq!(TermFlags::from_private_param(1035), TermFlags::NUMLOCK);
         // 4 (IRM) is an ANSI mode, not a DEC private mode.
         assert_eq!(TermFlags::from_private_param(4), TermFlags::NONE);
         assert_eq!(TermFlags::from_private_param(999), TermFlags::NONE);
