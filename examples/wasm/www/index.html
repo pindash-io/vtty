@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vtty — web terminal demo</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span id="title" class="title">vtty web demo</span>
+        <span class="spacer"></span>
+        <span id="dims" class="dims"></span>
+      </header>
+
+      <canvas id="term" class="term"></canvas>
+
+      <footer class="controls">
+        <input
+          id="input"
+          type="text"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="Type text or an escape sequence (\x1b[31mred\x1b[0m)…"
+        />
+        <button id="send">Send</button>
+        <button id="demo">Run demo</button>
+        <button id="code">Code block</button>
+        <button id="clear">Clear</button>
+        <button id="reset">Reset</button>
+      </footer>
+      <p class="hint">
+        <code>\x1b</code>, <code>\n</code>, <code>\r</code> and <code>\t</code>
+        are interpreted in the input. Rendering runs 100% in the browser via
+        WebAssembly + <a href="https://crates.io/crates/vtty">vtty</a>.
+      </p>
+    </main>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

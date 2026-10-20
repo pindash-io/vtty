@@ -10,8 +10,11 @@ use icu_properties::CodePointMapDataBorrowed;
 use icu_properties::CodePointSetData;
 use icu_properties::CodePointSetDataBorrowed;
 use icu_properties::props::{
-    DefaultIgnorableCodePoint, EastAsianWidth, GeneralCategory, GraphemeClusterBreak,
+    DefaultIgnorableCodePoint, EastAsianWidth, ExtendedPictographic, GeneralCategory,
+    GraphemeClusterBreak,
 };
+
+use crate::properties::Gcb;
 
 /// ICU4X-backed display width — an alternative to `unicode-width`.
 ///
@@ -84,4 +87,35 @@ fn is_curated_zero_width(cp: u32) -> bool {
             | 0x11D46
             | 0x11F02
     )
+}
+
+/// ICU4X-backed grapheme cluster break property lookup (feature `icu`).
+pub(crate) fn gcb_icu(c: char) -> Gcb {
+    thread_local! {
+        static GCB: CodePointMapDataBorrowed<'static, GraphemeClusterBreak> =
+            const { CodePointMapData::new() };
+        static EXT_PICT: CodePointSetDataBorrowed<'static> =
+            const { CodePointSetData::new::<ExtendedPictographic>() };
+    }
+    GCB.with(|g| {
+        if EXT_PICT.with(|e| e.contains(c)) {
+            return Gcb::ExtPict;
+        }
+        match g.get(c) {
+            GraphemeClusterBreak::Control => Gcb::Control,
+            GraphemeClusterBreak::CR => Gcb::CR,
+            GraphemeClusterBreak::LF => Gcb::LF,
+            GraphemeClusterBreak::Extend => Gcb::Extend,
+            GraphemeClusterBreak::ZWJ => Gcb::ZWJ,
+            GraphemeClusterBreak::RegionalIndicator => Gcb::RegionalIndicator,
+            GraphemeClusterBreak::Prepend => Gcb::Prepend,
+            GraphemeClusterBreak::SpacingMark => Gcb::SpacingMark,
+            GraphemeClusterBreak::L => Gcb::L,
+            GraphemeClusterBreak::V => Gcb::V,
+            GraphemeClusterBreak::T => Gcb::T,
+            GraphemeClusterBreak::LV => Gcb::LV,
+            GraphemeClusterBreak::LVT => Gcb::LVT,
+            _ => Gcb::Other,
+        }
+    })
 }

@@ -37,16 +37,6 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
 }
 
-/// Return the index of the first ESC byte (`0x1b`), or `bytes.len()` if none.
-/// Caps the SIMD UTF-8 decode window at the next sequence introducer — the
-/// dispatch loop returns at ESC, so validating past it re-validates the same
-/// window per isolated multi-byte char (bracketed-paste O(n²)).
-#[inline(always)]
-pub(crate) fn first_esc(bytes: &[u8]) -> usize {
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
-}
-
 /// Return the index of the first ASCII byte (`b < 0x80`), or `bytes.len()` if
 /// none. Ends the SIMD UTF-8 decode window at the non-ASCII run's end, so
 /// `decode_utf8` consumes only the contiguous multi-byte sequence and hands
@@ -62,8 +52,6 @@ pub(crate) fn first_ascii(bytes: &[u8]) -> usize {
 enum ScanKind {
     /// Non-printable (`b < 0x20 || b >= 0x7f`).
     NonPrintable,
-    /// The ESC byte (`0x1b`) — the state-machine sequence introducer.
-    Esc,
     /// Any ASCII byte (`b < 0x80`) — the end of a non-ASCII run.
     Ascii,
 }
@@ -76,10 +64,6 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
             // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
             simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
                 | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
-        }
-        ScanKind::Esc => {
-            // b == 0x1b.
-            simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
         }
         ScanKind::Ascii => {
             // b < 0x80.
@@ -144,7 +128,6 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
 fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {
         ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
-        ScanKind::Esc => b == 0x1b,
         ScanKind::Ascii => b < 0x80,
     }
 }

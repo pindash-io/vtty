@@ -16,11 +16,7 @@ default = []
 reply = []
 # XTGETTCAP terminfo capability table (`Cap`/`CapValue`); implies `reply`.
 termcap = ["reply"]
-# OSC 7501 Program Status Protocol (`ProgramStatus`).
-status = ["dep:base64"]
-
 [dependencies]
-base64 = { workspace = true, optional = true }
 bitflags.workspace = true
 const-hex = { workspace = true, features = ["alloc"] }
 smallvec.workspace = true

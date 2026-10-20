@@ -106,3 +106,5 @@ mod utf8_tables;
 
 pub use parser::Parser;
 pub use vtty_core::*;
+#[cfg(feature = "status")]
+pub use vtty_status::*;

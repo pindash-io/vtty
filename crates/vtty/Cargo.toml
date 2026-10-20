@@ -17,7 +17,7 @@ reply = ["vtty_core/reply"]
 # XTGETTCAP terminfo capability table (`Cap`/`CapValue`); implies `reply`.
 termcap = ["vtty_core/termcap"]
 # OSC 7501 Program Status Protocol (`ProgramStatus`).
-status = ["vtty_core/status"]
+status = ["dep:vtty_status"]
 # SIMD-accelerated printable-run scanning + UTF-8 validation.
 simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8"]
 # SIMD UTF-8→UTF-32 transcode (compile-time lookup tables). Implies `simd`.
@@ -27,6 +27,7 @@ simd-transcode = ["simd"]
 fearless_simd = { workspace = true, optional = true }
 simdutf8 = { workspace = true, optional = true }
 vtty_core = { path = "../vtty_core", default-features = false }
+vtty_status = { workspace = true, optional = true }
 
 bitflags.workspace = true
 smallvec.workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "vtty_status"
+version.workspace = true
+description = "OSC 7501 Program Status Protocol for vtty: the ProgramStatus codec and the PerformProgramStatus hook."
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+base64.workspace = true
+smol_str.workspace = true
+vtty_core.workspace = true
+
+[lints]
+workspace = true

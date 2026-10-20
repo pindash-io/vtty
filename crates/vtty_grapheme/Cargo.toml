@@ -1,0 +1,22 @@
+[package]
+name = "vtty_grapheme"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+# Per-char display width + baked grapheme cluster break property.
+vtty_emoji = { workspace = true }
+
+[dev-dependencies]
+# Reference implementation for the benchmark example.
+icu_segmenter = { version = "2.3.0", default-features = false, features = ["compiled_data"] }
+
+[lints]
+workspace = true

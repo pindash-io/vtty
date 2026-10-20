@@ -106,7 +106,7 @@ next `ParseState`. `transition` is one indexed load.
   per invalid maximal subpart; standalone C1 keeps `execute` semantics (same as
   `vte`, `rio-vt`, ghostty).
 - `simd` — `fearless_simd` runtime dispatch (SSE2/SSE4.2/AVX2/AVX-512/NEON);
-  `first_non_printable`/`first_esc` scan 16 bytes at a time.
+  `first_non_printable`/`first_ascii` scan 16 bytes at a time.
 - `simd-transcode` — `decode_block` transcodes a validated window in 64-byte
   blocks (one end-of-code-point mask per block, 12-byte chunk loop) via
   `decode_utf8_12` (the `0x924` 3-byte fast path + `utf8bigindex`/`shufutf8`

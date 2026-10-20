@@ -15,7 +15,6 @@
 //! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
 //! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
-//! - `status` — OSC 7501 Program Status Protocol (`ProgramStatus`).
 #![forbid(unsafe_code)]
 #![no_std]
 #![expect(
@@ -40,8 +39,6 @@ mod perform;
 #[cfg(feature = "reply")]
 mod reply;
 mod state;
-#[cfg(feature = "status")]
-mod status;
 mod style;
 #[cfg(feature = "termcap")]
 mod termcap;
@@ -60,8 +57,6 @@ pub use perform::Perform;
 #[cfg(feature = "reply")]
 pub use reply::Reply;
 pub use state::State;
-#[cfg(feature = "status")]
-pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
 pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
 #[cfg(feature = "termcap")]
 pub use termcap::{Cap, CapValue};

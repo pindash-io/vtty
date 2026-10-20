@@ -30,7 +30,7 @@ use base64::engine::DecodePaddingMode;
 use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
 use smol_str::SmolStr;
 
-use crate::perform::Perform;
+use vtty_core::Perform;
 
 /// Report body length limit (bytes).
 const MAX_SEQUENCE: usize = 4096;

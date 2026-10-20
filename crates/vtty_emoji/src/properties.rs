@@ -153,6 +153,96 @@ pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
     )
 }
 
+/// Grapheme cluster break property (UAX #29), reduced to the symbols the
+/// classic GB rules need, with `Extended_Pictographic` folded in as its own
+/// symbol for GB11.
+///
+/// The emoji-specific GCB values (`E_Base`, `E_Base_GAZ`, `E_Modifier`,
+/// `Glue_After_Zwj`) are folded into [`Gcb::Other`] — emoji sequences are
+/// handled by [`crate::emoji`]'s DFA.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Gcb {
+    /// Other (including the emoji-specific GCB values).
+    Other = 0,
+    /// `Control` (includes newlines other than CR/LF).
+    Control = 1,
+    /// Carriage return.
+    CR = 2,
+    /// Line feed.
+    LF = 3,
+    /// `Extend` (combining marks, variation selectors, ZWJ-adjacent).
+    Extend = 4,
+    /// Zero-width joiner.
+    ZWJ = 5,
+    /// Regional indicator (flag emoji half).
+    RegionalIndicator = 6,
+    /// `Prepend`.
+    Prepend = 7,
+    /// `SpacingMark`.
+    SpacingMark = 8,
+    /// Hangul leading jamo `L`.
+    L = 9,
+    /// Hangul vowel jamo `V`.
+    V = 10,
+    /// Hangul trailing jamo `T`.
+    T = 11,
+    /// Hangul syllable `LV`.
+    LV = 12,
+    /// Hangul syllable `LVT`.
+    LVT = 13,
+    /// `Extended_Pictographic` (GB11).
+    ExtPict = 14,
+}
+
+impl Gcb {
+    /// The grapheme cluster break property of `c`.
+    #[inline]
+    pub fn get(c: char) -> Self {
+        #[cfg(feature = "baked")]
+        {
+            Self::from_u8(crate::baked::gcb_get(c as u32))
+        }
+        #[cfg(all(not(feature = "baked"), feature = "icu"))]
+        {
+            crate::icu::gcb_icu(c)
+        }
+        #[cfg(not(any(feature = "baked", feature = "icu")))]
+        {
+            let _ = c;
+            Self::Other
+        }
+    }
+
+    /// Whether this symbol is a C0 control, CR, or LF (GB4/GB5).
+    #[inline]
+    pub const fn is_control(self) -> bool {
+        matches!(self, Self::Control | Self::CR | Self::LF)
+    }
+
+    #[cfg(feature = "baked")]
+    #[inline]
+    const fn from_u8(v: u8) -> Self {
+        match v {
+            1 => Self::Control,
+            2 => Self::CR,
+            3 => Self::LF,
+            4 => Self::Extend,
+            5 => Self::ZWJ,
+            6 => Self::RegionalIndicator,
+            7 => Self::Prepend,
+            8 => Self::SpacingMark,
+            9 => Self::L,
+            10 => Self::V,
+            11 => Self::T,
+            12 => Self::LV,
+            13 => Self::LVT,
+            14 => Self::ExtPict,
+            _ => Self::Other,
+        }
+    }
+}
+
 /// Index of the first byte >= 0x80 (non-ASCII), or `bytes.len()` when the
 /// whole slice is ASCII. With the `simd` feature this is a 16-byte-at-a-time
 /// vectorized scan; otherwise a scalar fallback.
@@ -165,6 +255,25 @@ pub fn first_non_ascii(bytes: &[u8]) -> usize {
     #[cfg(not(feature = "simd"))]
     {
         bytes.iter().position(|&b| b >= 0x80).unwrap_or(bytes.len())
+    }
+}
+
+/// Index of the first byte that is NOT printable ASCII (`0x20..=0x7e`), or
+/// `bytes.len()` when the whole slice is printable ASCII. This is the
+/// all-ASCII fast-path predicate for grapheme clustering: printable ASCII is
+/// the only input where every byte is its own cluster.
+#[inline(always)]
+pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
+    #[cfg(feature = "simd")]
+    {
+        simd::first_non_printable_ascii(bytes)
+    }
+    #[cfg(not(feature = "simd"))]
+    {
+        bytes
+            .iter()
+            .position(|&b| !(0x20..=0x7e).contains(&b))
+            .unwrap_or(bytes.len())
     }
 }
 
@@ -183,6 +292,12 @@ mod simd {
     }
 
     #[inline(always)]
+    pub(crate) fn first_non_printable_ascii(bytes: &[u8]) -> usize {
+        let level = *LEVEL.get_or_init(Level::new);
+        dispatch!(level, simd => scan_printable(simd, bytes))
+    }
+
+    #[inline(always)]
     fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
         let (chunks, tail) = bytes.as_chunks::<16>();
         for (i, chunk) in chunks.iter().enumerate() {
@@ -198,6 +313,26 @@ mod simd {
         let off = bytes.len() - tail.len();
         tail.iter()
             .position(|&b| b >= 0x80)
+            .map_or_else(|| bytes.len(), |p| off + p)
+    }
+
+    #[inline(always)]
+    fn scan_printable<S: Simd>(simd: S, bytes: &[u8]) -> usize {
+        let (chunks, tail) = bytes.as_chunks::<16>();
+        for (i, chunk) in chunks.iter().enumerate() {
+            let v = u8x16::from_slice(simd, chunk.as_slice());
+            // Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
+            let low = simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20));
+            let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f));
+            let mask = simd.to_bitmask_mask8x16(low | high);
+            if mask != 0 {
+                return i * 16 + mask.trailing_zeros() as usize;
+            }
+        }
+        // Scalar tail (< 16 bytes).
+        let off = bytes.len() - tail.len();
+        tail.iter()
+            .position(|&b| !(0x20..=0x7e).contains(&b))
             .map_or_else(|| bytes.len(), |p| off + p)
     }
 }

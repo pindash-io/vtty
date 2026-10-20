@@ -10,9 +10,9 @@ use smallvec::SmallVec;
 
 use vtty_core::{
     Charset, Charsets, ColorId, CursorStyle, Event, KittyFlags, MouseButton, MouseTracking,
-    ProgramStatus, Recording, Reply, SgrFlags, State, StatusKind, StatusState, StyleFlags,
-    TermFlags, UnderlineStyle,
+    Recording, Reply, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
 };
+use vtty_status::{ProgramStatus, StatusKind, StatusState};
 
 use crate::error::{DecodeError, EncodeError};
 use crate::io::{Read, Write};
