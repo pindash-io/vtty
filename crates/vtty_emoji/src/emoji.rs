@@ -181,12 +181,9 @@ impl Run {
             dfa,
             lead: c,
             lead_w1: cell_width(c).unwrap_or(0),
-            // The DFA's `presentation_style` takes the lead's presentation for
-            // the BASIC sequence case (lead + combining marks, no VS16/ZWJ):
-            // pass `Emoji_Presentation` so a text-default emoji like ❤ stays 1
-            // cell with a combining mark. VS16/VS15/ZWJ-family membership
-            // (non-basic sequences) is decided by `presentation_style` itself,
-            // independent of this flag.
+            // `presentation_style` uses this only for the basic case (lead +
+            // combining marks); a text-default ❤ must stay 1 cell. VS16/ZWJ
+            // sequences are decided by the DFA, independent of this flag.
             lead_ep: Properties::get(c).is_emoji_presentation(),
             lead_cat: cat,
             len: 1,
