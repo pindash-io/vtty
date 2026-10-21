@@ -4,14 +4,9 @@
 
 OSC 7501 Program Status Protocol for `vtty`.
 
-A program reports its state — idle, working, done, blocked, or error — to
-the terminal, or clears a previously reported status. This crate provides
-the [`ProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/struct.ProgramStatus.html) codec and the [`PerformProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/trait.PerformProgramStatus.html) hook, which a
-[`vtty_core::Perform`](https://docs.rs/vtty_core/latest/vtty_core/perform/trait.Perform.html) sink implements to opt in.
-
-```text
-ESC ] 7501 ; state=working:app=brew:msg=<base64> ESC \
-```
+The optional status extension: the [`ProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/struct.ProgramStatus.html) codec (parse/encode)
+and the [`PerformProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/trait.PerformProgramStatus.html) hook, which a [`vtty_core::Perform`](https://docs.rs/vtty_core/latest/vtty_core/perform/trait.Perform.html) sink
+implements to receive typed reports.
 
 Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
 

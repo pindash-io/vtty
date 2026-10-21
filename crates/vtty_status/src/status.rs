@@ -159,9 +159,9 @@ impl ProgramStatus {
 
     /// Parses an OSC 7501 report body (the `key=value` pairs).
     ///
-    /// Returns `None` if the report is invalid and must be discarded whole:
-    /// missing/invalid `state`, malformed `id`, any limit exceeded, bad
-    /// base64, or control characters in a decoded `msg`/`title`.
+    /// Returns `None` when invalid: missing/invalid `state`, malformed `id`,
+    /// a limit exceeded, bad base64, or control chars in a decoded
+    /// `msg`/`title`.
     pub fn parse(payload: &[u8]) -> Option<Self> {
         if payload.len() > MAX_SEQUENCE {
             return None;

@@ -190,11 +190,11 @@ impl<T: Decode> Decode for Vec<T> {
 
 impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
-        self.as_slice().encode(writer)
+        self.as_ref().encode(writer)
     }
 
     fn encoded_len(&self) -> usize {
-        self.as_slice().encoded_len()
+        self.as_ref().encoded_len()
     }
 }
 
