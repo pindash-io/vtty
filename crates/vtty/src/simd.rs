@@ -37,14 +37,15 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
 }
 
-/// Return the index of the first ASCII byte (`b < 0x80`), or `bytes.len()` if
-/// none. Ends the SIMD UTF-8 decode window at the non-ASCII run's end, so
-/// `decode_utf8` consumes only the contiguous multi-byte sequence and hands
-/// the following ASCII back to the ground loop (no 4096-byte re-validation).
+/// Return the index of the first ESC byte (`0x1b`), or `bytes.len()` if none.
+/// Caps the SIMD UTF-8 decode window at the next sequence introducer: ESC is
+/// never a UTF-8 continuation byte, so it is a safe cut point, and the
+/// transcode path must not swallow it (it dispatches `execute`, not the
+/// escape state).
 #[inline(always)]
-pub(crate) fn first_ascii(bytes: &[u8]) -> usize {
+pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Ascii))
+    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
 /// What terminates the scan run.
@@ -52,8 +53,8 @@ pub(crate) fn first_ascii(bytes: &[u8]) -> usize {
 enum ScanKind {
     /// Non-printable (`b < 0x20 || b >= 0x7f`).
     NonPrintable,
-    /// Any ASCII byte (`b < 0x80`) — the end of a non-ASCII run.
-    Ascii,
+    /// The ESC byte (`0x1b`) — the state-machine sequence introducer.
+    Esc,
 }
 
 /// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
@@ -65,9 +66,9 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
             simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
                 | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
         }
-        ScanKind::Ascii => {
-            // b < 0x80.
-            simd.simd_lt_u8x16(v, simd.splat_u8x16(0x80))
+        ScanKind::Esc => {
+            // b == 0x1b.
+            simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
         }
     }
 }
@@ -128,7 +129,7 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
 fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {
         ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
-        ScanKind::Ascii => b < 0x80,
+        ScanKind::Esc => b == 0x1b,
     }
 }
 
