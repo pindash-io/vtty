@@ -203,16 +203,9 @@ impl ProgramStatus {
 
         let state = state?;
         // `kind` only applies to blocked; `progress` only to working/blocked.
-        let kind = if state == StatusState::Blocked {
-            kind
-        } else {
-            None
-        };
-        let progress = if matches!(state, StatusState::Working | StatusState::Blocked) {
-            progress
-        } else {
-            None
-        };
+        let kind = kind.filter(|_| state == StatusState::Blocked);
+        let progress =
+            progress.filter(|_| matches!(state, StatusState::Working | StatusState::Blocked));
 
         Some(Self {
             state,
