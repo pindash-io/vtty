@@ -283,12 +283,12 @@ pub trait PerformProgramStatus: Perform {
 }
 
 /// A byte allowed in a `value` (`[A-Za-z0-9_.,+/=-]`).
-fn is_value_byte(b: u8) -> bool {
+const fn is_value_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b',' | b'+' | b'/' | b'=' | b'-')
 }
 
 /// A byte allowed in an `app` or `id` segment (`[A-Za-z0-9_.+-]`).
-fn is_ident_byte(b: u8) -> bool {
+const fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'+' | b'-')
 }
 
