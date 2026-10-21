@@ -7,12 +7,12 @@
  * shell's output is fed through the vtty parser and printed. Ctrl-D (or EOF
  * on stdin) ends the session.
  *
- * Build (macOS / BSD):
+ * Build (macOS / BSD, from `examples/ffi/`):
  *   cargo build --release -p vtty_ffi
- *   cc -O2 examples/term_demo.c -I . -L ../../target/release -lvtty_ffi -o term_demo
+ *   cc -O2 term_demo.c -I ../../crates/vtty_ffi -L ../../target/release -lvtty_ffi -o term_demo
  *
  * Build (Linux, needs libutil for forkpty):
- *   cc -O2 examples/term_demo.c -I . -L ../../target/release -lvtty_ffi -lutil -o term_demo
+ *   cc -O2 term_demo.c -I ../../crates/vtty_ffi -L ../../target/release -lvtty_ffi -lutil -o term_demo
  *
  * Run: ./term_demo     (or pipe commands: printf 'ls\nexit\n' | ./term_demo)
  */

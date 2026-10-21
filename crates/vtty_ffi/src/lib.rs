@@ -28,9 +28,9 @@
 //!
 //! ## Example
 //!
-//! `examples/term_demo.c` spawns a shell on a pseudo-terminal and runs it as
-//! a minimal interactive terminal (keystrokes in, shell output out). See the
-//! file's header for build instructions.
+//! `examples/ffi/term_demo.c` spawns a shell on a pseudo-terminal and runs
+//! it as a minimal interactive terminal (keystrokes in, shell output out).
+//! See the file's header for build instructions.
 
 #![expect(
     missing_debug_implementations,
