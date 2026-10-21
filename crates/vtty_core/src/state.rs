@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Minimal byte-cursor state (the O(bytes) floor).
+//! The [`State`] byte-cursor sink.
 
 use alloc::string::String;
 use core::ops::Range;

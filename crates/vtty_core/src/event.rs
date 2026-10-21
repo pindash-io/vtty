@@ -8,11 +8,10 @@ use smallvec::SmallVec;
 
 use crate::perform::Perform;
 
-/// A parsed escape-sequence event — the dispatch as data instead of a
-/// [`crate::Perform`] callback. Mirrors `vtparse`'s `VTAction`; useful for
-/// differential testing. Params/intermediates use inline `SmallVec`s (≤6
-/// params, ≤2 intermediates allocates nothing); only OSC bodies are heap
-/// `Vec`s.
+/// A parsed escape-sequence event: the dispatch as data instead of a
+/// [`crate::Perform`] callback. Params/intermediates use inline `SmallVec`s
+/// (≤6 params, ≤2 intermediates, no heap); only OSC bodies allocate.
+/// Mirrors `vtparse`'s `VTAction` for differential testing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Event {

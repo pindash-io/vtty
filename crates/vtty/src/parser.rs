@@ -1,10 +1,10 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! The byte-input VT parser: the `Parser` state machine. The [`crate::Perform`]
-//! callback trait lives in `perform`, the owned [`crate::Event`] API in
-//! `event`, the UTF-8 incremental decoder in `utf8`, and the SWAR byte
-//! scanners in `scan`.
+//! The byte-input VT parser: the `Parser` state machine. The
+//! [`crate::Perform`] contract and the owned [`crate::Event`] API are
+//! re-exported from `vtty_core`; the UTF-8 incremental decoder lives in
+//! `utf8`, the SWAR byte scanners in `scan`.
 
 use alloc::vec::Vec;
 

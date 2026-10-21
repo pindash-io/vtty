@@ -36,7 +36,7 @@
 #![deny(missing_docs)]
 #![allow(
     clippy::cast_possible_truncation,
-    reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe; gated behind the `icu` feature"
+    reason = "terminal cell/pixel math truncates to fixed-size types where the range is known-safe"
 )]
 #[cfg(feature = "baked")]
 #[rustfmt::skip]

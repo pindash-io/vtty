@@ -32,10 +32,8 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     #[cfg(not(feature = "simd"))]
     let _ = simd;
 
-    // Fast path: 0- and 1-byte printable runs are the ANSI-dense pattern
-    // (`ESC [ … m X ESC [ …`), where a full 8-byte SWAR word is overkill.
-    // `0x20..=0x7e` is printable ASCII (space through `~`); anything else is
-    // a control byte, DEL, or a UTF-8 lead byte.
+    // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) has 0- and 1-byte
+    // printable runs, where a full 8-byte SWAR word is overkill.
     match bytes {
         [b, ..] if !(0x20..=0x7e).contains(b) => return 0,
         [_, b, ..] if !(0x20..=0x7e).contains(b) => return 1,

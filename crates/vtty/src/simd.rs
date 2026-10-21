@@ -14,20 +14,19 @@ use crate::utf8::decode_utf8_n;
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 
 /// Return the index of the first byte that is NOT printable ASCII
-/// (`0x20..=0x7e` — DEL `0x7f` is a C0 control, dispatched via `execute`),
+/// (`0x20..=0x7e`; DEL `0x7f` is a C0 control dispatched via `execute`),
 /// or `bytes.len()` if every byte is printable.
 #[inline(always)]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
-    // Fast path: the next byte is usually the match (ESC or a high-bit lead);
-    // one byte check skips the dispatch + chunk setup on printable runs.
+    // Fast path: the first byte is usually the match, skipping SIMD dispatch
+    // and chunk setup on printable runs.
     if let Some(&b) = bytes.first()
         && !(0x20..=0x7e).contains(&b)
     {
         return 0;
     }
-    // Second fast path: exactly one printable byte before the next control —
-    // the CSI-dense pattern (`ESC [ … m X ESC …`). Skip SIMD dispatch, which
-    // would scan a full 16-byte chunk to find a one-byte run.
+    // Second fast path: a one-byte printable run (the CSI-dense
+    // `ESC [ … m X ESC …` pattern) skips the 16-byte SIMD scan.
     if let Some(&b) = bytes.get(1)
         && !(0x20..=0x7e).contains(&b)
     {
@@ -37,11 +36,9 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
 }
 
-/// Return the index of the first ESC byte (`0x1b`), or `bytes.len()` if none.
-/// Caps the SIMD UTF-8 decode window at the next sequence introducer: ESC is
-/// never a UTF-8 continuation byte, so it is a safe cut point, and the
-/// transcode path must not swallow it (it dispatches `execute`, not the
-/// escape state).
+/// Index of the first ESC byte (`0x1b`), or `bytes.len()` if none. Caps the
+/// SIMD UTF-8 decode window at the next sequence introducer, which must
+/// reach the escape state rather than be dispatched as `execute`.
 #[inline(always)]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = Level::new();
@@ -73,11 +70,9 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     }
 }
 
-/// Reusable byte scan: return the index of the first byte matching `kind`, or
-/// `bytes.len()` if none. Runs 4×16-byte chunks per iteration for ILP — the
-/// independent loads pipeline the classification and mask reductions, cutting
-/// loop overhead on the long printable runs that dominate throughput. The
-/// final (<16) tail falls back to a scalar predicate.
+/// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans
+/// 4×16-byte chunks per iteration so the independent loads pipeline; the
+/// final (<16) tail falls back to the scalar predicate.
 #[inline(always)]
 fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     let (chunks, remainder) = bytes.as_chunks::<16>();
@@ -139,9 +134,10 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
 fn first_set(mask: [i8; 16]) -> usize {
     mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
-/// Caller guarantees four validated 3-byte sequences. The simdutf `0x924`
-/// fast path: one fixed shuffle gathers each 3-byte group into a u32 lane,
-/// then mask + shift + or.
+
+/// Decode four consecutive 3-byte code points (12 bytes). The simdutf
+/// `0x924` fast path: one fixed shuffle gathers each 3-byte group into a u32
+/// lane, then mask + shift + or.
 #[inline(always)]
 fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     let v = u8x16::from_slice(simd, bytes);

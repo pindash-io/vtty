@@ -31,19 +31,18 @@ pub trait Perform {
     /// A C0/C1 control byte (e.g. `\n`, `\t`, `\x1b`).
     fn execute(&mut self, _byte: u8) {}
 
-    /// A printable ASCII run followed IMMEDIATELY by a bare `\n` — the
-    /// raw-LF streaming hot path (`cat`). Default: [`print_bytes`](Perform::print_bytes)
-    /// then [`execute`](Perform::execute) of `\n`. Screens may fuse the two into
-    /// one pass (skipping the per-dispatch setup) when the result is
-    /// identical.
+    /// A printable ASCII run immediately followed by a bare `\n` — the
+    /// raw-LF streaming hot path. Defaults to [`print_bytes`](Perform::print_bytes)
+    /// then [`execute`](Perform::execute) of `\n`; screens may fuse them when
+    /// the result is identical.
     fn print_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\n');
     }
 
-    /// A printable ASCII run followed immediately by `\r\n` — the OPOST/PTY
-    /// streaming hot path. Default: print then CR then LF. Screens may fuse
-    /// the three into one pass when the result is identical.
+    /// A printable ASCII run immediately followed by `\r\n` — the OPOST/PTY
+    /// streaming hot path. Defaults to print then CR then LF; screens may
+    /// fuse them when the result is identical.
     fn print_crlf_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\r');

@@ -109,18 +109,18 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     Some((lead_idx, cp, (expected - have) as u8))
 }
 
-/// Decode a run of multi-byte UTF-8 starting at `bytes[pos]` (a lead byte
-/// `>= 0xA0`). Returns bytes consumed (at least 1).
+/// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`).
+/// Returns bytes consumed (at least 1).
 ///
-/// With `simd`, SIMD-validates a window via `simdutf8` and dispatches the
-/// whole window (ASCII + non-ASCII) at once; the scalar path decodes one code
-/// point at a time. The window is capped at the next ESC — ESC is never a
-/// UTF-8 continuation byte, so it is a safe cut point, and without the cap an
-/// emoji-before-ESC stream re-validates the same window per char (quadratic).
+/// With `simd`, validates a window via `simdutf8` and dispatches it in bulk
+/// (ASCII + multi-byte together); scalar decodes one code point at a time.
+/// The window is capped at the next ESC — ESC is never a UTF-8 continuation,
+/// so it is a safe boundary that must reach the escape state rather than be
+/// dispatched as `execute`.
 ///
 /// Both paths follow W3C "Substitution of Maximal Subparts": a truncated or
-/// ill-formed sequence becomes one U+FFFD, and a standalone C1 byte
-/// (`0x80..=0x9f`) is dispatched via [`Perform::execute`] — the same contract
+/// ill-formed sequence yields one U+FFFD, and a standalone C1 byte
+/// (`0x80..=0x9f`) dispatches via [`Perform::execute`] — the same contract
 /// as vte and rio-vt.
 #[inline(always)]
 pub(crate) fn decode_utf8<P: Perform>(
@@ -140,14 +140,10 @@ pub(crate) fn decode_utf8<P: Perform>(
         if !short {
             const CHUNK: usize = 4096;
             let mut end = (pos + CHUNK).min(valid);
-            // Cap the window at the next ESC — ESC is never a UTF-8
-            // continuation byte, so it is a safe cut point, and the window
-            // must not swallow it (the transcode path dispatches `execute`,
-            // not the escape state). Decode the whole mixed window (ASCII +
-            // multi-byte) in one pass instead of capping at the first ASCII
-            // byte: sparse CJK/emoji in plain text then pay one SIMD
-            // validation + transcode per 4096-byte window, not per short
-            // run.
+            // Cap at the next ESC: it is never a UTF-8 continuation, and it
+            // must reach the escape state (not `execute`). Decode the whole
+            // mixed window (ASCII + multi-byte) in one pass rather than one
+            // SIMD setup per short non-ASCII run.
             let rel = crate::simd::first_esc(&bytes[pos..end]);
             if rel < end - pos {
                 end = pos + rel;
