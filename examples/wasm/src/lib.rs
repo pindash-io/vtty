@@ -44,7 +44,7 @@ impl Terminal {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Terminal {
         Terminal {
-            parser: Parser::new(),
+            parser: Parser::with_simd(),
             style: Style::default(),
             cur: String::new(),
             segs: Vec::new(),
@@ -60,7 +60,7 @@ impl Terminal {
 
     /// Reset to an empty buffer.
     pub fn clear(&mut self) {
-        self.parser = Parser::new();
+        self.parser = Parser::with_simd();
         self.style = Style::default();
         self.cur.clear();
         self.segs.clear();
