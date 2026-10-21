@@ -8,6 +8,8 @@
  * on stdin) ends the session.
  *
  * Build (macOS / BSD, from `examples/ffi/`):
+ *   ./build.sh
+ *   # or manually:
  *   cargo build --release -p vtty_ffi
  *   cc -O2 term_demo.c -I ../../crates/vtty_ffi -L ../../target/release -lvtty_ffi -o term_demo
  *

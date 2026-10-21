@@ -1,7 +1,7 @@
 /target
 
 # vtty_ffi C example binaries
-/crates/vtty_ffi/term_demo
+/examples/ffi/term_demo
 
 # cargo-fuzz artifacts
 /fuzz/target
