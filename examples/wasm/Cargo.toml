@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # The parser (re-exports vtty_core's Perform / State / model types).
-vtty = { path = "../../crates/vtty", default-features = false, features = ["simd"] }
+vtty = { path = "../../crates/vtty", default-features = false, features = ["simd-transcode"] }
 wasm-bindgen = "0.2"
 
 [profile.release]

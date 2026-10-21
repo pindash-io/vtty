@@ -134,8 +134,6 @@ impl TermFlags {
             4194304 => 45,       // REVERSE_WRAP
             8388608 => 69,       // DECLRMM
             16777216 => 66,      // DECNKM
-            8589934592 => 67,    // DECBKM
-            17179869184 => 1035, // NUMLOCK
             33554432 => 2027,    // UNICODE_CORE
             67108864 => 1016,    // MOUSE_PIXEL
             134217728 => 80,     // DECSDM
@@ -144,6 +142,8 @@ impl TermFlags {
             1073741824 => 1045,  // REVERSE_WRAP_EXTENDED
             2147483648 => 1047,  // ALT_SCREEN_1047
             4294967296 => 12,    // CURSOR_BLINK
+            8589934592 => 67,    // DECBKM
+            17179869184 => 1035, // NUMLOCK
             _ => 0,
         }
     }
@@ -167,7 +167,6 @@ impl TermFlags {
             47 => Self::ALT_SCREEN,
             66 => Self::DECNKM,
             67 => Self::DECBKM,
-            1035 => Self::NUMLOCK,
             69 => Self::DECLRMM,
             80 => Self::DECSDM,
             1000 => Self::MOUSE_NORMAL,
@@ -179,6 +178,7 @@ impl TermFlags {
             1007 => Self::ALTERNATE_SCROLL,
             1015 => Self::MOUSE_URXVT,
             1016 => Self::MOUSE_PIXEL,
+            1035 => Self::NUMLOCK,
             1045 => Self::REVERSE_WRAP_EXTENDED,
             1046 => Self::VI,
             1047 => Self::ALT_SCREEN_1047,
