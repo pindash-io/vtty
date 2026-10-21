@@ -85,6 +85,12 @@ impl Terminal {
     }
 }
 
+impl Default for Terminal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Terminal {
     fn set_style(&mut self, style: Style) {
         if style == self.style {
@@ -188,5 +194,7 @@ fn span(s: Style, text: &str) -> String {
 }
 
 fn escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }

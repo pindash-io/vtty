@@ -1,14 +1,21 @@
 # vtty_status
 
-OSC 7501 **Program Status Protocol** for [`vtty`](https://crates.io/crates/vtty):
-the [`ProgramStatus`] codec plus the [`PerformProgramStatus`] hook, which a
-[`vtty_core::Perform`] sink implements to opt in.
+<!-- cargo-rdme start -->
+
+OSC 7501 Program Status Protocol for `vtty`.
+
+A program reports what it is doing (idle, working, done, blocked, error,
+or clear) to the terminal. This crate is the optional status-protocol
+extension: the [`ProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/struct.ProgramStatus.html) codec plus the [`PerformProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/trait.PerformProgramStatus.html)
+hook, which a [`vtty_core::Perform`](https://docs.rs/vtty_core/latest/vtty_core/perform/trait.Perform.html) sink implements to opt in.
 
 ```text
 ESC ] 7501 ; state=working:app=brew:msg=<base64> ESC \
 ```
 
 Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
+
+<!-- cargo-rdme end -->
 
 ## Usage
 

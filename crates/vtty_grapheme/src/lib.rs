@@ -182,7 +182,11 @@ pub fn graphemes(text: &str) -> Graphemes<'_> {
     let bytes = text.as_bytes();
     let printable = vtty_emoji::first_non_printable_ascii(bytes) == bytes.len();
     Graphemes {
-        iter: if printable { "".char_indices() } else { text.char_indices() },
+        iter: if printable {
+            "".char_indices()
+        } else {
+            text.char_indices()
+        },
         text,
         ascii: if printable { bytes.len() } else { 0 },
         cluster_start: 0,

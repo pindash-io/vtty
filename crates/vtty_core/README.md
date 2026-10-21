@@ -16,6 +16,5 @@ API.
 - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
 - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
   implies `reply`.
-- `status` — OSC 7501 Program Status Protocol (`ProgramStatus`).
 
 <!-- cargo-rdme end -->
