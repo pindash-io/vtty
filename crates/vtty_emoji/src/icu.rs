@@ -9,11 +9,13 @@ use icu_properties::CodePointMapData;
 use icu_properties::CodePointMapDataBorrowed;
 use icu_properties::CodePointSetData;
 use icu_properties::CodePointSetDataBorrowed;
+#[cfg(all(feature = "icu", not(feature = "baked")))]
+use icu_properties::props::ExtendedPictographic;
 use icu_properties::props::{
-    DefaultIgnorableCodePoint, EastAsianWidth, ExtendedPictographic, GeneralCategory,
-    GraphemeClusterBreak,
+    DefaultIgnorableCodePoint, EastAsianWidth, GeneralCategory, GraphemeClusterBreak,
 };
 
+#[cfg(all(feature = "icu", not(feature = "baked")))]
 use crate::properties::Gcb;
 
 /// ICU4X-backed display width — an alternative to `unicode-width`.
@@ -89,7 +91,9 @@ fn is_curated_zero_width(cp: u32) -> bool {
     )
 }
 
-/// ICU4X-backed grapheme cluster break property lookup (feature `icu`).
+/// ICU4X-backed grapheme cluster break property lookup — the `icu`-only
+/// alternative to the baked table (compiled out when `baked` is on).
+#[cfg(all(feature = "icu", not(feature = "baked")))]
 pub(crate) fn gcb_icu(c: char) -> Gcb {
     thread_local! {
         static GCB: CodePointMapDataBorrowed<'static, GraphemeClusterBreak> =
