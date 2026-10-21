@@ -9,8 +9,8 @@
 //! [`cell_col_byte_widths`] are thin views over it; [`cell_advance`] snaps a
 //! font glyph advance to the same grid.
 
-use crate::emoji::{Run, finalize_lead, run_continues};
-use crate::properties::{emoji_category, first_non_ascii};
+use crate::emoji::{Run, Selector, finalize_lead, run_continues};
+use crate::properties::{cell_width, emoji_category, first_non_ascii};
 
 /// The streaming width model — the single source of truth for
 /// [`cell_widths`], [`cell_width_sum`] and [`cell_col_byte_widths`].
@@ -26,6 +26,8 @@ struct Widths<'a> {
     chars: core::str::Chars<'a>,
     /// A base glyph precedes the current position (lone-mark attach rule).
     has_base: bool,
+    /// The last width>0 base was a SPACE (a space is not a VISIBLE base).
+    space_base: bool,
     /// The open emoji run whose lead width is not yet finalized.
     run: Option<Run>,
     /// Pending lead width from a just-closed run.
@@ -42,6 +44,7 @@ impl<'a> Widths<'a> {
             ascii: if all_ascii { bytes.len() } else { 0 },
             chars: if all_ascii { "".chars() } else { text.chars() },
             has_base: false,
+            space_base: false,
             run: None,
             flush_lead: None,
             flush_zeros: 0,
@@ -72,7 +75,12 @@ impl Iterator for Widths<'_> {
             let Some(c) = self.chars.next() else {
                 // End of text: close the final open run and flush it.
                 if let Some(r) = self.run.take() {
-                    self.flush_lead = Some(finalize_lead(&r, &mut self.has_base));
+                    self.flush_lead = Some(finalize_lead(
+                        &r,
+                        &mut self.has_base,
+                        &mut self.space_base,
+                        false,
+                    ));
                     self.flush_zeros = r.len() - 1;
                     continue;
                 }
@@ -88,8 +96,17 @@ impl Iterator for Widths<'_> {
             }
 
             // `c` starts a new run: close the previous one, then open the new.
+            // A mark followed by ANOTHER combining mark must be standalone
+            // (its own cell) so the following mark has a visible base.
+            let followed_by_mark =
+                Selector::from_char(c).is_none() && cell_width(c) == Some(0);
             if let Some(r) = self.run.take() {
-                self.flush_lead = Some(finalize_lead(&r, &mut self.has_base));
+                self.flush_lead = Some(finalize_lead(
+                    &r,
+                    &mut self.has_base,
+                    &mut self.space_base,
+                    followed_by_mark,
+                ));
                 self.flush_zeros = r.len() - 1;
             }
             self.run = Some(Run::start(c, cat));

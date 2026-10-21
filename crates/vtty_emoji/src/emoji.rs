@@ -245,16 +245,27 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) ->
 /// lone 0-width mark occupies its own cell (1) unless it is a selector
 /// (invisible, 0) or a base precedes it (attaches, 0).
 #[inline]
-pub(crate) fn finalize_lead(r: &Run, has_base: &mut bool) -> usize {
+pub(crate) fn finalize_lead(
+    r: &Run,
+    has_base: &mut bool,
+    space_base: &mut bool,
+    followed_by_mark: bool,
+) -> usize {
     let lead_w = if r.len > 1 && is_emoji_starter(r.lead_cat) {
         run_width(&r.dfa, r.lead, r.lead_ep, r.keycap_end)
     } else {
         r.lead_w1
     };
     let w = if lead_w == 0 {
-        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}') || *has_base {
+        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}')
+            || (*has_base && !(followed_by_mark && *space_base))
+        {
             0
         } else {
+            // A lone mark, OR a mark followed by another combining mark with
+            // only a SPACE base: it must occupy its own cell so the following
+            // mark has a VISIBLE base (Ghostty renders it left of the next
+            // glyph). A visible base already gives the next mark a base.
             1
         }
     } else {
@@ -262,6 +273,7 @@ pub(crate) fn finalize_lead(r: &Run, has_base: &mut bool) -> usize {
     };
     if w > 0 {
         *has_base = true;
+        *space_base = r.lead == ' ';
     }
     w
 }

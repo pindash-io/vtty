@@ -183,6 +183,25 @@ mod tests {
         assert_eq!(cell_widths("\u{0301}"), vec![1]);
     }
 
+    #[test]
+    fn mark_after_space_followed_by_mark_is_standalone() {
+        // A mark after a SPACE that is itself followed by ANOTHER mark must
+        // occupy its own cell, so the second mark has a VISIBLE base (the
+        // space is invisible). A SINGLE mark after a space still attaches to
+        // the space; a mark after a visible base attaches normally.
+        assert_eq!(
+            cell_widths("佞\u{1FE0F} \u{0320}\u{0320}\u{FF76}"),
+            vec![2, 1, 1, 1, 0, 1]
+        );
+        // Single mark after a space attaches (existing behavior).
+        assert_eq!(cell_widths("❤ \u{0301}"), vec![1, 1, 0]);
+        // Two marks after a VISIBLE base attach to it (the base is visible).
+        assert_eq!(cell_widths("1\u{0323}\u{0323}0"), vec![1, 0, 0, 1]);
+        // Two marks after a space at the START: the first is lone, the
+        // second attaches to it.
+        assert_eq!(cell_widths("\u{0320}\u{0320}\u{FF76}"), vec![1, 0, 1]);
+    }
+
     #[cfg(feature = "icu")]
     #[test]
     fn width_icu_agrees_with_unicode_width() {
