@@ -97,28 +97,23 @@ impl Iterator for Widths<'_> {
     }
 }
 
-/// Per-char display cell widths for a string, with emoji sequences handled by
-/// the UTS #51 DFA ([`crate::EmojiDFA`]) — the single structural source
-/// of truth (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15), so the width
-/// model never re-derives sequence structure by hand:
+/// Per-char display cell widths, with emoji sequences merged by the UTS #51
+/// DFA ([`crate::EmojiDFA`]) — the single structural source of truth
+/// (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15):
 ///
 /// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark
 ///   (skin tone / combining) occupies one cell.
-/// - A lone ZWJ (`U+200D`) is ignored — always zero cells (it is a joiner,
-///   never a standalone glyph).
-/// - A multi-char sequence is one emoji glyph: 2 cells, except text
-///   presentation (VS15), a bare keycap without VS16, and a ZWJ sequence with
-///   a text-presentation leading char stay 1.
+/// - A lone ZWJ (`U+200D`) is ignored — always zero cells.
+/// - A multi-char sequence is one glyph: 2 cells, except text presentation
+///   (VS15), a bare keycap without VS16, and a ZWJ sequence with a
+///   text-presentation leading char stay 1.
 /// - Every continuation char in a sequence is 0.
 /// - The first variation selector locks the width (`▶+VS16+VS15` = 2,
-///   `😐+VS15+VS16` = 1) — the DFA rejects the second selector and it starts
-///   a fresh (non-accepting) scan, so it is naturally excluded.
+///   `😐+VS15+VS16` = 1).
 ///
-/// The returned vector has one entry per `char` in `text`, so callers can zip
-/// it with `char_indices()` while keeping glyph/char counts in lockstep. This
-/// is the cell-grid model the RENDERER snaps glyphs and backgrounds to; the
-/// single-char [`crate::cell_width`] cannot see a following VS16/ZWJ and so
-/// cannot express emoji presentation sequences.
+/// Returns one width per `char`, in char order, so callers can zip it with
+/// `char_indices()`; [`crate::cell_width`] is single-char and cannot see a
+/// following VS16/ZWJ.
 ///
 /// Spec: Layer 2 `w₂` in `docs/width-model-spec.md`.
 pub fn cell_widths(text: &str) -> Vec<usize> {
@@ -127,8 +122,8 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
     widths
 }
 
-/// The total cell width of `text` in ONE allocation-free pass — the streaming
-/// counterpart of `cell_widths(text).iter().sum()`, used by `line_cell_width`.
+/// The total cell width of `text` in one allocation-free pass — the
+/// streaming counterpart of `cell_widths(text).iter().sum()`.
 ///
 /// Spec: `Σ w₂` in `docs/width-model-spec.md`.
 pub fn cell_width_sum(text: &str) -> usize {

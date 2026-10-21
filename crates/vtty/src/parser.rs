@@ -482,12 +482,9 @@ impl Parser {
             return i + 1;
         }
 
-        // The hot string terminators and ESC introducers are dispatched inline
-        // from `advance` (see `advance_osc_run` / `advance_dcs_run` /
-        // `advance_escape_byte`); this cold function only sees the rare bytes.
-
-        // The CSI/DCS param run is dispatched inline from `advance` (see
-        // `advance_param_run`); this function only sees the boundary byte.
+        // String runs, ESC introducers, and CSI/DCS param runs are dispatched
+        // inline from `advance`; this cold path only sees rare and boundary
+        // bytes.
 
         // CSI final-byte fast path: `0x40..=0x7e` from CsiEntry/CsiParam/
         // CsiIntermediate always dispatches (CSI_DISPATCH → Ground). Skip the
@@ -928,10 +925,8 @@ impl Parser {
         self.intermediates_len += 1;
     }
 
-    /// Push a CSI/DCS parameter, capping at [`MAX_PARAM_COUNT`]. A malicious
-    /// stream of thousands of `;`/`:` must not grow the param vector without
-    /// bound — past the cap, params are dropped (the first 32 are kept,
-    /// xterm-style). vte and rio-vt both use 32.
+    /// Push a CSI/DCS parameter, capping at [`MAX_PARAM_COUNT`]. Past the
+    /// cap, params are dropped; vte and rio-vt both use 32.
     #[inline]
     fn push_param(&mut self, value: i32) {
         if self.params_len >= MAX_PARAM_COUNT {
