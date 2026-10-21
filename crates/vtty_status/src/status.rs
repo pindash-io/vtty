@@ -3,8 +3,8 @@
 
 //! Program Status Protocol (`OSC 7501`) — parse and encode.
 //!
-//! A program reports what it is doing (idle, working, done, blocked, error,
-//! or clear) to the terminal with:
+//! A program reports its state — idle, working, done, blocked, or error — to
+//! the terminal, or clears a previously reported status:
 //!
 //! ```text
 //! ESC ] 7501 ; state=working:app=brew:msg=<base64> ESC \

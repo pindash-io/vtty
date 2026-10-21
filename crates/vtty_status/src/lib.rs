@@ -3,10 +3,10 @@
 
 //! OSC 7501 Program Status Protocol for `vtty`.
 //!
-//! A program reports what it is doing (idle, working, done, blocked, error,
-//! or clear) to the terminal. This crate is the optional status-protocol
-//! extension: the [`ProgramStatus`] codec plus the [`PerformProgramStatus`]
-//! hook, which a [`vtty_core::Perform`] sink implements to opt in.
+//! A program reports its state — idle, working, done, blocked, or error — to
+//! the terminal, or clears a previously reported status. This crate provides
+//! the [`ProgramStatus`] codec and the [`PerformProgramStatus`] hook, which a
+//! [`vtty_core::Perform`] sink implements to opt in.
 //!
 //! ```text
 //! ESC ] 7501 ; state=working:app=brew:msg=<base64> ESC \

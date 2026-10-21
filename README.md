@@ -21,6 +21,8 @@
 | [`vtty_core`](crates/vtty_core) | terminal model types + `Perform` |
 | [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec for `vtty_core` |
 | [`vtty_emoji`](crates/vtty_emoji) | display cell width + emoji sequences |
+| [`vtty_grapheme`](crates/vtty_grapheme) | UAX #29 grapheme cluster segmentation |
+| [`vtty_status`](crates/vtty_status) | OSC 7501 Program Status Protocol |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
 | [`vtty_bench`](crates/vtty_bench) | throughput benchmarks |
 
