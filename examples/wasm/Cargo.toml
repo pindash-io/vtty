@@ -1,5 +1,5 @@
 # Standalone crate: opts out of the parent workspace so the repo's strict
-# lints (missing_docs / forbid(unsafe) / no unwrap) don't apply to the demo.
+# lints don't apply to the demo.
 [workspace]
 
 [package]
@@ -7,7 +7,7 @@ name = "vtty-wasm"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
-description = "Browser terminal demo built on the vtty parser (wasm-bindgen)."
+description = "Minimal browser demo: feed bytes to vtty and read the parsed text."
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -15,19 +15,16 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# The parser (re-exports vtty_core's Perform / model types). No wire-protocol
-# features needed for a screen demo, so drop the defaults to keep the wasm
-# binary lean and no_std-friendly.
+# The parser (re-exports vtty_core's Perform / State / model types).
 vtty = { path = "../../crates/vtty", default-features = false }
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["CanvasRenderingContext2d"] }
 
 [profile.release]
 opt-level = "s"
 lto = true
 
-# The wasm-bindgen output uses the `table.fill` instruction, which the
-# globally-installed binaryen 116 wasm-opt chokes on. The wasm is already
-# built with opt-level=s + LTO, so skip the redundant wasm-opt pass.
+# The wasm-bindgen output uses `table.fill`, which the globally-installed
+# binaryen 116 wasm-opt chokes on. opt-level=s + LTO already shrink the wasm,
+# so skip the redundant wasm-opt pass.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
