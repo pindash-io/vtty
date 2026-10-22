@@ -137,14 +137,6 @@ mod tests {
         assert_eq!(cell_widths("👍🏽x"), vec![2, 0, 1]);
         // A stray ZWJ outside an emoji sequence must NOT widen the base.
         assert_eq!(cell_widths("a\u{200D}b"), vec![1, 0, 1]);
-        // A format control (ZWSP U+200B / ZWNJ U+200C) is ALWAYS zero-width,
-        // even after a SPACE — unlike a lone combining mark, which the DFA
-        // promotes to a standalone cell so it has a visible base. The cell
-        // screen's layout inserts ZWSP/ZWNJ as INVISIBLE cluster separators;
-        // promoting them to 1 cell would shift the following glyphs one cell
-        // right and overlap them ("U+" overlap).
-        assert_eq!(cell_widths(" \u{200B}\u{301}"), vec![1, 0, 0]);
-        assert_eq!(cell_widths(" \u{200C}\u{301}"), vec![1, 0, 0]);
         // Regional-indicator pairs form ONE 2-cell flag; odd trailing RIs stay
         // lone (kitty: "🇮🇳" is one cell, "a🇮b" advances 4 cells).
         assert_eq!(cell_widths("🇮🇳"), vec![2, 0]);

@@ -258,7 +258,6 @@ pub(crate) fn finalize_lead(
     };
     let w = if lead_w == 0 {
         if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}')
-            || matches!(r.lead, '\u{200B}' | '\u{200C}')
             || (*has_base && !(followed_by_mark && *space_base))
         {
             0
