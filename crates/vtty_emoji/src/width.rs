@@ -98,8 +98,7 @@ impl Iterator for Widths<'_> {
             // `c` starts a new run: close the previous one, then open the new.
             // A mark followed by ANOTHER combining mark must be standalone
             // (its own cell) so the following mark has a visible base.
-            let followed_by_mark =
-                Selector::from_char(c).is_none() && cell_width(c) == Some(0);
+            let followed_by_mark = Selector::from_char(c).is_none() && cell_width(c) == Some(0);
             if let Some(r) = self.run.take() {
                 self.flush_lead = Some(finalize_lead(
                     &r,

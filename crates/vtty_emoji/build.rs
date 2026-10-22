@@ -116,8 +116,7 @@ fn main() {
             0x2D7F => 1,
             0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => 0,
             _ => match gc.get(c) {
-                GeneralCategory::Control
-                | GeneralCategory::Surrogate => 0,
+                GeneralCategory::Control | GeneralCategory::Surrogate => 0,
                 _ if default_ignorable.contains(c)
                     || gcb.get(c) == GraphemeClusterBreak::Extend
                     || is_curated_zero_width(cp as u32) =>
