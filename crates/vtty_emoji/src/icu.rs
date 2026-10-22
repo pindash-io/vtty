@@ -48,8 +48,7 @@ pub fn width_icu(cp: char) -> Option<usize> {
             // zero-width rule). Everything else falls through to East Asian
             // Width.
             GeneralCategory::Control
-            | GeneralCategory::Surrogate
-            | GeneralCategory::Unassigned => None,
+            | GeneralCategory::Surrogate => None,
             _ if DI.with(|di| di.contains(cp))
                 || GCB.with(|g| g.get(cp) == GraphemeClusterBreak::Extend)
                 || is_curated_zero_width(cp as u32) =>
