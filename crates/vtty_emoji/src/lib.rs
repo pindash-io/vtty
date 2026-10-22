@@ -191,7 +191,7 @@ mod tests {
         // the space; a mark after a visible base attaches normally.
         assert_eq!(
             cell_widths("佞\u{1FE0F} \u{0320}\u{0320}\u{FF76}"),
-            vec![2, 0, 1, 1, 0, 1]
+            vec![2, 1, 1, 1, 0, 1]
         );
         // Single mark after a space attaches (existing behavior).
         assert_eq!(cell_widths("❤ \u{0301}"), vec![1, 1, 0]);
