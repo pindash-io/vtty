@@ -95,6 +95,22 @@ mod tests {
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
+    fn combining_vs_spacing_acute() {
+        // U+0301 COMBINING ACUTE ACCENT: zero-width, attaches to the base.
+        // U+00B4 ACUTE ACCENT: a spacing modifier — its own 1-cell glyph.
+        // U+0060 GRAVE ACCENT (backtick): also a spacing modifier, 1 cell.
+        assert_eq!(cell_width('\u{301}'), Some(0));
+        assert_eq!(cell_width('\u{00B4}'), Some(1));
+        assert_eq!(cell_width('\u{60}'), Some(1));
+        assert_eq!(cell_widths("e\u{301}"), vec![1, 0]);
+        assert_eq!(cell_widths("e\u{00B4}"), vec![1, 1]);
+        assert_eq!(cell_widths("e\u{60}"), vec![1, 1]);
+        assert_eq!(cell_widths(" \u{301}"), vec![1, 0]);
+        assert_eq!(cell_widths(" \u{00B4}"), vec![1, 1]);
+        assert_eq!(cell_widths(" \u{60}"), vec![1, 1]);
+    }
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
     fn text_default_emoji_stay_one_cell() {
         // U+2764 ❤ is Emoji=Yes but Emoji_Presentation=No: text-default, so
         // it is ONE cell alone. VS16 widens it to 2; a ZWJ-family membership
