@@ -47,7 +47,9 @@ pub fn width_icu(cp: char) -> Option<usize> {
             // grapheme-extend chars are zero-width (matching unicode-width's
             // zero-width rule). Everything else falls through to East Asian
             // Width.
-            GeneralCategory::Control | GeneralCategory::Surrogate => None,
+            GeneralCategory::Control
+            | GeneralCategory::Surrogate
+            | GeneralCategory::Unassigned => None,
             _ if DI.with(|di| di.contains(cp))
                 || GCB.with(|g| g.get(cp) == GraphemeClusterBreak::Extend)
                 || is_curated_zero_width(cp as u32) =>
