@@ -30,7 +30,7 @@ const DECRQSS_ERR: &str = "\x1bP0$r";
 #[derive(Debug)]
 pub struct Reply {
     buf: SmolStrBuilder,
-    /// Nothing appended yet — lets `is_empty` skip a `finish()` clone.
+    /// Nothing appended yet — lets `is_empty` answer without touching `buf`.
     empty: bool,
 }
 
