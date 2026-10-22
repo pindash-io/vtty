@@ -22,7 +22,6 @@
 //!
 //! Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
 
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use base64::Engine;
@@ -374,12 +373,12 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Sm
     if decoded.len() > max_decoded {
         return None;
     }
-    let text = String::from_utf8(decoded).ok()?;
+    let text = SmolStr::from_utf8(&decoded).ok()?;
     // Refuse control characters (C0, DEL, C1).
     if text.chars().any(|c| Control::of(c).is_some()) {
         return None;
     }
-    Some(SmolStr::from(text))
+    Some(text)
 }
 
 /// Standard base64; decoding accepts optional padding (per the protocol).

@@ -28,8 +28,8 @@ simdutf8 = "0.1"
 base64 = { version = "0.23.1", default-features = false, features = ["alloc"] }
 bitflags = "2"
 const-hex = { version = "1.19.3", default-features = false }
-smallvec = { version = "2.0.0-beta.2", default-features = false }
-smol_str = { version = "0.3", default-features = false }
+smallvec = { version = "2.0.0-beta.3", default-features = false }
+smol_str = { version = "0.3.7", default-features = false }
 utf8_iter = "1"
 
 icu_properties = { version = "2.3.0", features = ["compiled_data", "alloc"] }

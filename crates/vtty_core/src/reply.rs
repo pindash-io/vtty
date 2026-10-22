@@ -202,7 +202,7 @@ impl Reply {
     #[doc(hidden)]
     #[inline]
     pub fn as_smol_str(&self) -> SmolStr {
-        self.buf.finish()
+        self.buf.as_str().into()
     }
 
     /// Builds a reply from raw text (used by the codec crate).

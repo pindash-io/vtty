@@ -185,13 +185,13 @@ mod tests {
     fn mouse_x10_encoding() {
         // Left button at (0,0): cb=32(' '), cx=33('!'), cy=33('!').
         assert_eq!(
-            MouseButton::Left.encode_x10(0, 0).as_slice(),
+            MouseButton::Left.encode_x10(0, 0).as_ref(),
             &b"\x1b[M !!"[..]
         );
         // Coordinate 95 → cx = 128 = 0x80: a RAW non-UTF-8 byte, not the UTF-8
         // encoding of U+0080.
         assert_eq!(
-            MouseButton::Left.encode_x10(95, 95).as_slice(),
+            MouseButton::Left.encode_x10(95, 95).as_ref(),
             &[0x1b, b'[', b'M', b' ', 0x80, 0x80]
         );
     }
