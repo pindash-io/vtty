@@ -20,6 +20,45 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
+/// SWAR scan: index of the first byte whose `stop_mask(word)` bit is set
+/// (one bit per byte, LSB = first byte), or `bytes.len()`. `is_stop` is the
+/// scalar predicate for the <8-byte tail.
+#[inline(always)]
+fn first_where(
+    bytes: &[u8],
+    stop_mask: impl Fn(u64) -> u64,
+    is_stop: impl Fn(u8) -> bool,
+) -> usize {
+    let (chunks, tail) = bytes.as_chunks::<8>();
+    for (i, chunk) in chunks.iter().enumerate() {
+        let stop = stop_mask(u64::from_le_bytes(*chunk));
+        if stop != 0 {
+            return i * 8 + (stop.trailing_zeros() / 8) as usize;
+        }
+    }
+    let base = chunks.len() * 8;
+    for (j, &b) in tail.iter().enumerate() {
+        if is_stop(b) {
+            return base + j;
+        }
+    }
+    bytes.len()
+}
+
+/// SWAR mask for non-printable bytes (`b < 0x20 || b >= 0x7f`).
+const fn non_printable_mask(w: u64) -> u64 {
+    let lt_20 = w.wrapping_sub(SPLAT_20) & !w & SPLAT_80; // b < 0x20
+    let ge_80 = w & SPLAT_80; // b >= 0x80
+    let x = w ^ SPLAT_7F;
+    let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == 0x7f
+    lt_20 | ge_80 | eq_7f
+}
+
+/// Scalar predicate for non-printable bytes.
+const fn is_non_printable(b: u8) -> bool {
+    b < 0x20 || b >= 0x7f
+}
+
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
 /// DEL (`0x7f`) is a C0 control, not printable.
@@ -35,74 +74,45 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) has 0- and 1-byte
     // printable runs, where a full 8-byte SWAR word is overkill.
     match bytes {
-        [b, ..] if !(0x20..=0x7e).contains(b) => return 0,
-        [_, b, ..] if !(0x20..=0x7e).contains(b) => return 1,
+        [b, ..] if is_non_printable(*b) => return 0,
+        [_, b, ..] if is_non_printable(*b) => return 1,
         _ => {}
     }
 
-    // SWAR: scan 8 bytes at a time for the first non-printable byte
-    // (`b < 0x20 || b >= 0x7f`).
-    let (chunks, remainder) = bytes.as_chunks::<8>();
-    let mut i = 0;
-    for chunk in chunks {
-        let word = u64::from_ne_bytes(*chunk);
-        let lt_20 = word.wrapping_sub(SPLAT_20) & !word & SPLAT_80; // b < 0x20
-        let ge_80 = word & SPLAT_80; // b >= 0x80
-        let x = word ^ SPLAT_7F;
-        let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == 0x7f
-        let mask = lt_20 | ge_80 | eq_7f;
-        if mask != 0 {
-            return i + (mask.trailing_zeros() / 8) as usize;
-        }
-        i += 8;
-    }
-    let mut j = 0;
-    while j < remainder.len() {
-        if !(0x20..=0x7e).contains(&remainder[j]) {
-            return i + j;
-        }
-        j += 1;
-    }
-    bytes.len()
+    first_where(bytes, non_printable_mask, is_non_printable)
+}
+
+/// SWAR mask for OSC boundaries: C0/C1 (`(b & 0x60) == 0`) or the `;`
+/// separator.
+const fn osc_stop_mask(w: u64) -> u64 {
+    swar_byte_eq(w & (SPLAT_01 * 0x60), 0) | swar_byte_eq(w, 0x3b)
+}
+
+/// Scalar predicate for OSC boundaries.
+const fn osc_is_stop(b: u8) -> bool {
+    (b & 0x60) == 0 || b == 0x3b
 }
 
 /// Index of the first byte that ends an OSC payload run: a C0 byte
 /// (`< 0x20`, including BEL/ESC), a raw C1 byte (`0x80..=0x9f`), or the `;`
-/// param separator (`0x3b`). The rest are `OSC_PUT` bytes. SWAR: 8 bytes/iter.
+/// param separator (`0x3b`). The rest are `OSC_PUT` bytes.
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
-    let mut i = 0;
-    let len = bytes.len();
-    while i + 8 <= len {
-        let w = u64::from_le_bytes([
-            bytes[i],
-            bytes[i + 1],
-            bytes[i + 2],
-            bytes[i + 3],
-            bytes[i + 4],
-            bytes[i + 5],
-            bytes[i + 6],
-            bytes[i + 7],
-        ]);
-        // C0 (`< 0x20`) and C1 (`0x80..=0x9f`) both have bits 6..=5 clear, so
-        // `(b & 0x60) == 0` covers both in one SWAR zero-byte test.
-        let c0_c1 = swar_byte_eq(w & (SPLAT_01 * 0x60), 0);
-        // `;` is the OSC param separator.
-        let eq3b = swar_byte_eq(w, 0x3b);
-        let stop = c0_c1 | eq3b;
-        if stop != 0 {
-            return i + (stop.trailing_zeros() as usize) / 8;
-        }
-        i += 8;
-    }
-    while i < len {
-        let b = bytes[i];
-        if (b & 0x60) == 0 || b == 0x3b {
-            return i;
-        }
-        i += 1;
-    }
-    len
+    first_where(bytes, osc_stop_mask, osc_is_stop)
+}
+
+/// SWAR mask for DCS boundaries: `>= 0x80`, CAN, SUB, ESC, DEL.
+const fn dcs_stop_mask(w: u64) -> u64 {
+    (w & SPLAT_80)
+        | swar_byte_eq(w, 0x18)
+        | swar_byte_eq(w, 0x1a)
+        | swar_byte_eq(w, 0x1b)
+        | swar_byte_eq(w, 0x7f)
+}
+
+/// Scalar predicate for DCS boundaries.
+const fn dcs_is_stop(b: u8) -> bool {
+    b >= 0x80 || b == 0x18 || b == 0x1a || b == 0x1b || b == 0x7f
 }
 
 /// Index of the first byte that ends a DCS passthrough run. The PUT class is
@@ -110,37 +120,7 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
 /// and any byte `>= 0x80`) ends the run or is ignored.
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
-    let mut i = 0;
-    let len = bytes.len();
-    while i + 8 <= len {
-        let w = u64::from_le_bytes([
-            bytes[i],
-            bytes[i + 1],
-            bytes[i + 2],
-            bytes[i + 3],
-            bytes[i + 4],
-            bytes[i + 5],
-            bytes[i + 6],
-            bytes[i + 7],
-        ]);
-        let stop = (w & SPLAT_80)
-            | swar_byte_eq(w, 0x18)
-            | swar_byte_eq(w, 0x1a)
-            | swar_byte_eq(w, 0x1b)
-            | swar_byte_eq(w, 0x7f);
-        if stop != 0 {
-            return i + (stop.trailing_zeros() as usize) / 8;
-        }
-        i += 8;
-    }
-    while i < len {
-        let b = bytes[i];
-        if b >= 0x80 || b == 0x18 || b == 0x1a || b == 0x1b || b == 0x7f {
-            return i;
-        }
-        i += 1;
-    }
-    len
+    first_where(bytes, dcs_stop_mask, dcs_is_stop)
 }
 
 #[cfg(test)]
