@@ -38,8 +38,10 @@ jobs:
           cargo rdme -w vtty --check
           cargo rdme -w vtty_core --check
           cargo rdme -w vtty_codec --check
-          cargo rdme -w vtty_emoji --check
+          cargo rdme -w vtty_width --check
           cargo rdme -w vtty_ffi --check
+          cargo rdme -w vtty_grapheme --check
+          cargo rdme -w vtty_status --check
 
       - name: Rust format check
         run: cargo fmt --check --all
