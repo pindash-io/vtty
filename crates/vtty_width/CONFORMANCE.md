@@ -1,11 +1,13 @@
-# Emoji conformance: taxonomy, model, engine
+# Width model conformance: taxonomy, model, engine
 
 `vtty_width` maps a string to per-grapheme cell widths via one function,
 `cell_widths: Σ* → ℕ*`. The width model follows UTS #51 as of **Unicode
 17.0.0** — ICU4X 2.3.0 bakes the per-codepoint properties, `parley_emoji`
 0.12.0 supplies the version-agnostic DFA. This document classifies the
 authoritative data files, states the model formally, and describes the
-analytical engine (`examples/conformance.rs`) that checks every sequence.
+analytical engine (`examples/conformance.rs`) that checks every sequence —
+plus the non-emoji width rules (combining/spacing marks, Hangul, canonical
+composition, and the cell↔char walkers) that the same crate owns.
 
 ## 1. Classification & summary
 
@@ -98,6 +100,48 @@ Locked by `vtty_width::tests::combining_vs_spacing_acute` and
 Format controls U+200B ZWSP / U+200C ZWNJ are `Default_Ignorable` → 0 cells
 (the engine's `cell_spans` uses U+200B as an internal grapheme breaker to
 stop parley composing `e`+U+0301 into a precomposed `é`).
+
+### Canonical composition (grapheme-breaker decision)
+
+`composes_precomposed(base, mark)` — does `base` + `mark` have a Unicode
+canonical precomposed form (`e`+U+0301 → `é`)? The renderer inserts the ZWSP
+grapheme break ONLY when this is true; a non-composing base (`◌`, symbols,
+CJK) keeps its grapheme intact so the GPOS mark anchor still positions the
+mark over the base. Scoped to the combining diacritical marks U+0300..=U+036F
+(the `ccmp` block); emoji selectors and Hangul Jamo are excluded.
+
+Locked by `vtty_width::tests::composes_precomposed_scopes_to_diacritics`.
+
+### Hangul jamo and syllable widths
+
+L jamo (U+1100) is 2 cells; V/T jamo (U+1160..=U+11FF) are zero-width
+continuations that compose onto a preceding L/LV. A LONE V/T jamo occupies 1
+cell (the lone-mark fix). Precomposed syllables (U+AC00..=U+D7A3) are 2 cells.
+
+| text | `cell_widths` |
+|---|---|
+| `U+1100` (L) | `[2]` |
+| `U+1161` (V) | `[1]` (lone) |
+| `U+1100 U+1161` (L+V) | `[2, 0]` |
+| `U+1100 U+1161 U+11A8` (L+V+T) | `[2, 0, 0]` |
+| `가` (LV) / `각` (LVT) | `[2]` |
+
+Locked by `vtty_width::tests::hangul_jamo_and_syllable_widths`.
+
+### Cell↔char walkers
+
+Three char-INDEX walkers over the precomputed `cell_widths` vector — the
+renderer's run char-range boundaries (floor/ceil/end):
+
+- `cell_col_char_from_widths(w, col)` — the glyph STARTING at (or containing)
+  `col`, skipping 0-width continuations (floor).
+- `cell_col_char_ceil_from_widths(w, col)` — the first glyph AT or past `col`
+  (ceil; a 0-width char at the boundary IS included).
+- `cell_col_char_end_from_widths(w, col)` — one past the glyph ENDING at
+  `col`, including its trailing 0-width continuations.
+
+These own every cell↔char boundary in one place, so the grid width (not the
+font advance) propagates through the renderer's run layout.
 
 The three terminal overrides (K₁/K₂/S, §1) narrow the catalogue:
 
