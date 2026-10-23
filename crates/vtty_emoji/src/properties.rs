@@ -347,6 +347,22 @@ pub fn is_zero_width(c: char) -> bool {
     !matches!(cell_width(c), Some(1) | Some(2))
 }
 
+/// Whether `base` + `mark` would be composed by the shaper into a precomposed
+/// glyph (canonical NFC composition), so the renderer must insert a grapheme
+/// break (ZWSP) to keep the mark's separate glyph.
+///
+/// Scoped to the combining diacritical marks U+0300..=U+036F — the block
+/// where the `ccmp` precomposed composition happens (e + U+0301 → é). Emoji
+/// selectors, skin tones, and Hangul Jamo are excluded: they compose through
+/// other shaping features (VS/ZWJ/algorithmic Hangul), not `ccmp`.
+#[inline]
+pub fn composes_precomposed(base: char, mark: char) -> bool {
+    ('\u{0300}'..='\u{036F}').contains(&mark)
+        && icu_normalizer::properties::CanonicalComposition::new()
+            .compose(base, mark)
+            .is_some()
+}
+
 /// The display width a VS15/VS16 selector forces onto an emoji base: 2
 /// (emoji presentation, VS16), 1 (text presentation, VS15), or 0 (not a
 /// variation selector). Mirrors [`crate::EmojiDFA::presentation_style`]'s

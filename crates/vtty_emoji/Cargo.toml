@@ -23,6 +23,7 @@ icu = ["dep:icu_properties"]
 
 [dependencies]
 fearless_simd = { workspace = true, optional = true }
+icu_normalizer.workspace = true
 icu_properties = { workspace = true, optional = true }
 parley_emoji.workspace = true
 

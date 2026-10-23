@@ -58,8 +58,8 @@ pub use emoji::{
     Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray,
 };
 pub use properties::{
-    Gcb, Properties, cell_width, first_non_ascii, first_non_printable_ascii, is_zero_width,
-    vs_width,
+    Gcb, Properties, cell_width, composes_precomposed, first_non_ascii,
+    first_non_printable_ascii, is_zero_width, vs_width,
 };
 pub use width::{cell_advance, cell_col_byte_widths, cell_width_sum, cell_widths};
 
@@ -108,6 +108,24 @@ mod tests {
         assert_eq!(cell_widths(" \u{301}"), vec![1, 0]);
         assert_eq!(cell_widths(" \u{00B4}"), vec![1, 1]);
         assert_eq!(cell_widths(" \u{60}"), vec![1, 1]);
+    }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn composes_precomposed_scopes_to_diacritics() {
+        use crate::composes_precomposed;
+        // Composing pairs (the shaper would precompose them).
+        assert!(composes_precomposed('e', '\u{301}'));
+        assert!(composes_precomposed('a', '\u{300}'));
+        assert!(composes_precomposed('n', '\u{303}'));
+        // Non-composing bases (◌ dotted circle, symbols) keep their GPOS
+        // anchor — no grapheme break needed.
+        assert!(!composes_precomposed('◌', '\u{301}'));
+        assert!(!composes_precomposed('◌', '\u{341}'));
+        assert!(!composes_precomposed(' ', '\u{301}'));
+        // Outside the combining diacritical block (emoji selector / Hangul).
+        assert!(!composes_precomposed('e', '\u{FE0F}'));
+        assert!(!composes_precomposed('\u{1100}', '\u{1161}'));
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
