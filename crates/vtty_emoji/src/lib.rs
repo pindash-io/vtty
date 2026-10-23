@@ -202,6 +202,34 @@ mod tests {
             vec![2, 0, 0, 0, 0, 0, 0, 1]
         );
     }
+
+    /// Hangul Jamo + syllable widths: L jamo is wide (2), V/T jamo are
+    /// zero-width continuations (they compose onto a preceding L / LV), and
+    /// precomposed syllables are 2 cells. A LONE V/T jamo occupies 1 cell
+    /// (the lone-mark fix — it has no base, so it must stay visible).
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn hangul_jamo_and_syllable_widths() {
+        // Single-char base widths.
+        assert_eq!(cell_width('\u{1100}'), Some(2)); // L (choseong)
+        assert_eq!(cell_width('\u{1161}'), Some(0)); // V (jungseong)
+        assert_eq!(cell_width('\u{11A8}'), Some(0)); // T (jongseong)
+        assert_eq!(cell_width('가'), Some(2)); // LV syllable
+        assert_eq!(cell_width('각'), Some(2)); // LVT syllable
+
+        // V/T jamo attach to a preceding L/LV at 0 cells (algorithmic
+        // composition happens in the shaper, not the width DFA).
+        assert_eq!(cell_widths("\u{1100}\u{1161}"), vec![2, 0]); // L + V
+        assert_eq!(cell_widths("\u{1100}\u{1161}\u{11A8}"), vec![2, 0, 0]); // L + V + T
+        assert_eq!(cell_widths("가\u{11A8}"), vec![2, 0]); // LV + T
+
+        // A LONE V/T jamo has no base — the lone-mark fix gives it 1 cell.
+        assert_eq!(cell_widths("\u{1161}"), vec![1]);
+        assert_eq!(cell_widths("\u{11A8}"), vec![1]);
+
+        // Precomposed syllables are ordinary 2-cell chars.
+        assert_eq!(cell_widths("가각"), vec![2, 2]);
+    }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn lone_zwj_is_ignored() {
