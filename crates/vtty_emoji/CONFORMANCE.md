@@ -80,6 +80,25 @@ Expected signatures by class:
 Every continuation is 0-width (`w_i = 0` for `i > 1`): skin tones, ZWJ,
 selectors, keycap-ends, and tag chars never add cells.
 
+### Combining vs spacing look-alikes (non-emoji)
+
+A combining mark is `Grapheme_Extend` / `Default_Ignorable` → 0 cells; the
+SPACING look-alikes are `Sk` modifiers and keep their 1-cell wcwidth — they
+are NOT marks and must not attach:
+
+| char | width | with base `e` / ` ` |
+|---|---|---|
+| U+0301 COMBINING ACUTE (Mn) | 0 | `e\u{301} = [1,0]`, ` \u{301} = [1,0]` |
+| U+00B4 ACUTE ACCENT (Sk) | 1 | `e\u{00B4} = [1,1]`, ` \u{00B4} = [1,1]` |
+| U+0060 GRAVE ACCENT (Sk) | 1 | `e\u{60} = [1,1]`, ` \u{60} = [1,1]` |
+
+Locked by `vtty_emoji::tests::combining_vs_spacing_acute` and
+`jetfish_cell::combining_vs_spacing_acute_cell_width`.
+
+Format controls U+200B ZWSP / U+200C ZWNJ are `Default_Ignorable` → 0 cells
+(the engine's `cell_spans` uses U+200B as an internal grapheme breaker to
+stop parley composing `e`+U+0301 into a precomposed `é`).
+
 The three terminal overrides (K₁/K₂/S, §1) narrow the catalogue:
 
 ```math
