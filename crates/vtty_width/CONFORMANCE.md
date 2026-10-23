@@ -82,10 +82,10 @@ Expected signatures by class:
 Every continuation is 0-width (`w_i = 0` for `i > 1`): skin tones, ZWJ,
 selectors, keycap-ends, and tag chars never add cells.
 
-### Combining vs spacing look-alikes (non-emoji)
+### Combining vs spacing look-alike characters (non-emoji)
 
 A combining mark is `Grapheme_Extend` / `Default_Ignorable` → 0 cells; the
-SPACING look-alikes are `Sk` modifiers and keep their 1-cell wcwidth — they
+SPACING look-alike characters are `Sk` modifiers and keep their 1-cell wcwidth — they
 are NOT marks and must not attach:
 
 | char | width | with base `e` / ` ` |
