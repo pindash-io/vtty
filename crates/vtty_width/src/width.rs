@@ -205,7 +205,7 @@ pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
 pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
     let mut cell = 0;
     for (i, &w) in widths.iter().enumerate() {
-        if w > 0 && cell + w > col {
+        if w > 0 && cell + w >= col {
             let mut end = i + 1;
             while end < widths.len() && widths[end] == 0 {
                 end += 1;
