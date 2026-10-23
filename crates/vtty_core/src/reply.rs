@@ -207,10 +207,8 @@ impl Reply {
     /// Builds a reply from raw text (used by the codec crate).
     #[doc(hidden)]
     pub fn from_text(text: &str) -> Self {
-        let mut buf = CompactString::new("");
-        buf.push_str(text);
         Self {
-            buf,
+            buf: CompactString::from(text),
             empty: text.is_empty(),
         }
     }

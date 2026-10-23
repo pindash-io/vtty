@@ -6,7 +6,6 @@
 //! Reference: <https://vt100.net/emu/dec_ansi_parser>.
 
 use compact_str::CompactString;
-use core::fmt::Write as _;
 use smallvec::SmallVec;
 
 /// Inline capacity for a mouse sequence. SGR (`ESC [ < cb ; x ; y M/m`) is
@@ -89,9 +88,7 @@ impl MouseButton {
         // `Motion` = motion + left button (a drag, `cb=32`);
         // `MotionNoButton` = pure hover (`cb=35`). The button code is used
         // verbatim so ratatui/crossterm can tell Drag(Left) from Moved.
-        let mut s = CompactString::new("");
-        let _ = write!(s, "\x1b[<{};{};{}{}", self as u8, x, y, final_byte);
-        s
+        compact_str::format_compact!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
     }
 
     /// Encode this event in X10 style (`CSI M Cb Cx Cy`, single bytes).

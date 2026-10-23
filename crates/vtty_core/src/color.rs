@@ -227,29 +227,25 @@ pub fn parse(s: &[u8]) -> Option<u32> {
 /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
 /// convention).
 #[inline]
-pub fn format_osc_color_reply(code: u16, rgb: u32) -> alloc::string::String {
+pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString {
     let r = (rgb >> 16) & 0xff;
     let g = (rgb >> 8) & 0xff;
     let b = rgb & 0xff;
-    alloc::format!(
-        "\x1b]{code};rgb:{}/{}/{}\x1b\\",
-        const_hex::encode([r as u8, r as u8]),
-        const_hex::encode([g as u8, g as u8]),
-        const_hex::encode([b as u8, b as u8])
+    // Direct `{:02x}` hex (each channel doubled to 4 digits) — no intermediate
+    // `const_hex::encode` heap strings; `format_compact!` writes inline.
+    compact_str::format_compact!(
+        "\x1b]{code};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\"
     )
 }
 
 /// Format an OSC 4 palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
-pub fn format_osc_palette_reply(index: usize, rgb: u32) -> alloc::string::String {
+pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactString {
     let r = (rgb >> 16) & 0xff;
     let g = (rgb >> 8) & 0xff;
     let b = rgb & 0xff;
-    alloc::format!(
-        "\x1b]4;{index};rgb:{}/{}/{}\x1b\\",
-        const_hex::encode([r as u8, r as u8]),
-        const_hex::encode([g as u8, g as u8]),
-        const_hex::encode([b as u8, b as u8])
+    compact_str::format_compact!(
+        "\x1b]4;{index};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\"
     )
 }
 
