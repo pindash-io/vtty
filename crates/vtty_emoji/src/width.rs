@@ -167,6 +167,56 @@ pub const fn cell_advance(advance: f32, cell_w: f32) -> f32 {
     }
 }
 
+/// The char INDEX (into `widths`) of the glyph that STARTS at (or contains)
+/// 0-based cell column `col`, stepping over zero-width continuations.
+/// Returns `widths.len()` past the last cell. The FLOOR boundary: a column on
+/// a wide glyph's second cell maps back to that glyph's lead char.
+#[inline]
+pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
+        if w > 0 && col < cell + w {
+            return i;
+        }
+        cell += w;
+    }
+    widths.len()
+}
+
+/// The char INDEX (into `widths`) of the first glyph AT or past 0-based cell
+/// column `col` (the CEIL boundary) — a zero-width char sitting exactly at
+/// the boundary IS included. Returns `widths.len()` past the last cell.
+#[inline]
+pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
+        if cell >= col {
+            return i;
+        }
+        cell += w;
+    }
+    widths.len()
+}
+
+/// The char INDEX (into `widths`) ONE PAST the glyph that ENDS at 0-based
+/// cell column `col`, including its trailing zero-width continuations.
+/// Returns `widths.len()` past the last cell.
+#[inline]
+pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
+        if w > 0 && cell + w > col {
+            let mut end = i + 1;
+            while end < widths.len() && widths[end] == 0 {
+                end += 1;
+            }
+            return end;
+        }
+        cell += w;
+    }
+    widths.len()
+}
+
 /// Byte offset (into `text`) of the char that STARTS at the given 0-based
 /// CELL column, stepping over wide chars by their [`cell_widths`] widths —
 /// including VS16 and ZWJ emoji merged to a single 2-cell unit. Zero-width

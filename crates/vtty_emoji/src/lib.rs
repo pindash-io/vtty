@@ -61,7 +61,11 @@ pub use properties::{
     Gcb, Properties, cell_width, composes_precomposed, first_non_ascii,
     first_non_printable_ascii, is_zero_width, vs_width,
 };
-pub use width::{cell_advance, cell_col_byte_widths, cell_width_sum, cell_widths};
+pub use width::{
+    cell_advance, cell_col_byte_widths, cell_col_char_ceil_from_widths,
+    cell_col_char_end_from_widths, cell_col_char_from_widths,
+    cell_width_sum, cell_widths,
+};
 
 #[cfg(test)]
 mod tests {
