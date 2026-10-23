@@ -20,7 +20,7 @@ termcap = ["reply"]
 bitflags.workspace = true
 const-hex = { workspace = true, features = ["alloc"] }
 smallvec.workspace = true
-smol_str.workspace = true
+compact_str.workspace = true
 
 [lints]
 workspace = true

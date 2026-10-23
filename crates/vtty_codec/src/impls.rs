@@ -5,9 +5,9 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use compact_str::CompactString;
 use core::mem::size_of;
 use smallvec::SmallVec;
-use smol_str::SmolStr;
 
 use crate::error::{DecodeError, EncodeError};
 use crate::io::{Read, Write};
@@ -235,7 +235,7 @@ impl Decode for String {
     }
 }
 
-impl Encode for SmolStr {
+impl Encode for CompactString {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
     }
@@ -245,7 +245,7 @@ impl Encode for SmolStr {
     }
 }
 
-impl Decode for SmolStr {
+impl Decode for CompactString {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
         String::decode(reader).map(Self::from)
     }

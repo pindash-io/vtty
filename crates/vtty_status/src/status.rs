@@ -27,7 +27,7 @@ use alloc::vec::Vec;
 use base64::Engine;
 use base64::engine::DecodePaddingMode;
 use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
-use smol_str::SmolStr;
+use compact_str::CompactString;
 
 use vtty_core::Perform;
 
@@ -138,17 +138,17 @@ pub struct ProgramStatus {
     /// The reported state. Required by the protocol.
     pub state: StatusState,
     /// Optional record path (`a/b/c`); absent means the root record.
-    pub id: Option<SmolStr>,
+    pub id: Option<CompactString>,
     /// Why the program is `blocked`; ignored for other states.
     pub kind: Option<StatusKind>,
     /// Progress in `0..=100`; absent means indeterminate.
     pub progress: Option<u8>,
     /// Stable program identifier (`cargo`, `terraform`, …).
-    pub app: Option<SmolStr>,
+    pub app: Option<CompactString>,
     /// Short human-readable label.
-    pub title: Option<SmolStr>,
+    pub title: Option<CompactString>,
     /// One human-readable line about what the record is doing.
-    pub msg: Option<SmolStr>,
+    pub msg: Option<CompactString>,
 }
 
 impl ProgramStatus {
@@ -187,7 +187,7 @@ impl ProgramStatus {
                     } else if value.len() > MAX_APP {
                         return None; // limit exceeded
                     } else {
-                        app = core::str::from_utf8(value).ok().map(SmolStr::from);
+                        app = core::str::from_utf8(value).ok().map(CompactString::from);
                     }
                 }
                 b"title" => {
@@ -321,7 +321,7 @@ fn parse_progress(value: &[u8]) -> Option<u8> {
 
 /// Parses an `id` path (`a/b/c`), enforcing the length, segment and depth
 /// limits.
-fn parse_id(value: &[u8]) -> Option<SmolStr> {
+fn parse_id(value: &[u8]) -> Option<CompactString> {
     if value.is_empty() || value.len() > MAX_ID {
         return None;
     }
@@ -337,7 +337,7 @@ fn parse_id(value: &[u8]) -> Option<SmolStr> {
             return None;
         }
     }
-    Some(SmolStr::from(core::str::from_utf8(value).ok()?))
+    Some(CompactString::from(core::str::from_utf8(value).ok()?))
 }
 
 /// A control-character class.
@@ -365,7 +365,7 @@ impl Control {
 
 /// Decodes a base64 `title`/`msg` value, enforcing the encoded/decoded limits
 /// and rejecting control characters.
-fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<SmolStr> {
+fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<CompactString> {
     if value.len() > max_encoded {
         return None;
     }
@@ -373,7 +373,7 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Sm
     if decoded.len() > max_decoded {
         return None;
     }
-    let text = SmolStr::from_utf8(&decoded).ok()?;
+    let text = CompactString::from_utf8(&decoded).ok()?;
     // Refuse control characters (C0, DEL, C1).
     if text.chars().any(|c| Control::of(c).is_some()) {
         return None;
@@ -554,12 +554,12 @@ mod tests {
     fn write_osc_roundtrip() {
         let status = ProgramStatus {
             state: StatusState::Working,
-            id: Some(SmolStr::from("build/test")),
+            id: Some(CompactString::from("build/test")),
             kind: None,
             progress: Some(40),
-            app: Some(SmolStr::from("terraform")),
-            title: Some(SmolStr::from("US East")),
-            msg: Some(SmolStr::from("Deploying v2")),
+            app: Some(CompactString::from("terraform")),
+            title: Some(CompactString::from("US East")),
+            msg: Some(CompactString::from("Deploying v2")),
         };
         let osc = status.to_osc();
         assert!(osc.starts_with(b"\x1b]7501;"));

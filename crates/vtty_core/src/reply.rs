@@ -5,9 +5,8 @@
 //!
 //! Reference: <https://vt100.net/emu/dec_ansi_parser>.
 
+use compact_str::CompactString;
 use core::fmt::Write as _;
-
-use smol_str::{SmolStr, SmolStrBuilder};
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
@@ -29,7 +28,7 @@ const DECRQSS_ERR: &str = "\x1bP0$r";
 /// of dropping all but the last.
 #[derive(Debug)]
 pub struct Reply {
-    buf: SmolStrBuilder,
+    buf: CompactString,
     /// Nothing appended yet — lets `is_empty` answer without touching `buf`.
     empty: bool,
 }
@@ -37,7 +36,7 @@ pub struct Reply {
 impl Reply {
     /// An empty reply buffer.
     pub const DEFAULT: Self = Self {
-        buf: SmolStrBuilder::new(),
+        buf: CompactString::const_new(""),
         empty: true,
     };
 
@@ -194,21 +193,21 @@ impl Reply {
 
     /// Finish and return the accumulated reply.
     #[inline]
-    pub fn finish(self) -> SmolStr {
-        self.buf.finish()
+    pub fn finish(self) -> CompactString {
+        self.buf
     }
 
     /// The accumulated reply text.
     #[doc(hidden)]
     #[inline]
-    pub fn as_smol_str(&self) -> SmolStr {
-        self.buf.as_str().into()
+    pub fn to_compact_str(&self) -> CompactString {
+        self.buf.clone()
     }
 
     /// Builds a reply from raw text (used by the codec crate).
     #[doc(hidden)]
     pub fn from_text(text: &str) -> Self {
-        let mut buf = SmolStrBuilder::new();
+        let mut buf = CompactString::new("");
         buf.push_str(text);
         Self {
             buf,
@@ -227,7 +226,7 @@ impl Default for Reply {
 /// (indexed), or `;{base}8;2;r;g;b` (RGB, resolved from the palette).
 /// `base` is 3 for fg, 4 for bg; `default_id` is the matching default color.
 fn push_sgr_color(
-    s: &mut SmolStrBuilder,
+    s: &mut CompactString,
     base: u8,
     id: ColorId,
     default_id: ColorId,

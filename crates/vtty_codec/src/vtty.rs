@@ -333,11 +333,11 @@ impl Decode for State {
 
 impl Encode for Reply {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
-        self.as_smol_str().as_str().encode(writer)
+        self.to_compact_str().as_str().encode(writer)
     }
 
     fn encoded_len(&self) -> usize {
-        self.as_smol_str().as_str().encoded_len()
+        self.to_compact_str().as_str().encoded_len()
     }
 }
 

@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 base64.workspace = true
-smol_str.workspace = true
+compact_str.workspace = true
 vtty_core.workspace = true
 
 [lints]

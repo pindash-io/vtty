@@ -5,8 +5,9 @@
 //!
 //! Reference: <https://vt100.net/emu/dec_ansi_parser>.
 
+use compact_str::CompactString;
+use core::fmt::Write as _;
 use smallvec::SmallVec;
-use smol_str::{SmolStr, SmolStrBuilder};
 
 /// Inline capacity for a mouse sequence. SGR (`ESC [ < cb ; x ; y M/m`) is
 /// the longest at ≤ 19 bytes; X10 (6) and UTF-8 (≤ 11) are shorter. 24 keeps
@@ -82,13 +83,15 @@ impl MouseButton {
     /// 0-based; the emitted protocol is 1-based. Press/release differ only
     /// in the final byte (`M`/`m`).
     #[inline]
-    pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> SmolStr {
+    pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> CompactString {
         let final_byte = if pressed { 'M' } else { 'm' };
         let (x, y) = (x + 1, y + 1);
         // `Motion` = motion + left button (a drag, `cb=32`);
         // `MotionNoButton` = pure hover (`cb=35`). The button code is used
         // verbatim so ratatui/crossterm can tell Drag(Left) from Moved.
-        smol_str::format_smolstr!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
+        let mut s = CompactString::new("");
+        let _ = write!(s, "\x1b[<{};{};{}{}", self as u8, x, y, final_byte);
+        s
     }
 
     /// Encode this event in X10 style (`CSI M Cb Cx Cy`, single bytes).
@@ -102,16 +105,16 @@ impl MouseButton {
 
     /// Encode this event in DEC 1005 UTF-8 mouse style — X10's `CSI M Cb`
     /// prefix, but `Cx`/`Cy` are UTF-8 encoded instead of truncated single
-    /// bytes. Built on the stack via [`SmolStrBuilder`] (no heap `String`).
+    /// bytes. Built inline (no heap `String`).
     #[inline]
-    pub fn encode_utf8(self, x: u16, y: u16) -> SmolStr {
+    pub fn encode_utf8(self, x: u16, y: u16) -> CompactString {
         let (cb, cx, cy) = self.x10_bytes(x, y);
-        let mut b = SmolStrBuilder::new();
+        let mut b = CompactString::new("");
         b.push_str("\x1b[M");
         b.push(cb as char);
         b.push(char::from_u32(cx as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
         b.push(char::from_u32(cy as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
-        b.finish()
+        b
     }
 
     /// Encode a mouse event under the given tracking configuration, or `None`
