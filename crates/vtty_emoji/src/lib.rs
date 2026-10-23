@@ -125,7 +125,10 @@ mod tests {
         assert!(!composes_precomposed(' ', '\u{301}'));
         // Outside the combining diacritical block (emoji selector / Hangul).
         assert!(!composes_precomposed('e', '\u{FE0F}'));
-        assert!(!composes_precomposed('\u{1100}', '\u{1161}'));
+        // Hangul composes ALGORITHMICALLY (ljmo/vjmo/tjmo), not via the
+        // `ccmp` precomposed path — so it must NOT get a ZWSP break.
+        assert!(!composes_precomposed('\u{1100}', '\u{1161}')); // L + V
+        assert!(!composes_precomposed('가', '\u{11A8}')); // LV + T
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
