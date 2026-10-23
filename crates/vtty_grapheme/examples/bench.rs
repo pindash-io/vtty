@@ -51,8 +51,8 @@ fn main() {
         throughput("vtty_grapheme cluster_width_sum()", &text, |t| {
             vtty_grapheme::cluster_width_sum(t)
         });
-        throughput("vtty_emoji cell_width_sum()", &text, |t| {
-            vtty_emoji::cell_width_sum(t)
+        throughput("vtty_width cell_width_sum()", &text, |t| {
+            vtty_width::cell_width_sum(t)
         });
         throughput("icu_segmenter grapheme count", &text, |t| {
             GraphemeClusterSegmenter::new().segment_str(t).count()

@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 # Per-char display width + baked grapheme cluster break property.
-vtty_emoji = { workspace = true }
+vtty_width = { workspace = true }
 
 [dev-dependencies]
 # Reference implementation for the benchmark example.

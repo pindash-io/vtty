@@ -1155,18 +1155,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtty_emoji"
-version = "0.1.0"
-dependencies = [
- "fearless_simd",
- "icu_normalizer",
- "icu_properties",
- "packtab",
- "parley_emoji",
- "unicode-width",
-]
-
-[[package]]
 name = "vtty_ffi"
 version = "0.1.0"
 dependencies = [
@@ -1178,7 +1166,7 @@ name = "vtty_grapheme"
 version = "0.1.0"
 dependencies = [
  "icu_segmenter",
- "vtty_emoji",
+ "vtty_width",
 ]
 
 [[package]]
@@ -1188,6 +1176,18 @@ dependencies = [
  "base64",
  "smol_str",
  "vtty_core",
+]
+
+[[package]]
+name = "vtty_width"
+version = "0.1.0"
+dependencies = [
+ "fearless_simd",
+ "icu_normalizer",
+ "icu_properties",
+ "packtab",
+ "parley_emoji",
+ "unicode-width",
 ]
 
 [[package]]

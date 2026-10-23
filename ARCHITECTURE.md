@@ -12,7 +12,7 @@ relies on.
   with `vtty_codec`.
 - `vtty_codec` — `no_std` binary `Encode`/`Decode` codec (generic + `vtty_core`
   impls).
-- `vtty_emoji` — display cell width + emoji sequences (ICU4X/parley).
+- `vtty_width` — display cell width + emoji sequences (ICU4X/parley).
 - `vtty_ffi` — raw C ABI over `vtty`.
 - `vtty_bench` — throughput benchmarks vs `vte`/`vt100`/`vtparse`/`rio-vt`.
 

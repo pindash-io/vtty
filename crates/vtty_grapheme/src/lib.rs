@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! UAX #29 extended grapheme cluster segmentation for the terminal grid,
-//! with per-cluster display cell widths from [`vtty_emoji`].
+//! with per-cluster display cell widths from [`vtty_width`].
 //!
-//! `vtty_emoji` answers "what is the display width of this text" per *char*
+//! `vtty_width` answers "what is the display width of this text" per *char*
 //! and merges emoji sequences; `vtty_grapheme` answers "where do the
 //! clusters start and end". A grapheme cluster is the unit the grid,
 //! selection, and editing operate on: one cluster ≈ one (or two) cells.
 //!
 //! The boundaries implement the classic UAX #29 grapheme rules (GB1–GB13)
-//! over `vtty_emoji`'s baked [`Gcb`] property, with `Extended_Pictographic`
+//! over `vtty_width`'s baked [`Gcb`] property, with `Extended_Pictographic`
 //! folded in as [`Gcb::ExtPict`] — one property lookup per char, no
 //! `icu_segmenter` dependency.
 //!
@@ -28,7 +28,7 @@
 //! assert_eq!(widths, [2, 1, 1, 1, 2]);
 //! ```
 
-use vtty_emoji::Gcb;
+use vtty_width::Gcb;
 
 /// A grapheme cluster: a byte range `[start, end)` into the source text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -176,11 +176,11 @@ pub struct Graphemes<'a> {
 
 /// Segment `text` into extended grapheme clusters (UAX #29, rule-based).
 ///
-/// Uses `vtty_emoji`'s baked GCB property; no runtime data loading or
+/// Uses `vtty_width`'s baked GCB property; no runtime data loading or
 /// allocation on this path. Pure ASCII takes a per-byte fast path.
 pub fn graphemes(text: &str) -> Graphemes<'_> {
     let bytes = text.as_bytes();
-    let printable = vtty_emoji::first_non_printable_ascii(bytes) == bytes.len();
+    let printable = vtty_width::first_non_printable_ascii(bytes) == bytes.len();
     Graphemes {
         iter: if printable {
             "".char_indices()
@@ -263,7 +263,7 @@ pub struct ClusterWidths<'a> {
     text: &'a str,
 }
 
-/// Per-cluster display cell width: [`vtty_emoji::cell_width_sum`] of each
+/// Per-cluster display cell width: [`vtty_width::cell_width_sum`] of each
 /// grapheme cluster in `text`.
 pub fn cluster_widths(text: &str) -> ClusterWidths<'_> {
     ClusterWidths {
@@ -278,7 +278,7 @@ impl Iterator for ClusterWidths<'_> {
     #[inline]
     fn next(&mut self) -> Option<usize> {
         let cluster = self.graphemes.next()?;
-        Some(vtty_emoji::cell_width_sum(cluster.as_str(self.text)))
+        Some(vtty_width::cell_width_sum(cluster.as_str(self.text)))
     }
 }
 
@@ -289,12 +289,12 @@ pub fn cluster_count(text: &str) -> usize {
 
 /// The total display cell width of `text`, summed per grapheme cluster.
 ///
-/// Equivalent to [`vtty_emoji::cell_width_sum`] when the cluster boundaries
+/// Equivalent to [`vtty_width::cell_width_sum`] when the cluster boundaries
 /// and the emoji width model agree (they do for UAX #29 vs UTS #51 sequences).
 pub fn cluster_width_sum(text: &str) -> usize {
-    // All-ASCII fast path: vtty_emoji's width model gives every ASCII byte
+    // All-ASCII fast path: vtty_width's width model gives every ASCII byte
     // (printable or control) one cell, so the total is the byte length.
-    if vtty_emoji::first_non_ascii(text.as_bytes()) == text.len() {
+    if vtty_width::first_non_ascii(text.as_bytes()) == text.len() {
         return text.len();
     }
     cluster_widths(text).sum()
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn cluster_width_sum_equals_per_char_sum() {
         // The invariant this crate is built on: cluster boundaries never
-        // split a vtty_emoji width sequence, so the per-cluster sum equals
+        // split a vtty_width width sequence, so the per-cluster sum equals
         // the per-char sum.
         for text in [
             "hello",
@@ -389,7 +389,7 @@ mod tests {
         ] {
             assert_eq!(
                 cluster_width_sum(text),
-                vtty_emoji::cell_width_sum(text),
+                vtty_width::cell_width_sum(text),
                 "mismatch for {text:?}"
             );
         }
