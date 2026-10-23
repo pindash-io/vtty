@@ -8,9 +8,12 @@
   </head>
   <body>
     <main>
-      <pre id="out" class="out"></pre>
+      <div id="out" class="out"></div>
       <section id="examples" class="examples"></section>
       <footer>
+        <select id="theme" title="highlight theme"></select>
+        <select id="lang" title="language"></select>
+        <button id="scheme" type="button" title="toggle light/dark">☀️</button>
         <input
           id="input"
           type="text"
@@ -23,11 +26,20 @@
         <button id="clear">Clear</button>
       </footer>
       <p class="hint">
-        Escape sequences are parsed; SGR colors/styles are rendered, everything
-        else is consumed. Built with
-        <a href="https://crates.io/crates/vtty">vtty</a> → WebAssembly.
+        ANSI is parsed by
+        <a href="https://crates.io/crates/vtty">vtty</a> → WebAssembly; the text
+        is syntax-highlighted by
+        <a href="https://crates.io/crates/vtty">@pierre/highlights</a> (WAT).
       </p>
     </main>
+    <script type="importmap">
+      {
+        "imports": {
+          "@pierre/highlights": "https://esm.sh/@pierre/highlights",
+          "@pierre/highlights/themes": "https://esm.sh/@pierre/highlights/themes"
+        }
+      }
+    </script>
     <script type="module" src="main.js"></script>
   </body>
 </html>

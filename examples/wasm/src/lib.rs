@@ -83,6 +83,16 @@ impl Terminal {
         }
         html
     }
+
+    /// The accumulated plain text (escape sequences consumed, styles dropped).
+    pub fn text(&self) -> String {
+        let mut out = String::new();
+        for (_, text) in &self.segs {
+            out.push_str(text);
+        }
+        out.push_str(&self.cur);
+        out
+    }
 }
 
 impl Default for Terminal {

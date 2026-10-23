@@ -34,7 +34,8 @@ main {
   margin: 0;
   padding: 16px;
   min-height: 200px;
-  background: #000;
+  background: light-dark(#0d1117, #ffffff);
+  color-scheme: dark;
   white-space: pre-wrap;
 }
 
@@ -61,11 +62,30 @@ main {
   border-color: #3b4450;
 }
 
+.highlights {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 footer {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
+}
+
+footer select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0d1117;
+  color: var(--text);
+  font: inherit;
+  outline: none;
 }
 
 footer input {
