@@ -126,7 +126,7 @@ pub(crate) fn gcb_icu(c: char) -> Gcb {
 
 /// ICU4X East Asian Width "Ambiguous" predicate — the runtime counterpart
 /// of the baked AMBIGUOUS bit.
-pub fn ambiguous_icu(cp: char) -> bool {
+pub(crate) fn ambiguous_icu(cp: char) -> bool {
     thread_local! {
         static EAW: CodePointMapDataBorrowed<'static, EastAsianWidth> =
             const { CodePointMapData::new() };
