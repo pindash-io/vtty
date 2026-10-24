@@ -160,17 +160,22 @@ impl TermFlags {
         0
     }
 
-    /// Reverse lookup for DECRQM's numeric parameter; unknown →
-    /// [`TermFlags::NONE`].
+    /// Reverse lookup for DECRQM's numeric parameter via binary search over
+    /// the param-sorted [`Self::PRIVATE_MODES`]; unknown → [`TermFlags::NONE`].
     #[inline]
     pub const fn from_private_param(param: i32) -> Self {
-        let mut i = 0;
-        while i < Self::PRIVATE_MODES.len() {
-            let (flag, p) = Self::PRIVATE_MODES[i];
-            if p == param {
+        let mut lo = 0;
+        let mut hi = Self::PRIVATE_MODES.len();
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            let (flag, p) = Self::PRIVATE_MODES[mid];
+            if p < param {
+                lo = mid + 1;
+            } else if p > param {
+                hi = mid;
+            } else {
                 return flag;
             }
-            i += 1;
         }
         Self::NONE
     }
@@ -217,6 +222,25 @@ pub const MOUSE_MASK: TermFlags = TermFlags::MOUSE_X10
     .union(TermFlags::MOUSE_PIXEL)
     .union(TermFlags::MOUSE_URXVT)
     .union(TermFlags::UTF8_MOUSE);
+
+/// Compile-time guard: [`TermFlags::PRIVATE_MODES`] must be sorted by DEC
+/// private-mode number, or [`TermFlags::from_private_param`]'s binary search
+/// would silently misbehave.
+const fn sorted_by_param(table: &[(TermFlags, i32)]) -> bool {
+    let mut i = 1;
+    while i < table.len() {
+        if table[i - 1].1 >= table[i].1 {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+const _: () = assert!(
+    sorted_by_param(TermFlags::PRIVATE_MODES),
+    "PRIVATE_MODES must be sorted by DEC private-mode number"
+);
 
 #[cfg(test)]
 mod tests {
