@@ -10,6 +10,10 @@ re-exports the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …)
 from `vtty_core`; the companion `vtty_codec` crate provides the compact
 binary `Encode`/`Decode` implementations for the owned types.
 
+The parser implements the DEC VT500 state machine from Paul Flo Williams'
+[A parser for DEC's ANSI-compatible video
+terminals](https://vt100.net/emu/dec_ansi_parser).
+
 ## Usage
 
 ```rust

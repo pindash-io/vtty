@@ -429,21 +429,6 @@ impl Parser {
         i + run.len()
     }
 
-    /// 8-bit C1 (0x80-0x9f) inside a non-ground state: abort the sequence and
-    /// either terminate a string (ST `0x9c`) or execute/re-enter the
-    /// introducer — DEC's "anywhere" invariant
-    /// (<https://vt100.net/emu/dec_ansi_parser>).
-    #[inline]
-    fn c1_in_sequence(state: ParseState, b: u8) -> (Action, ParseState) {
-        // String states end with their exit action on ST.
-        match (state, b) {
-            (ParseState::OscString, 0x9c) => (Action::OSC_END, ParseState::Ground),
-            (ParseState::DcsPassthrough, 0x9c) => (Action::UNHOOK, ParseState::Ground),
-            (ParseState::SosPmApcString, 0x9c) => (Action::NONE, ParseState::Ground),
-            _ => Self::c1_transition(b),
-        }
-    }
-
     /// Raw 8-bit C1 → (action, next state). Introducers start their sequence;
     /// ST `0x9c` is a no-op; other C1 controls execute and return to ground
     /// (<https://vt100.net/emu/dec_ansi_parser>).
@@ -471,12 +456,20 @@ impl Parser {
             self.clear_seq_state();
         }
 
-        // 8-bit C1: DEC's "anywhere" rule — abort the sequence, execute the
-        // control, introducers re-enter their state (ST `0x9c` is a no-op).
+        // 8-bit C1: DEC's "anywhere" rule — a C1 control cancels any escape
+        // sequence, control sequence or control string in progress. A string
+        // state's exit action (`osc_end` / `unhook`) fires first — the
+        // deferred OSC payload was already flushed by `advance_osc_run` —
+        // then the control is executed or an introducer re-enters its state.
         // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
         if (0x80..=0x9f).contains(&b) {
+            match state {
+                ParseState::OscString => self.osc_end(p, false, bytes, i),
+                ParseState::DcsPassthrough => p.unhook(),
+                _ => {}
+            }
             self.clear_seq_state();
-            let (action, next) = Self::c1_in_sequence(state, b);
+            let (action, next) = Self::c1_transition(b);
             self.apply(p, action, b);
             self.state = next;
             return i + 1;
@@ -946,6 +939,87 @@ const MAX_PARAM_VALUE: i32 = 65535;
 #[cfg(test)]
 mod tests {
     use super::Parser;
+    use crate::table::{Action, ParseState};
+
+    /// DEC's "anywhere" invariant for 8-bit C1 controls
+    /// (<https://vt100.net/emu/dec_ansi_parser>): introducers re-enter their
+    /// state, ST `0x9c` is a no-op, and every other C1 control executes and
+    /// returns to ground (a lone C1 byte is invalid UTF-8, so this is the
+    /// correct fallback for a UTF-8 terminal).
+    #[test]
+    fn c1_transition_matches_dec_anywhere() {
+        for b in 0x80..=0x9f {
+            let (action, next) = Parser::c1_transition(b);
+            let expected = match b {
+                0x90 => (Action::NONE, ParseState::DcsEntry), // DCS
+                0x98 => (Action::NONE, ParseState::SosPmApcString), // SOS
+                0x9b => (Action::NONE, ParseState::CsiEntry), // CSI
+                0x9c => (Action::NONE, ParseState::Ground),   // ST
+                0x9d => (Action::OSC_START, ParseState::OscString), // OSC
+                0x9e | 0x9f => (Action::NONE, ParseState::SosPmApcString), // PM/APC
+                _ => (Action::EXECUTE, ParseState::Ground),
+            };
+            assert_eq!(
+                (action, next),
+                expected,
+                "byte=0x{b:02x}: c1_transition={action:?},{next:?} expected={expected:?}"
+            );
+        }
+    }
+
+    /// End-to-end: a raw 8-bit C1 control interrupting an OSC string or DCS
+    /// passthrough fires the string's exit action (`osc_end` / `unhook`)
+    /// before the control is executed or an introducer re-enters its state —
+    /// DEC's "anywhere" rule. Regression test: the exit action was previously
+    /// dropped for every C1 control except ST (`0x9c`).
+    #[test]
+    fn c1_interrupt_fires_string_exit_action() {
+        use crate::Event;
+
+        // C1 controls that are not introducers (and not ST) execute and
+        // return to ground; the introducers DCS/SOS/CSI/ST/OSC/PM/APC do not.
+        fn executes(b: u8) -> usize {
+            usize::from(matches!(b, 0x80..=0x8f | 0x91..=0x97 | 0x99 | 0x9a))
+        }
+
+        // OSC interrupted by each C1 control: the OSC dispatches (osc_end)
+        // exactly once, then the control is executed (if it executes).
+        for b in 0x80..=0x9f {
+            let events = Parser::new().parse_events(&[0x1b, b']', b'0', b';', b'x', b]);
+            let oscs = events
+                .iter()
+                .filter(|e| matches!(e, Event::OscDispatch { .. }))
+                .count();
+            assert_eq!(
+                oscs, 1,
+                "C1 0x{b:02x} interrupting OSC must dispatch exactly once: {events:?}"
+            );
+            let execs = events
+                .iter()
+                .filter(|e| matches!(e, Event::Execute(_)))
+                .count();
+            assert_eq!(execs, executes(b), "C1 0x{b:02x} execute count: {events:?}");
+        }
+
+        // DCS passthrough interrupted by each C1 control: unhook fires exactly
+        // once, then the control is executed (if it executes).
+        for b in 0x80..=0x9f {
+            let events = Parser::new().parse_events(&[0x1b, b'P', b'q', b'x', b'y', b]);
+            let unhooks = events
+                .iter()
+                .filter(|e| matches!(e, Event::DcsUnhook))
+                .count();
+            assert_eq!(
+                unhooks, 1,
+                "C1 0x{b:02x} interrupting DCS must unhook exactly once: {events:?}"
+            );
+            let execs = events
+                .iter()
+                .filter(|e| matches!(e, Event::Execute(_)))
+                .count();
+            assert_eq!(execs, executes(b), "C1 0x{b:02x} execute count: {events:?}");
+        }
+    }
 
     #[test]
     fn reset_preserves_simd_config() {
