@@ -308,14 +308,19 @@ mod simd {
         dispatch!(level, simd => scan_printable(simd, bytes))
     }
 
+    /// Shared SIMD scan: 16-byte chunks via `stop_mask(simd, v) -> u64`, then
+    /// a scalar `is_stop` tail. Returns the first stop index, or `bytes.len()`.
     #[inline(always)]
-    fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
+    fn scan_first<S: Simd>(
+        simd: S,
+        bytes: &[u8],
+        stop_mask: impl Fn(S, u8x16<S>) -> u64,
+        is_stop: impl Fn(u8) -> bool,
+    ) -> usize {
         let (chunks, tail) = bytes.as_chunks::<16>();
         for (i, chunk) in chunks.iter().enumerate() {
             let v = u8x16::from_slice(simd, chunk.as_slice());
-            // Non-ASCII ⇔ b >= 0x80 (the high bit is set).
-            let high = simd.simd_gt_u8x16(v, simd.splat_u8x16(0x7f));
-            let mask = simd.to_bitmask_mask8x16(high);
+            let mask = stop_mask(simd, v);
             if mask != 0 {
                 return i * 16 + mask.trailing_zeros() as usize;
             }
@@ -323,28 +328,37 @@ mod simd {
         // Scalar tail (< 16 bytes).
         let off = bytes.len() - tail.len();
         tail.iter()
-            .position(|&b| b >= 0x80)
+            .position(|&b| is_stop(b))
             .map_or_else(|| bytes.len(), |p| off + p)
     }
 
+    /// Non-ASCII ⇔ b >= 0x80 (the high bit is set).
+    #[inline(always)]
+    fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
+        scan_first(
+            simd,
+            bytes,
+            |simd, v| {
+                let high = simd.simd_gt_u8x16(v, simd.splat_u8x16(0x7f));
+                simd.to_bitmask_mask8x16(high)
+            },
+            |b| b >= 0x80,
+        )
+    }
+
+    /// Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
     #[inline(always)]
     fn scan_printable<S: Simd>(simd: S, bytes: &[u8]) -> usize {
-        let (chunks, tail) = bytes.as_chunks::<16>();
-        for (i, chunk) in chunks.iter().enumerate() {
-            let v = u8x16::from_slice(simd, chunk.as_slice());
-            // Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
-            let low = simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20));
-            let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f));
-            let mask = simd.to_bitmask_mask8x16(low | high);
-            if mask != 0 {
-                return i * 16 + mask.trailing_zeros() as usize;
-            }
-        }
-        // Scalar tail (< 16 bytes).
-        let off = bytes.len() - tail.len();
-        tail.iter()
-            .position(|&b| !(0x20..=0x7e).contains(&b))
-            .map_or_else(|| bytes.len(), |p| off + p)
+        scan_first(
+            simd,
+            bytes,
+            |simd, v| {
+                let low = simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20));
+                let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f));
+                simd.to_bitmask_mask8x16(low | high)
+            },
+            |b| !(0x20..=0x7e).contains(&b),
+        )
     }
 }
 
