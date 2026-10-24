@@ -170,14 +170,7 @@ impl Terminal {
 /// True when a cell is blank (space, default attributes) — such cells are
 /// trimmed from the end of a rendered row.
 fn is_blank(cell: Option<&vtty_screen::Cell>) -> bool {
-    let Some(cell) = cell else {
-        return true;
-    };
-    cell.ch == ' '
-        && cell.combining_len == 0
-        && cell.sgr.is_empty()
-        && cell.fg == vtty::DEFAULT_FG_ID
-        && cell.bg == vtty::DEFAULT_BG_ID
+    cell.is_none_or(vtty_screen::Cell::is_blank)
 }
 
 /// The opening `<span style="…">` for a cell's SGR attributes.
