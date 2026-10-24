@@ -38,8 +38,35 @@ use alloc::vec::Vec;
 use core::fmt::Write as _;
 use core::ops::Range;
 
-use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags};
+use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags, bitflags};
 use vtty_width::{cell_width, cell_width_sum};
+
+bitflags::bitflags! {
+    /// Per-buffer screen state, swapped wholesale with the alternate screen.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct BufferFlags: u8 {
+        /// A wide glyph was written at the last column; the next print wraps.
+        const WRAP_PENDING = 1 << 0;
+        /// DECOM — origin mode (cursor addressing is margin-relative).
+        const ORIGIN = 1 << 1;
+    }
+
+    /// Global screen modes, shared across the main and alternate buffers.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ScreenFlags: u8 {
+        /// DECAWM — autowrap.
+        const WRAP = 1 << 0;
+        /// DECTCEM — cursor visible.
+        const CURSOR_VISIBLE = 1 << 1;
+        /// The alternate screen buffer is active (DEC 47/1046/1047/1049).
+        const ALT_ACTIVE = 1 << 2;
+    }
+}
+
+impl ScreenFlags {
+    /// Power-on modes: DECAWM autowrap + DECTCEM cursor visible.
+    pub const DEFAULT: Self = Self::WRAP.union(Self::CURSOR_VISIBLE);
+}
 
 /// Marker stored in the trailing cell of a double-width glyph. Render skips
 /// it (the lead cell already accounts for both columns).
@@ -92,12 +119,12 @@ impl Cell {
 
     /// True when the cell is blank (a space with default attributes).
     #[inline]
-    pub fn is_blank(&self) -> bool {
+    pub const fn is_blank(&self) -> bool {
         self.ch == ' '
             && self.combining_len == 0
             && self.sgr.is_empty()
-            && self.fg == DEFAULT_FG_ID
-            && self.bg == DEFAULT_BG_ID
+            && self.fg.0 == DEFAULT_FG_ID.0
+            && self.bg.0 == DEFAULT_BG_ID.0
     }
 }
 
@@ -141,14 +168,10 @@ pub struct Screen {
     sgr: SgrFlags,
     fg: ColorId,
     bg: ColorId,
-    /// DECAWM — autowrap.
-    wrap: bool,
-    /// A wide glyph was written at the last column; the next print wraps.
-    wrap_pending: bool,
-    /// DECOM — origin mode (cursor addressing is margin-relative).
-    origin: bool,
-    /// DECTCEM — cursor visible.
-    cursor_visible: bool,
+    /// Global modes: DECAWM autowrap, DECTCEM cursor, alt-screen active.
+    modes: ScreenFlags,
+    /// Per-buffer flags: autowrap-pending and DECOM origin.
+    flags: BufferFlags,
     /// DECSTBM top margin (inclusive, 0-based).
     top_margin: u32,
     /// DECSTBM bottom margin (inclusive, 0-based).
@@ -163,8 +186,6 @@ pub struct Screen {
     default_bg: u32,
     /// OSC 0/1/2 window title.
     title: String,
-    /// Whether the alternate screen buffer is active (DEC 47/1046/1047/1049).
-    alt_active: bool,
     // The alternate screen buffer (DEC 47/1046/1047/1049): the same
     // per-buffer state as the main screen, swapped in/out wholesale.
     alt_cells: Vec<Cell>,
@@ -175,8 +196,7 @@ pub struct Screen {
     alt_sgr: SgrFlags,
     alt_fg: ColorId,
     alt_bg: ColorId,
-    alt_wrap_pending: bool,
-    alt_origin: bool,
+    alt_flags: BufferFlags,
     alt_top_margin: u32,
     alt_bottom_margin: u32,
     alt_continuation: Vec<bool>,
@@ -209,10 +229,8 @@ impl Screen {
             sgr: SgrFlags::DEFAULT,
             fg: DEFAULT_FG_ID,
             bg: DEFAULT_BG_ID,
-            wrap: true,
-            wrap_pending: false,
-            origin: false,
-            cursor_visible: true,
+            modes: ScreenFlags::DEFAULT,
+            flags: BufferFlags::empty(),
             top_margin: 0,
             bottom_margin: rows - 1,
             rgb: Vec::new(),
@@ -220,7 +238,6 @@ impl Screen {
             default_fg: 0xffffff,
             default_bg: 0x000000,
             title: String::new(),
-            alt_active: false,
             alt_cells: vec![Cell::default(); (cols * rows) as usize],
             alt_cursor_row: 0,
             alt_cursor_col: 0,
@@ -229,8 +246,7 @@ impl Screen {
             alt_sgr: SgrFlags::DEFAULT,
             alt_fg: DEFAULT_FG_ID,
             alt_bg: DEFAULT_BG_ID,
-            alt_wrap_pending: false,
-            alt_origin: false,
+            alt_flags: BufferFlags::empty(),
             alt_top_margin: 0,
             alt_bottom_margin: rows - 1,
             alt_continuation: vec![false; rows as usize],
@@ -249,7 +265,7 @@ impl Screen {
         self.sgr = SgrFlags::DEFAULT;
         self.fg = DEFAULT_FG_ID;
         self.bg = DEFAULT_BG_ID;
-        self.wrap_pending = false;
+        self.flags.remove(BufferFlags::WRAP_PENDING);
         self.top_margin = 0;
         self.bottom_margin = self.rows - 1;
     }
@@ -260,9 +276,8 @@ impl Screen {
         self.reset_cursor_style_margins();
         self.saved_row = 0;
         self.saved_col = 0;
-        self.wrap = true;
-        self.origin = false;
-        self.cursor_visible = true;
+        self.modes = ScreenFlags::DEFAULT;
+        self.flags.remove(BufferFlags::ORIGIN);
         self.rgb.clear();
         self.title.clear();
         // Reset the alternate buffer too.
@@ -274,11 +289,9 @@ impl Screen {
         self.alt_sgr = SgrFlags::DEFAULT;
         self.alt_fg = DEFAULT_FG_ID;
         self.alt_bg = DEFAULT_BG_ID;
-        self.alt_wrap_pending = false;
-        self.alt_origin = false;
+        self.alt_flags = BufferFlags::empty();
         self.alt_top_margin = 0;
         self.alt_bottom_margin = self.rows - 1;
-        self.alt_active = false;
         self.scrollback.clear();
         self.tab_stops = default_tabs(self.cols);
         self.continuation.fill(false);
@@ -288,7 +301,7 @@ impl Screen {
     /// Whether the alternate screen buffer is active.
     #[inline]
     pub const fn is_alt_screen(&self) -> bool {
-        self.alt_active
+        self.modes.contains(ScreenFlags::ALT_ACTIVE)
     }
 
     /// Enter the alternate screen buffer, swapping the active and saved
@@ -296,25 +309,25 @@ impl Screen {
     /// cursor, and resets its margins and styles (DEC 1047/1049); DEC 47
     /// passes `false` to keep the previous alt content.
     fn enter_alt(&mut self, clear: bool) {
-        if self.alt_active {
+        if self.modes.contains(ScreenFlags::ALT_ACTIVE) {
             return;
         }
-        self.alt_active = true;
+        self.modes.insert(ScreenFlags::ALT_ACTIVE);
         self.swap_buffers();
         if clear {
             self.cells.fill(Cell::default());
             self.reset_cursor_style_margins();
-            self.origin = false;
+            self.flags.remove(BufferFlags::ORIGIN);
         }
     }
 
     /// Leave the alternate screen buffer, swapping back to the main screen
     /// (restoring the cursor that was saved on entry).
     fn leave_alt(&mut self) {
-        if !self.alt_active {
+        if !self.modes.contains(ScreenFlags::ALT_ACTIVE) {
             return;
         }
-        self.alt_active = false;
+        self.modes.remove(ScreenFlags::ALT_ACTIVE);
         self.swap_buffers();
     }
 
@@ -327,8 +340,7 @@ impl Screen {
         core::mem::swap(&mut self.sgr, &mut self.alt_sgr);
         core::mem::swap(&mut self.fg, &mut self.alt_fg);
         core::mem::swap(&mut self.bg, &mut self.alt_bg);
-        core::mem::swap(&mut self.wrap_pending, &mut self.alt_wrap_pending);
-        core::mem::swap(&mut self.origin, &mut self.alt_origin);
+        core::mem::swap(&mut self.flags, &mut self.alt_flags);
         core::mem::swap(&mut self.top_margin, &mut self.alt_top_margin);
         core::mem::swap(&mut self.bottom_margin, &mut self.alt_bottom_margin);
         core::mem::swap(&mut self.continuation, &mut self.alt_continuation);
@@ -592,7 +604,7 @@ impl Screen {
         self.cursor_col = 0;
         self.saved_row = 0;
         self.saved_col = 0;
-        self.wrap_pending = false;
+        self.flags.remove(BufferFlags::WRAP_PENDING);
         self.top_margin = 0;
         self.bottom_margin = rows - 1;
         self.alt_top_margin = 0;
@@ -785,7 +797,7 @@ impl Screen {
 
     #[inline]
     fn clear_wrap(&mut self) {
-        self.wrap_pending = false;
+        self.flags.remove(BufferFlags::WRAP_PENDING);
     }
 
     /// LF: down one line (scrolling within the margins), keeping the column.
@@ -899,7 +911,7 @@ impl Screen {
 
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
     fn put_base(&mut self, c: char, mut width: u32) {
-        if self.wrap_pending {
+        if self.flags.contains(BufferFlags::WRAP_PENDING) {
             self.advance_line();
         }
         if self.cursor_col >= self.cols {
@@ -907,7 +919,7 @@ impl Screen {
         }
         // A double-width glyph needs two cells; wrap if only one remains.
         if width == 2 && self.cursor_col == self.cols - 1 {
-            if self.wrap {
+            if self.modes.contains(ScreenFlags::WRAP) {
                 self.advance_line();
             } else {
                 width = 1;
@@ -932,7 +944,10 @@ impl Screen {
         }
         if self.cursor_col >= self.cols {
             self.cursor_col = self.cols - 1;
-            self.wrap_pending = self.wrap;
+            self.flags.set(
+                BufferFlags::WRAP_PENDING,
+                self.modes.contains(ScreenFlags::WRAP),
+            );
         }
     }
 
@@ -961,7 +976,7 @@ impl Screen {
     /// The row boundary for cursor movement: the scroll-region edge in origin
     /// mode, otherwise the screen edge (`down` = bottom).
     fn row_bound(&self, down: bool) -> u32 {
-        if self.origin {
+        if self.flags.contains(BufferFlags::ORIGIN) {
             if down {
                 self.bottom_margin
             } else {
@@ -1005,7 +1020,7 @@ impl Screen {
     /// Set the row from a 1-based row number (margin-relative in origin mode).
     fn set_row_1based(&mut self, row: u32) {
         let row = row.saturating_sub(1);
-        if self.origin {
+        if self.flags.contains(BufferFlags::ORIGIN) {
             self.cursor_row = self.top_margin + row.min(self.bottom_margin - self.top_margin);
         } else {
             self.cursor_row = row.min(self.rows - 1);
@@ -1357,9 +1372,9 @@ impl Screen {
     fn apply_modes(&mut self, params: &[i32], set: bool) {
         for &p in params {
             match p {
-                6 => self.origin = set,          // DECOM
-                7 => self.wrap = set,            // DECAWM
-                25 => self.cursor_visible = set, // DECTCEM
+                6 => self.flags.set(BufferFlags::ORIGIN, set), // DECOM
+                7 => self.modes.set(ScreenFlags::WRAP, set),   // DECAWM
+                25 => self.modes.set(ScreenFlags::CURSOR_VISIBLE, set), // DECTCEM
                 47 => {
                     if set {
                         self.enter_alt(false); // DEC 47
