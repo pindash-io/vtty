@@ -15,17 +15,18 @@ use parley_emoji::EmojiSegmentationCategory;
 /// holding the emoji flags and the display width, so one lookup serves the
 /// whole width/emoji pipeline.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Properties(u8);
+pub struct Properties(u16);
 
 impl Properties {
-    const EMOJI: u8 = 1 << 0;
-    const EMOJI_PRESENTATION: u8 = 1 << 1;
-    const EMOJI_MODIFIER: u8 = 1 << 2;
-    const MODIFIER_BASE: u8 = 1 << 3;
-    const REGIONAL_INDICATOR: u8 = 1 << 4;
-    const EXTENDED_PICTOGRAPHIC: u8 = 1 << 7;
-    const WIDTH_SHIFT: u8 = 5;
-    const WIDTH_MASK: u8 = 0b11;
+    const EMOJI: u16 = 1 << 0;
+    const EMOJI_PRESENTATION: u16 = 1 << 1;
+    const EMOJI_MODIFIER: u16 = 1 << 2;
+    const MODIFIER_BASE: u16 = 1 << 3;
+    const REGIONAL_INDICATOR: u16 = 1 << 4;
+    const EXTENDED_PICTOGRAPHIC: u16 = 1 << 7;
+    const AMBIGUOUS: u16 = 1 << 8;
+    const WIDTH_SHIFT: u16 = 5;
+    const WIDTH_MASK: u16 = 0b11;
 
     /// Resolve the composite properties for a char — the baked table when
     /// `baked` is on, ICU4X runtime otherwise, degenerate width 1 when no
@@ -87,7 +88,14 @@ impl Properties {
     /// The display width (0/1/2).
     #[inline]
     pub const fn width(self) -> u8 {
-        (self.0 >> Self::WIDTH_SHIFT) & Self::WIDTH_MASK
+        ((self.0 >> Self::WIDTH_SHIFT) & Self::WIDTH_MASK) as u8
+    }
+
+    /// East Asian Width "Ambiguous" (A) — 1 cell by default, 2 cells under
+    /// CJK width mode.
+    #[inline]
+    pub const fn is_ambiguous(self) -> bool {
+        self.0 & Self::AMBIGUOUS != 0
     }
 
     /// Build the composite from ICU4X runtime data (feature `icu`) — the
@@ -114,7 +122,7 @@ impl Properties {
             static EXT_PICT: CodePointSetDataBorrowed<'static> =
                 const { CodePointSetData::new::<ExtendedPictographic>() };
         }
-        let mut b = 0_u8;
+        let mut b = 0_u16;
         if EMOJI.with(|p| p.contains(ch)) {
             b |= Self::EMOJI;
         }
@@ -133,7 +141,10 @@ impl Properties {
         if EXT_PICT.with(|p| p.contains(ch)) {
             b |= Self::EXTENDED_PICTOGRAPHIC;
         }
-        b |= (crate::icu::width_icu(ch).unwrap_or(0) as u8) << Self::WIDTH_SHIFT;
+        if crate::icu::ambiguous_icu(ch) {
+            b |= Self::AMBIGUOUS;
+        }
+        b |= (crate::icu::width_icu(ch).unwrap_or(0) as u16) << Self::WIDTH_SHIFT;
         Self(b)
     }
 }
@@ -413,6 +424,11 @@ pub fn cell_width(c: char) -> Option<usize> {
     // stay ONE cell; only VS16 or a ZWJ-family membership widens them (the
     // DFA's `presentation_style(Emoji)` handles that via `lead_ep`).
     if w <= 1 && p.is_emoji_presentation() {
+        return Some(2);
+    }
+    // CJK width mode: East Asian Width "Ambiguous" (A) becomes 2 cells,
+    // matching wcwidth under a CJK locale / Ghostty's `cjk_width`.
+    if w == 1 && p.is_ambiguous() && crate::cjk_width() {
         return Some(2);
     }
     Some(w)

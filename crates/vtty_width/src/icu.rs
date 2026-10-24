@@ -123,3 +123,10 @@ pub(crate) fn gcb_icu(c: char) -> Gcb {
         }
     })
 }
+
+/// ICU4X East Asian Width "Ambiguous" predicate — the runtime counterpart
+/// of the baked AMBIGUOUS bit.
+pub fn ambiguous_icu(cp: char) -> bool {
+    use icu_properties::eaw;
+    matches!(eaw::east_asian_width(cp), EastAsianWidth::Ambiguous)
+}

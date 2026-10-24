@@ -66,6 +66,24 @@ pub use width::{
     cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum, cell_widths,
 };
 
+/// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
+/// (like `wcwidth` under a CJK locale, or Ghostty's `cjk_width`). Off by
+/// default — Ambiguous chars stay 1 cell.
+static CJK_WIDTH: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+
+/// Set whether Ambiguous chars are 2 cells wide.
+#[inline]
+pub fn set_cjk_width(wide: bool) {
+    CJK_WIDTH.store(wide, core::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether Ambiguous chars are 2 cells wide.
+#[inline]
+pub fn cjk_width() -> bool {
+    CJK_WIDTH.load(core::sync::atomic::Ordering::Relaxed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,6 +168,25 @@ mod tests {
         assert_eq!(cell_widths("↕\u{301}"), vec![1, 0]);
         // An Emoji_Presentation base stays 2 cells with a combining mark.
         assert_eq!(cell_widths("👍\u{301}"), vec![2, 0]);
+    }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn cjk_width_makes_ambiguous_wide() {
+        // Ambiguous (A) is 1 cell by default.
+        assert_eq!(cell_width('\u{2469}'), Some(1)); // ⑩
+        assert_eq!(cell_width('\u{2460}'), Some(1)); // ①
+        // Neutral stays 1 regardless.
+        assert_eq!(cell_width('a'), Some(1));
+
+        set_cjk_width(true);
+        assert_eq!(cell_width('\u{2469}'), Some(2)); // ⑩
+        assert_eq!(cell_width('\u{2460}'), Some(2)); // ①
+        // Wide is still 2; Neutral still 1.
+        assert_eq!(cell_width('\u{4E2D}'), Some(2)); // 中
+        assert_eq!(cell_width('a'), Some(1));
+        set_cjk_width(false);
+        assert_eq!(cell_width('\u{2469}'), Some(1));
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
