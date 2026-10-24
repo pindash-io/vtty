@@ -68,6 +68,15 @@ impl ConformanceLevel {
 
 #[cfg(feature = "reply")]
 impl crate::reply::Reply {
+    /// Append `{prefix}{payload} ST` (a DCS/OSC string) and return `self`.
+    fn dcs_string(mut self, prefix: &str, payload: &str) -> Self {
+        let buf = self.buffer_mut();
+        buf.push_str(prefix);
+        buf.push_str(payload);
+        buf.push_str(crate::reply::ST);
+        self
+    }
+
     /// Append a DA1 (Primary Device Attributes) answer:
     /// `CSI ? {a0};{a1};… c`. The first attribute is the service class
     /// (`65` = VT500, `64` = VT400, `62` = VT220, `1` = VT100); the rest are
@@ -75,12 +84,7 @@ impl crate::reply::Reply {
     pub fn da1(mut self, attrs: &[u32]) -> Self {
         let buf = self.buffer_mut();
         buf.push_str("\x1b[?");
-        for (i, attr) in attrs.iter().enumerate() {
-            if i > 0 {
-                buf.push(';');
-            }
-            let _ = write!(buf, "{attr}");
-        }
+        join_display(buf, attrs, ';');
         buf.push('c');
         self
     }
@@ -98,12 +102,8 @@ impl crate::reply::Reply {
     /// Append a DA3 (Tertiary Device Attributes) answer:
     /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
     /// (EK-VT520-RM §5-12).
-    pub fn da3(mut self, unit_id: &[u8]) -> Self {
-        let buf = self.buffer_mut();
-        buf.push_str("\x1bP!|");
-        buf.push_str(&const_hex::encode(unit_id));
-        buf.push_str(crate::reply::ST);
-        self
+    pub fn da3(self, unit_id: &[u8]) -> Self {
+        self.dcs_string("\x1bP!|", &const_hex::encode(unit_id))
     }
 
     /// Append a DECTSR (Terminal State Report) answer:
@@ -111,12 +111,8 @@ impl crate::reply::Reply {
     /// device-attribute string (the DA1/DA2/DA3 response bodies), per
     /// EK-VT520-RM §5-160.
     #[inline]
-    pub fn dectsr(mut self, device_attrs: &str) -> Self {
-        let buf = self.buffer_mut();
-        buf.push_str(DECTSR_PREFIX);
-        buf.push_str(device_attrs);
-        buf.push_str(crate::reply::ST);
-        self
+    pub fn dectsr(self, device_attrs: &str) -> Self {
+        self.dcs_string(DECTSR_PREFIX, device_attrs)
     }
 
     /// Append a DECCTR (Color Table Report) answer:
@@ -147,12 +143,8 @@ impl crate::reply::Reply {
     /// visual attributes, origin mode, and active G0–G3 charsets), which a
     /// screen builds; see EK-VT520-RM §5-30.
     #[inline]
-    pub fn deccir(mut self, payload: &str) -> Self {
-        let buf = self.buffer_mut();
-        buf.push_str(DECCIR_PREFIX);
-        buf.push_str(payload);
-        buf.push_str(crate::reply::ST);
-        self
+    pub fn deccir(self, payload: &str) -> Self {
+        self.dcs_string(DECCIR_PREFIX, payload)
     }
 
     /// Append a DECTABSR (Tab Stop Report) answer:
@@ -160,14 +152,24 @@ impl crate::reply::Reply {
     pub fn dectabsr(mut self, cols: &[u32]) -> Self {
         let buf = self.buffer_mut();
         buf.push_str(DECTABSR_PREFIX);
-        for (i, col) in cols.iter().enumerate() {
-            if i > 0 {
-                buf.push('/');
-            }
-            let _ = write!(buf, "{col}");
-        }
+        join_display(buf, cols, '/');
         buf.push_str(crate::reply::ST);
         self
+    }
+}
+
+#[cfg(feature = "reply")]
+/// Append `items` to `buf`, separated by `sep`.
+fn join_display<T: core::fmt::Display>(
+    buf: &mut compact_str::CompactString,
+    items: &[T],
+    sep: char,
+) {
+    for (i, item) in items.iter().enumerate() {
+        if i > 0 {
+            buf.push(sep);
+        }
+        let _ = write!(buf, "{item}");
     }
 }
 

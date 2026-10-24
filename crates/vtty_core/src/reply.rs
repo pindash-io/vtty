@@ -11,7 +11,7 @@
 use compact_str::CompactString;
 use core::fmt::Write as _;
 
-use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
+use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
 
 /// DCS/OSC string terminator (`ESC \`).
 pub(crate) const ST: &str = "\x1b\\";
@@ -63,14 +63,20 @@ impl Reply {
         &mut self.buf
     }
 
+    /// Terminate a DCS/OSC string with ST and mark the reply non-empty.
+    #[inline]
+    fn terminate(mut self) -> Self {
+        self.buf.push_str(ST);
+        self.empty = false;
+        self
+    }
+
     /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
     pub fn decrqss(mut self, valid: bool, value: &str) -> Self {
         self.buf
             .push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
         self.buf.push_str(value);
-        self.buf.push_str(ST);
-        self.empty = false;
-        self
+        self.terminate()
     }
 
     /// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
@@ -84,9 +90,7 @@ impl Reply {
             self.buf.push('=');
             self.buf.push_str(&const_hex::encode(value));
         }
-        self.buf.push_str(ST);
-        self.empty = false;
-        self
+        self.terminate()
     }
 
     /// Append an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
@@ -130,9 +134,7 @@ impl Reply {
             self.buf.push('3');
             self.buf.push(d as char);
         }
-        self.buf.push_str(ST);
-        self.empty = false;
-        self
+        self.terminate()
     }
 
     /// Append an SGR reply (`m…`) from a pen's palette ids + style flags.
@@ -253,13 +255,8 @@ fn push_sgr_color(
         let _ = write!(s, ";{base}9");
         return;
     };
-    let _ = write!(
-        s,
-        ";{base}8;2;{};{};{}",
-        (rgb >> 16) & 0xff,
-        (rgb >> 8) & 0xff,
-        rgb & 0xff
-    );
+    let [r, g, b] = u32_to_rgb(rgb);
+    let _ = write!(s, ";{base}8;2;{r};{g};{b}");
 }
 
 #[cfg(test)]

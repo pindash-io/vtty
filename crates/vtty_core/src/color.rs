@@ -39,13 +39,8 @@ impl From<usize> for ColorId {
 impl From<i32> for ColorId {
     #[inline]
     fn from(v: i32) -> Self {
-        Self(if v < 0 {
-            0
-        } else if v > 255 {
-            255
-        } else {
-            v as u16
-        })
+        // The shared 0..=255 clamp (xterm clamps out-of-range indexed colors).
+        Self(clamp_channel(v) as u16)
     }
 }
 
@@ -224,12 +219,19 @@ const fn cube_level(v: u8) -> u8 {
 
 // ── OSC color parsing ─────────────────────────────────────────────────
 
+/// Decode an `RRGGBB` hex string (with or without a leading `#`) into three
+/// 8-bit channels.
+#[inline]
+fn decode_rgb(s: &str) -> Option<[u8; 3]> {
+    let s = s.strip_prefix('#').unwrap_or(s);
+    let bytes = const_hex::decode(s.as_bytes()).ok()?;
+    <[u8; 3]>::try_from(bytes.as_slice()).ok()
+}
+
 /// Parse an RRGGBB / RGB hex string into [R, G, B, 1.0].
 #[inline]
 pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
-    let s = s.trim_start_matches('#');
-    let bytes = const_hex::decode(s.as_bytes()).ok()?;
-    let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
+    let [r, g, b] = decode_rgb(s)?;
     Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
 }
 
@@ -260,11 +262,8 @@ pub fn parse(s: &[u8]) -> Option<u32> {
         }
         return Some(rgb);
     }
-    if let Some(rest) = s.strip_prefix('#')
-        && rest.len() == 6
-    {
-        let bytes = const_hex::decode(rest.as_bytes()).ok()?;
-        let [r, g, b] = <[u8; 3]>::try_from(bytes.as_slice()).ok()?;
+    if s.starts_with('#') {
+        let [r, g, b] = decode_rgb(s)?;
         return Some(((r as u32) << 16) | ((g as u32) << 8) | b as u32);
     }
     None
@@ -277,9 +276,7 @@ pub fn parse(s: &[u8]) -> Option<u32> {
 /// convention).
 #[inline]
 pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString {
-    let r = (rgb >> 16) & 0xff;
-    let g = (rgb >> 8) & 0xff;
-    let b = rgb & 0xff;
+    let [r, g, b] = u32_to_rgb(rgb);
     // Direct `{:02x}` hex (each channel doubled to 4 digits) — no intermediate
     // `const_hex::encode` heap strings; `format_compact!` writes inline.
     compact_str::format_compact!(
@@ -290,9 +287,7 @@ pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString
 /// Format an OSC 4 palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
 pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactString {
-    let r = (rgb >> 16) & 0xff;
-    let g = (rgb >> 8) & 0xff;
-    let b = rgb & 0xff;
+    let [r, g, b] = u32_to_rgb(rgb);
     compact_str::format_compact!(
         "\x1b]4;{index};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\"
     )
