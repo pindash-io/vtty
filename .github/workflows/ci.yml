@@ -42,6 +42,7 @@ jobs:
           cargo rdme -w vtty_ffi --check
           cargo rdme -w vtty_grapheme --check
           cargo rdme -w vtty_status --check
+          cargo rdme -w vtty_screen --check
 
       - name: Rust format check
         run: cargo fmt --check --all

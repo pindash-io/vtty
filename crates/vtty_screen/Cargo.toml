@@ -1,0 +1,22 @@
+[package]
+name = "vtty_screen"
+version.workspace = true
+description = "A minimal cell-grid terminal screen for vtty: grid, cursor, SGR, scrolling and render."
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+vtty_core.workspace = true
+vtty_grapheme.workspace = true
+vtty_width.workspace = true
+
+[dev-dependencies]
+vtty.workspace = true
+
+[lints]
+workspace = true

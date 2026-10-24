@@ -19,6 +19,7 @@ vtty_core = { path = "crates/vtty_core", default-features = false }
 vtty_status = { path = "crates/vtty_status" }
 vtty_codec = { path = "crates/vtty_codec" }
 vtty_width = { path = "crates/vtty_width" }
+vtty_grapheme = { path = "crates/vtty_grapheme" }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.1", default-features = false }

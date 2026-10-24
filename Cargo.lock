@@ -1199,6 +1199,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "vtty_screen"
+version = "0.1.0"
+dependencies = [
+ "vtty",
+ "vtty_core",
+ "vtty_grapheme",
+ "vtty_width",
+]
+
+[[package]]
 name = "vtty_status"
 version = "0.1.0"
 dependencies = [
