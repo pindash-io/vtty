@@ -36,6 +36,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::Write as _;
+use core::ops::Range;
 
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags};
 use vtty_width::{cell_width, cell_width_sum};
@@ -87,6 +88,16 @@ impl Cell {
     #[inline]
     pub fn marks(&self) -> &[char] {
         &self.combining[..self.combining_len as usize]
+    }
+
+    /// True when the cell is blank (a space with default attributes).
+    #[inline]
+    pub fn is_blank(&self) -> bool {
+        self.ch == ' '
+            && self.combining_len == 0
+            && self.sgr.is_empty()
+            && self.fg == DEFAULT_FG_ID
+            && self.bg == DEFAULT_BG_ID
     }
 }
 
@@ -230,22 +241,28 @@ impl Screen {
         }
     }
 
-    /// Reset to a blank grid, default styles, margins and cursor (RIS).
-    pub fn reset(&mut self) {
-        self.cells.fill(Cell::default());
+    /// Home the cursor, clear SGR state, and reset the scroll margins (the
+    /// per-buffer part shared by `reset`, DECALN, and alt-screen entry).
+    fn reset_cursor_style_margins(&mut self) {
         self.cursor_row = 0;
         self.cursor_col = 0;
-        self.saved_row = 0;
-        self.saved_col = 0;
         self.sgr = SgrFlags::DEFAULT;
         self.fg = DEFAULT_FG_ID;
         self.bg = DEFAULT_BG_ID;
-        self.wrap = true;
         self.wrap_pending = false;
-        self.origin = false;
-        self.cursor_visible = true;
         self.top_margin = 0;
         self.bottom_margin = self.rows - 1;
+    }
+
+    /// Reset to a blank grid, default styles, margins and cursor (RIS).
+    pub fn reset(&mut self) {
+        self.cells.fill(Cell::default());
+        self.reset_cursor_style_margins();
+        self.saved_row = 0;
+        self.saved_col = 0;
+        self.wrap = true;
+        self.origin = false;
+        self.cursor_visible = true;
         self.rgb.clear();
         self.title.clear();
         // Reset the alternate buffer too.
@@ -286,15 +303,8 @@ impl Screen {
         self.swap_buffers();
         if clear {
             self.cells.fill(Cell::default());
-            self.cursor_row = 0;
-            self.cursor_col = 0;
-            self.sgr = SgrFlags::DEFAULT;
-            self.fg = DEFAULT_FG_ID;
-            self.bg = DEFAULT_BG_ID;
-            self.wrap_pending = false;
+            self.reset_cursor_style_margins();
             self.origin = false;
-            self.top_margin = 0;
-            self.bottom_margin = self.rows - 1;
         }
     }
 
@@ -388,15 +398,19 @@ impl Screen {
         self.default_bg = bg;
     }
 
+    /// The cell index range of `row`.
+    fn row_range(&self, row: u32) -> Range<usize> {
+        let start = (row * self.cols) as usize;
+        start..start + self.cols as usize
+    }
+
     /// Render one row to plain text, trimming trailing spaces and skipping
     /// double-width continuation cells.
     pub fn render_line(&self, row: u32) -> String {
         if row >= self.rows {
             return String::new();
         }
-        let start = (row * self.cols) as usize;
-        let end = start + self.cols as usize;
-        Self::render_cells(&self.cells[start..end])
+        Self::render_cells(&self.cells[self.row_range(row)])
     }
 
     /// Render every row to text, one `String` per row.
@@ -422,17 +436,13 @@ impl Screen {
         if row >= self.rows {
             return out;
         }
-        let start = (row * self.cols) as usize;
-        let end = start + self.cols as usize;
+        let cells = &self.cells[self.row_range(row)];
         // Trim trailing blank cells.
-        let mut last = end;
-        while last > start && Self::is_blank(&self.cells[last - 1]) {
-            last -= 1;
-        }
+        let last = cells.len() - Self::trailing_blanks(cells);
         // `current` is the emitted style; `None` means "default, no SGR
         // emitted yet". Default-styled cells add no escape sequences.
         let mut current: Option<(SgrFlags, ColorId, ColorId)> = None;
-        for cell in &self.cells[start..last] {
+        for cell in &cells[..last] {
             if cell.is_continuation() {
                 continue;
             }
@@ -506,13 +516,8 @@ impl Screen {
         if id != default && id.0 <= 255 {
             let _ = write!(out, ";{base}8;5;{}", id.0);
         } else if let Some(&rgb) = id.0.checked_sub(258).and_then(|i| palette.get(i as usize)) {
-            let _ = write!(
-                out,
-                ";{base}8;2;{};{};{}",
-                (rgb >> 16) & 0xff,
-                (rgb >> 8) & 0xff,
-                rgb & 0xff,
-            );
+            let [r, g, b] = vtty_core::u32_to_rgb(rgb);
+            let _ = write!(out, ";{base}8;2;{r};{g};{b}");
         }
     }
 
@@ -554,69 +559,27 @@ impl Screen {
         let new_rows = rows as usize;
 
         // Reflow scrollback + active buffer together as one logical stream.
-        let active: Vec<(Vec<Cell>, bool)> = self
-            .cells
-            .chunks_exact(self.cols as usize)
-            .zip(&self.continuation)
-            .map(|(row, &cont)| (row.to_vec(), cont))
-            .collect();
-        let mut all_rows: Vec<(Vec<Cell>, bool)> =
-            Vec::with_capacity(self.scrollback.len() + active.len());
+        let active = Self::rows_from(&self.cells, &self.continuation, self.cols);
+        let mut all_rows = Vec::with_capacity(self.scrollback.len() + active.len());
         all_rows.extend(self.scrollback.iter().cloned());
         all_rows.extend(active);
-        let mut reflowed = Self::rewrap_rows(&all_rows, new_cols);
-        // Drop trailing blank rows (viewport padding) so the content stays
-        // anchored to the top when the grid shrinks.
-        while reflowed
-            .last()
-            .is_some_and(|(row, _)| row.iter().all(Self::is_blank))
-        {
-            reflowed.pop();
-        }
+        let reflowed = Self::reflow_rows(&all_rows, new_cols);
 
         // The last `rows` rows become the visible screen; the rest return to
         // scrollback (capped at `max_scrollback`).
-        let total = reflowed.len();
-        let take = total.min(new_rows);
-        let skip = total - take;
+        let take = reflowed.len().min(new_rows);
+        let skip = reflowed.len() - take;
         let keep = skip.min(self.max_scrollback);
         let mut new_scrollback = VecDeque::new();
         for row in &reflowed[skip - keep..skip] {
             new_scrollback.push_back(row.clone());
         }
-        let mut new_cells = vec![Cell::default(); new_cols * new_rows];
-        let mut new_cont = vec![false; new_rows];
-        for i in 0..take {
-            let (row, cont) = &reflowed[skip + i];
-            let dst = i * new_cols;
-            new_cells[dst..dst + new_cols].copy_from_slice(row);
-            new_cont[i] = *cont;
-        }
+        let (new_cells, new_cont) = Self::fit_grid(&reflowed, new_cols, new_rows);
 
         // Reflow the alternate buffer (it has no scrollback of its own).
-        let alt: Vec<(Vec<Cell>, bool)> = self
-            .alt_cells
-            .chunks_exact(self.cols as usize)
-            .zip(&self.alt_continuation)
-            .map(|(row, &cont)| (row.to_vec(), cont))
-            .collect();
-        let mut alt_reflowed = Self::rewrap_rows(&alt, new_cols);
-        while alt_reflowed
-            .last()
-            .is_some_and(|(row, _)| row.iter().all(Self::is_blank))
-        {
-            alt_reflowed.pop();
-        }
-        let alt_take = alt_reflowed.len().min(new_rows);
-        let alt_skip = alt_reflowed.len() - alt_take;
-        let mut new_alt_cells = vec![Cell::default(); new_cols * new_rows];
-        let mut new_alt_cont = vec![false; new_rows];
-        for i in 0..alt_take {
-            let (row, cont) = &alt_reflowed[alt_skip + i];
-            let dst = i * new_cols;
-            new_alt_cells[dst..dst + new_cols].copy_from_slice(row);
-            new_alt_cont[i] = *cont;
-        }
+        let alt = Self::rows_from(&self.alt_cells, &self.alt_continuation, self.cols);
+        let alt_reflowed = Self::reflow_rows(&alt, new_cols);
+        let (new_alt_cells, new_alt_cont) = Self::fit_grid(&alt_reflowed, new_cols, new_rows);
 
         self.cols = cols;
         self.rows = rows;
@@ -637,6 +600,48 @@ impl Screen {
         self.tab_stops = default_tabs(cols);
     }
 
+    /// Build a `(row, continuation)` list from a flat grid.
+    fn rows_from(cells: &[Cell], continuation: &[bool], cols: u32) -> Vec<(Vec<Cell>, bool)> {
+        cells
+            .chunks_exact(cols as usize)
+            .zip(continuation)
+            .map(|(row, &cont)| (row.to_vec(), cont))
+            .collect()
+    }
+
+    /// Re-wrap a row list at `width`, dropping trailing blank rows (viewport
+    /// padding) so content stays anchored to the top when the grid shrinks.
+    fn reflow_rows(rows: &[(Vec<Cell>, bool)], width: usize) -> Vec<(Vec<Cell>, bool)> {
+        let mut reflowed = Self::rewrap_rows(rows, width);
+        while reflowed
+            .last()
+            .is_some_and(|(row, _)| row.iter().all(Cell::is_blank))
+        {
+            reflowed.pop();
+        }
+        reflowed
+    }
+
+    /// Fit reflowed rows into a `width × rows` grid, keeping the last `rows`
+    /// rows and their continuation flags.
+    fn fit_grid(
+        reflowed: &[(Vec<Cell>, bool)],
+        width: usize,
+        rows: usize,
+    ) -> (Vec<Cell>, Vec<bool>) {
+        let take = reflowed.len().min(rows);
+        let skip = reflowed.len() - take;
+        let mut cells = vec![Cell::default(); width * rows];
+        let mut cont = vec![false; rows];
+        for i in 0..take {
+            let (row, c) = &reflowed[skip + i];
+            let dst = i * width;
+            cells[dst..dst + width].copy_from_slice(row);
+            cont[i] = *c;
+        }
+        (cells, cont)
+    }
+
     /// Extract logical lines from a row list, joining soft-wrapped rows and
     /// dropping double-width continuation markers.
     fn logical_lines_rows(rows: &[(Vec<Cell>, bool)]) -> Vec<Vec<Cell>> {
@@ -652,12 +657,11 @@ impl Screen {
             // trailing spaces (e.g. the space before the wrap in "hello
             // world") must be kept.
             let soft_wrapped = rows.get(i + 1).is_some_and(|(_, next)| *next);
-            let mut end = cells.len();
-            if !soft_wrapped {
-                while end > 0 && Self::is_blank(&cells[end - 1]) {
-                    end -= 1;
-                }
-            }
+            let end = if soft_wrapped {
+                cells.len()
+            } else {
+                cells.len() - Self::trailing_blanks(cells)
+            };
             current.extend(
                 cells[..end]
                     .iter()
@@ -754,18 +758,17 @@ impl Screen {
         }
     }
 
-    /// True when a cell is blank (a space with default attributes) — such
-    /// cells are trimmed from the end of an ANSI-rendered row.
-    fn is_blank(cell: &Cell) -> bool {
-        cell.ch == ' '
-            && cell.combining_len == 0
-            && cell.sgr.is_empty()
-            && cell.fg == DEFAULT_FG_ID
-            && cell.bg == DEFAULT_BG_ID
-    }
-
     /// Render a `Cell` slice to plain text (used by
     /// [`Screen::render_line`] and [`Screen::scrollback_text`]).
+    /// Number of trailing blank cells in `cells`.
+    fn trailing_blanks(cells: &[Cell]) -> usize {
+        let mut n = 0;
+        while n < cells.len() && cells[cells.len() - 1 - n].is_blank() {
+            n += 1;
+        }
+        n
+    }
+
     fn render_cells(cells: &[Cell]) -> String {
         let mut s = String::new();
         for cell in cells {
@@ -788,34 +791,47 @@ impl Screen {
     /// LF: down one line (scrolling within the margins), keeping the column.
     /// Marks the target row as a hard break.
     fn linefeed(&mut self) {
-        self.clear_wrap();
-        self.move_down();
-        self.continuation[self.cursor_row as usize] = false;
+        self.line_advance(false);
     }
 
     /// Down one line and home to column 0 (the autowrap advance). Marks the
     /// target row as a soft-wrap continuation.
     fn advance_line(&mut self) {
+        self.line_advance(true);
+    }
+
+    /// Down one line (scrolling within the margins). `soft_wrap` homes to
+    /// column 0 and marks the target row as a continuation of the previous.
+    fn line_advance(&mut self, soft_wrap: bool) {
         self.clear_wrap();
         self.move_down();
-        self.cursor_col = 0;
-        self.continuation[self.cursor_row as usize] = true;
+        if soft_wrap {
+            self.cursor_col = 0;
+        }
+        self.continuation[self.cursor_row as usize] = soft_wrap;
     }
 
     /// Move the cursor down one line, scrolling within the margins if at the
     /// bottom edge. Shared by LF (hard break) and autowrap (soft wrap).
     fn move_down(&mut self) {
-        if self.cursor_row >= self.bottom_margin {
-            self.scroll_up();
-        } else {
-            self.cursor_row += 1;
-        }
+        self.move_vertical(true);
     }
 
     /// RI: up one line (scrolling within the margins), keeping the column.
     fn reverse_index(&mut self) {
         self.clear_wrap();
-        if self.cursor_row <= self.top_margin {
+        self.move_vertical(false);
+    }
+
+    /// Move the cursor one line, scrolling within the margins at the edge.
+    fn move_vertical(&mut self, down: bool) {
+        if down {
+            if self.cursor_row >= self.bottom_margin {
+                self.scroll_up();
+            } else {
+                self.cursor_row += 1;
+            }
+        } else if self.cursor_row <= self.top_margin {
             self.scroll_down();
         } else {
             self.cursor_row -= 1;
@@ -823,22 +839,7 @@ impl Screen {
     }
 
     fn scroll_up(&mut self) {
-        let width = self.cols as usize;
-        let start = self.top_margin as usize * width;
-        let end = (self.bottom_margin as usize + 1) * width;
-        // Full-screen scrolls push the top row into scrollback (editing
-        // operations such as IL/DL scroll in place and do not).
-        if self.top_margin == 0 && self.bottom_margin == self.rows - 1 {
-            self.push_scrollback();
-        }
-        self.cells.copy_within(start + width..end, start);
-        self.cells[end - width..end].fill(Cell::default());
-        // Shift the soft-wrap flags up with the rows; the new blank bottom
-        // row starts a fresh logical line.
-        let top = self.top_margin as usize;
-        let bottom = self.bottom_margin as usize;
-        self.continuation.copy_within(top + 1..=bottom, top);
-        self.continuation[bottom] = false;
+        self.scroll(false);
     }
 
     fn push_scrollback(&mut self) {
@@ -854,15 +855,36 @@ impl Screen {
     }
 
     fn scroll_down(&mut self) {
+        self.scroll(true);
+    }
+
+    /// Scroll the region one line. `down` shifts content down (RI / SD) and
+    /// inserts a blank row at the top; otherwise content shifts up (LF / SU),
+    /// and a full-screen scroll pushes the top row into scrollback.
+    fn scroll(&mut self, down: bool) {
         let width = self.cols as usize;
-        let start = self.top_margin as usize * width;
-        let end = (self.bottom_margin as usize + 1) * width;
-        self.cells.copy_within(start..end - width, start + width);
-        self.cells[start..start + width].fill(Cell::default());
         let top = self.top_margin as usize;
         let bottom = self.bottom_margin as usize;
-        self.continuation.copy_within(top..bottom, top + 1);
-        self.continuation[top] = false;
+        let start = top * width;
+        let end = (bottom + 1) * width;
+        if down {
+            self.cells.copy_within(start..end - width, start + width);
+            self.cells[start..start + width].fill(Cell::default());
+            self.continuation.copy_within(top..bottom, top + 1);
+            self.continuation[top] = false;
+        } else {
+            // Full-screen scrolls push the top row into scrollback (editing
+            // operations such as IL/DL scroll in place and do not).
+            if top == 0 && bottom == self.rows as usize - 1 {
+                self.push_scrollback();
+            }
+            self.cells.copy_within(start + width..end, start);
+            self.cells[end - width..end].fill(Cell::default());
+            // Shift the soft-wrap flags up with the rows; the new blank
+            // bottom row starts a fresh logical line.
+            self.continuation.copy_within(top + 1..=bottom, top);
+            self.continuation[bottom] = false;
+        }
     }
 
     /// Write one glyph, handling double-width cells and autowrap.
@@ -936,43 +958,70 @@ impl Screen {
         }
     }
 
+    /// The row boundary for cursor movement: the scroll-region edge in origin
+    /// mode, otherwise the screen edge (`down` = bottom).
+    fn row_bound(&self, down: bool) -> u32 {
+        if self.origin {
+            if down {
+                self.bottom_margin
+            } else {
+                self.top_margin
+            }
+        } else if down {
+            self.rows - 1
+        } else {
+            0
+        }
+    }
+
     fn cursor_up(&mut self, n: u32) {
         self.clear_wrap();
-        let top = if self.origin { self.top_margin } else { 0 };
-        self.cursor_row = self.cursor_row.saturating_sub(n).max(top);
+        self.cursor_row = self.cursor_row.saturating_sub(n).max(self.row_bound(false));
     }
 
     fn cursor_down(&mut self, n: u32) {
         self.clear_wrap();
-        let bottom = if self.origin {
-            self.bottom_margin
-        } else {
-            self.rows - 1
-        };
-        self.cursor_row = (self.cursor_row + n).min(bottom);
+        self.cursor_row = (self.cursor_row + n).min(self.row_bound(true));
     }
 
     fn cursor_forward(&mut self, n: u32) {
-        self.clear_wrap();
-        self.cursor_col = (self.cursor_col + n).min(self.cols - 1);
+        self.cursor_horizontal(n, false);
     }
 
     fn cursor_back(&mut self, n: u32) {
-        self.clear_wrap();
-        self.cursor_col = self.cursor_col.saturating_sub(n);
+        self.cursor_horizontal(n, true);
     }
 
-    /// CUP/HVP — 1-based `(row, col)`, origin-mode aware.
-    fn cup(&mut self, row: u32, col: u32) {
+    /// Move the cursor horizontally, clamping to the row bounds.
+    fn cursor_horizontal(&mut self, n: u32, backward: bool) {
         self.clear_wrap();
+        self.cursor_col = if backward {
+            self.cursor_col.saturating_sub(n)
+        } else {
+            (self.cursor_col + n).min(self.cols - 1)
+        };
+    }
+
+    /// Set the row from a 1-based row number (margin-relative in origin mode).
+    fn set_row_1based(&mut self, row: u32) {
         let row = row.saturating_sub(1);
-        let col = col.saturating_sub(1);
         if self.origin {
             self.cursor_row = self.top_margin + row.min(self.bottom_margin - self.top_margin);
         } else {
             self.cursor_row = row.min(self.rows - 1);
         }
-        self.cursor_col = col.min(self.cols - 1);
+    }
+
+    /// Set the column from a 1-based column number.
+    fn set_col_1based(&mut self, col: u32) {
+        self.cursor_col = col.saturating_sub(1).min(self.cols - 1);
+    }
+
+    /// CUP/HVP — 1-based `(row, col)`, origin-mode aware.
+    fn cup(&mut self, row: u32, col: u32) {
+        self.clear_wrap();
+        self.set_row_1based(row);
+        self.set_col_1based(col);
     }
 
     /// The next tab stop strictly after the cursor, or the last column.
@@ -1003,18 +1052,13 @@ impl Screen {
     /// CHA — 1-based column, same row.
     fn cha(&mut self, col: u32) {
         self.clear_wrap();
-        self.cursor_col = col.saturating_sub(1).min(self.cols - 1);
+        self.set_col_1based(col);
     }
 
     /// VPA — 1-based row, same column.
     fn vpa(&mut self, row: u32) {
         self.clear_wrap();
-        let row = row.saturating_sub(1);
-        if self.origin {
-            self.cursor_row = self.top_margin + row.min(self.bottom_margin - self.top_margin);
-        } else {
-            self.cursor_row = row.min(self.rows - 1);
-        }
+        self.set_row_1based(row);
     }
 
     fn erase_in_display(&mut self, mode: i32) {
@@ -1035,64 +1079,50 @@ impl Screen {
         }
     }
 
+    /// Erase columns `[c0, c1)` of row `row` (0-based, `c1` exclusive).
+    #[inline]
+    fn erase_row_range(&mut self, row: u32, c0: u32, c1: u32) {
+        let base = row * self.cols;
+        self.cells[(base + c0) as usize..(base + c1) as usize].fill(Cell::default());
+    }
+
     fn erase_from_cursor_to_end(&mut self) {
         self.erase_to_line_end();
         for r in self.cursor_row + 1..self.rows {
-            let start = (r * self.cols) as usize;
-            let end = start + self.cols as usize;
-            self.cells[start..end].fill(Cell::default());
+            self.erase_row_range(r, 0, self.cols);
         }
     }
 
     fn erase_to_line_end(&mut self) {
-        let start = (self.cursor_row * self.cols + self.cursor_col) as usize;
-        let end = ((self.cursor_row + 1) * self.cols) as usize;
-        self.cells[start..end].fill(Cell::default());
+        self.erase_row_range(self.cursor_row, self.cursor_col, self.cols);
     }
 
     fn erase_region(&mut self, r0: u32, c0: u32, r1: u32, c1: u32) {
         for r in r0..=r1 {
-            let start = r * self.cols + c0;
-            let end = r * self.cols + if r == r1 { c1 } else { self.cols - 1 } + 1;
-            self.cells[start as usize..end as usize].fill(Cell::default());
+            let end = if r == r1 { c1 + 1 } else { self.cols };
+            self.erase_row_range(r, c0, end);
         }
     }
 
     fn erase_in_line(&mut self, mode: i32) {
         match mode {
             0 => self.erase_to_line_end(),
-            1 => {
-                let start = (self.cursor_row * self.cols) as usize;
-                let end = (self.cursor_row * self.cols + self.cursor_col + 1) as usize;
-                self.cells[start..end].fill(Cell::default());
-            }
-            _ => {
-                let start = (self.cursor_row * self.cols) as usize;
-                let end = start + self.cols as usize;
-                self.cells[start..end].fill(Cell::default());
-            }
+            1 => self.erase_row_range(self.cursor_row, 0, self.cursor_col + 1),
+            _ => self.erase_row_range(self.cursor_row, 0, self.cols),
         }
     }
 
     fn insert_lines(&mut self, n: u32) {
-        for _ in 0..n {
-            if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
-                break;
-            }
-            let width = self.cols as usize;
-            let start = self.cursor_row as usize * width;
-            let end = (self.bottom_margin as usize + 1) * width;
-            self.cells.copy_within(start..end - width, start + width);
-            self.cells[start..start + width].fill(Cell::default());
-            // Shift the flags down; the inserted blank line is a fresh line.
-            let c = self.cursor_row as usize;
-            let b = self.bottom_margin as usize;
-            self.continuation.copy_within(c..b, c + 1);
-            self.continuation[c] = false;
-        }
+        self.shift_lines(n, true);
     }
 
     fn delete_lines(&mut self, n: u32) {
+        self.shift_lines(n, false);
+    }
+
+    /// Insert (`insert = true`) or delete (`false`) blank lines at the cursor
+    /// within the scroll region, shifting the soft-wrap flags with the rows.
+    fn shift_lines(&mut self, n: u32, insert: bool) {
         for _ in 0..n {
             if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
                 break;
@@ -1100,30 +1130,43 @@ impl Screen {
             let width = self.cols as usize;
             let start = self.cursor_row as usize * width;
             let end = (self.bottom_margin as usize + 1) * width;
-            self.cells.copy_within(start + width..end, start);
-            self.cells[end - width..end].fill(Cell::default());
             let c = self.cursor_row as usize;
             let b = self.bottom_margin as usize;
-            self.continuation.copy_within(c + 1..=b, c);
-            self.continuation[b] = false;
+            if insert {
+                self.cells.copy_within(start..end - width, start + width);
+                self.cells[start..start + width].fill(Cell::default());
+                self.continuation.copy_within(c..b, c + 1);
+                self.continuation[c] = false;
+            } else {
+                self.cells.copy_within(start + width..end, start);
+                self.cells[end - width..end].fill(Cell::default());
+                self.continuation.copy_within(c + 1..=b, c);
+                self.continuation[b] = false;
+            }
         }
     }
 
     fn insert_chars(&mut self, n: u32) {
-        let n = n.min(self.cols - self.cursor_col);
-        let start = (self.cursor_row * self.cols + self.cursor_col) as usize;
-        let end = ((self.cursor_row + 1) * self.cols) as usize;
-        self.cells
-            .copy_within(start..end - n as usize, start + n as usize);
-        self.cells[start..start + n as usize].fill(Cell::default());
+        self.shift_chars(n, true);
     }
 
     fn delete_chars(&mut self, n: u32) {
-        let n = n.min(self.cols - self.cursor_col);
+        self.shift_chars(n, false);
+    }
+
+    /// Insert (`insert = true`) or delete (`false`) blank cells at the cursor
+    /// on the current line.
+    fn shift_chars(&mut self, n: u32, insert: bool) {
+        let n = n.min(self.cols - self.cursor_col) as usize;
         let start = (self.cursor_row * self.cols + self.cursor_col) as usize;
         let end = ((self.cursor_row + 1) * self.cols) as usize;
-        self.cells.copy_within(start + n as usize..end, start);
-        self.cells[end - n as usize..end].fill(Cell::default());
+        if insert {
+            self.cells.copy_within(start..end - n, start + n);
+            self.cells[start..start + n].fill(Cell::default());
+        } else {
+            self.cells.copy_within(start + n..end, start);
+            self.cells[end - n..end].fill(Cell::default());
+        }
     }
 
     fn erase_chars(&mut self, n: u32) {
@@ -1139,16 +1182,18 @@ impl Screen {
         if top >= bottom || bottom >= self.rows {
             return;
         }
-        self.top_margin = top;
-        self.bottom_margin = bottom;
-        self.cursor_row = self.top_margin;
-        self.cursor_col = 0;
+        self.apply_margins(top, bottom);
     }
 
     fn reset_margins(&mut self) {
-        self.top_margin = 0;
-        self.bottom_margin = self.rows - 1;
-        self.cursor_row = 0;
+        self.apply_margins(0, self.rows - 1);
+    }
+
+    /// Set the scroll margins to `[top, bottom]` and home the cursor.
+    fn apply_margins(&mut self, top: u32, bottom: u32) {
+        self.top_margin = top;
+        self.bottom_margin = bottom;
+        self.cursor_row = self.top_margin;
         self.cursor_col = 0;
     }
 
@@ -1180,11 +1225,7 @@ impl Screen {
                         Some(5) => {
                             if let Some(&n) = params.get(i + 2) {
                                 let id = ColorId((n.clamp(0, 255)) as u16);
-                                if is_fg {
-                                    self.fg = id;
-                                } else {
-                                    self.bg = id;
-                                }
+                                self.set_color(is_fg, id);
                                 i += 2;
                             }
                         }
@@ -1197,11 +1238,7 @@ impl Screen {
                             if j + 2 < params.len() {
                                 let rgb = vtty_core::rgb(params[j], params[j + 1], params[j + 2]);
                                 let id = self.push_rgb(rgb);
-                                if is_fg {
-                                    self.fg = id;
-                                } else {
-                                    self.bg = id;
-                                }
+                                self.set_color(is_fg, id);
                                 i = j + 2;
                             }
                         }
@@ -1230,6 +1267,15 @@ impl Screen {
         id
     }
 
+    /// Assign a resolved color to the foreground (`is_fg`) or background.
+    fn set_color(&mut self, is_fg: bool, id: ColorId) {
+        if is_fg {
+            self.fg = id;
+        } else {
+            self.bg = id;
+        }
+    }
+
     fn save_cursor(&mut self) {
         self.saved_row = self.cursor_row;
         self.saved_col = self.cursor_col;
@@ -1246,15 +1292,8 @@ impl Screen {
             ch: 'E',
             ..Cell::default()
         });
-        self.cursor_row = 0;
-        self.cursor_col = 0;
-        self.clear_wrap();
-        self.sgr = SgrFlags::DEFAULT;
-        self.fg = DEFAULT_FG_ID;
-        self.bg = DEFAULT_BG_ID;
+        self.reset_cursor_style_margins();
         self.continuation.fill(false);
-        self.top_margin = 0;
-        self.bottom_margin = self.rows - 1;
     }
 
     fn csi(&mut self, params: &[i32], private: bool, f: u8) {
@@ -1307,27 +1346,41 @@ impl Screen {
     }
 
     fn set_mode(&mut self, params: &[i32]) {
-        for &p in params {
-            match p {
-                6 => self.origin = true,                    // DECOM
-                7 => self.wrap = true,                      // DECAWM
-                25 => self.cursor_visible = true,           // DECTCEM
-                47 => self.enter_alt(false),                // DEC 47
-                1046 | 1047 | 1049 => self.enter_alt(true), // DEC 1046/1047/1049
-                1048 => self.save_cursor(),                 // DEC 1048
-                _ => {}
-            }
-        }
+        self.apply_modes(params, true);
     }
 
     fn reset_mode(&mut self, params: &[i32]) {
+        self.apply_modes(params, false);
+    }
+
+    /// Apply DEC private modes: set (`set = true`) or reset (`false`).
+    fn apply_modes(&mut self, params: &[i32], set: bool) {
         for &p in params {
             match p {
-                6 => self.origin = false,                    // DECOM
-                7 => self.wrap = false,                      // DECAWM
-                25 => self.cursor_visible = false,           // DECTCEM
-                47 | 1046 | 1047 | 1049 => self.leave_alt(), // DEC 47/1046/1047/1049
-                1048 => self.restore_cursor(),               // DEC 1048
+                6 => self.origin = set,          // DECOM
+                7 => self.wrap = set,            // DECAWM
+                25 => self.cursor_visible = set, // DECTCEM
+                47 => {
+                    if set {
+                        self.enter_alt(false); // DEC 47
+                    } else {
+                        self.leave_alt();
+                    }
+                }
+                1046 | 1047 | 1049 => {
+                    if set {
+                        self.enter_alt(true); // DEC 1046/1047/1049
+                    } else {
+                        self.leave_alt();
+                    }
+                }
+                1048 => {
+                    if set {
+                        self.save_cursor(); // DEC 1048
+                    } else {
+                        self.restore_cursor();
+                    }
+                }
                 _ => {}
             }
         }
