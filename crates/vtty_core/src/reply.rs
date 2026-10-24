@@ -1,9 +1,12 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP).
+//! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP and the
+//! `$`-family DCS reports).
 //!
-//! Reference: <https://vt100.net/emu/dec_ansi_parser>.
+//! Query/response pairs follow the [DECronomicon CSI/DCS
+//! tables](https://vt100.net/emu/ctrlseq_dec.html); the individual report
+//! formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR) follow EK-VT520-RM §5.
 
 use compact_str::CompactString;
 use core::fmt::Write as _;
@@ -11,7 +14,7 @@ use core::fmt::Write as _;
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
 /// DCS/OSC string terminator (`ESC \`).
-const ST: &str = "\x1b\\";
+pub(crate) const ST: &str = "\x1b\\";
 
 /// XTGETTCAP answer prefix — `DCS 1 + r` (supported/valid).
 const XTGETTCAP_OK: &str = "\x1bP1+r";
@@ -50,6 +53,14 @@ impl Reply {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.empty
+    }
+
+    /// Crate-internal mutable access to the append buffer. Marks the reply
+    /// non-empty — the DA builders in `conformance.rs` append through this.
+    #[inline]
+    pub(crate) fn buffer_mut(&mut self) -> &mut CompactString {
+        self.empty = false;
+        &mut self.buf
     }
 
     /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
@@ -307,5 +318,6 @@ mod tests {
         );
         assert!(!Reply::new().xtgettcap_reply(b"TN", b"xterm").is_empty());
         assert!(!Reply::new().xtgettcap_num(b"co", 80).is_empty());
+        assert!(!Reply::new().dectabsr(&[8]).is_empty());
     }
 }

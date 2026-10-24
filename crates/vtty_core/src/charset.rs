@@ -1,9 +1,12 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! G0/G1 charset designation (`ESC ( 0` line drawing).
+//! G0/G1 charset designation (`ESC ( 0` = DEC Special Graphics).
 //!
-//! Reference: <https://vt100.net/emu/dec_ansi_parser>.
+//! SCS (Select Character Set) follows ECMA-35 (ISO 2022); the GL/GR byte
+//! treatment follows the [DEC parser state
+//! diagram](https://vt100.net/emu/dec_ansi_parser). The DEC Special Graphics
+//! glyph table is from EK-VT520-RM (SCS).
 
 /// DEC Special Graphics translation for `0x5f..=0x7e`, used when G0/G1 is
 /// designated to charset `0` (`ESC ( 0` / `ESC ) 0`).

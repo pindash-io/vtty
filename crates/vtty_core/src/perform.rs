@@ -1,9 +1,10 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! The callback interface the byte parser dispatches to.
-//!
-//! Reference: <https://vt100.net/emu/dec_ansi_parser>.
+//! The callback interface the byte parser dispatches to. Each method matches
+//! an action in the [DEC parser state
+//! diagram](https://vt100.net/emu/dec_ansi_parser) (`print`, `execute`,
+//! `esc_dispatch`, `csi_dispatch`, `hook`/`put`/`unhook`, `osc_dispatch`).
 
 /// Sink for the byte parser's decoded output. `Parser::advance` calls these
 /// as it decodes; every method has a no-op default, so a screen overrides

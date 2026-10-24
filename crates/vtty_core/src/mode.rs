@@ -1,10 +1,13 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! DEC/ANSI terminal mode flags for `CSI Ps h/l` (set/reset) and
-//! `CSI ? Ps $ p` (DECRQM).
+//! DEC/ANSI terminal mode flags: ANSI `CSI Ps h/l` (SM/RM) and DEC private
+//! `CSI ? Pm h/l` (DECSET/DECRST), plus `CSI ? Ps $ p` (DECRQM) reporting.
 //!
-//! Reference: <https://vt100.net/emu/dec_ansi_parser>.
+//! DEC private-mode numbers follow the [DECronomicon private-modes
+//! table](https://vt100.net/emu/dec_private_modes.html); the xterm/kitty
+//! extensions (mouse, alternate screen, synchronized output) follow [xterm's
+//! ctlseqs](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
 
 bitflags::bitflags! {
     /// Settable terminal modes tracked by a screen, as a single flag set.

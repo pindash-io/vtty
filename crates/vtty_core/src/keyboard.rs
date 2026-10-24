@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Kitty keyboard protocol flags (`CSI > flags u` / `CSI < count u`).
+//!
+//! Reference: <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>.
 
 bitflags::bitflags! {
     /// Kitty keyboard protocol flags, reported by `CSI > flags u` and pushed

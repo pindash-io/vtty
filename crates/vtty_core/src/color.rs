@@ -173,6 +173,55 @@ pub const fn blend_faint(a: u32, b: u32) -> u32 {
     (r << 16) | (g << 8) | bl
 }
 
+// ── xterm 256-color table ────────────────────────────────────────────
+
+/// Resolve an xterm 256-color index (`0..=255`) to packed `0xRRGGBB`: the 16
+/// ANSI colors, the 6×6×6 color cube (`16..=231`), and the grayscale ramp
+/// (`232..=255`).
+#[inline]
+pub const fn indexed_rgb(n: u8) -> u32 {
+    match n {
+        0 => 0x000000,
+        1 => 0xcd0000,
+        2 => 0x00cd00,
+        3 => 0xcdcd00,
+        4 => 0x0000ee,
+        5 => 0xcd00cd,
+        6 => 0x00cdcd,
+        7 => 0xe5e5e5,
+        8 => 0x7f7f7f,
+        9 => 0xff0000,
+        10 => 0x00ff00,
+        11 => 0xffff00,
+        12 => 0x5c5cff,
+        13 => 0xff00ff,
+        14 => 0x00ffff,
+        15 => 0xffffff,
+        16..=231 => {
+            let v = n - 16;
+            let r = v / 36;
+            let g = (v % 36) / 6;
+            let b = v % 6;
+            rgb(
+                cube_level(r) as i32,
+                cube_level(g) as i32,
+                cube_level(b) as i32,
+            )
+        }
+        232..=255 => {
+            let v = 8 + (n - 232) * 10;
+            rgb(v as i32, v as i32, v as i32)
+        }
+    }
+}
+
+/// One channel of the 6×6×6 color cube: level 0 is black, 1..=5 are
+/// `55 + level * 40` (the standard xterm ramp: 0, 95, 135, 175, 215, 255).
+#[inline]
+const fn cube_level(v: u8) -> u8 {
+    if v == 0 { 0 } else { 55 + v * 40 }
+}
+
 // ── OSC color parsing ─────────────────────────────────────────────────
 
 /// Parse an RRGGBB / RGB hex string into [R, G, B, 1.0].
@@ -276,6 +325,21 @@ mod tests {
         assert_eq!(rgb(255, 0, 0), 0xff0000);
         assert_eq!(rgb(0, 300, 0), 0x00ff00);
         assert_eq!(rgb(-1, 0, 0), 0x000000);
+    }
+
+    #[test]
+    fn indexed_rgb_covers_ansi_cube_and_grayscale() {
+        // The 16 ANSI colors.
+        assert_eq!(indexed_rgb(0), 0x000000);
+        assert_eq!(indexed_rgb(1), 0xcd0000);
+        assert_eq!(indexed_rgb(15), 0xffffff);
+        // The 6×6×6 cube: 16 is black, 21 is blue, 196 is red.
+        assert_eq!(indexed_rgb(16), 0x000000);
+        assert_eq!(indexed_rgb(21), 0x0000ff);
+        assert_eq!(indexed_rgb(196), 0xff0000);
+        // The grayscale ramp: 232 → 0x08, 255 → 0xee.
+        assert_eq!(indexed_rgb(232), 0x080808);
+        assert_eq!(indexed_rgb(255), 0xeeeeee);
     }
 
     #[test]

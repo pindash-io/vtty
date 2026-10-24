@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Shared style types (cursor shape, underline style, SGR flags).
+//!
+//! SGR (Select Graphic Rendition) follows ECMA-48, as documented in the DEC
+//! manuals (EK-VT520-RM §5).
 
 bitflags::bitflags! {
     /// SGR attribute state: bold/faint/italic/underline/strikethrough/

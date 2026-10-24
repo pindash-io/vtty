@@ -1,9 +1,11 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Mouse event encoding (X10 / SGR).
+//! Mouse event encoding (X10 / normal / SGR / urxvt / pixel).
 //!
-//! Reference: <https://vt100.net/emu/dec_ansi_parser>.
+//! Mouse tracking is an xterm extension using DEC private modes
+//! 9/1000/1002/1003/1005/1006/1015/1016 — see [xterm ctlseqs, Mouse
+//! Tracking](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking).
 
 use compact_str::CompactString;
 use smallvec::SmallVec;
