@@ -103,96 +103,76 @@ bitflags::bitflags! {
     }
 }
 
-impl TermFlags {
-    /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for the
-    /// ANSI mode (insert, `CSI 4 h`) and for [`TermFlags::NONE`].
-    ///
-    /// The match arms are the flag bit values, which must stay in sync with
-    /// the `bitflags!` definitions above.
-    #[inline]
-    pub const fn private_param(self) -> i32 {
-        match self.bits() {
-            1 => 0,              // INSERT (ANSI mode 4)
-            2 => 6,              // ORIGIN (DECOM)
-            4 => 7,              // WRAPAROUND (DECAWM)
-            8 => 0,              // LINEFEED (ANSI LNM 20, not a DEC private mode)
-            16 => 25,            // CURSOR_VISIBLE (DECTCEM)
-            32 => 2004,          // BRACKETED_PASTE (XTPUSHKEYS)
-            64 => 9,             // MOUSE_X10
-            128 => 1000,         // MOUSE_NORMAL
-            256 => 1002,         // MOUSE_BUTTON
-            512 => 1003,         // MOUSE_ANY
-            1024 => 1,           // CURSOR_KEYS (DECCKM)
-            2048 => 5,           // REVERSE (DECSCNM)
-            4096 => 1006,        // MOUSE_SGR
-            8192 => 3,           // DECCOLM
-            16384 => 47,         // ALT_SCREEN
-            32768 => 1049,       // ALT_SCREEN_1049
-            65536 => 2026,       // SYNC_OUTPUT
-            131072 => 2031,      // COLOR_SCHEME_UPDATES
-            262144 => 1004,      // FOCUS
-            524288 => 1005,      // UTF8_MOUSE
-            1048576 => 1007,     // ALTERNATE_SCROLL
-            2097152 => 1046,     // VI
-            4194304 => 45,       // REVERSE_WRAP
-            8388608 => 69,       // DECLRMM
-            16777216 => 66,      // DECNKM
-            33554432 => 2027,    // UNICODE_CORE
-            67108864 => 1016,    // MOUSE_PIXEL
-            134217728 => 80,     // DECSDM
-            268435456 => 1015,   // MOUSE_URXVT
-            536870912 => 2048,   // IN_BAND_RESIZE
-            1073741824 => 1045,  // REVERSE_WRAP_EXTENDED
-            2147483648 => 1047,  // ALT_SCREEN_1047
-            4294967296 => 12,    // CURSOR_BLINK
-            8589934592 => 67,    // DECBKM
-            17179869184 => 1035, // NUMLOCK
-            _ => 0,
-        }
-    }
+/// Define the DEC private-mode mapping from one list of `Flag => number`
+/// pairs: [`TermFlags::PRIVATE_MODES`] plus both lookup functions, so the
+/// flag ↔ number mapping cannot drift apart.
+macro_rules! private_modes {
+    ($($flag:ident => $param:literal),+ $(,)?) => {
+        /// The `(flag, DEC private-mode number)` pairs, used by the
+        /// roundtrip test. ANSI-only modes (INSERT `4`, LINEFEED `20`) have
+        /// no DEC private number and are absent.
+        #[cfg(test)]
+        const PRIVATE_MODES: &'static [(Self, i32)] = &[
+            $((Self::$flag, $param),)+
+        ];
 
-    /// Reverse lookup for DECRQM's numeric parameter; unknown →
-    /// [`TermFlags::NONE`].
-    #[inline]
-    pub const fn from_private_param(param: i32) -> Self {
-        match param {
-            1 => Self::CURSOR_KEYS,
-            // Tracked for DECRQM fidelity, not applied: DECCOLM (?3) would
-            // resize the grid, but the host owns the window width.
-            3 => Self::DECCOLM,
-            5 => Self::REVERSE,
-            6 => Self::ORIGIN,
-            7 => Self::WRAPAROUND,
-            9 => Self::MOUSE_X10,
-            12 => Self::CURSOR_BLINK,
-            25 => Self::CURSOR_VISIBLE,
-            45 => Self::REVERSE_WRAP,
-            47 => Self::ALT_SCREEN,
-            66 => Self::DECNKM,
-            67 => Self::DECBKM,
-            69 => Self::DECLRMM,
-            80 => Self::DECSDM,
-            1000 => Self::MOUSE_NORMAL,
-            1002 => Self::MOUSE_BUTTON,
-            1003 => Self::MOUSE_ANY,
-            1004 => Self::FOCUS,
-            1005 => Self::UTF8_MOUSE,
-            1006 => Self::MOUSE_SGR,
-            1007 => Self::ALTERNATE_SCROLL,
-            1015 => Self::MOUSE_URXVT,
-            1016 => Self::MOUSE_PIXEL,
-            1035 => Self::NUMLOCK,
-            1045 => Self::REVERSE_WRAP_EXTENDED,
-            1046 => Self::VI,
-            1047 => Self::ALT_SCREEN_1047,
-            1049 => Self::ALT_SCREEN_1049,
-            2004 => Self::BRACKETED_PASTE,
-            2026 => Self::SYNC_OUTPUT,
-            2027 => Self::UNICODE_CORE,
-            2031 => Self::COLOR_SCHEME_UPDATES,
-            2048 => Self::IN_BAND_RESIZE,
-            _ => Self::NONE,
+        /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for
+        /// ANSI modes (insert, `CSI 4 h`) and for [`TermFlags::NONE`].
+        #[inline]
+        pub const fn private_param(self) -> i32 {
+            match self {
+                $(Self::$flag => $param,)+
+                _ => 0,
+            }
         }
+
+        /// Reverse lookup for DECRQM's numeric parameter; unknown →
+        /// [`TermFlags::NONE`].
+        #[inline]
+        pub const fn from_private_param(param: i32) -> Self {
+            match param {
+                $($param => Self::$flag,)+
+                _ => Self::NONE,
+            }
+        }
+    };
+}
+
+impl TermFlags {
+    private_modes! {
+        CURSOR_KEYS => 1,              // DECCKM
+        DECCOLM => 3,                  // DECCOLM
+        REVERSE => 5,                  // DECSCNM
+        ORIGIN => 6,                   // DECOM
+        WRAPAROUND => 7,               // DECAWM
+        MOUSE_X10 => 9,                // DEC 9
+        CURSOR_BLINK => 12,            // DEC 12
+        CURSOR_VISIBLE => 25,          // DECTCEM
+        REVERSE_WRAP => 45,            // DEC 45
+        ALT_SCREEN => 47,              // DEC 47
+        DECNKM => 66,                  // DECNKM
+        DECBKM => 67,                  // DECBKM
+        DECLRMM => 69,                 // DECLRMM
+        DECSDM => 80,                  // DECSDM
+        MOUSE_NORMAL => 1000,          // DEC 1000
+        MOUSE_BUTTON => 1002,          // DEC 1002
+        MOUSE_ANY => 1003,             // DEC 1003
+        FOCUS => 1004,                 // DEC 1004
+        UTF8_MOUSE => 1005,            // DEC 1005
+        MOUSE_SGR => 1006,             // DEC 1006
+        ALTERNATE_SCROLL => 1007,      // DEC 1007
+        MOUSE_URXVT => 1015,           // DEC 1015
+        MOUSE_PIXEL => 1016,           // DEC 1016
+        NUMLOCK => 1035,               // DEC 1035
+        REVERSE_WRAP_EXTENDED => 1045, // DEC 1045
+        VI => 1046,                    // DEC 1046
+        ALT_SCREEN_1047 => 1047,       // DEC 1047
+        ALT_SCREEN_1049 => 1049,       // DEC 1049
+        BRACKETED_PASTE => 2004,       // XTPUSHKEYS
+        SYNC_OUTPUT => 2026,           // DEC 2026
+        UNICODE_CORE => 2027,          // DEC 2027
+        COLOR_SCHEME_UPDATES => 2031,  // XTCOLORMOD
+        IN_BAND_RESIZE => 2048,        // DEC 2048
     }
 
     /// Map an ANSI (`CSI Pm h/l`) or DEC private (`CSI ? Pm h/l`) mode number
@@ -264,6 +244,20 @@ mod tests {
         // 4 (IRM) is an ANSI mode, not a DEC private mode.
         assert_eq!(TermFlags::from_private_param(4), TermFlags::NONE);
         assert_eq!(TermFlags::from_private_param(999), TermFlags::NONE);
+    }
+
+    #[test]
+    fn all_private_modes_roundtrip() {
+        // Every entry must invert cleanly in BOTH directions — the single
+        // source of truth for the DEC private-mode number ↔ flag pair.
+        for &(flag, param) in TermFlags::PRIVATE_MODES {
+            assert_eq!(flag.private_param(), param, "{flag:?} → param");
+            assert_eq!(
+                TermFlags::from_private_param(param),
+                flag,
+                "param {param} → flag"
+            );
+        }
     }
 
     #[test]
