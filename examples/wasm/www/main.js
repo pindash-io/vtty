@@ -19,6 +19,7 @@ const langSelect = document.getElementById("lang");
 const examplesEl = document.getElementById("examples");
 
 let term;
+let current; // the active example
 
 const LIGHT_THEME = pierreLight;
 
@@ -43,9 +44,38 @@ const LANGS = [
 let theme = pierreDark;
 let lang = "rust";
 
+// `mode: "terminal"` renders the vtty_screen grid (SGR colors); `mode:
+// "highlight"` feeds the parsed text to @pierre/highlights as source code.
 const EXAMPLES = [
   {
+    name: "colors",
+    mode: "terminal",
+    src:
+      "\x1b[31mred\x1b[0m \x1b[32mgreen\x1b[0m \x1b[33myellow\x1b[0m " +
+      "\x1b[34mblue\x1b[0m \x1b[35mmagenta\x1b[0m \x1b[36mcyan\x1b[0m\n" +
+      "\x1b[1mbold\x1b[0m \x1b[3mitalic\x1b[0m \x1b[4munderline\x1b[0m " +
+      "\x1b[9mstrike\x1b[0m \x1b[31;7minverse\x1b[0m\n" +
+      "\x1b[38;5;196m256-color red\x1b[0m " +
+      "\x1b[48;5;21;38;5;231mblue bg\x1b[0m\n" +
+      "\x1b[38;2;255;128;0mtruecolor orange\x1b[0m " +
+      "\x1b[48;2;20;40;80mdark bg\x1b[0m\n",
+  },
+  {
+    name: "terminal",
+    mode: "terminal",
+    src:
+      "\x1b[1;32mvtty@demo\x1b[0m:\x1b[1;34m~/vtty\x1b[0m$ ls --color=auto\n" +
+      "\x1b[1;34mcrates\x1b[0m  \x1b[1;34mexamples\x1b[0m  \x1b[1;36mCargo.toml\x1b[0m  \x1b[1;36mLICENSE\x1b[0m\n" +
+      "\n" +
+      "\x1b[1;32mvtty@demo\x1b[0m:\x1b[1;34m~/vtty\x1b[0m$ echo \"hello from vtty\"\n" +
+      "hello from vtty\n" +
+      "\n" +
+      "\x1b[1;32mvtty@demo\x1b[0m:\x1b[1;34m~/vtty\x1b[0m$ git status --short\n" +
+      "\x1b[1;33m M\x1b[0m crates/vtty_screen/src/lib.rs\n",
+  },
+  {
     name: "rust",
+    mode: "highlight",
     lang: "rust",
     src: `use vtty::{Parser, Perform};
 
@@ -59,21 +89,8 @@ impl Perform for Screen {
 `,
   },
   {
-    name: "terminal",
-    lang: "bash",
-    src: `$ ls crates/
-vtty  vtty_core  vtty_width  vtty_ffi  vtty_status
-
-$ cargo build --release
-   Compiling vtty v0.1.0
-    Finished release profile [optimized] in 0.42s
-
-$ echo "hello from vtty"
-hello from vtty
-`,
-  },
-  {
     name: "json",
+    mode: "highlight",
     lang: "json",
     src: `{
   "name": "vtty",
@@ -95,11 +112,15 @@ function highlight(src) {
 }
 
 function render() {
-  out.innerHTML = highlight(term.text());
+  out.innerHTML =
+    current.mode === "terminal" ? term.render() : highlight(term.text());
 }
 
 function show(example) {
-  lang = example.lang;
+  current = example;
+  if (example.lang) {
+    lang = example.lang;
+  }
   term.clear();
   term.feed(example.src);
   render();
@@ -108,6 +129,48 @@ function show(example) {
 function feed(text) {
   term.feed(text);
   render();
+}
+
+/** Parse `#rrggbb` / `rrggbb` to a packed 0xRRGGBB, or `null`. */
+function parseHex(c) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(c || "");
+  return m ? parseInt(m[1], 16) : null;
+}
+
+/** Derive the terminal colors from a highlight theme and apply them. */
+function applyTerminalTheme(t) {
+  const s = t.style || {};
+  const fg =
+    parseHex(s["editor.foreground"] ?? s.text ?? s.foreground) ?? 0xffffff;
+  const bg =
+    parseHex(s["editor.background"] ?? s.background) ?? 0x000000;
+  const red = parseHex(s["terminal.ansi.red"]) ?? 0xff5555;
+  const green = parseHex(s["terminal.ansi.green"]) ?? 0x50fa7b;
+  const blue = parseHex(s["terminal.ansi.blue"]) ?? 0xbd93f9;
+  term.set_theme(fg, bg, red, green, blue);
+}
+
+let charW = 8.4;
+let charH = 21;
+
+/** Measure the monospace cell size once (the grid must fill `out` exactly). */
+function measure() {
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;";
+  probe.textContent = "0";
+  out.appendChild(probe);
+  charW = probe.getBoundingClientRect().width;
+  charH = probe.getBoundingClientRect().height;
+  probe.remove();
+}
+
+/** Resize the terminal grid to fill the `out` element. */
+function fit() {
+  const rect = out.getBoundingClientRect();
+  const cols = Math.max(1, Math.floor(rect.width / charW));
+  const rows = Math.max(1, Math.floor(rect.height / charH));
+  term.resize(cols, rows);
+  if (current) render();
 }
 
 /** Turn the user-facing `\x1b` / `\n` / `\t` text into real bytes. */
@@ -121,6 +184,10 @@ function interpret(text) {
 async function main() {
   await init();
   term = new Terminal();
+  applyTerminalTheme(theme);
+  measure();
+  fit();
+  window.addEventListener("resize", fit);
 
   for (const name of Object.keys(THEMES)) {
     const option = document.createElement("option");
@@ -131,6 +198,7 @@ async function main() {
   themeSelect.value = "pierre-dark";
   themeSelect.addEventListener("change", () => {
     theme = THEMES[themeSelect.value];
+    applyTerminalTheme(theme);
     render();
   });
 

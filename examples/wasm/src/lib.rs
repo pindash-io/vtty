@@ -1,97 +1,117 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Minimal browser demo: feed bytes to [`vtty::Parser`] and render the text
-//! with basic SGR styling (16/bright colors, bold, italic, underline,
-//! strikethrough, inverse) as HTML.
+//! Browser demo: feed bytes to [`vtty::Parser`], drive a
+//! [`vtty_screen::Screen`] grid, and render the styled cells as HTML.
 
 use std::fmt::Write as _;
 
-use vtty::{Parser, Perform};
+use vtty::{ColorId, Parser, SgrFlags};
+use vtty_screen::Screen;
 use wasm_bindgen::prelude::*;
 
-const ANSI: [&str; 8] = [
-    "#000000", "#cd0000", "#00cd00", "#cdcd00", "#0000ee", "#cd00cd", "#00cdcd", "#e5e5e5",
-];
-const BRIGHT: [&str; 8] = [
-    "#7f7f7f", "#ff0000", "#00ff00", "#ffff00", "#5c5cff", "#ff00ff", "#00ffff", "#ffffff",
-];
+/// Demo grid size.
+const COLS: u32 = 80;
+const ROWS: u32 = 24;
 
-/// The current SGR text style.
-#[derive(Clone, Copy, PartialEq, Default)]
-struct Style {
-    fg: Option<&'static str>,
-    bg: Option<&'static str>,
-    bold: bool,
-    italic: bool,
-    underline: bool,
-    strike: bool,
-    inverse: bool,
-}
-
-/// A parser plus a stream of styled text runs, exposed to JavaScript.
+/// A parser + terminal screen, exposed to JavaScript.
 #[wasm_bindgen]
 pub struct Terminal {
     parser: Parser,
-    style: Style,
-    cur: String,
-    segs: Vec<(Style, String)>,
+    screen: Screen,
 }
 
 #[wasm_bindgen]
 impl Terminal {
-    /// Create an empty terminal.
+    /// Create an empty 80×24 terminal.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Terminal {
         Terminal {
             parser: Parser::with_simd(),
-            style: Style::default(),
-            cur: String::new(),
-            segs: Vec::new(),
+            screen: Screen::new(COLS, ROWS),
         }
     }
 
     /// Feed a UTF-8 string, which may contain ANSI/VT escape sequences.
     pub fn feed(&mut self, text: &str) {
         let mut parser = std::mem::take(&mut self.parser);
-        parser.advance(self, text.as_bytes());
+        // Mimic a PTY's ONLCR: translate LF to CRLF (normalizing any existing
+        // CRLF first). The screen's LF keeps the column, so a bare `\n` would
+        // otherwise indent every following line to the previous line's end.
+        let text = text.replace("\r\n", "\n").replace('\n', "\r\n");
+        parser.advance(&mut self.screen, text.as_bytes());
         self.parser = parser;
     }
 
-    /// Reset to an empty buffer.
+    /// Reset to a blank screen, keeping the current size and theme.
     pub fn clear(&mut self) {
         self.parser = Parser::with_simd();
-        self.style = Style::default();
-        self.cur.clear();
-        self.segs.clear();
+        self.screen.reset();
     }
 
-    /// Render the accumulated text as HTML with SGR styling applied.
-    pub fn render(&self) -> String {
-        let mut segs = self.segs.clone();
-        if !self.cur.is_empty() {
-            segs.push((self.style, self.cur.clone()));
-        }
-        let mut html = String::new();
-        for (style, text) in segs {
-            let text = escape(&text);
-            if style == Style::default() {
-                html.push_str(&text);
-            } else {
-                html.push_str(&span(style, &text));
-            }
-        }
-        html
+    /// Resize the grid (reflowing existing content) to `cols × rows`.
+    pub fn resize(&mut self, cols: u32, rows: u32) {
+        self.screen.resize(cols, rows);
     }
 
-    /// The accumulated plain text (escape sequences consumed, styles dropped).
+    /// Apply terminal colors derived from a highlight theme: the default
+    /// fg/bg plus the three ANSI primaries (red, green, blue). The rest of
+    /// the 16-color palette is derived by 50% mixing.
+    pub fn set_theme(&mut self, fg: u32, bg: u32, red: u32, green: u32, blue: u32) {
+        let yellow = vtty::blend_faint(red, green);
+        let magenta = vtty::blend_faint(red, blue);
+        let cyan = vtty::blend_faint(green, blue);
+        let gray = vtty::blend_faint(bg, fg);
+        let bright = |c: u32| vtty::blend_faint(c, fg);
+        let palette = [
+            bg,
+            red,
+            green,
+            yellow,
+            blue,
+            magenta,
+            cyan,
+            fg,
+            gray,
+            bright(red),
+            bright(green),
+            bright(yellow),
+            bright(blue),
+            bright(magenta),
+            bright(cyan),
+            fg,
+        ];
+        self.screen.set_palette(palette);
+        self.screen.set_default_colors(fg, bg);
+    }
+
+    /// The grid as plain text, one line per row (trailing empty rows trimmed).
     pub fn text(&self) -> String {
-        let mut out = String::new();
-        for (_, text) in &self.segs {
-            out.push_str(text);
+        let mut lines = self.screen.lines();
+        while lines.last().is_some_and(String::is_empty) {
+            lines.pop();
         }
-        out.push_str(&self.cur);
-        out
+        lines.join("\n")
+    }
+
+    /// The grid as HTML with SGR styling (16/256/truecolor, bold, italic,
+    /// underline, strikethrough, inverse).
+    pub fn render(&self) -> String {
+        // Fill the whole viewport with the theme's background.
+        let bg = self.screen.color_rgb(vtty::DEFAULT_BG_ID).unwrap_or(0);
+        let mut html = format!("<pre class=\"term\" style=\"background:#{bg:06x}\">");
+        let mut last_nonempty = self.screen.rows() as i64 - 1;
+        while last_nonempty >= 0 && self.row_is_blank(last_nonempty as u32) {
+            last_nonempty -= 1;
+        }
+        for row in 0..=last_nonempty.max(0) as u32 {
+            if row > 0 {
+                html.push('\n');
+            }
+            html.push_str(&self.render_row(row));
+        }
+        html.push_str("</pre>");
+        html
     }
 }
 
@@ -102,109 +122,104 @@ impl Default for Terminal {
 }
 
 impl Terminal {
-    fn set_style(&mut self, style: Style) {
-        if style == self.style {
-            return;
-        }
-        if !self.cur.is_empty() {
-            self.segs.push((self.style, std::mem::take(&mut self.cur)));
-        }
-        self.style = style;
+    /// Whether every cell in the row is blank (a default-styled space). This
+    /// matches `render_row`'s trimming, so `render` doesn't drop rows that
+    /// contain only colored spaces (e.g. a wrapped background run).
+    fn row_is_blank(&self, row: u32) -> bool {
+        (0..self.screen.cols()).all(|col| is_blank(self.screen.cell(row, col)))
     }
 
-    fn sgr(&mut self, params: &[i32]) {
-        let mut s = if params.is_empty() {
-            Style::default()
-        } else {
-            self.style
-        };
-        for &p in params {
-            match p {
-                0 => s = Style::default(),
-                1 => s.bold = true,
-                3 => s.italic = true,
-                4 => s.underline = true,
-                7 => s.inverse = true,
-                9 => s.strike = true,
-                22 => s.bold = false,
-                23 => s.italic = false,
-                24 => s.underline = false,
-                27 => s.inverse = false,
-                29 => s.strike = false,
-                30..=37 => s.fg = Some(ANSI[(p - 30) as usize]),
-                39 => s.fg = None,
-                40..=47 => s.bg = Some(ANSI[(p - 40) as usize]),
-                49 => s.bg = None,
-                90..=97 => s.fg = Some(BRIGHT[(p - 90) as usize]),
-                100..=107 => s.bg = Some(BRIGHT[(p - 100) as usize]),
-                _ => {}
+    /// Render one row as inline-styled `<span>`s, trimming trailing blanks.
+    fn render_row(&self, row: u32) -> String {
+        let mut out = String::new();
+        let mut prev: Option<(SgrFlags, ColorId, ColorId)> = None;
+        let mut last = self.screen.cols() as i64 - 1;
+        while last >= 0 && is_blank(self.screen.cell(row, last as u32)) {
+            last -= 1;
+        }
+        if last < 0 {
+            return out;
+        }
+        for col in 0..=last as u32 {
+            let Some(cell) = self.screen.cell(row, col) else {
+                continue;
+            };
+            if cell.is_continuation() {
+                continue;
+            }
+            let state = (cell.sgr, cell.fg, cell.bg);
+            if prev != Some(state) {
+                if prev.is_some() {
+                    out.push_str("</span>");
+                }
+                out.push_str(&span_open(cell, &self.screen));
+                prev = Some(state);
+            }
+            out.push_str(&escape_char(cell.ch));
+            for &mark in cell.marks() {
+                out.push_str(&escape_char(mark));
             }
         }
-        self.set_style(s);
+        if prev.is_some() {
+            out.push_str("</span>");
+        }
+        out
     }
 }
 
-impl Perform for Terminal {
-    fn print(&mut self, c: char) {
-        self.cur.push(c);
-    }
-
-    fn print_bytes(&mut self, s: &[u8]) {
-        // Printable ASCII: one char per byte.
-        self.cur.extend(s.iter().map(|&b| b as char));
-    }
-
-    fn execute(&mut self, b: u8) {
-        match b {
-            b'\n' => self.cur.push('\n'),
-            b'\t' => self.cur.push('\t'),
-            _ => {} // CR and other controls are not meaningful in a text stream
-        }
-    }
-
-    fn csi_dispatch(&mut self, params: &[i32], _sep: u16, _i: &[u8], final_byte: u8) {
-        if final_byte == b'm' {
-            self.sgr(params);
-        }
-    }
+/// True when a cell is blank (space, default attributes) — such cells are
+/// trimmed from the end of a rendered row.
+fn is_blank(cell: Option<&vtty_screen::Cell>) -> bool {
+    let Some(cell) = cell else {
+        return true;
+    };
+    cell.ch == ' '
+        && cell.combining_len == 0
+        && cell.sgr.is_empty()
+        && cell.fg == vtty::DEFAULT_FG_ID
+        && cell.bg == vtty::DEFAULT_BG_ID
 }
 
-fn span(s: Style, text: &str) -> String {
-    let (mut fg, mut bg) = (s.fg, s.bg);
-    if s.inverse {
+/// The opening `<span style="…">` for a cell's SGR attributes.
+fn span_open(cell: &vtty_screen::Cell, screen: &Screen) -> String {
+    let mut fg = screen.color_rgb(cell.fg);
+    let mut bg = screen.color_rgb(cell.bg);
+    if cell.sgr.contains(SgrFlags::INVERSE) {
         std::mem::swap(&mut fg, &mut bg);
     }
-    let mut out = String::from("<span style=\"");
+    let mut s = String::from("<span style=\"");
     if let Some(c) = fg {
-        let _ = write!(out, "color:{c};");
+        let _ = write!(s, "color:#{c:06x};");
     }
     if let Some(c) = bg {
-        let _ = write!(out, "background-color:{c};");
+        let _ = write!(s, "background-color:#{c:06x};");
     }
-    if s.bold {
-        out.push_str("font-weight:bold;");
+    if cell.sgr.contains(SgrFlags::BOLD) {
+        s.push_str("font-weight:bold;");
     }
-    if s.italic {
-        out.push_str("font-style:italic;");
+    if cell.sgr.contains(SgrFlags::ITALIC) {
+        s.push_str("font-style:italic;");
     }
-    let mut deco: Vec<&str> = Vec::new();
-    if s.underline {
+    let mut deco = Vec::new();
+    if cell.sgr.contains(SgrFlags::UNDERLINE) {
         deco.push("underline");
     }
-    if s.strike {
+    if cell.sgr.contains(SgrFlags::STRIKETHROUGH) {
         deco.push("line-through");
     }
     if !deco.is_empty() {
-        let _ = write!(out, "text-decoration:{};", deco.join(" "));
+        let _ = write!(s, "text-decoration:{};", deco.join(" "));
     }
-    out.push_str("\">");
-    out.push_str(text);
-    out.push_str("</span>");
-    out
+    s.push_str("\">");
+    s
 }
 
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+/// Escape one char for HTML.
+fn escape_char(c: char) -> String {
+    match c {
+        '&' => "&amp;".to_string(),
+        '<' => "&lt;".to_string(),
+        '>' => "&gt;".to_string(),
+        _ => c.to_string(),
+    }
 }
