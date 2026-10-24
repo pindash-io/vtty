@@ -13,6 +13,9 @@ relies on.
 - `vtty_codec` — `no_std` binary `Encode`/`Decode` codec (generic + `vtty_core`
   impls).
 - `vtty_width` — display cell width + emoji sequences (ICU4X/parley).
+- `vtty_grapheme` — UAX #29 grapheme cluster segmentation.
+- `vtty_status` — OSC 7501 Program Status Protocol.
+- `vtty_screen` — a minimal cell-grid terminal screen (`Screen` `Perform` sink).
 - `vtty_ffi` — raw C ABI over `vtty`.
 - `vtty_bench` — throughput benchmarks vs `vte`/`vt100`/`vtparse`/`rio-vt`.
 
@@ -126,6 +129,9 @@ next `ParseState`. `transition` is one indexed load.
 
 - Unit tests per module; `tests/vt_differential.rs` (vs `vte`) and
   `tests/vt_differential_rio.rs` (vs `rio-vt`).
+- The exhaustive DEC VT500 state-machine differential (`table.rs` and the C1
+  "anywhere" tests in `parser.rs`) — see `CONFORMANCE.md` for the
+  DEC-vs-vtty coverage matrix.
 - `fuzz/` — libFuzzer: `differential`, `differential-simd`, `differential-rio`,
   `robustness`, `random` (see `fuzz/README.md`).
 - `vtty_bench` — throughput (counting sinks), `vtty` vs `vtty-simd`.

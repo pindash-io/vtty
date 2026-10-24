@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="logo.svg" alt="vtty" width="128" height="128" />
+
 # vtty
 
 **Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and
@@ -23,6 +25,7 @@
 | [`vtty_width`](crates/vtty_width) | display cell width + emoji sequences |
 | [`vtty_grapheme`](crates/vtty_grapheme) | UAX #29 grapheme cluster segmentation |
 | [`vtty_status`](crates/vtty_status) | OSC 7501 Program Status Protocol |
+| [`vtty_screen`](crates/vtty_screen) | cell-grid terminal screen |
 | [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
 | [`vtty_bench`](crates/vtty_bench) | throughput benchmarks |
 
