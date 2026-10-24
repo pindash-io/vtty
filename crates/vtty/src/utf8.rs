@@ -109,6 +109,27 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     Some((lead_idx, cp, (expected - have) as u8))
 }
 
+/// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
+#[inline(always)]
+fn flush_cps<P: Perform>(p: &mut P, buf: &[u32], n: &mut usize) {
+    if *n > 0 {
+        p.print_codepoints(&buf[..*n]);
+        *n = 0;
+    }
+}
+
+/// Push one code point into the batch, flushing via `print_codepoints` when
+/// the 32-slot buffer fills.
+#[inline(always)]
+fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
+    buf[*n] = cp;
+    *n += 1;
+    if *n == buf.len() {
+        p.print_codepoints(&buf[..*n]);
+        *n = 0;
+    }
+}
+
 /// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`).
 /// Returns bytes consumed (at least 1).
 ///
@@ -273,12 +294,12 @@ pub(crate) fn decode_utf8<P: Perform>(
                                             n += 4;
                                             i += 12;
                                         } else {
-                                            buf[n] = decode_utf8_n::<3>(&s[i..]);
-                                            n += 1;
-                                            if n == BATCH {
-                                                p.print_codepoints(&buf[..n]);
-                                                n = 0;
-                                            }
+                                            push_cp(
+                                                p,
+                                                &mut buf,
+                                                &mut n,
+                                                decode_utf8_n::<3>(&s[i..]),
+                                            );
                                             i += 3;
                                         }
                                     } else {
@@ -288,18 +309,10 @@ pub(crate) fn decode_utf8<P: Perform>(
                                             _ => (decode_utf8_n::<2>(&s[i..]), 2),
                                         };
                                         if cp <= 0x9f {
-                                            if n > 0 {
-                                                p.print_codepoints(&buf[..n]);
-                                                n = 0;
-                                            }
+                                            flush_cps(p, &buf, &mut n);
                                             p.execute(cp as u8);
                                         } else {
-                                            buf[n] = cp;
-                                            n += 1;
-                                            if n == BATCH {
-                                                p.print_codepoints(&buf[..n]);
-                                                n = 0;
-                                            }
+                                            push_cp(p, &mut buf, &mut n, cp);
                                         }
                                         i += len;
                                     }
@@ -307,9 +320,7 @@ pub(crate) fn decode_utf8<P: Perform>(
                                         break;
                                     }
                                 }
-                                if n > 0 {
-                                    p.print_codepoints(&buf[..n]);
-                                }
+                                flush_cps(p, &buf, &mut n);
                             }
                         }
                     }
@@ -332,27 +343,17 @@ pub(crate) fn decode_utf8<P: Perform>(
         let cp = u32::from(c);
         if cp < 0xa0 {
             // A C1 control (U+0080..=U+009F) decoded from its 2-byte form.
-            if n > 0 {
-                p.print_codepoints(&buf[..n]);
-                n = 0;
-            }
+            flush_cps(p, &buf, &mut n);
             p.execute(cp as u8);
         } else {
-            buf[n] = cp;
-            n += 1;
-            if n == BATCH {
-                p.print_codepoints(&buf[..n]);
-                n = 0;
-            }
+            push_cp(p, &mut buf, &mut n, cp);
         }
         let rest = it.as_slice();
         if rest.is_empty() || rest[0] < 0xa0 {
             break;
         }
     }
-    if n > 0 {
-        p.print_codepoints(&buf[..n]);
-    }
+    flush_cps(p, &buf, &mut n);
     // The consumed byte count is NOT `c.len_utf8()` for invalid UTF-8
     // (U+FFFD is 3 bytes but a lone byte consumes 1).
     let consumed = (valid - pos) - it.as_slice().len();

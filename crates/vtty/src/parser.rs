@@ -306,37 +306,15 @@ impl Parser {
             // CsiIntermediate/CsiParam → CsiIgnore transitions.
             if b == 0x1b && run.get(pos + 1) == Some(&b'[') {
                 let seq = &run[pos + 2..valid];
-                self.params_len = 0;
-                self.param = 0;
-                self.param_empty = true;
-                self.sep = 0;
-                self.intermediates_len = 0;
+                self.clear_seq_state();
                 let mut ok = true;
                 let mut f = 0_usize;
                 while f < seq.len() {
+                    if self.param_byte(seq[f]) {
+                        f += 1;
+                        continue;
+                    }
                     match seq[f] {
-                        b'0'..=b'9' => {
-                            self.param =
-                                (self.param * 10 + (seq[f] - b'0') as i32).min(MAX_PARAM_VALUE);
-                            self.param_empty = false;
-                            f += 1;
-                        }
-                        b':' => {
-                            // Empty param becomes the `-1` sentinel.
-                            self.push_param(if self.param_empty { -1 } else { self.param });
-                            if self.params_len < 16 {
-                                self.sep |= 1 << (self.params_len - 1);
-                            }
-                            self.param = 0;
-                            self.param_empty = true;
-                            f += 1;
-                        }
-                        b';' => {
-                            self.push_param(self.param);
-                            self.param = 0;
-                            self.param_empty = true;
-                            f += 1;
-                        }
                         0x3c..=0x3f => {
                             // Private marker (`> = < ?`) — only valid as a CSI
                             // prefix (CsiEntry), before any param or marker.
@@ -364,16 +342,7 @@ impl Parser {
                     // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
                     // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
                     // is pushed as `-1`.
-                    if !self.param_empty || self.params_len != 0 {
-                        self.push_param(if self.param_empty { -1 } else { self.param });
-                    }
-                    p.csi_dispatch(
-                        &self.params[..self.params_len],
-                        self.sep,
-                        &self.intermediates[..self.intermediates_len],
-                        seq[f],
-                    );
-                    self.clear_seq_state();
+                    self.dispatch_csi(p, seq[f]);
                     // Keep scanning in this pass: CSI-dense input (SGR
                     // churn, cursor motion) pays a re-entry + a fresh
                     // `first_non_printable` scan per sequence otherwise.
@@ -487,15 +456,8 @@ impl Parser {
             ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
         ) && (0x40..=0x7e).contains(&b)
         {
-            // Same trailing-empty sentinel as the bulk/apply CSI paths, so a
-            // param-less CSI split across writes still dispatches `[]` (not
-            // `[0]`), and a trailing empty is `-1` (not an explicit `0`).
-            if !self.param_empty || self.params_len != 0 {
-                self.push_param(if self.param_empty { -1 } else { self.param });
-            }
-            let ints = &self.intermediates[..self.intermediates_len];
-            p.csi_dispatch(&self.params[..self.params_len], self.sep, ints, b);
-            self.clear_seq_state();
+            // Same trailing-empty sentinel as the bulk/apply CSI paths.
+            self.dispatch_csi(p, b);
             self.state = ParseState::Ground;
             return i + 1;
         }
@@ -511,34 +473,9 @@ impl Parser {
                 0x20..=0x2f => {
                     self.push_intermediate(b);
                 }
-                b'0'..=b'9' => {
-                    // DEC VT500 params are 16-bit; clamp to 0..=65535 (vte
-                    // does the same) so a huge param can't diverge from the
-                    // reference parser.
-                    self.param = self
-                        .param
-                        .saturating_mul(10)
-                        .saturating_add((b - b'0') as i32)
-                        .min(MAX_PARAM_VALUE);
-                    self.param_empty = false;
-                }
-                b':' => {
-                    // Colon separator: mark the just-pushed param so `4:2`
-                    // stays distinguishable from `4;2` (SGR underline style);
-                    // an empty colon param (`::`) becomes `-1` so the SGR
-                    // colorspace form `38:2::r:g:b` survives.
-                    self.push_param(if self.param_empty { -1 } else { self.param });
-                    if self.params_len < 16 {
-                        self.sep |= 1 << (self.params_len - 1);
-                    }
-                    self.param = 0;
-                    self.param_empty = true;
-                }
-                b';' => {
-                    self.push_param(self.param);
-                    self.param = 0;
-                    self.param_empty = true;
-                }
+                b'0'..=b'9' => self.param_digit(b),
+                b':' => self.param_colon(),
+                b';' => self.param_semicolon(),
                 b'<' | b'=' | b'>' | b'?' => {
                     self.push_intermediate(b);
                 }
@@ -592,8 +529,7 @@ impl Parser {
             // ESC final bytes (esc_dispatch), disjoint from the introducers
             // so the arms above are order-independent.
             0x30..=0x4f | 0x51..=0x57 | 0x59 | 0x5a | 0x5c | 0x60..=0x7e => {
-                p.esc_dispatch(&[], bytes[i]);
-                self.clear_seq_state();
+                self.dispatch_esc(p, bytes[i]);
                 self.state = ParseState::Ground;
                 i + 1
             }
@@ -618,12 +554,7 @@ impl Parser {
         if (0x40..=0x7e).contains(&b) {
             // Same trailing-param convention as `apply(HOOK)`: a param-less
             // DCS hooks with `[]`, not `[0]`.
-            if !self.param_empty || self.params_len != 0 {
-                self.push_param(self.param);
-            }
-            let ints = &self.intermediates[..self.intermediates_len];
-            p.hook(&self.params[..self.params_len], ints, b);
-            self.clear_seq_state();
+            self.dispatch_hook(p, b);
             self.state = ParseState::DcsPassthrough;
             return i + 1;
         }
@@ -705,34 +636,8 @@ impl Parser {
     #[inline(always)]
     fn advance_param_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let mut j = i;
-        while j < bytes.len() {
-            match bytes[j] {
-                b'0'..=b'9' => {
-                    self.param = self
-                        .param
-                        .saturating_mul(10)
-                        .saturating_add((bytes[j] - b'0') as i32)
-                        .min(MAX_PARAM_VALUE);
-                    self.param_empty = false;
-                    j += 1;
-                }
-                b':' => {
-                    self.push_param(if self.param_empty { -1 } else { self.param });
-                    if self.params_len < 16 {
-                        self.sep |= 1 << (self.params_len - 1);
-                    }
-                    self.param = 0;
-                    self.param_empty = true;
-                    j += 1;
-                }
-                b';' => {
-                    self.push_param(self.param);
-                    self.param = 0;
-                    self.param_empty = true;
-                    j += 1;
-                }
-                _ => break,
-            }
+        while j < bytes.len() && self.param_byte(bytes[j]) {
+            j += 1;
         }
         if j > i {
             return j;
@@ -851,27 +756,13 @@ impl Parser {
             p.print(byte as char);
         }
         if action.contains(Action::CSI_DISPATCH) {
-            // A param-less CSI dispatches `[]` (not `[0]`); a trailing empty is
-            // the `-1` sentinel, so SGR can ignore it instead of resetting.
-            if !self.param_empty || self.params_len != 0 {
-                self.push_param(if self.param_empty { -1 } else { self.param });
-            }
-            let ints = &self.intermediates[..self.intermediates_len];
-            p.csi_dispatch(&self.params[..self.params_len], self.sep, ints, byte);
-            self.clear_seq_state();
+            self.dispatch_csi(p, byte);
         }
         if action.contains(Action::ESC_DISPATCH) {
-            let ints = &self.intermediates[..self.intermediates_len];
-            p.esc_dispatch(ints, byte);
-            self.clear_seq_state();
+            self.dispatch_esc(p, byte);
         }
         if action.contains(Action::HOOK) {
-            if !self.param_empty || self.params_len != 0 {
-                self.push_param(self.param);
-            }
-            let ints = &self.intermediates[..self.intermediates_len];
-            p.hook(&self.params[..self.params_len], ints, byte);
-            self.clear_seq_state();
+            self.dispatch_hook(p, byte);
         }
         if action.contains(Action::PUT) {
             p.put(byte);
@@ -880,10 +771,9 @@ impl Parser {
             p.unhook();
         }
         if action.contains(Action::OSC_START) {
-            self.osc.clear();
-            self.osc_overflow = false;
+            // Same reset as `osc_reset`, but the first param has already begun.
+            self.osc_reset();
             self.osc_num_starts = 1;
-            self.osc_deferring = false;
         }
         if action.contains(Action::OSC_PUT) {
             self.osc_push(byte);
@@ -927,6 +817,98 @@ impl Parser {
         }
         self.params[self.params_len] = value;
         self.params_len += 1;
+    }
+
+    /// Accumulate a decimal digit into the current parameter (16-bit clamp).
+    #[inline(always)]
+    fn param_digit(&mut self, b: u8) {
+        self.param = self
+            .param
+            .saturating_mul(10)
+            .saturating_add((b - b'0') as i32)
+            .min(MAX_PARAM_VALUE);
+        self.param_empty = false;
+    }
+
+    /// End a parameter on a `:` separator: push it (an empty one becomes the
+    /// `-1` sentinel so SGR colon forms like `38:2::r:g:b` survive) and mark
+    /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
+    #[inline(always)]
+    fn param_colon(&mut self) {
+        self.push_param(if self.param_empty { -1 } else { self.param });
+        if self.params_len < 16 {
+            self.sep |= 1 << (self.params_len - 1);
+        }
+        self.param = 0;
+        self.param_empty = true;
+    }
+
+    /// End a parameter on a `;` separator.
+    #[inline(always)]
+    fn param_semicolon(&mut self) {
+        self.push_param(self.param);
+        self.param = 0;
+        self.param_empty = true;
+    }
+
+    /// Accumulate one CSI/DCS param byte (digit/`:`/`;`). Returns `false` for
+    /// any other byte so the caller can handle it.
+    #[inline(always)]
+    fn param_byte(&mut self, b: u8) -> bool {
+        match b {
+            b'0'..=b'9' => {
+                self.param_digit(b);
+                true
+            }
+            b':' => {
+                self.param_colon();
+                true
+            }
+            b';' => {
+                self.param_semicolon();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Push the trailing parameter before a dispatch: a param-less sequence
+    /// stays empty, and a trailing empty becomes the `-1` sentinel (so SGR can
+    /// ignore it instead of resetting).
+    #[inline]
+    fn push_trailing_param(&mut self) {
+        if !self.param_empty || self.params_len != 0 {
+            self.push_param(if self.param_empty { -1 } else { self.param });
+        }
+    }
+
+    /// Dispatch a CSI with the collected params/intermediates.
+    #[inline]
+    fn dispatch_csi<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
+        self.push_trailing_param();
+        let ints = &self.intermediates[..self.intermediates_len];
+        p.csi_dispatch(&self.params[..self.params_len], self.sep, ints, final_byte);
+        self.clear_seq_state();
+    }
+
+    /// Dispatch a DCS hook with the collected params/intermediates.
+    #[inline]
+    fn dispatch_hook<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
+        if !self.param_empty || self.params_len != 0 {
+            self.push_param(self.param);
+        }
+        let ints = &self.intermediates[..self.intermediates_len];
+        p.hook(&self.params[..self.params_len], ints, final_byte);
+        self.clear_seq_state();
+    }
+
+    /// Dispatch an ESC sequence with the collected intermediates (empty in the
+    /// plain Escape state, where no intermediate byte has been seen yet).
+    #[inline]
+    fn dispatch_esc<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
+        let ints = &self.intermediates[..self.intermediates_len];
+        p.esc_dispatch(ints, final_byte);
+        self.clear_seq_state();
     }
 }
 

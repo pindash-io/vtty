@@ -135,6 +135,16 @@ fn first_set(mask: [i8; 16]) -> usize {
     mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
 
+/// Mask + shift + or a shuffled `u32x4` (the 3-byte `0x924` layout) into four
+/// code points. Shared by [`decode_3byte`] and the 2/3-byte-mix table path.
+#[inline(always)]
+fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
+    let ascii = p & simd.splat_u32x4(0x7f);
+    let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
+    let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
+    ((ascii | middle) | high).into()
+}
+
 /// Decode four consecutive 3-byte code points (12 bytes). The simdutf
 /// `0x924` fast path: one fixed shuffle gathers each 3-byte group into a u32
 /// lane, then mask + shift + or.
@@ -148,11 +158,7 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
         &[2, 1, 0, 0xff, 5, 4, 3, 0xff, 8, 7, 6, 0xff, 11, 10, 9, 0xff],
     );
     let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
-    let p: u32x4<S> = perm.bitcast();
-    let ascii = p & simd.splat_u32x4(0x7f);
-    let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
-    let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
-    ((ascii | middle) | high).into()
+    finish_u32x4_3byte(simd, perm.bitcast())
 }
 
 /// Decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]` via
@@ -206,12 +212,7 @@ fn decode_utf8_12<S: Simd>(
         // Four code points (2/3-byte mix).
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
         let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
-        let p: u32x4<S> = perm.bitcast();
-        let ascii = p & simd.splat_u32x4(0x7f);
-        let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
-        let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
-        let composed = (ascii | middle) | high;
-        let arr: [u32; 4] = composed.into();
+        let arr = finish_u32x4_3byte(simd, perm.bitcast());
         out[..4].copy_from_slice(&arr);
         (4, consumed)
     } else if idx < 209 {

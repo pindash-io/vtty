@@ -130,12 +130,6 @@ mod tests {
 
     #[test]
     fn first_non_printable_matches_scalar() {
-        fn reference(bytes: &[u8]) -> usize {
-            bytes
-                .iter()
-                .take_while(|&&x| (0x20..=0x7e).contains(&x))
-                .count()
-        }
         for pos in 0..16 {
             for byte in 0..=255_u8 {
                 let mut bytes = [b'x'; 16];
@@ -153,12 +147,6 @@ mod tests {
 
     #[test]
     fn first_non_printable_matches_scalar_random() {
-        fn reference(bytes: &[u8]) -> usize {
-            bytes
-                .iter()
-                .take_while(|&&x| (0x20..=0x7e).contains(&x))
-                .count()
-        }
         // Deterministic xorshift64; random buffers exercise the SWAR borrow
         // interactions and multi-non-printable chunks.
         let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
@@ -181,6 +169,15 @@ mod tests {
                 &bytes[..len]
             );
         }
+    }
+
+    /// Scalar reference for `first_non_printable` (length of the leading
+    /// printable-ASCII run).
+    fn reference(bytes: &[u8]) -> usize {
+        bytes
+            .iter()
+            .take_while(|&&x| (0x20..=0x7e).contains(&x))
+            .count()
     }
 
     fn scalar_osc(bytes: &[u8]) -> usize {
