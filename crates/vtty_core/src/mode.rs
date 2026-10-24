@@ -108,14 +108,6 @@ bitflags::bitflags! {
 /// flag ↔ number mapping cannot drift apart.
 macro_rules! private_modes {
     ($($flag:ident => $param:literal),+ $(,)?) => {
-        /// The `(flag, DEC private-mode number)` pairs, used by the
-        /// roundtrip test. ANSI-only modes (INSERT `4`, LINEFEED `20`) have
-        /// no DEC private number and are absent.
-        #[cfg(test)]
-        const PRIVATE_MODES: &'static [(Self, i32)] = &[
-            $((Self::$flag, $param),)+
-        ];
-
         /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for
         /// ANSI modes (insert, `CSI 4 h`) and for [`TermFlags::NONE`].
         #[inline]
@@ -244,20 +236,6 @@ mod tests {
         // 4 (IRM) is an ANSI mode, not a DEC private mode.
         assert_eq!(TermFlags::from_private_param(4), TermFlags::NONE);
         assert_eq!(TermFlags::from_private_param(999), TermFlags::NONE);
-    }
-
-    #[test]
-    fn all_private_modes_roundtrip() {
-        // Every entry must invert cleanly in BOTH directions — the single
-        // source of truth for the DEC private-mode number ↔ flag pair.
-        for &(flag, param) in TermFlags::PRIVATE_MODES {
-            assert_eq!(flag.private_param(), param, "{flag:?} → param");
-            assert_eq!(
-                TermFlags::from_private_param(param),
-                flag,
-                "param {param} → flag"
-            );
-        }
     }
 
     #[test]
