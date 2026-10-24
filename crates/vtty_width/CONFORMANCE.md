@@ -112,8 +112,27 @@ mark over the base. Scoped to the combining diacritical marks U+0300..=U+036F
 
 Locked by `vtty_width::tests::composes_precomposed_scopes_to_diacritics`.
 
-### Hangul jamo and syllable widths
+### CJK width mode (East Asian Width Ambiguous → 2)
 
+`cell_width` packs an extra `AMBIGUOUS` bit (bit 8 of the `u16` `Properties`,
+baked by `build.rs` for the EAW "A" set, and via `CodePointMapData` on the ICU
+runtime path). When the global `cjk_width()` flag is set (`set_cjk_width(true)`,
+wired from `JETFISH_CJK_WIDTH`), a width-1 Ambiguous char becomes 2 cells:
+
+| text | default (`cjk_width = false`) | CJK mode (`true`) |
+|---|---|---|
+| `⑩` U+2469 (A) | `[1]` | `[2]` |
+| `①` U+2460 (A) | `[1]` | `[2]` |
+| `a` | `[1]` | `[1]` |
+
+It matches `wcwidth` under a CJK locale and Ghostty's `cjk_width`; the default
+keeps Ambiguous at 1 so the grid stays in sync with the shell's non-CJK
+`wcwidth`, and the renderer's Enclosed-Alphanumerics scale-down keeps the ink
+inside the 1-cell box.
+
+Locked by `vtty_width::tests::cjk_width_makes_ambiguous_wide`.
+
+### Hangul jamo and syllable widths
 L jamo (U+1100) is 2 cells; V/T jamo (U+1160..=U+11FF) are zero-width
 continuations that compose onto a preceding L/LV. A LONE V/T jamo occupies 1
 cell (the lone-mark fix). Precomposed syllables (U+AC00..=U+D7A3) are 2 cells.
@@ -138,7 +157,9 @@ renderer's run char-range boundaries (floor/ceil/end):
 - `cell_col_char_ceil_from_widths(w, col)` — the first glyph AT or past `col`
   (ceil; a 0-width char at the boundary IS included).
 - `cell_col_char_end_from_widths(w, col)` — one past the glyph ENDING at
-  `col`, including its trailing 0-width continuations.
+  `col`, including its trailing 0-width continuations. The boundary is
+  INCLUSIVE (`cell + w >= col`, not `>`), so a glyph whose cell range ENDS
+  exactly at `col` is included (the 2-cell ZWJ-family run-end fix).
 
 These own every cell↔char boundary in one place, so the grid width (not the
 font advance) propagates through the renderer's run layout.
