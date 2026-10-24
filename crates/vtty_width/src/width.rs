@@ -167,30 +167,20 @@ pub const fn cell_advance(advance: f32, cell_w: f32) -> f32 {
     }
 }
 
-/// Walk `widths`, tracking the running cell column. `stop(i, cell, w)`
-/// returns the index to short-circuit with, or `None` to keep scanning;
-/// falling off the end returns `widths.len()`. The single scan shared by the
-/// FLOOR / CEIL / END boundary functions below, so their cell-column
-/// bookkeeping cannot drift apart.
-#[inline]
-fn scan_widths(widths: &[usize], stop: impl Fn(usize, usize, usize) -> Option<usize>) -> usize {
-    let mut cell = 0;
-    for (i, &w) in widths.iter().enumerate() {
-        if let Some(out) = stop(i, cell, w) {
-            return out;
-        }
-        cell += w;
-    }
-    widths.len()
-}
-
 /// The char INDEX (into `widths`) of the glyph that STARTS at (or contains)
 /// 0-based cell column `col`, stepping over zero-width continuations.
 /// Returns `widths.len()` past the last cell. The FLOOR boundary: a column on
 /// a wide glyph's second cell maps back to that glyph's lead char.
 #[inline]
 pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
-    scan_widths(widths, |i, cell, w| (w > 0 && col < cell + w).then_some(i))
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
+        if w > 0 && col < cell + w {
+            return i;
+        }
+        cell += w;
+    }
+    widths.len()
 }
 
 /// The char INDEX (into `widths`) of the first glyph AT or past 0-based cell
@@ -198,7 +188,14 @@ pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
 /// the boundary IS included. Returns `widths.len()` past the last cell.
 #[inline]
 pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
-    scan_widths(widths, |i, cell, _| (cell >= col).then_some(i))
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
+        if cell >= col {
+            return i;
+        }
+        cell += w;
+    }
+    widths.len()
 }
 
 /// The char INDEX (into `widths`) ONE PAST the glyph that ENDS at 0-based
@@ -206,17 +203,18 @@ pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
 /// Returns `widths.len()` past the last cell.
 #[inline]
 pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
-    scan_widths(widths, |i, cell, w| {
+    let mut cell = 0;
+    for (i, &w) in widths.iter().enumerate() {
         if w > 0 && cell + w >= col {
             let mut end = i + 1;
             while end < widths.len() && widths[end] == 0 {
                 end += 1;
             }
-            Some(end)
-        } else {
-            None
+            return end;
         }
-    })
+        cell += w;
+    }
+    widths.len()
 }
 
 /// Byte offset (into `text`) of the char that STARTS at the given 0-based
