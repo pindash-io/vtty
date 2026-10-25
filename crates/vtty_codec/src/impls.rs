@@ -5,8 +5,9 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use compact_str::CompactString;
 use core::mem::size_of;
+
+use compact_str::CompactString;
 use smallvec::SmallVec;
 
 use crate::error::{DecodeError, EncodeError};

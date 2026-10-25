@@ -8,8 +8,9 @@
 //! tables](https://vt100.net/emu/ctrlseq_dec.html); the individual report
 //! formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR) follow EK-VT520-RM §5.
 
-use compact_str::CompactString;
 use core::fmt::Write as _;
+
+use compact_str::CompactString;
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
 
