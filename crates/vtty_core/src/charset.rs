@@ -149,6 +149,63 @@ impl core::ops::IndexMut<usize> for Charsets {
     }
 }
 
+/// The full ISO 2022 SCS (Select Character Set) state: the four designated
+/// G-sets plus the GL locking-shift slot and the SS2/SS3 single shift. One
+/// `Copy` value shared by the cell and line screens so the active-charset
+/// selection lives in ONE place (teken's `t_scs_gl`/`t_curscs` over `t_scs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Scs {
+    /// The four designated G-sets (G0..=G3).
+    pub charsets: Charsets,
+    /// The GL locking-shift slot (ECMA-35 LS0..=LS3): 0..=3.
+    pub gl: u8,
+    /// SS2/SS3 single shift for the NEXT printable char only.
+    pub single_shift: Option<u8>,
+}
+
+impl Scs {
+    /// The power-on state: all G-sets ASCII, GL on G0, no single shift.
+    pub const fn ascii() -> Self {
+        Self { charsets: Charsets::ascii(), gl: 0, single_shift: None }
+    }
+
+    /// Designate slot `g` to `charset` (delegates to [`Charsets::designate`]).
+    pub fn designate(&mut self, g: usize, charset: Charset) {
+        self.charsets.designate(g, charset);
+    }
+
+    /// Set the GL locking-shift slot (LS0..=LS3).
+    pub fn shift(&mut self, g: u8) {
+        self.gl = g.min(3);
+    }
+
+    /// The active charset: an SS2/SS3 single shift wins for one char, then the
+    /// GL locking shift, otherwise G0.
+    pub fn active(&self) -> Charset {
+        match self.single_shift {
+            Some(2) => self.charsets.g2(),
+            Some(3) => self.charsets.g3(),
+            _ => match self.gl {
+                1 => self.charsets.g1(),
+                2 => self.charsets.g2(),
+                3 => self.charsets.g3(),
+                _ => self.charsets.g0(),
+            },
+        }
+    }
+
+    /// Translate a char through the active charset.
+    pub fn map(&self, c: char) -> char {
+        self.active().map(c)
+    }
+}
+
+impl Default for Scs {
+    fn default() -> Self {
+        Self::ascii()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +242,33 @@ mod tests {
     #[should_panic(expected = "charset slot must be 0..=3")]
     fn charsets_get_out_of_range_panics() {
         Charsets::ascii().get(4);
+    }
+}
+
+#[cfg(test)]
+mod scs_tests {
+    use super::*;
+
+    #[test]
+    fn scs_ls2_ls3_lock_and_map() {
+        let mut s = Scs::ascii();
+        s.designate(2, Charset::Dec); // G2 = DEC Special Graphics
+        s.designate(3, Charset::British); // G3 = British
+        s.shift(2); // LS2
+        assert_eq!(s.map('q'), '─');
+        s.shift(3); // LS3
+        assert_eq!(s.map('#'), '£');
+        s.shift(0); // LS0
+        assert_eq!(s.map('q'), 'q');
+    }
+
+    #[test]
+    fn scs_single_shift_wins_for_one_char() {
+        let mut s = Scs::ascii();
+        s.designate(2, Charset::Dec);
+        s.single_shift = Some(2);
+        assert_eq!(s.map('q'), '─');
+        s.single_shift = None;
+        assert_eq!(s.map('q'), 'q');
     }
 }
