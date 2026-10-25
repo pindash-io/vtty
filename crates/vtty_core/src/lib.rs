@@ -27,7 +27,6 @@
 
 extern crate alloc;
 
-pub use bitflags;
 pub use const_hex;
 
 mod charset;

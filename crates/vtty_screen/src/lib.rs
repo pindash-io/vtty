@@ -38,7 +38,7 @@ use alloc::vec::Vec;
 use core::fmt::Write as _;
 use core::ops::Range;
 
-use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags, bitflags};
+use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags};
 use vtty_width::{cell_width, cell_width_sum};
 
 bitflags::bitflags! {

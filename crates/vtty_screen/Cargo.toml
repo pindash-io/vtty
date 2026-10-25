@@ -11,6 +11,7 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
+bitflags.workspace = true
 vtty_core.workspace = true
 vtty_grapheme.workspace = true
 vtty_width.workspace = true
