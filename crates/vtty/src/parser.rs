@@ -689,7 +689,6 @@ impl Parser {
     /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
-        const EMPTY: [&[u8]; MAX_OSC_PARAMS] = [&[]; MAX_OSC_PARAMS];
         let deferring = self.osc_deferring;
         let n = self.osc_num_starts;
         // The cap applies to the `;`-free payload bytes. In deferred mode the
@@ -699,28 +698,31 @@ impl Parser {
         } else {
             self.osc.len()
         };
-        if !self.osc_overflow() && payload_len <= MAX_OSC_PAYLOAD {
-            let m = n.min(MAX_OSC_PARAMS);
-            // Unify the deferred (input-sliced) and accumulated (`osc`-sliced)
-            // cases: the input holds the `;` separators, so each `;`-free
-            // boundary offset shifts by `k` and the source is `bytes` rather
-            // than `osc`.
-            let base = if deferring { self.osc_base } else { 0 };
-            let shift = deferring as usize;
-            let last_end = if deferring { end_pos } else { self.osc.len() };
-            let src: &[u8] = if deferring { bytes } else { &self.osc };
-            let mut params = EMPTY;
-            for (k, dst) in params.iter_mut().enumerate().take(m) {
-                let start = base + self.osc_starts[k] as usize + k * shift;
-                let end = if k + 1 < n {
-                    base + self.osc_starts[k + 1] as usize + k * shift
-                } else {
-                    last_end
-                };
-                *dst = &src[start..end];
-            }
-            p.osc_dispatch(&params[..m], bell);
+        if self.osc_overflow() || payload_len > MAX_OSC_PAYLOAD {
+            self.osc_reset();
+            return;
         }
+        // Unify the deferred (input-sliced) and accumulated (`osc`-sliced)
+        // cases: the input holds the `;` separators, so each `;`-free
+        // boundary offset shifts by `k` and the source is `bytes` rather
+        // than `osc`.
+        let (src, base, shift, last_end) = if deferring {
+            (bytes, self.osc_base, 1, end_pos)
+        } else {
+            (&self.osc[..], 0, 0, self.osc.len())
+        };
+        let m = n.min(MAX_OSC_PARAMS);
+        let mut params = [&[][..]; MAX_OSC_PARAMS];
+        for (k, dst) in params.iter_mut().enumerate().take(m) {
+            let start = base + self.osc_starts[k] as usize + k * shift;
+            let end = if k + 1 < n {
+                base + self.osc_starts[k + 1] as usize + k * shift
+            } else {
+                last_end
+            };
+            *dst = &src[start..end];
+        }
+        p.osc_dispatch(&params[..m], bell);
         self.osc_reset();
     }
 

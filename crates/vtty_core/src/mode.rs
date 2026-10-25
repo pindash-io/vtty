@@ -174,13 +174,12 @@ impl TermFlags {
     #[inline]
     pub const fn from_mode_code(code: i32, private: bool) -> Self {
         if private {
-            Self::from_private_param(code)
-        } else {
-            match code {
-                4 => Self::INSERT,
-                20 => Self::LINEFEED,
-                _ => Self::NONE,
-            }
+            return Self::from_private_param(code);
+        }
+        match code {
+            4 => Self::INSERT,
+            20 => Self::LINEFEED,
+            _ => Self::NONE,
         }
     }
 
@@ -190,11 +189,10 @@ impl TermFlags {
     #[inline]
     pub const fn from_any_mode_code(code: i32) -> Self {
         let ansi = Self::from_mode_code(code, false);
-        if ansi.is_empty() {
-            Self::from_mode_code(code, true)
-        } else {
-            ansi
+        if !ansi.is_empty() {
+            return ansi;
         }
+        Self::from_mode_code(code, true)
     }
 }
 
