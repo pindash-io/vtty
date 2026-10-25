@@ -166,7 +166,11 @@ pub struct Scs {
 impl Scs {
     /// The power-on state: all G-sets ASCII, GL on G0, no single shift.
     pub const fn ascii() -> Self {
-        Self { charsets: Charsets::ascii(), gl: 0, single_shift: None }
+        Self {
+            charsets: Charsets::ascii(),
+            gl: 0,
+            single_shift: None,
+        }
     }
 
     /// Designate slot `g` to `charset` (delegates to [`Charsets::designate`]).
