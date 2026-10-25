@@ -94,8 +94,22 @@ are NOT marks and must not attach:
 | U+00B4 ACUTE ACCENT (Sk) | 1 | `e\u{00B4} = [1,1]`, ` \u{00B4} = [1,1]` |
 | U+0060 GRAVE ACCENT (Sk) | 1 | `e\u{60} = [1,1]`, ` \u{60} = [1,1]` |
 
-Locked by `vtty_width::tests::combining_vs_spacing_acute` and
-`jetfish_cell::combining_vs_spacing_acute_cell_width`.
+Locked by `vtty_width::tests::combining_vs_spacing_acute`.
+
+### Mark attachment (lone vs space base vs visible base)
+
+The whole-text DFA's attachment rule (`finalize_lead`, the `has_base` /
+`space_base` / `followed_by_mark` triple):
+
+| text | `cell_widths` | rule |
+|---|---|---|
+| `e\u{301}` | `[1, 0]` | a mark after a visible base ATTACHES |
+| ` \u{301}` | `[1, 0]` | a SINGLE mark after a SPACE attaches (the space is a base) |
+| ` \u{301}\u{301}` | `[1, 1, 0]` | two marks after a SPACE: the FIRST is STANDALONE so the second has a visible base |
+| `1\u{323}\u{323}` | `[1, 0, 0]` | two marks after a VISIBLE base attach (the base is already visible) |
+| `❤\u{fe0f}\u{301}\u{301}` | `[2, 0, 0, 0]` | marks after a VS16-widened emoji attach (the emoji is visible) |
+
+Locked by `vtty_width::tests::mark_after_space_followed_by_mark_is_standalone`.
 
 Format controls U+200B ZWSP / U+200C ZWNJ are `Default_Ignorable` → 0 cells
 (the engine's `cell_spans` uses U+200B as an internal grapheme breaker to
