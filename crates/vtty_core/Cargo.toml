@@ -18,9 +18,9 @@ reply = []
 termcap = ["reply"]
 [dependencies]
 bitflags.workspace = true
+compact_str.workspace = true
 const-hex = { workspace = true, features = ["alloc"] }
 smallvec.workspace = true
-compact_str.workspace = true
 
 [lints]
 workspace = true

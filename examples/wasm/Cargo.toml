@@ -19,6 +19,7 @@ crate-type = ["cdylib", "rlib"]
 vtty = { path = "../../crates/vtty", default-features = false, features = ["simd-transcode"] }
 # The cell-grid terminal screen.
 vtty_screen = { path = "../../crates/vtty_screen" }
+
 wasm-bindgen = "0.2"
 
 [profile.release]

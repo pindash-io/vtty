@@ -13,8 +13,9 @@ readme = "README.md"
 [dependencies]
 vtty_core = { path = "../vtty_core", default-features = false, features = ["reply"] }
 vtty_status = { workspace = true }
-smallvec.workspace = true
+
 compact_str.workspace = true
+smallvec.workspace = true
 
 [lints]
 workspace = true

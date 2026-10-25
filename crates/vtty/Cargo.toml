@@ -24,12 +24,12 @@ simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8"]
 simd-transcode = ["simd"]
 
 [dependencies]
-fearless_simd = { workspace = true, optional = true }
-simdutf8 = { workspace = true, optional = true }
 vtty_core = { path = "../vtty_core", default-features = false }
 vtty_status = { workspace = true, optional = true }
 
 bitflags.workspace = true
+fearless_simd = { workspace = true, optional = true }
+simdutf8 = { workspace = true, optional = true }
 smallvec.workspace = true
 utf8_iter.workspace = true
 
