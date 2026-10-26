@@ -24,6 +24,7 @@
 //! allocation — it fails with [`DecodeError::UnexpectedEof`] instead.
 
 #![no_std]
+#![forbid(unsafe_code)]
 #![expect(
     clippy::cast_possible_truncation,
     reason = "fixed-width encoding truncates to target-width types where the range is known-safe"

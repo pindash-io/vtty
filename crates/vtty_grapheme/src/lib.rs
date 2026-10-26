@@ -28,6 +28,8 @@
 //! assert_eq!(widths, [2, 1, 1, 1, 2]);
 //! ```
 
+#![forbid(unsafe_code)]
+
 use vtty_width::Gcb;
 
 /// A grapheme cluster: a byte range `[start, end)` into the source text.
