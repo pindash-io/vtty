@@ -10,6 +10,9 @@ license.workspace = true
 repository.workspace = true
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = []
 # DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).

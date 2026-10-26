@@ -11,6 +11,9 @@ repository.workspace = true
 readme = "README.md"
 build = "build.rs"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["simd", "baked"]
 # Vectorized scan for the first non-ASCII byte in the cell-width fast paths.
