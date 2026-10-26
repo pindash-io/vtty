@@ -348,11 +348,7 @@ mod tests {
             let Some(c) = char::from_u32(cp) else {
                 continue;
             };
-            assert_eq!(
-                Properties::get(c).width(),
-                width_icu(c) as u8,
-                "U+{cp:04X}"
-            );
+            assert_eq!(Properties::get(c).width(), width_icu(c) as u8, "U+{cp:04X}");
         }
     }
 
