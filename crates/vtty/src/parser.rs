@@ -381,10 +381,7 @@ impl Parser {
                     // (CsiEntry), before any param or marker. After params the
                     // DEC state machine transitions to CsiIgnore and drops the
                     // whole sequence, so bail to the cold path.
-                    if self.params_len != 0
-                        || !self.param_empty
-                        || self.intermediates_len != 0
-                    {
+                    if self.params_len != 0 || !self.param_empty || self.intermediates_len != 0 {
                         return None;
                     }
                     self.push_intermediate(seq[f]);

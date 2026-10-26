@@ -90,8 +90,8 @@ handlers for the hot states (`advance_ground`, `advance_osc_run`,
 ### Transition table
 
 The DEC VT500 grammar is expanded at compile time into `[state][byte]` (14 ×
-256), each entry a packed `u32`: low 16 bits `Action` flags, bits 16..=23 the
-next `ParseState`. `transition` is one indexed load.
+256), each entry an `(Action, ParseState)` tuple (4 bytes). `transition` is
+one indexed load, no unpacking.
 
 ### Parameters
 

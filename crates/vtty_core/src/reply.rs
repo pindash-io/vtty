@@ -31,6 +31,7 @@ const DECRQSS_ERR: &str = "\x1bP0$r";
 /// (`XTVERSION` + `OSC 10/11` + `OSC 4` + `DA`) is answered in order instead
 /// of dropping all but the last.
 #[derive(Debug)]
+#[must_use]
 pub struct Reply {
     buf: CompactString,
     /// Nothing appended yet — lets `is_empty` answer without touching `buf`.
