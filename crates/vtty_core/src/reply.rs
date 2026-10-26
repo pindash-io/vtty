@@ -141,22 +141,22 @@ impl Reply {
     /// Append an SGR reply (`m…`) from a pen's palette ids + style flags.
     /// Starts with `0` (reset-all), like vte. `palette` resolves RGB ids.
     pub fn sgr(mut self, fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> Self {
-        let _ = write!(self.buf, "0");
+        let buf = self.buffer_mut();
+        buf.push_str("0");
         if flags.contains(SgrFlags::BOLD) {
-            let _ = write!(self.buf, ";1");
+            buf.push_str(";1");
         }
         if flags.contains(SgrFlags::ITALIC) {
-            let _ = write!(self.buf, ";3");
+            buf.push_str(";3");
         }
         if flags.contains(SgrFlags::UNDERLINE) {
-            let _ = write!(self.buf, ";4");
+            buf.push_str(";4");
         }
         if flags.contains(SgrFlags::INVERSE) {
-            let _ = write!(self.buf, ";7");
+            buf.push_str(";7");
         }
-        push_sgr_color(&mut self.buf, 3, fg, DEFAULT_FG_ID, palette);
-        push_sgr_color(&mut self.buf, 4, bg, DEFAULT_BG_ID, palette);
-        self.empty = false;
+        push_sgr_color(buf, 3, fg, DEFAULT_FG_ID, palette);
+        push_sgr_color(buf, 4, bg, DEFAULT_BG_ID, palette);
         self
     }
 
@@ -165,9 +165,8 @@ impl Reply {
     /// convention).
     #[inline]
     pub fn osc_color(mut self, code: u16, rgb: u32) -> Self {
-        self.buf
+        self.buffer_mut()
             .push_str(&crate::color::format_osc_color_reply(code, rgb));
-        self.empty = false;
         self
     }
 
@@ -175,20 +174,18 @@ impl Reply {
     /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
     #[inline]
     pub fn osc_palette(mut self, index: usize, rgb: u32) -> Self {
-        self.buf
+        self.buffer_mut()
             .push_str(&crate::color::format_osc_palette_reply(index, rgb));
-        self.empty = false;
         self
     }
 
     /// Append the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
     #[inline]
     pub fn osc_background(mut self, c: [f32; 4]) -> Self {
-        let buf = crate::color::format_osc_background(c);
+        let fixed = crate::color::format_osc_background(c);
         // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
-        self.buf
-            .push_str(core::str::from_utf8(&buf).unwrap_or_default());
-        self.empty = false;
+        self.buffer_mut()
+            .push_str(core::str::from_utf8(&fixed).unwrap_or_default());
         self
     }
 
@@ -196,12 +193,12 @@ impl Reply {
     /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
     /// includes the `?` for `CSI ?Ps$p` queries.
     pub fn decrqm(mut self, param: i32, private: bool, state: u8) -> Self {
-        let _ = write!(
-            self.buf,
-            "\x1b[{}{param};{state}$y",
-            if private { "?" } else { "" }
-        );
-        self.empty = false;
+        let buf = self.buffer_mut();
+        buf.push_str("\x1b[");
+        if private {
+            buf.push('?');
+        }
+        let _ = write!(buf, "{param};{state}$y");
         self
     }
 

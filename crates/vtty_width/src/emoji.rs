@@ -283,7 +283,7 @@ pub(crate) fn finalize_lead(
     };
     let w = if lead_w == 0 {
         let sel = Selector::from_char(r.lead);
-        if sel.is_vs() || sel.is_zwj() || (*has_base && !(followed_by_mark && *space_base)) {
+        if !sel.is_none() || (*has_base && !(followed_by_mark && *space_base)) {
             0
         } else {
             // A lone mark, OR a mark followed by another combining mark with

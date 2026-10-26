@@ -874,20 +874,24 @@ impl Parser {
         }
     }
 
-    /// Push the trailing parameter before a dispatch: a param-less sequence
-    /// stays empty, and a trailing empty becomes the `-1` sentinel (so SGR can
-    /// ignore it instead of resetting).
+    /// Push the trailing parameter before a dispatch. A param-less sequence
+    /// stays empty; a trailing empty becomes the `-1` sentinel for CSI (so SGR
+    /// can ignore it) but the raw value for DCS.
     #[inline]
-    fn push_trailing_param(&mut self) {
+    fn push_trailing_param(&mut self, sentinel: bool) {
         if !self.param_empty || self.params_len != 0 {
-            self.push_param(if self.param_empty { -1 } else { self.param });
+            self.push_param(if sentinel && self.param_empty {
+                -1
+            } else {
+                self.param
+            });
         }
     }
 
     /// Dispatch a CSI with the collected params/intermediates.
     #[inline]
     fn dispatch_csi<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
-        self.push_trailing_param();
+        self.push_trailing_param(true);
         let ints = &self.intermediates[..self.intermediates_len];
         p.csi_dispatch(&self.params[..self.params_len], self.sep, ints, final_byte);
         self.clear_seq_state();
@@ -896,9 +900,7 @@ impl Parser {
     /// Dispatch a DCS hook with the collected params/intermediates.
     #[inline]
     fn dispatch_hook<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
-        if !self.param_empty || self.params_len != 0 {
-            self.push_param(self.param);
-        }
+        self.push_trailing_param(false);
         let ints = &self.intermediates[..self.intermediates_len];
         p.hook(&self.params[..self.params_len], ints, final_byte);
         self.clear_seq_state();

@@ -990,13 +990,21 @@ impl Screen {
     }
 
     fn cursor_up(&mut self, n: u32) {
-        self.clear_wrap();
-        self.cursor_row = self.cursor_row.saturating_sub(n).max(self.row_bound(false));
+        self.cursor_vertical(n, false);
     }
 
     fn cursor_down(&mut self, n: u32) {
+        self.cursor_vertical(n, true);
+    }
+
+    /// Move the cursor vertically, clamping to the margin (or screen) bounds.
+    fn cursor_vertical(&mut self, n: u32, down: bool) {
         self.clear_wrap();
-        self.cursor_row = (self.cursor_row + n).min(self.row_bound(true));
+        self.cursor_row = if down {
+            (self.cursor_row + n).min(self.row_bound(true))
+        } else {
+            self.cursor_row.saturating_sub(n).max(self.row_bound(false))
+        };
     }
 
     fn cursor_forward(&mut self, n: u32) {
