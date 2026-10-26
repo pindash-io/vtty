@@ -244,6 +244,19 @@ mod tests {
         );
     }
 
+    /// The fuzz-minimized fixture prefix: a halfwidth ideographic space
+    /// (0), CJK (2), an emoji (2), a 2-emoji ZWJ family (2 — the `👩` joins
+    /// at 0), a mahjong tile (1), and `👍` (2) — 9 cells total. Locks the
+    /// ZWJ-family merge AND the mahjong-tile/halfwidth-space widths so the
+    /// cell and line screens agree on the cursor column.
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn zwj_family_plus_mahjong_and_halfwidth_space_widths() {
+        let prefix = "\u{FFA0}界😞👨\u{200D}👩🀍👍";
+        assert_eq!(cell_widths(prefix), vec![0, 2, 2, 2, 0, 0, 1, 2]);
+        assert_eq!(cell_width_sum(prefix), 9);
+    }
+
     /// Hangul Jamo + syllable widths: L jamo is wide (2), V/T jamo are
     /// zero-width continuations (they compose onto a preceding L / LV), and
     /// precomposed syllables are 2 cells. A LONE V/T jamo occupies 1 cell
