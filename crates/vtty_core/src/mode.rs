@@ -19,19 +19,19 @@ bitflags::bitflags! {
         /// IRM (`CSI 4 h/l`) — insert/replace mode.
         const INSERT = 1 << 0;
         /// LNM (`CSI 20 h/l`) — linefeed/newline mode.
-        const LNM = 1 << 3;
+        const LINEFEED = 1 << 3;
         /// DECCKM (`CSI ?1 h/l`) — application cursor keys (arrows send `SS3`).
         const CURSOR_KEYS = 1 << 10;
         /// DECCOLM (`CSI ?3 h/l`) — 132-column mode (tracked; the host owns
         /// the real width).
         const DECCOLM = 1 << 13;
         /// DECSCNM (`CSI ?5 h/l`) — reverse video (swap fg/bg at render time).
-        const REVERSE = 1 << 11;
+        const REVERSE_COLORS = 1 << 11;
         /// DECOM (`CSI ?6 h/l`) — origin mode (positioning relative to the
         /// scroll region).
         const ORIGIN = 1 << 1;
         /// DECAWM (`CSI ?7 h/l`) — autowrap.
-        const AUTOWRAP = 1 << 2;
+        const WRAPAROUND = 1 << 2;
         /// DEC 9 — X10 mouse reporting.
         const MOUSE_X10 = 1 << 6;
         /// DEC 12 (`CSI ?12 h/l`) — cursor blinking (AT&T 610).
@@ -45,15 +45,15 @@ bitflags::bitflags! {
         /// its content and cursor).
         const ALT_SCREEN = 1 << 14;
         /// DEC 66 — application keypad mode (DECNKM).
-        const KEYPAD_APP = 1 << 24;
+        const KEYPAD_KEYS = 1 << 24;
         /// DEC 67 — backarrow key mode (DECBKM): Backspace sends `\x08`
         /// instead of `\x7f`.
-        const BACKARROW = 1 << 33;
+        const BACKARROW_KEY_MODE = 1 << 33;
         /// DEC 1035 (`CSI ?1035 h/l`) — ignore the numlock state for the
         /// keypad (the keypad is always numeric, never application).
         const NUMLOCK = 1 << 34;
         /// DEC 69 — left/right margin mode (DECLRMM).
-        const DECLRMM = 1 << 23;
+        const ENABLE_LEFT_AND_RIGHT_MARGIN = 1 << 23;
         /// DEC 80 — Sixel display mode (scrolling vs. fixed). Tracked only;
         /// the image renderer owns the actual Sixel placement.
         const DECSDM = 1 << 27;
@@ -134,17 +134,17 @@ impl TermFlags {
     private_modes! {
         CURSOR_KEYS => 1,              // DECCKM
         DECCOLM => 3,                  // DECCOLM
-        REVERSE => 5,                  // DECSCNM
+        REVERSE_COLORS => 5,                  // DECSCNM
         ORIGIN => 6,                   // DECOM
-        AUTOWRAP => 7,               // DECAWM
+        WRAPAROUND => 7,               // DECAWM
         MOUSE_X10 => 9,                // DEC 9
         CURSOR_BLINK => 12,            // DEC 12
         CURSOR_VISIBLE => 25,          // DECTCEM
         REVERSE_WRAP => 45,            // DEC 45
         ALT_SCREEN => 47,              // DEC 47
-        KEYPAD_APP => 66,                  // DECNKM
-        BACKARROW => 67,                  // DECBKM
-        DECLRMM => 69,                 // DECLRMM
+        KEYPAD_KEYS => 66,                  // DECNKM
+        BACKARROW_KEY_MODE => 67,                  // DECBKM
+        ENABLE_LEFT_AND_RIGHT_MARGIN => 69,                 // DECLRMM
         DECSDM => 80,                  // DECSDM
         MOUSE_NORMAL => 1000,          // DEC 1000
         MOUSE_BUTTON => 1002,          // DEC 1002
@@ -178,7 +178,7 @@ impl TermFlags {
         }
         match code {
             4 => Self::INSERT,
-            20 => Self::LNM,
+            20 => Self::LINEFEED,
             _ => Self::NONE,
         }
     }
