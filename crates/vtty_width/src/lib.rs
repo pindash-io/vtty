@@ -436,6 +436,19 @@ mod tests {
         assert_eq!(cell_widths("ｶﾞ"), vec![1, 1]);
         assert_eq!(cell_widths("か\u{3099}"), vec![2, 0]);
     }
+
+    #[test]
+    fn halfwidth_sound_mark_does_not_attach_to_emoji_base() {
+        // U+FF9E/U+FF9F are Grapheme_Extend, so the emoji DFA used to attach
+        // them as 0-width continuations after an emoji base (`❤ﾞ` = [1, 0]).
+        // They must stay independent halfwidth cells (1) even there — the
+        // seed-0 `瘀ｶﾞ👨 ZWJ … ❤ VS16 ECH` divergence.
+        assert_eq!(cell_widths("❤ﾞ"), vec![1, 1]);
+        assert_eq!(cell_widths("❤\u{fe0f}ﾞ"), vec![2, 0, 1]);
+        // The whole-text DFA still ZWJ-joins `❤` into the `👨` family
+        // (`[0, 0]`), but the halfwidth `ﾞ` stays 1 cell.
+        assert_eq!(cell_widths("瘀ｶﾞ👨\u{200d}❤\u{fe0f}ﾞ"), vec![2, 1, 1, 2, 0, 0, 0, 1]);
+    }
 }
 
 #[test]
