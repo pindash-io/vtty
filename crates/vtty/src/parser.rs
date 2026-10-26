@@ -305,48 +305,11 @@ impl Parser {
             // high-bit — bails to the state machine, which enforces the
             // CsiIntermediate/CsiParam → CsiIgnore transitions.
             if b == 0x1b && run.get(pos + 1) == Some(&b'[') {
-                let seq = &run[pos + 2..valid];
-                self.clear_seq_state();
-                let mut ok = true;
-                let mut f = 0_usize;
-                while f < seq.len() {
-                    if self.param_byte(seq[f]) {
-                        f += 1;
-                        continue;
-                    }
-                    match seq[f] {
-                        0x3c..=0x3f => {
-                            // Private marker (`> = < ?`) — only valid as a CSI
-                            // prefix (CsiEntry), before any param or marker.
-                            // After params (CsiParam) the DEC state machine
-                            // transitions to CsiIgnore and drops the whole
-                            // sequence, so bail to the cold path.
-                            if self.params_len != 0
-                                || !self.param_empty
-                                || self.intermediates_len != 0
-                            {
-                                ok = false;
-                                break;
-                            }
-                            self.push_intermediate(seq[f]);
-                            f += 1;
-                        }
-                        0x40..=0x7e => break, // final byte
-                        _ => {
-                            ok = false;
-                            break;
-                        }
-                    }
-                }
-                if ok && f < seq.len() {
-                    // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
-                    // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
-                    // is pushed as `-1`.
-                    self.dispatch_csi(p, seq[f]);
-                    // Keep scanning in this pass: CSI-dense input (SGR
-                    // churn, cursor motion) pays a re-entry + a fresh
-                    // `first_non_printable` scan per sequence otherwise.
-                    pos += 2 + f + 1;
+                // Keep scanning in this pass on success: CSI-dense input
+                // (SGR churn, cursor motion) pays a re-entry + a fresh
+                // `first_non_printable` scan per sequence otherwise.
+                if let Some(consumed) = self.try_dispatch_csi(p, &run[pos + 2..valid]) {
+                    pos += 2 + consumed;
                     continue;
                 }
             }
@@ -396,6 +359,48 @@ impl Parser {
         }
         // Consume the whole run (including any carried-over partial bytes).
         i + run.len()
+    }
+
+    /// Parse a `ESC [` CSI sequence from `seq` (the bytes after `ESC [`),
+    /// dispatching inline. Returns the number of bytes consumed, or `None`
+    /// to bail to the state machine (an intermediate, a private marker after
+    /// params, C0/DEL, or a high bit). Clears the sequence state up front
+    /// either way.
+    #[inline(always)]
+    fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
+        self.clear_seq_state();
+        let mut f = 0_usize;
+        while f < seq.len() {
+            if self.param_byte(seq[f]) {
+                f += 1;
+                continue;
+            }
+            match seq[f] {
+                0x3c..=0x3f => {
+                    // Private marker (`> = < ?`) — only valid as a CSI prefix
+                    // (CsiEntry), before any param or marker. After params the
+                    // DEC state machine transitions to CsiIgnore and drops the
+                    // whole sequence, so bail to the cold path.
+                    if self.params_len != 0
+                        || !self.param_empty
+                        || self.intermediates_len != 0
+                    {
+                        return None;
+                    }
+                    self.push_intermediate(seq[f]);
+                    f += 1;
+                }
+                0x40..=0x7e => {
+                    // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
+                    // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
+                    // is pushed as `-1`.
+                    self.dispatch_csi(p, seq[f]);
+                    return Some(f + 1);
+                }
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// Raw 8-bit C1 → (action, next state). Introducers start their sequence;
