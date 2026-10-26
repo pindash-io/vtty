@@ -135,7 +135,7 @@ fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
 ///
 /// With `simd`, validates a window via `simdutf8` and dispatches it in bulk
 /// (ASCII + multi-byte together); scalar decodes one code point at a time.
-/// The window is capped at the next ESC — ESC is never a UTF-8 continuation,
+/// The window is capped at the next `ESC` — `ESC` is never a UTF-8 continuation,
 /// so it is a safe boundary that must reach the escape state rather than be
 /// dispatched as `execute`.
 ///

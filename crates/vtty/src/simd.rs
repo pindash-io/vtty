@@ -14,7 +14,7 @@ use crate::utf8::decode_utf8_n;
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 
 /// Return the index of the first byte that is NOT printable ASCII
-/// (`0x20..=0x7e`; DEL `0x7f` is a C0 control dispatched via `execute`),
+/// (`0x20..=0x7e`; `DEL` `0x7f` is a C0 control dispatched via `execute`),
 /// or `bytes.len()` if every byte is printable.
 #[inline(always)]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
@@ -36,7 +36,7 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
 }
 
-/// Index of the first ESC byte (`0x1b`), or `bytes.len()` if none. Caps the
+/// Index of the first `ESC` byte (`0x1b`), or `bytes.len()` if none. Caps the
 /// SIMD UTF-8 decode window at the next sequence introducer, which must
 /// reach the escape state rather than be dispatched as `execute`.
 #[inline(always)]
@@ -50,7 +50,7 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
 enum ScanKind {
     /// Non-printable (`b < 0x20 || b >= 0x7f`).
     NonPrintable,
-    /// The ESC byte (`0x1b`) — the state-machine sequence introducer.
+    /// The `ESC` byte (`0x1b`) — the state-machine sequence introducer.
     Esc,
 }
 

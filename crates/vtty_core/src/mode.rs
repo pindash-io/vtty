@@ -20,7 +20,7 @@ bitflags::bitflags! {
         const INSERT = 1 << 0;
         /// LNM (`CSI 20 h/l`) — linefeed/newline mode.
         const LINEFEED = 1 << 3;
-        /// DECCKM (`CSI ?1 h/l`) — application cursor keys (arrows send SS3).
+        /// DECCKM (`CSI ?1 h/l`) — application cursor keys (arrows send `SS3`).
         const CURSOR_KEYS = 1 << 10;
         /// DECCOLM (`CSI ?3 h/l`) — 132-column mode (tracked; the host owns
         /// the real width).

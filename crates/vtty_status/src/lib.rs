@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! OSC 7501 Program Status Protocol for `vtty`.
+//! `OSC 7501` Program Status Protocol for `vtty`.
 //!
 //! The optional status extension: the [`ProgramStatus`] codec (parse/encode)
 //! and the [`PerformProgramStatus`] hook, which a [`vtty_core::Perform`] sink

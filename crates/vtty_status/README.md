@@ -2,7 +2,7 @@
 
 <!-- cargo-rdme start -->
 
-OSC 7501 Program Status Protocol for `vtty`.
+`OSC 7501` Program Status Protocol for `vtty`.
 
 The optional status extension: the [`ProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/struct.ProgramStatus.html) codec (parse/encode)
 and the [`PerformProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/trait.PerformProgramStatus.html) hook, which a [`vtty_core::Perform`](https://docs.rs/vtty_core/latest/vtty_core/perform/trait.Perform.html) sink

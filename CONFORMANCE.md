@@ -30,9 +30,9 @@ table (`transition_impl`), once as an independent reference (`dec_step` in
 | Area | Status | Notes |
 | --- | --- | --- |
 | Non-ground states × `0x00..=0x7f` | ✅ tested | 13 states × 128 bytes = 1,664 assertions (`table_matches_dec_ansi_parser_diagram`) |
-| C0 controls (execute/ignore, CAN/SUB cancel) | ✅ tested | CAN/SUB cancel + return to ground in every state |
-| NUL executes (DECNULM, VT500) | ✅ | not treated as a time-fill |
-| C1 "anywhere" rule | ✅ tested | introducers re-enter, ST is a no-op, others execute → ground (`c1_transition_matches_dec_anywhere`) |
+| C0 controls (execute/ignore, `CAN`/`SUB` cancel) | ✅ tested | `CAN`/`SUB` cancel + return to ground in every state |
+| `NUL` executes (DECNULM, VT500) | ✅ | not treated as a time-fill |
+| C1 "anywhere" rule | ✅ tested | introducers re-enter, `ST` is a no-op, others execute → ground (`c1_transition_matches_dec_anywhere`) |
 | C1 interrupts a string | ✅ tested | `osc_end`/`unhook` fires for *any* C1 control, then the control is processed (`c1_interrupt_fires_string_exit_action`) |
 | UTF-8 maximal-subpart substitution | ✅ | W3C rule, one U+FFFD per invalid maximal subpart |
 | GR (`0xa0..=0xff`) ≡ GL | ⚠️ N/A | `vtty` is UTF-8: `0xa0..=0xff` are UTF-8 lead bytes. DEC's GR≡GL rule applies only to 8-bit charset mode (ISO 8859 / DEC MCS), which a UTF-8 terminal does not use. |
@@ -44,7 +44,7 @@ Modern protocol extensions that intentionally differ from the DEC diagram:
 | Case | DEC | vtty | Reason |
 | --- | --- | --- | --- |
 | `:` in CSI/DCS params | `* ignore` (drop sequence) | sub-parameter separator | kitty `4:3m`, `38:2::r:g:b` |
-| SOS/PM/APC content | ignore | `hook` + reuse DCS passthrough | kitty APC `_G` graphics |
+| `SOS`/`PM`/`APC` content | ignore | `hook` + reuse DCS passthrough | kitty `APC` `_G` graphics |
 | params stored | 16 | 32 (matches vte/rio-vt) | `sep: u16` still tracks only the first 16 colon flags |
 | param clamp | `>9999 → 9999` (DECSR: 0–16383) | `0..=65535` (16-bit) | matches vte |
 
@@ -93,7 +93,7 @@ call), just not reflected in a flag — the full catalog is at
 | DECRQM | `CSI ?Ps$p` | `CSI ?Ps;{state}$y` | ✅ `Reply::decrqm` |
 | XTGETTCAP | `DCS + q <hex> ST` | `DCS {ok} + r … ST` | ✅ `Reply::xtgettcap_*` + `Cap` table |
 | SGR (DECRQSS `m`) | — | `0;…m` | ✅ `Reply::sgr` |
-| OSC 10/11/4 color | `OSC … ?` | `OSC … ST` | ✅ `Reply::osc_color` / `osc_palette` / `osc_background` |
+| `OSC 10/11/4` color | `OSC … ?` | `OSC … ST` | ✅ `Reply::osc_color` / `osc_palette` / `osc_background` |
 | DECTSR (state report) | `CSI 1 $ u` (DECRQTSR) | `DCS 1 $ s D…D ST` | ✅ `Reply::dectsr` |
 | DECCTR (color table) | `CSI 2 $ u` (DECRQTSR) | `DCS 2 $ s D…D ST` | ✅ `Reply::decctr` |
 | DECCIR (cursor info) | `CSI 1 $ w` (DECRQPSR) | `DCS 1 $ u … ST` | ✅ `Reply::deccir` |

@@ -73,7 +73,7 @@ assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
   “anywhere”).
 - **Wire protocols** (on by default, opt out with
   `default-features = false`) — `reply` (DECRQSS/DECRQM/XTGETTCAP),
-  `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (OSC 7501
+  `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (`OSC 7501`
   `ProgramStatus`).
 
 ## Test

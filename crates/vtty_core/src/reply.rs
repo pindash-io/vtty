@@ -64,7 +64,7 @@ impl Reply {
         &mut self.buf
     }
 
-    /// Terminate a DCS/OSC string with ST and mark the reply non-empty.
+    /// Terminate a DCS/OSC string with `ST` and mark the reply non-empty.
     #[inline]
     fn terminate(mut self) -> Self {
         self.buf.push_str(ST);
@@ -171,7 +171,7 @@ impl Reply {
         self
     }
 
-    /// Append an OSC 4 palette-entry reply
+    /// Append an `OSC 4` palette-entry reply
     /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
     #[inline]
     pub fn osc_palette(mut self, index: usize, rgb: u32) -> Self {
@@ -181,7 +181,7 @@ impl Reply {
         self
     }
 
-    /// Append the fixed OSC 11 background reply `ESC]11;rgb:… ESC\`.
+    /// Append the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
     #[inline]
     pub fn osc_background(mut self, c: [f32; 4]) -> Self {
         let buf = crate::color::format_osc_background(c);

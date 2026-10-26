@@ -271,7 +271,7 @@ mod tests {
 
     /// Independent transcription of Paul Flo Williams' VT500 parser state
     /// diagram (<https://vt100.net/emu/dec_ansi_parser>), restricted to
-    /// bytes `0x00..=0x7f` (C0 + GL + DEL). C1 controls (`0x80..=0x9f`) are
+    /// bytes `0x00..=0x7f` (C0 + GL + `DEL`). C1 controls (`0x80..=0x9f`) are
     /// dispatched by `Parser::c1_transition`, not this table, and GR bytes
     /// (`0xa0..=0xff`) are UTF-8 lead bytes in a UTF-8 terminal (the DEC
     /// diagram's GR==GL rule applies only to 8-bit character-set mode).

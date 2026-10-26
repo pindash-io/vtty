@@ -173,8 +173,8 @@ pub(crate) fn run_rio(bytes: &[u8]) -> Vec<Event> {
     rec.acts
 }
 
-/// Build the corpus: all C0/C1 controls, ESC/CSI/OSC/DCS variants, UTF-8.
-/// DEL (`0x7f`), raw 8-bit C1, and SOS/PM/APC are excluded — vtty diverges
+/// Build the corpus: all C0/C1 controls, `ESC`/`CSI`/`OSC`/`DCS` variants, UTF-8.
+/// `DEL` (`0x7f`), raw 8-bit C1, and `SOS`/`PM`/`APC` are excluded — vtty diverges
 /// from the vte family there on purpose (documented in `parser.rs`).
 pub(crate) fn corpus() -> Vec<Vec<u8>> {
     let mut v: Vec<Vec<u8>> = Vec::new();

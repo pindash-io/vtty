@@ -184,7 +184,7 @@ pub struct Screen {
     default_fg: u32,
     /// Default background RGB.
     default_bg: u32,
-    /// OSC 0/1/2 window title.
+    /// `OSC 0/1/2` window title.
     title: String,
     // The alternate screen buffer (DEC 47/1046/1047/1049): the same
     // per-buffer state as the main screen, swapped in/out wholesale.
@@ -364,7 +364,7 @@ impl Screen {
         (self.cursor_row, self.cursor_col)
     }
 
-    /// The OSC 0/1/2 window title.
+    /// The `OSC 0/1/2` window title.
     #[inline]
     pub fn title(&self) -> &str {
         &self.title

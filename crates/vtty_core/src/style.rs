@@ -204,7 +204,7 @@ impl CursorStyle {
         }
     }
 
-    /// Map an OSC 50 `CursorShape=N` parameter (0 = block, 1 = beam,
+    /// Map an `OSC 50` `CursorShape=N` parameter (0 = block, 1 = beam,
     /// 2 = underline); unsupported codes → `None`.
     #[inline]
     pub const fn from_osc(param: i32) -> Self {

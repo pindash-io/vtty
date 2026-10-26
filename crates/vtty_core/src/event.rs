@@ -54,7 +54,7 @@ pub enum Event {
     OscDispatch {
         /// Parameters split on `;`, each an owned byte string.
         params: SmallVec<Vec<u8>, 8>,
-        /// Whether the sequence was terminated by BEL (vs ST).
+        /// Whether the sequence was terminated by `BEL` (vs `ST`).
         bell_terminated: bool,
     },
 }

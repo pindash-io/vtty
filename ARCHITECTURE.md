@@ -14,7 +14,7 @@ relies on.
   impls).
 - `vtty_width` — display cell width + emoji sequences (ICU4X/parley).
 - `vtty_grapheme` — UAX #29 grapheme cluster segmentation.
-- `vtty_status` — OSC 7501 Program Status Protocol.
+- `vtty_status` — `OSC 7501` Program Status Protocol.
 - `vtty_screen` — a minimal cell-grid terminal screen (`Screen` `Perform` sink).
 - `vtty_ffi` — raw C ABI over `vtty`.
 - `vtty_bench` — throughput benchmarks vs `vte`/`vt100`/`vtparse`/`rio-vt`.
@@ -39,7 +39,7 @@ The parser is O(n) and bounds every buffer it owns:
 | CSI/DCS params | 32 | dropped |
 | intermediates | 2 | set `ignore` |
 | UTF-8 partial | 4 bytes | carried in `Parser` |
-| SIMD UTF-8 window | 4096 bytes, capped at ESC | re-entry re-validates |
+| SIMD UTF-8 window | 4096 bytes, capped at `ESC` | re-entry re-validates |
 
 `parse_events` (`Recording`) is the exception — unbounded `Vec` — so it is for
 tests/tooling, not untrusted input.
@@ -68,7 +68,7 @@ tests/tooling, not untrusted input.
 | `charset.rs` | ISO 2022 charsets + DEC Special Graphics |
 | `keyboard.rs` / `mouse.rs` | kitty flags, mouse encoding |
 | `reply.rs` / `termcap.rs` | query replies (DECRQSS/DECRQM/XTGETTCAP) — `reply`/`termcap` features |
-| `status.rs` | OSC 7501 Program Status Protocol — `status` feature |
+| `status.rs` | `OSC 7501` Program Status Protocol — `status` feature |
 
 ## Parser data flow
 

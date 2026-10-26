@@ -105,9 +105,9 @@ fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
 /// Known, intentional divergences between vtty and the vte-family parsers.
 /// Returns true when `data` triggers one, so the fuzzer skips it:
 ///
-/// - `0x7f` DEL — vtty executes it, vte prints it.
+/// - `0x7f` `DEL` — vtty executes it, vte prints it.
 /// - Raw 8-bit C1 — vtty follows DEC "anywhere"; vte drops it in sequences.
-/// - `ESC X`/`ESC ^`/`ESC _` (SOS/PM/APC) — vtty dispatches hook/put/unhook,
+/// - `ESC X`/`ESC ^`/`ESC _` (`SOS`/`PM`/`APC`) — vtty dispatches hook/put/unhook,
 ///   vte drops them.
 ///
 /// UTF-8 is deliberately *not* filtered: all three parsers share W3C

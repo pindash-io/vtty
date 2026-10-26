@@ -19,7 +19,7 @@ use crate::utf8::{decode_utf8, trailing_partial};
 /// Maximum buffered OSC payload. A hostile program can otherwise stream a
 /// gigabyte into `ESC ] … ST` and OOM the parser; xterm.js caps OSC/DCS at
 /// `PAYLOAD_LIMIT = 10000000` and aborts the sequence, so we bound here too.
-/// 1 MiB comfortably fits the largest real OSC (OSC 52 clipboard ≈ 128 KiB).
+/// 1 MiB comfortably fits the largest real OSC (`OSC 52` clipboard ≈ 128 KiB).
 const MAX_OSC_PAYLOAD: usize = 1_048_576;
 
 /// Cap on OSC parameters (vte/rio-vt = 16); the remaining payload is dropped.
@@ -246,7 +246,7 @@ impl Parser {
     }
 
     /// Ground state: SIMD-scan for the next non-printable byte (control OR
-    /// high-bit — which includes ESC), bulk-dispatch printable ASCII runs via
+    /// high-bit — which includes `ESC`), bulk-dispatch printable ASCII runs via
     /// `print_bytes`, and decode multi-byte chars one at a time. The hot path —
     /// kept inline.
     #[inline(always)]
@@ -399,7 +399,7 @@ impl Parser {
     }
 
     /// Raw 8-bit C1 → (action, next state). Introducers start their sequence;
-    /// ST `0x9c` is a no-op; other C1 controls execute and return to ground
+    /// `ST` `0x9c` is a no-op; other C1 controls execute and return to ground
     /// (<https://vt100.net/emu/dec_ansi_parser>).
     #[inline]
     fn c1_transition(b: u8) -> (Action, ParseState) {
@@ -494,8 +494,8 @@ impl Parser {
     }
 
     /// Escape-state byte dispatch: the sequence introducers (`[` CSI, `]` OSC,
-    /// `P` DCS, `X`/`^`/`_` SOS/PM/APC), ESC finals, intermediates and C0
-    /// controls are all handled inline; only the rare bytes (ESC restart, DEL,
+    /// `P` DCS, `X`/`^`/`_` `SOS`/`PM`/`APC`), `ESC` finals, intermediates and C0
+    /// controls are all handled inline; only the rare bytes (`ESC` restart, `DEL`,
     /// raw C1/high bytes) fall through to the cold per-byte state machine.
     #[inline(always)]
     fn advance_escape_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
@@ -610,7 +610,7 @@ impl Parser {
     }
 
     /// DCS passthrough bulk run: dispatch the payload prefix via one
-    /// `put_slice`, stopping at CAN/SUB/ESC/DEL or any byte >= 0x80. Same
+    /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte >= 0x80. Same
     /// inline-dispatch rationale as `advance_osc_run`.
     #[inline]
     fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
@@ -684,7 +684,7 @@ impl Parser {
     }
 
     /// Dispatch a collected OSC command and reset the OSC state. An oversized
-    /// payload is discarded wholesale (a truncated OSC 52 would otherwise
+    /// payload is discarded wholesale (a truncated `OSC 52` would otherwise
     /// decode into garbage). With `bytes`/`end_pos` the params are sliced
     /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
@@ -904,7 +904,7 @@ impl Parser {
         self.clear_seq_state();
     }
 
-    /// Dispatch an ESC sequence with the collected intermediates (empty in the
+    /// Dispatch an `ESC` sequence with the collected intermediates (empty in the
     /// plain Escape state, where no intermediate byte has been seen yet).
     #[inline]
     fn dispatch_esc<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
@@ -927,7 +927,7 @@ mod tests {
 
     /// DEC's "anywhere" invariant for 8-bit C1 controls
     /// (<https://vt100.net/emu/dec_ansi_parser>): introducers re-enter their
-    /// state, ST `0x9c` is a no-op, and every other C1 control executes and
+    /// state, `ST` `0x9c` is a no-op, and every other C1 control executes and
     /// returns to ground (a lone C1 byte is invalid UTF-8, so this is the
     /// correct fallback for a UTF-8 terminal).
     #[test]
@@ -955,7 +955,7 @@ mod tests {
     /// passthrough fires the string's exit action (`osc_end` / `unhook`)
     /// before the control is executed or an introducer re-enters its state —
     /// DEC's "anywhere" rule. Regression test: the exit action was previously
-    /// dropped for every C1 control except ST (`0x9c`).
+    /// dropped for every C1 control except `ST` (`0x9c`).
     #[test]
     fn c1_interrupt_fires_string_exit_action() {
         use crate::Event;

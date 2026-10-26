@@ -269,8 +269,8 @@ fn bracketed_paste(total: usize) -> Vec<u8> {
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
-/// OSC-dense stream: window-title (BEL-terminated), clipboard base64
-/// (ST-terminated), and iTerm2 file payloads, exercising OSC param/payload
+/// OSC-dense stream: window-title (`BEL`-terminated), clipboard base64
+/// (`ST`-terminated), and iTerm2 file payloads, exercising OSC param/payload
 /// accumulation across both terminator styles.
 fn osc_heavy(total: usize) -> Vec<u8> {
     const B64: &str =

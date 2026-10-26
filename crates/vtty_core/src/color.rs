@@ -284,7 +284,7 @@ pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString
     )
 }
 
-/// Format an OSC 4 palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
+/// Format an `OSC 4` palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
 pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactString {
     let [r, g, b] = u32_to_rgb(rgb);
@@ -293,7 +293,7 @@ pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactS
     )
 }
 
-/// Format the full OSC 11 background reply as a fixed 25-byte buffer:
+/// Format the full `OSC 11` background reply as a fixed 25-byte buffer:
 /// `\x1b]11;rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\`
 /// (8-bit channels repeated to 4 hex digits, the xterm convention
 /// lazygit/others expect).

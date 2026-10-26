@@ -84,7 +84,7 @@ impl Charset {
 }
 
 /// The four ISO 2022 designated character sets (G0, G1, G2, G3), selected by
-/// the `ESC ( / ) / * / +` designation sequences and the SO/SI/SS2/SS3 shift
+/// the `ESC ( / ) / * / +` designation sequences and the `SO`/`SI`/`SS2`/`SS3` shift
 /// controls. A terminal carries these as one unit: DECSC/DECRC save and
 /// restore all four together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,22 +108,22 @@ impl Charsets {
         self.0[g]
     }
 
-    /// The G0 set (the default, and SI `0x0F` target).
+    /// The G0 set (the default, and `SI` `0x0F` target).
     pub const fn g0(self) -> Charset {
         self.0[0]
     }
 
-    /// The G1 set (SO `0x0E` shift target).
+    /// The G1 set (`SO` `0x0E` shift target).
     pub const fn g1(self) -> Charset {
         self.0[1]
     }
 
-    /// The G2 set (SS2 `0x8E` single-shift target).
+    /// The G2 set (`SS2` `0x8E` single-shift target).
     pub const fn g2(self) -> Charset {
         self.0[2]
     }
 
-    /// The G3 set (SS3 `0x8F` single-shift target).
+    /// The G3 set (`SS3` `0x8F` single-shift target).
     pub const fn g3(self) -> Charset {
         self.0[3]
     }
@@ -150,7 +150,7 @@ impl core::ops::IndexMut<usize> for Charsets {
 }
 
 /// The full ISO 2022 SCS (Select Character Set) state: the four designated
-/// G-sets plus the GL locking-shift slot and the SS2/SS3 single shift. One
+/// G-sets plus the GL locking-shift slot and the `SS2`/`SS3` single shift. One
 /// `Copy` value shared by the cell and line screens so the active-charset
 /// selection lives in ONE place (teken's `t_scs_gl`/`t_curscs` over `t_scs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,7 +159,7 @@ pub struct Scs {
     pub charsets: Charsets,
     /// The GL locking-shift slot (ECMA-35 LS0..=LS3): 0..=3.
     pub gl: u8,
-    /// SS2/SS3 single shift for the NEXT printable char only.
+    /// `SS2`/`SS3` single shift for the NEXT printable char only.
     pub single_shift: Option<u8>,
 }
 
@@ -183,7 +183,7 @@ impl Scs {
         self.gl = g.min(3);
     }
 
-    /// The active charset: an SS2/SS3 single shift wins for one char, then the
+    /// The active charset: an `SS2`/`SS3` single shift wins for one char, then the
     /// GL locking shift, otherwise G0.
     pub fn active(&self) -> Charset {
         match self.single_shift {

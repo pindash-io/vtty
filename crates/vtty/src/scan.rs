@@ -61,7 +61,7 @@ const fn is_non_printable(b: u8) -> bool {
 
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
-/// DEL (`0x7f`) is a C0 control, not printable.
+/// `DEL` (`0x7f`) is a C0 control, not printable.
 #[inline(always)]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     #[cfg(feature = "simd")]
@@ -94,14 +94,14 @@ const fn osc_is_stop(b: u8) -> bool {
 }
 
 /// Index of the first byte that ends an OSC payload run: a C0 byte
-/// (`< 0x20`, including BEL/ESC), a raw C1 byte (`0x80..=0x9f`), or the `;`
+/// (`< 0x20`, including `BEL`/`ESC`), a raw C1 byte (`0x80..=0x9f`), or the `;`
 /// param separator (`0x3b`). The rest are `OSC_PUT` bytes.
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
     first_where(bytes, osc_stop_mask, osc_is_stop)
 }
 
-/// SWAR mask for DCS boundaries: `>= 0x80`, CAN, SUB, ESC, DEL.
+/// SWAR mask for DCS boundaries: `>= 0x80`, `CAN`, `SUB`, `ESC`, `DEL`.
 const fn dcs_stop_mask(w: u64) -> u64 {
     (w & SPLAT_80)
         | swar_byte_eq(w, 0x18)
@@ -116,7 +116,7 @@ const fn dcs_is_stop(b: u8) -> bool {
 }
 
 /// Index of the first byte that ends a DCS passthrough run. The PUT class is
-/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`; everything else (CAN, SUB, ESC, DEL,
+/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`; everything else (`CAN`, `SUB`, `ESC`, `DEL`,
 /// and any byte `>= 0x80`) ends the run or is ignored.
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {

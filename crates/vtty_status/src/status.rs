@@ -129,7 +129,7 @@ named_bytes!(
     Auth => b"auth",
 );
 
-/// A parsed OSC 7501 report.
+/// A parsed `OSC 7501` report.
 ///
 /// A report without `id` addresses the root record; each report replaces its
 /// record completely.
@@ -156,7 +156,7 @@ impl ProgramStatus {
     /// terminal whether it supports the protocol.
     pub const QUERY: &[u8] = b"\x1b]7501;?\x1b\\";
 
-    /// Parses an OSC 7501 report body (the `key=value` pairs).
+    /// Parses an `OSC 7501` report body (the `key=value` pairs).
     ///
     /// Returns `None` when invalid: missing/invalid `state`, malformed `id`,
     /// a limit exceeded, bad base64, or control chars in a decoded
@@ -261,15 +261,15 @@ impl ProgramStatus {
     }
 }
 
-/// Extension for [`Perform`] sinks that want typed OSC 7501 reports.
+/// Extension for [`Perform`] sinks that want typed `OSC 7501` reports.
 pub trait PerformProgramStatus: Perform {
-    /// Called with each valid OSC 7501 report.
+    /// Called with each valid `OSC 7501` report.
     fn program_status(&mut self, _status: ProgramStatus) {}
 
     /// Routes one OSC dispatch.
     ///
     /// Call this first in [`Perform::osc_dispatch`]. Returns `true` when the
-    /// params were a valid OSC 7501 report (and [`Self::program_status`] was
+    /// params were a valid `OSC 7501` report (and [`Self::program_status`] was
     /// called).
     fn route_osc_7501(&mut self, params: &[&[u8]]) -> bool {
         if let Some(status) = ProgramStatus::from_osc_params(params) {
@@ -345,7 +345,7 @@ fn parse_id(value: &[u8]) -> Option<CompactString> {
 enum Control {
     /// C0 controls: `U+0000..=U+001F`.
     C0,
-    /// DEL: `U+007F`.
+    /// `DEL`: `U+007F`.
     Del,
     /// C1 controls: `U+0080..=U+009F`.
     C1,

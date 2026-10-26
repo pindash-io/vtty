@@ -177,7 +177,7 @@ pub unsafe extern "C" fn vt_flush(state: *mut VtState) {
     unsafe { with_state_mut(state, |s| s.parser.flush(&mut s.state)) }
 }
 
-/// The accumulated text buffer (valid UTF-8, NOT NUL-terminated).
+/// The accumulated text buffer (valid UTF-8, NOT `NUL`-terminated).
 ///
 /// # Safety
 /// `state` must be a live [`vt_new`] pointer. The returned pointer is valid
