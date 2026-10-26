@@ -113,3 +113,10 @@ pub use vtty_core::*;
 #[cfg(feature = "status")]
 #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
 pub use vtty_status::*;
+
+/// Compile-time guarantee: the parser is `Send` + `Sync` (no interior
+/// mutability), so it can be owned by a dedicated input thread.
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Parser>();
+};

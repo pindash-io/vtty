@@ -65,3 +65,12 @@ pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
 #[cfg(feature = "termcap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
 pub use termcap::{Cap, CapValue};
+
+/// Compile-time guarantee: the owned event types and the byte-cursor sink are
+/// `Send` + `Sync`, so they can be shared or moved across threads.
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Event>();
+    assert_send_sync::<Recording>();
+    assert_send_sync::<State>();
+};

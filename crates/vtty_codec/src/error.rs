@@ -7,6 +7,7 @@ use core::fmt;
 
 /// An error produced while encoding a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EncodeError {
     /// The destination buffer is too small to hold the value.
     BufferTooSmall,
@@ -24,6 +25,7 @@ impl core::error::Error for EncodeError {}
 
 /// An error produced while decoding a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DecodeError {
     /// The input ended before the value was complete.
     UnexpectedEof,
