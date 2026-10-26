@@ -140,10 +140,18 @@ pub fn is_zwj_target(c: char) -> bool {
     )
 }
 
+/// Whether a char is a HALFWIDTH katakana sound mark (U+FF9E/U+FF9F).
+/// These are `Grapheme_Extend` (so unicode-width reports 0), but terminals
+/// render them as independent halfwidth cells (see [`crate::cell_width`]) —
+/// the emoji DFA must NOT treat them as zero-width continuations.
+#[inline]
+pub fn is_halfwidth_sound_mark(c: char) -> bool {
+    matches!(c, '\u{FF9E}' | '\u{FF9F}')
+}
+
 /// A category that continues the current emoji run (zero cursor cells).
 #[inline]
-fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
-    use EmojiSegmentationCategory as C;
+fn is_continuation(cat: EmojiSegmentationCategory) -> bool {    use EmojiSegmentationCategory as C;
     matches!(
         cat,
         C::Vs15 | C::Vs16 | C::Zwj | C::KeycapEnd | C::TagSpec | C::TagEnd | C::EmojiModifier
@@ -261,7 +269,8 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) ->
             is_continuation(cat)
                 || (r.prev_zwj && is_zwj_target(c))
                 || (cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1)
-                || matches!(Gcb::get(c), Gcb::Extend | Gcb::SpacingMark)
+                || (matches!(Gcb::get(c), Gcb::Extend | Gcb::SpacingMark)
+                    && !is_halfwidth_sound_mark(c))
         }
     }
 }
