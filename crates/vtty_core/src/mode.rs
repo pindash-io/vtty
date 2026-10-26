@@ -17,19 +17,19 @@ bitflags::bitflags! {
         /// unknown codes.
         const NONE = 0;
         /// IRM (`CSI 4 h/l`) — insert/replace mode.
-        const INSERT_MODE = 1 << 0;
+        const INSERT = 1 << 0;
         /// LNM (`CSI 20 h/l`) — linefeed/newline mode.
         const LNM = 1 << 3;
         /// DECCKM (`CSI ?1 h/l`) — application cursor keys (arrows send `SS3`).
-        const APPLICATION_CURSOR = 1 << 10;
+        const CURSOR_KEYS = 1 << 10;
         /// DECCOLM (`CSI ?3 h/l`) — 132-column mode (tracked; the host owns
         /// the real width).
         const DECCOLM = 1 << 13;
         /// DECSCNM (`CSI ?5 h/l`) — reverse video (swap fg/bg at render time).
-        const DECSCNM = 1 << 11;
+        const REVERSE = 1 << 11;
         /// DECOM (`CSI ?6 h/l`) — origin mode (positioning relative to the
         /// scroll region).
-        const DECOM = 1 << 1;
+        const ORIGIN = 1 << 1;
         /// DECAWM (`CSI ?7 h/l`) — autowrap.
         const AUTOWRAP = 1 << 2;
         /// DEC 9 — X10 mouse reporting.
@@ -45,7 +45,7 @@ bitflags::bitflags! {
         /// its content and cursor).
         const ALT_SCREEN = 1 << 14;
         /// DEC 66 — application keypad mode (DECNKM).
-        const APPLICATION_KEYPAD = 1 << 24;
+        const KEYPAD_APP = 1 << 24;
         /// DEC 67 — backarrow key mode (DECBKM): Backspace sends `\x08`
         /// instead of `\x7f`.
         const BACKARROW = 1 << 33;
@@ -53,7 +53,7 @@ bitflags::bitflags! {
         /// keypad (the keypad is always numeric, never application).
         const NUMLOCK = 1 << 34;
         /// DEC 69 — left/right margin mode (DECLRMM).
-        const LRM_MODE = 1 << 23;
+        const DECLRMM = 1 << 23;
         /// DEC 80 — Sixel display mode (scrolling vs. fixed). Tracked only;
         /// the image renderer owns the actual Sixel placement.
         const DECSDM = 1 << 27;
@@ -132,19 +132,19 @@ macro_rules! private_modes {
 
 impl TermFlags {
     private_modes! {
-        APPLICATION_CURSOR => 1,              // DECCKM
+        CURSOR_KEYS => 1,              // DECCKM
         DECCOLM => 3,                  // DECCOLM
-        DECSCNM => 5,                  // DECSCNM
-        DECOM => 6,                   // DECOM
+        REVERSE => 5,                  // DECSCNM
+        ORIGIN => 6,                   // DECOM
         AUTOWRAP => 7,               // DECAWM
         MOUSE_X10 => 9,                // DEC 9
         CURSOR_BLINK => 12,            // DEC 12
         CURSOR_VISIBLE => 25,          // DECTCEM
         REVERSE_WRAP => 45,            // DEC 45
         ALT_SCREEN => 47,              // DEC 47
-        APPLICATION_KEYPAD => 66,                  // DECNKM
+        KEYPAD_APP => 66,                  // DECNKM
         BACKARROW => 67,                  // DECBKM
-        LRM_MODE => 69,                 // DECLRMM
+        DECLRMM => 69,                 // DECLRMM
         DECSDM => 80,                  // DECSDM
         MOUSE_NORMAL => 1000,          // DEC 1000
         MOUSE_BUTTON => 1002,          // DEC 1002
@@ -177,7 +177,7 @@ impl TermFlags {
             return Self::from_private_param(code);
         }
         match code {
-            4 => Self::INSERT_MODE,
+            4 => Self::INSERT,
             20 => Self::LNM,
             _ => Self::NONE,
         }
