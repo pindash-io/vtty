@@ -20,13 +20,13 @@ use crate::properties::Gcb;
 
 /// ICU4X-backed display width — an alternative to `unicode-width`.
 ///
-/// - `GeneralCategory`: control/surrogate/unassigned → `None`; combining,
-///   format, separators → `Some(0)`.
-/// - `EastAsianWidth`: `Wide`/`Fullwidth` → `Some(2)`, else `Some(1)`.
+/// - `GeneralCategory`: control/surrogate/unassigned and combining/format/
+///   separator chars → `0`.
+/// - `EastAsianWidth`: `Wide`/`Fullwidth` → `2`, else `1`.
 ///
 /// [`crate::cell_width`] uses the baked table; this is the ICU4X runtime
 /// alternative.
-pub fn width_icu(cp: char) -> Option<usize> {
+pub fn width_icu(cp: char) -> usize {
     thread_local! {
         static GC: CodePointMapDataBorrowed<'static, GeneralCategory> =
             const { CodePointMapData::new() };
@@ -39,24 +39,24 @@ pub fn width_icu(cp: char) -> Option<usize> {
     }
     GC.with(|gc| match cp as u32 {
         // unicode-width's documented special cases (see the generator).
-        0x115F | 0x17A4 => Some(2),
-        0x2D7F => Some(1),
-        0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => Some(0),
+        0x115F | 0x17A4 => 2,
+        0x2D7F => 1,
+        0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => 0,
         _ => match gc.get(cp) {
             // Control and surrogate have no width; default-ignorable and
             // grapheme-extend chars are zero-width (matching unicode-width's
             // zero-width rule). Everything else falls through to East Asian
             // Width.
-            GeneralCategory::Control | GeneralCategory::Surrogate => None,
+            GeneralCategory::Control | GeneralCategory::Surrogate => 0,
             _ if DI.with(|di| di.contains(cp))
                 || GCB.with(|g| g.get(cp) == GraphemeClusterBreak::Extend)
                 || is_curated_zero_width(cp as u32) =>
             {
-                Some(0)
+                0
             }
             _ => EAW.with(|eaw| match eaw.get(cp) {
-                EastAsianWidth::Wide | EastAsianWidth::Fullwidth => Some(2),
-                _ => Some(1),
+                EastAsianWidth::Wide | EastAsianWidth::Fullwidth => 2,
+                _ => 1,
             }),
         },
     })

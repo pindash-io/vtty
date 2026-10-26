@@ -316,7 +316,7 @@ mod tests {
         ] {
             assert_eq!(
                 width_icu(c),
-                UnicodeWidthChar::width(c),
+                UnicodeWidthChar::width(c).unwrap_or(0),
                 "U+{:04X}",
                 c as u32
             );
@@ -329,7 +329,7 @@ mod tests {
             let Some(c) = char::from_u32(cp) else {
                 continue;
             };
-            if width_icu(c) != UnicodeWidthChar::width(c) {
+            if width_icu(c) != UnicodeWidthChar::width(c).unwrap_or(0) {
                 diffs += 1;
             }
         }
@@ -350,7 +350,7 @@ mod tests {
             };
             assert_eq!(
                 Properties::get(c).width(),
-                width_icu(c).unwrap_or(0) as u8,
+                width_icu(c) as u8,
                 "U+{cp:04X}"
             );
         }

@@ -144,7 +144,7 @@ impl Properties {
         if crate::icu::ambiguous_icu(ch) {
             b |= Self::AMBIGUOUS;
         }
-        b |= (crate::icu::width_icu(ch).unwrap_or(0) as u16) << Self::WIDTH_SHIFT;
+        b |= (crate::icu::width_icu(ch) as u16) << Self::WIDTH_SHIFT;
         Self(b)
     }
 }
