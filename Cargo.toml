@@ -46,7 +46,6 @@ rio-vt = { version = "0.5.28", default-features = false }
 
 ## dev
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
-proptest = "1.6"
 
 [workspace.lints]
 rust.keyword_idents_2024 = "forbid"

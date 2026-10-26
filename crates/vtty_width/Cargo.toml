@@ -37,7 +37,6 @@ packtab.workspace = true
 [dev-dependencies]
 # Differential oracle for the `icu`-feature width-derivation test.
 unicode-width = "0.2"
-proptest.workspace = true
 
 [lints]
 workspace = true

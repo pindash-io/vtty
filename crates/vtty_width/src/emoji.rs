@@ -261,7 +261,7 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) ->
             is_continuation(cat)
                 || (r.prev_zwj && is_zwj_target(c))
                 || (cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1)
-                || cell_width(c) == Some(0)
+                || matches!(Gcb::get(c), Gcb::Extend | Gcb::SpacingMark)
         }
     }
 }

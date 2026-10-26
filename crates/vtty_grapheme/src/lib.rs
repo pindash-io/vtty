@@ -386,6 +386,14 @@ mod tests {
             "🇺🇸🇨🇦 flags",
             "❤\u{FE0F} vs16",
             "가나 hangul",
+            // Controls/format chars break clusters but are zero-width, and
+            // Hangul V/T only attach to a Hangul base — the width model and
+            // the grapheme model must agree on both.
+            "¡\0",
+            "a\0b",
+            "\u{200B}",
+            "®\u{1160}",
+            "\u{1160}\u{11A8}",
         ] {
             assert_eq!(
                 cluster_width_sum(text),

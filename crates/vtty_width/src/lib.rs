@@ -273,6 +273,29 @@ mod tests {
     }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
+    fn control_and_format_chars_are_zero_width() {
+        // A lone control or format char is invisible (0), not a lone mark (1).
+        assert_eq!(cell_widths("\0"), vec![0]);
+        assert_eq!(cell_width_sum("\0"), 0);
+        assert_eq!(cell_widths("\u{200B}"), vec![0]); // zero-width space
+        // Controls don't count even in otherwise-printable text.
+        assert_eq!(cell_widths("a\0b"), vec![1, 0, 1]);
+        assert_eq!(cell_width_sum("a\0b"), 2);
+        // A control breaks the chain: a following mark is lone.
+        assert_eq!(cell_widths("¡\0\u{0301}"), vec![1, 0, 1]);
+    }
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn hangul_v_jamo_does_not_attach_to_non_hangul_base() {
+        // V jamo attaches only to L/LV (GB6/GB7); after any other base it is
+        // a lone mark.
+        assert_eq!(cell_widths("\u{1100}\u{1161}"), vec![2, 0]); // L + V
+        assert_eq!(cell_widths("가\u{1161}"), vec![2, 0]); // LV + V
+        assert_eq!(cell_widths("®\u{1160}"), vec![1, 1]); // non-Hangul + V
+        assert_eq!(cell_widths("\u{1160}\u{11A8}"), vec![1, 0]); // lone V + T
+    }
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
     fn lone_zwj_is_ignored() {
         // A standalone ZWJ is a degenerate joiner — zero cells (the cell grid
         // drops it), unlike a lone combining mark which occupies its own cell.
