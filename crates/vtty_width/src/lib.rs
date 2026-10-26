@@ -40,7 +40,7 @@
 )]
 #[cfg(feature = "baked")]
 #[rustfmt::skip]
-pub mod baked;
+mod baked;
 pub mod emoji;
 #[cfg(feature = "icu")]
 mod icu;
