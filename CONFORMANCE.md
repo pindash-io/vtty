@@ -83,11 +83,11 @@ window modes. These are parse-dispatched (the screen sees the `SM`/`RM`
 call), just not reflected in a flag — the full catalog is at
 <https://vt100.net/emu/dec_private_modes.html>.
 
-## Query / reply protocols
+## Query / Reply protocols
 
 `Reply` (`crates/vtty_core/src/reply.rs`) formats the answers a screen emits.
 
-| Query | Request | Answer | Status |
+| Query | Request | Response | Status |
 | --- | --- | --- | --- |
 | DECRQSS | `DCS $ q … ST` | `DCS {valid} $ r … ST` | ✅ `Reply::decrqss` |
 | DECRQM | `CSI ?Ps$p` | `CSI ?Ps;{state}$y` | ✅ `Reply::decrqm` |
@@ -100,7 +100,7 @@ call), just not reflected in a flag — the full catalog is at
 | DECTABSR (tab stops) | `CSI 2 $ w` (DECRQPSR) | `DCS 2 $ u … ST` | ✅ `Reply::dectabsr` |
 | DA1 (primary) | `CSI c` / `CSI 0 c` | `CSI ? {class};{ext…} c` | ✅ `Reply::da1` |
 | DA2 (secondary) | `CSI > c` / `CSI > 0 c` | `CSI > {id};{fw};{kb} c` | ✅ `Reply::da2` |
-| DA3 (tertiary) | `CSI = c` / `CSI = 0 c` | `DCS !` \| `{unit-id} ST` | ✅ `Reply::da3` |
+| DA3 (tertiary) | `CSI = c` / `CSI = 0 c` | `DCS ! \| {unit-id} ST` | ✅ `Reply::da3` |
 
 > DECTSR uses a **lowercase `s`** final (`DCS 1 $ s`), per the EK-VT510-RM
 > errata on vt100.net. DECTSR/DECCTR payloads are the device-attribute / color
@@ -118,7 +118,7 @@ library yet:
 | `DCS q … ST` | Sixel (`decSIXEL`) | ✅ | ❌ (raster decode is the renderer's) |
 | `DCS p … ST` | ReGIS (`decREGIS`) | ✅ | ❌ |
 | `DCS { … ST` | DECDLD soft chars | ✅ | ❌ |
-| `DCS` \| `… ST` | DECUDK user keys | ✅ | ❌ |
+| `DCS \| … ST` | DECUDK user keys | ✅ | ❌ |
 | `DCS ! z … ST` | DECDMAC macros | ✅ | ❌ |
 | `DCS $ q … ST` | DECRQSS | ✅ | ✅ `Reply` |
 | `DCS $ s … ST` | DECTSR / DECCTR | ✅ | ✅ `Reply::dectsr` / `decctr` |
