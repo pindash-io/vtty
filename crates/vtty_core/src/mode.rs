@@ -132,39 +132,39 @@ macro_rules! private_modes {
 
 impl TermFlags {
     private_modes! {
-        CURSOR_KEYS => 1,              // DECCKM
-        DECCOLM => 3,                  // DECCOLM
-        REVERSE_COLORS => 5,                  // DECSCNM
-        ORIGIN => 6,                   // DECOM
-        WRAPAROUND => 7,               // DECAWM
-        MOUSE_X10 => 9,                // DEC 9
-        CURSOR_BLINK => 12,            // DEC 12
-        CURSOR_VISIBLE => 25,          // DECTCEM
-        REVERSE_WRAP => 45,            // DEC 45
-        ALT_SCREEN => 47,              // DEC 47
-        KEYPAD_KEYS => 66,                  // DECNKM
-        BACKARROW_KEY_MODE => 67,                  // DECBKM
-        ENABLE_LEFT_AND_RIGHT_MARGIN => 69,                 // DECLRMM
-        DECSDM => 80,                  // DECSDM
-        MOUSE_NORMAL => 1000,          // DEC 1000
-        MOUSE_BUTTON => 1002,          // DEC 1002
-        MOUSE_ANY => 1003,             // DEC 1003
-        FOCUS => 1004,                 // DEC 1004
-        UTF8_MOUSE => 1005,            // DEC 1005
-        MOUSE_SGR => 1006,             // DEC 1006
-        ALTERNATE_SCROLL => 1007,      // DEC 1007
-        MOUSE_URXVT => 1015,           // DEC 1015
-        MOUSE_PIXEL => 1016,           // DEC 1016
-        NUMLOCK => 1035,               // DEC 1035
-        REVERSE_WRAP_EXTENDED => 1045, // DEC 1045
-        VI => 1046,                    // DEC 1046
-        ALT_SCREEN_1047 => 1047,       // DEC 1047
-        ALT_SCREEN_1049 => 1049,       // DEC 1049
-        BRACKETED_PASTE => 2004,       // XTPUSHKEYS
-        SYNC_OUTPUT => 2026,           // DEC 2026
-        UNICODE_CORE => 2027,          // DEC 2027
-        COLOR_SCHEME_UPDATES => 2031,  // XTCOLORMOD
-        IN_BAND_RESIZE => 2048,        // DEC 2048
+        CURSOR_KEYS => 1,                    // DECCKM
+        DECCOLM => 3,                        // DECCOLM
+        REVERSE_COLORS => 5,                 // DECSCNM
+        ORIGIN => 6,                         // DECOM
+        WRAPAROUND => 7,                     // DECAWM
+        MOUSE_X10 => 9,                      // DEC 9
+        CURSOR_BLINK => 12,                  // DEC 12
+        CURSOR_VISIBLE => 25,                // DECTCEM
+        REVERSE_WRAP => 45,                  // DEC 45
+        ALT_SCREEN => 47,                    // DEC 47
+        KEYPAD_KEYS => 66,                   // DECNKM
+        BACKARROW_KEY_MODE => 67,            // DECBKM
+        ENABLE_LEFT_AND_RIGHT_MARGIN => 69,  // DECLRMM
+        DECSDM => 80,                        // DECSDM
+        MOUSE_NORMAL => 1000,                // DEC 1000
+        MOUSE_BUTTON => 1002,                // DEC 1002
+        MOUSE_ANY => 1003,                   // DEC 1003
+        FOCUS => 1004,                       // DEC 1004
+        UTF8_MOUSE => 1005,                  // DEC 1005
+        MOUSE_SGR => 1006,                   // DEC 1006
+        ALTERNATE_SCROLL => 1007,            // DEC 1007
+        MOUSE_URXVT => 1015,                 // DEC 1015
+        MOUSE_PIXEL => 1016,                 // DEC 1016
+        NUMLOCK => 1035,                     // DEC 1035
+        REVERSE_WRAP_EXTENDED => 1045,       // DEC 1045
+        VI => 1046,                          // DEC 1046
+        ALT_SCREEN_1047 => 1047,             // DEC 1047
+        ALT_SCREEN_1049 => 1049,             // DEC 1049
+        BRACKETED_PASTE => 2004,             // XTPUSHKEYS
+        SYNC_OUTPUT => 2026,                 // DEC 2026
+        UNICODE_CORE => 2027,                // DEC 2027
+        COLOR_SCHEME_UPDATES => 2031,        // XTCOLORMOD
+        IN_BAND_RESIZE => 2048,              // DEC 2048
     }
 
     /// Map an ANSI (`CSI Pm h/l`) or DEC private (`CSI ? Pm h/l`) mode number
@@ -228,8 +228,11 @@ mod tests {
             TermFlags::from_private_param(1049),
             TermFlags::ALT_SCREEN_1049
         );
-        assert_eq!(TermFlags::from_private_param(66), TermFlags::DECNKM);
-        assert_eq!(TermFlags::from_private_param(67), TermFlags::DECBKM);
+        assert_eq!(TermFlags::from_private_param(66), TermFlags::KEYPAD_KEYS);
+        assert_eq!(
+            TermFlags::from_private_param(67),
+            TermFlags::BACKARROW_KEY_MODE
+        );
         assert_eq!(TermFlags::from_private_param(1035), TermFlags::NUMLOCK);
         // 4 (IRM) is an ANSI mode, not a DEC private mode.
         assert_eq!(TermFlags::from_private_param(4), TermFlags::NONE);
