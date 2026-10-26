@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.svg" alt="vtty" width="128" height="128" />
+<img src="logo.svg" alt="vtty" width="254" height="254" />
 
 # vtty
 
