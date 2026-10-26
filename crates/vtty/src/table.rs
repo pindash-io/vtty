@@ -1,8 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! DEC VT500 escape-sequence state machine: parser states, the packed
-//! `Action` table, and the `transition` lookup.
+//! DEC VT500 escape-sequence state machine: parser states, the `Action`
+//! table, and the `transition` lookup.
 //!
 //! Reference: Paul Flo Williams' VT500 parser state diagram
 //! <https://vt100.net/emu/dec_ansi_parser> — the "State Definitions" and
@@ -216,14 +216,6 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
     }
 }
 
-/// A packed transition entry: bits 0..=15 hold [`Action`], bits 16..=23 hold
-/// the next [`ParseState`].
-type Entry = u32;
-
-const fn pack(action: Action, state: ParseState) -> Entry {
-    action.bits() as u32 | (state as u32) << 16
-}
-
 const fn parse_state(v: u8) -> ParseState {
     match v {
         0 => ParseState::Ground,
@@ -240,25 +232,25 @@ const fn parse_state(v: u8) -> ParseState {
         11 => ParseState::DcsPassthrough,
         12 => ParseState::DcsIgnore,
         13 => ParseState::SosPmApcString,
-        // Unreachable for the compile-time table; Ground keeps the parser
-        // panic-free instead of indexing a bad state byte.
+        // Only reached from `build_table`'s 0..=13 state indices; the
+        // fallback keeps the compile-time loop total.
         _ => ParseState::Ground,
     }
 }
 
 /// The DEC VT500 transition table expanded to a flat `[state][byte]` lookup
 /// table at compile time. 14 states × 256 bytes = 3584 × 4 bytes ≈ 14 KB,
-/// resident in `.rodata`; the runtime lookup is a single branchless load.
-static TABLE: [Entry; 14 * 256] = build_table();
+/// resident in `.rodata`; the runtime lookup is a single load.
+static TABLE: [(Action, ParseState); 14 * 256] = build_table();
 
-const fn build_table() -> [Entry; 14 * 256] {
-    let mut t = [0_u32; 14 * 256];
+const fn build_table() -> [(Action, ParseState); 14 * 256] {
+    let mut t = [(Action::NONE, ParseState::Ground); 14 * 256];
     let mut s = 0_usize;
     while s < 14 {
         let mut b = 0_usize;
         while b < 256 {
             let (action, next) = transition_impl(parse_state(s as u8), b as u8);
-            t[s * 256 + b] = pack(action, next);
+            t[s * 256 + b] = (action, next);
             b += 1;
         }
         s += 1;
@@ -266,14 +258,11 @@ const fn build_table() -> [Entry; 14 * 256] {
     t
 }
 
-/// Runtime transition: one indexed load into [`TABLE`], no per-byte match.
+/// Runtime transition: one indexed load into [`TABLE`], no per-byte match or
+/// unpacking.
 #[inline(always)]
 pub(crate) fn transition(state: ParseState, b: u8) -> (Action, ParseState) {
-    let e = TABLE[(state as usize) << 8 | b as usize];
-    (
-        Action::from_bits_retain(e as u16),
-        parse_state((e >> 16) as u8),
-    )
+    TABLE[(state as usize) << 8 | b as usize]
 }
 
 #[cfg(test)]
