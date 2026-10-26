@@ -32,6 +32,7 @@
 //!
 //! The emoji DFA is provided by [`parley_emoji`](https://github.com/linebender/parley) (MIT).
 
+#![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
 #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
