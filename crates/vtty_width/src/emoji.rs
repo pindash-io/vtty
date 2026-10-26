@@ -25,18 +25,38 @@ pub enum Selector {
     Vs15,
     /// ZWJ (U+200D): joins the next emoji element (no width change).
     Zwj,
+    /// Not a selector: a combining mark (or any other char).
+    None,
 }
 
 impl Selector {
-    /// Classify a zero-width mark; `None` for combining marks.
+    /// Classify a zero-width mark; [`Self::None`] for combining marks.
     #[inline]
-    pub fn from_char(c: char) -> Option<Self> {
+    pub fn from_char(c: char) -> Self {
         match c {
-            '\u{FE0F}' => Some(Self::Vs16),
-            '\u{FE0E}' => Some(Self::Vs15),
-            '\u{200D}' => Some(Self::Zwj),
-            _ => None,
+            '\u{FE0F}' => Self::Vs16,
+            '\u{FE0E}' => Self::Vs15,
+            '\u{200D}' => Self::Zwj,
+            _ => Self::None,
         }
+    }
+
+    /// Whether this is [`Self::None`] (a combining mark, not a selector).
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Whether this is a variation selector (VS15 or VS16).
+    #[inline]
+    pub const fn is_vs(self) -> bool {
+        matches!(self, Self::Vs15 | Self::Vs16)
+    }
+
+    /// Whether this is a zero-width joiner (ZWJ).
+    #[inline]
+    pub const fn is_zwj(self) -> bool {
+        matches!(self, Self::Zwj)
     }
 
     /// Whether the selector attaches to `base`: the base's category must be
@@ -45,9 +65,12 @@ impl Selector {
     /// uses [`is_zwj_target`].
     #[inline]
     pub fn attaches_to(self, base: char) -> bool {
-        match self {
-            Self::Zwj => is_zwj_target(base),
-            Self::Vs16 | Self::Vs15 => is_vs_base(base),
+        if self.is_zwj() {
+            is_zwj_target(base)
+        } else if self.is_vs() {
+            is_vs_base(base)
+        } else {
+            true
         }
     }
 
@@ -69,7 +92,10 @@ impl Selector {
 /// combining mark accepts any non-space base.
 #[inline]
 pub fn mark_attaches(mark: char, base: char) -> bool {
-    Selector::from_char(mark).is_none_or(|s| s.attaches_to(base))
+    match Selector::from_char(mark) {
+        Selector::None => true,
+        s => s.attaches_to(base),
+    }
 }
 
 /// Whether a char is a valid VS15/VS16 ATTACH base — the
@@ -91,7 +117,10 @@ pub fn is_vs_target(c: char) -> bool {
 /// [`mark_attaches`] for the ZWJ/VS family.
 #[inline]
 pub fn mark_is_stray(mark: char, base: char) -> bool {
-    Selector::from_char(mark).is_some_and(|s| !s.attaches_to(base))
+    match Selector::from_char(mark) {
+        Selector::None => false,
+        s => !s.attaches_to(base),
+    }
 }
 
 /// Whether a char is a KEYCAP BASE (`#`, `*`, `0-9`). A buffered VS16/VS15
@@ -257,9 +286,8 @@ pub(crate) fn finalize_lead(
         r.lead_w1
     };
     let w = if lead_w == 0 {
-        if matches!(r.lead, '\u{200D}' | '\u{FE0E}' | '\u{FE0F}')
-            || (*has_base && !(followed_by_mark && *space_base))
-        {
+        let sel = Selector::from_char(r.lead);
+        if sel.is_vs() || sel.is_zwj() || (*has_base && !(followed_by_mark && *space_base)) {
             0
         } else {
             // A lone mark, OR a mark followed by another combining mark with
