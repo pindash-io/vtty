@@ -17,6 +17,7 @@ vtty_width = { workspace = true }
 [dev-dependencies]
 # Reference implementation for the benchmark example.
 icu_segmenter = { version = "2.3.0", default-features = false, features = ["compiled_data"] }
+proptest.workspace = true
 
 [lints]
 workspace = true

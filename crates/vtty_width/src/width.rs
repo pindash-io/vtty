@@ -10,22 +10,25 @@
 //! font glyph advance to the same grid.
 
 use crate::emoji::{Run, Selector, finalize_lead, run_continues};
-use crate::properties::{cell_width, emoji_category, first_non_ascii};
+use crate::properties::{cell_width, emoji_category, first_non_printable_ascii};
 
 /// The streaming width model — the single source of truth for
 /// [`cell_widths`], [`cell_width_sum`] and [`cell_col_byte_widths`].
 ///
 /// Yields one cell width per `char`, in char order. A multi-char emoji
 /// sequence yields its lead's width (1 or 2) once, then `0` for each
-/// continuation. The all-ASCII fast path yields `1` per byte without touching
-/// the property table.
+/// continuation. The printable-ASCII fast path yields `1` per byte without
+/// touching the property table.
 struct Widths<'a> {
-    /// Remaining bytes of the all-ASCII fast path (each width 1).
+    /// Remaining bytes of the printable-ASCII fast path (each width 1).
     ascii: usize,
     /// The char stream (empty while `ascii > 0`).
     chars: core::str::Chars<'a>,
     /// A base glyph precedes the current position (lone-mark attach rule).
     has_base: bool,
+    /// Hangul continuation bitmask: bit 0 = V may follow (after L/LV/V),
+    /// bit 1 = T may follow (after LV/V/LVT/T) — UAX #29 GB6/GB7/GB8.
+    hangul: u8,
     /// The last width>0 base was a SPACE (a space is not a VISIBLE base).
     space_base: bool,
     /// The open emoji run whose lead width is not yet finalized.
@@ -39,11 +42,16 @@ struct Widths<'a> {
 impl<'a> Widths<'a> {
     fn new(text: &'a str) -> Self {
         let bytes = text.as_bytes();
-        let all_ascii = first_non_ascii(bytes) == bytes.len();
+        let all_printable = first_non_printable_ascii(bytes) == bytes.len();
         Self {
-            ascii: if all_ascii { bytes.len() } else { 0 },
-            chars: if all_ascii { "".chars() } else { text.chars() },
+            ascii: if all_printable { bytes.len() } else { 0 },
+            chars: if all_printable {
+                "".chars()
+            } else {
+                text.chars()
+            },
             has_base: false,
+            hangul: 0,
             space_base: false,
             run: None,
             flush_lead: None,
@@ -78,6 +86,7 @@ impl Iterator for Widths<'_> {
                     self.flush_lead = Some(finalize_lead(
                         &r,
                         &mut self.has_base,
+                        &mut self.hangul,
                         &mut self.space_base,
                         false,
                     ));
@@ -103,6 +112,7 @@ impl Iterator for Widths<'_> {
                 self.flush_lead = Some(finalize_lead(
                     &r,
                     &mut self.has_base,
+                    &mut self.hangul,
                     &mut self.space_base,
                     followed_by_mark,
                 ));
@@ -143,9 +153,10 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
 ///
 /// Spec: `Σ w₂` in `docs/width-model-spec.md`.
 pub fn cell_width_sum(text: &str) -> usize {
-    // All-ASCII fast path: every byte is one cell, so the total is the byte
-    // length — no per-char work (the streaming `Widths` would sum 1 per byte).
-    if first_non_ascii(text.as_bytes()) == text.len() {
+    // Printable-ASCII fast path: every byte is one cell, so the total is the
+    // byte length — no per-char work (the streaming `Widths` sums 1 per byte).
+    // Controls are zero-width, so they take the general path.
+    if first_non_printable_ascii(text.as_bytes()) == text.len() {
         return text.len();
     }
     Widths::new(text).sum()
@@ -223,8 +234,8 @@ pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
 /// continuations (the VS16/ZWJ components) are skipped. Clamped to `text.len()`
 /// when the column is past the last cell.
 pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
-    // ASCII fast path: one cell per byte, no width table needed.
-    if text.is_ascii() {
+    // Printable-ASCII fast path: one cell per byte, no width table needed.
+    if first_non_printable_ascii(text.as_bytes()) == text.len() {
         return cell_col.min(text.len());
     }
     let mut cell = 0_usize;

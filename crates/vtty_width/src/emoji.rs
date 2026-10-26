@@ -10,7 +10,7 @@
 
 use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
-use crate::properties::{Properties, cell_width, emoji_category};
+use crate::properties::{Gcb, Properties, cell_width, emoji_category};
 
 /// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
 /// A variation selector or ZWJ — the zero-width marks that MODIFY a base's
@@ -273,6 +273,7 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) ->
 pub(crate) fn finalize_lead(
     r: &Run,
     has_base: &mut bool,
+    hangul: &mut u8,
     space_base: &mut bool,
     followed_by_mark: bool,
 ) -> usize {
@@ -281,9 +282,21 @@ pub(crate) fn finalize_lead(
     } else {
         r.lead_w1
     };
+    let gcb = Gcb::get(r.lead);
     let w = if lead_w == 0 {
         let sel = Selector::from_char(r.lead);
-        if !sel.is_none() || (*has_base && !(followed_by_mark && *space_base)) {
+        // A selector, control, or format char is invisible even when lone;
+        // only a lone combining MARK occupies its own cell (see the else
+        // branch). Hangul V/T attach only per GB6/GB7/GB8.
+        let attaches = match gcb {
+            Gcb::V => *hangul & 1 != 0, // after L/LV/V
+            Gcb::T => *hangul & 2 != 0, // after LV/V/LVT/T
+            _ => *has_base,             // combining marks: any base
+        };
+        if !sel.is_none()
+            || !matches!(gcb, Gcb::Extend | Gcb::SpacingMark | Gcb::V | Gcb::T)
+            || (attaches && !(followed_by_mark && *space_base))
+        {
             0
         } else {
             // A lone mark, OR a mark followed by another combining mark with
@@ -297,7 +310,30 @@ pub(crate) fn finalize_lead(
     };
     if w > 0 {
         *has_base = true;
+        *hangul = hangul_after(gcb);
         *space_base = r.lead == ' ';
+    } else if matches!(gcb, Gcb::Control | Gcb::CR | Gcb::LF) {
+        // A control/format char is invisible AND breaks the grapheme chain:
+        // a following mark has no visible base to attach to.
+        *has_base = false;
+        *hangul = 0;
+        *space_base = false;
+    } else if matches!(gcb, Gcb::V | Gcb::T) {
+        // An attached V/T jamo extends the syllable (GB7/GB8).
+        *hangul = hangul_after(gcb);
     }
     w
+}
+
+/// The Hangul continuation state after a char that starts a syllable (`w > 0`)
+/// or is an attached V/T jamo (`w == 0`): bit 0 = V may follow, bit 1 = T may
+/// follow (UAX #29 GB6/GB7/GB8).
+#[inline]
+const fn hangul_after(gcb: Gcb) -> u8 {
+    match gcb {
+        Gcb::L => 1,            // V may follow
+        Gcb::LV | Gcb::V => 3,  // V or T may follow
+        Gcb::LVT | Gcb::T => 2, // T may follow
+        _ => 0,
+    }
 }

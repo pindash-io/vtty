@@ -292,9 +292,9 @@ pub fn cluster_count(text: &str) -> usize {
 /// Equivalent to [`vtty_width::cell_width_sum`] when the cluster boundaries
 /// and the emoji width model agree (they do for UAX #29 vs UTS #51 sequences).
 pub fn cluster_width_sum(text: &str) -> usize {
-    // All-ASCII fast path: vtty_width's width model gives every ASCII byte
-    // (printable or control) one cell, so the total is the byte length.
-    if vtty_width::first_non_ascii(text.as_bytes()) == text.len() {
+    // Printable-ASCII fast path: every byte is one cell, so the total is the
+    // byte length. Controls are zero-width and take the general path.
+    if vtty_width::first_non_printable_ascii(text.as_bytes()) == text.len() {
         return text.len();
     }
     cluster_widths(text).sum()
