@@ -16,6 +16,7 @@
 //! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
 #![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]
 #![expect(
     clippy::cast_possible_truncation,
@@ -57,8 +58,10 @@ pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
 pub use perform::Perform;
 #[cfg(feature = "reply")]
+#[cfg_attr(docsrs, doc(cfg(feature = "reply")))]
 pub use reply::Reply;
 pub use state::State;
 pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
 #[cfg(feature = "termcap")]
+#[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
 pub use termcap::{Cap, CapValue};

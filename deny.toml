@@ -1,0 +1,10 @@
+# cargo-deny configuration.
+# https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+# Fail on known security vulnerabilities; warn on less severe signals so they
+# surface in the logs without breaking the build.
+vulnerability = "deny"
+unmaintained = "warn"
+unsound = "warn"
+yanked = "warn"

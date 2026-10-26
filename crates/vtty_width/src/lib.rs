@@ -34,6 +34,7 @@
 
 #![warn(missing_debug_implementations)]
 #![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "terminal cell/pixel math truncates to fixed-size types where the range is known-safe"
@@ -52,6 +53,7 @@ pub mod width;
 pub use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
 #[cfg(feature = "icu")]
+#[cfg_attr(docsrs, doc(cfg(feature = "icu")))]
 pub use icu::width_icu;
 
 pub use emoji::{

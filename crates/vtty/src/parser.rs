@@ -114,6 +114,7 @@ impl Parser {
     /// An empty parser in the ground state with SIMD fast paths enabled.
     /// No allocation.
     #[cfg(feature = "simd")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
     pub const fn with_simd() -> Self {
         let mut p = Self::DEFAULT;
         p.simd = true;

@@ -139,3 +139,38 @@ jobs:
 
       - name: Fuzz smoke — codec round-trip
         run: cargo fuzz run codec --target ${{ matrix.target }} -- -max_total_time=30
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.89
+
+      - name: Check (MSRV)
+        run: cargo check --workspace --all-features
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny
+
+      - name: Audit RustSec advisories
+        run: cargo audit
+
+      - name: Deny vulnerable dependencies
+        run: cargo deny check advisories
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile benchmarks
+        run: cargo bench -p vtty_bench --no-run

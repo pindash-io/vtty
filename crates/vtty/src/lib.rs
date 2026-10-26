@@ -95,6 +95,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![warn(missing_debug_implementations)]
 #![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 
@@ -110,4 +111,5 @@ mod utf8_tables;
 pub use parser::Parser;
 pub use vtty_core::*;
 #[cfg(feature = "status")]
+#[cfg_attr(docsrs, doc(cfg(feature = "status")))]
 pub use vtty_status::*;
