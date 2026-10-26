@@ -20,7 +20,7 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: typos,taplo,cargo-rdme
+          tool: typos,taplo,cargo-rdme,cargo-hack
 
       - name: Spell-check
         run: typos
@@ -46,6 +46,11 @@ jobs:
 
       - name: Rust format check
         run: cargo fmt --check --all
+
+      - name: Feature-powerset check
+        # Every feature combination compiles (catches e.g. simd × no_std
+        # interactions that --all-features/--no-default-features miss).
+        run: cargo hack check --workspace --feature-powerset --skip default
 
   test:
     # Compile + test on Linux (x86_64) and macOS (aarch64), so both the
