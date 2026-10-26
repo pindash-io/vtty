@@ -11,7 +11,7 @@
 
 bitflags::bitflags! {
     /// Settable terminal modes tracked by a screen, as a single flag set.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct TermFlags: u64 {
         /// No mode — returned by [`TermFlags::from_private_param`] for
         /// unknown codes.
