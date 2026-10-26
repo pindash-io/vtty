@@ -61,7 +61,7 @@ pub use perform::Perform;
 #[cfg_attr(docsrs, doc(cfg(feature = "reply")))]
 pub use reply::Reply;
 pub use state::State;
-pub use style::{CursorStyle, SgrFlags, StyleFlags, UnderlineStyle};
+pub use style::{ColorSpec, CursorStyle, SgrEffect, SgrFlags, StyleFlags, UnderlineStyle};
 #[cfg(feature = "termcap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
 pub use termcap::{Cap, CapValue};

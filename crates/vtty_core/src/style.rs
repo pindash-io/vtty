@@ -217,6 +217,58 @@ impl CursorStyle {
     }
 }
 
+// ── Parsed SGR effects ──────────────────────────────────────────────
+
+/// An unresolved SGR color (before palette interning).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ColorSpec {
+    /// 39/49 — restore the default fg/bg.
+    Default,
+    /// 30..=37 / 90..=97 / 40..=47 / 100..=107 — the direct ANSI codes.
+    /// The line screen maps 30..=37 to the bright half under bold (legacy).
+    Ansi(u16),
+    /// `38;5;n` / `48;5;n` / `58;5;n` — the extended indexed color (already
+    /// clamped to 0..=255).
+    Indexed(u16),
+    /// `38;2;r;g;b` etc. — truecolor, packed 0xRRGGBB.
+    Rgb(u32),
+}
+
+impl ColorSpec {
+    /// Pack a truecolor triplet into an RGB color (`0x00RRGGBB`).
+    #[inline]
+    pub fn rgb(r: i32, g: i32, b: i32) -> Self {
+        Self::Rgb(crate::rgb(r, g, b))
+    }
+
+    /// Clamp an indexed color to the 256-color table and wrap it.
+    #[inline]
+    pub fn indexed(n: i32) -> Self {
+        Self::Indexed(crate::ColorId::from(n).index())
+    }
+}
+
+/// A single parsed SGR effect, in sequence order.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SgrEffect {
+    /// 0 — reset all attributes and colors.
+    Reset,
+    /// Turn attribute flags ON (bold/faint/…).
+    Set(SgrFlags),
+    /// Turn attribute flags OFF.
+    Clear(SgrFlags),
+    /// 4 / 4:n / 21 — set the underline style (`None` clears it).
+    Underline(UnderlineStyle),
+    /// 30..=37 / 39 / 38;… / 90..=97 — foreground.
+    Fg(ColorSpec),
+    /// 40..=47 / 49 / 48;… / 100..=107 — background.
+    Bg(ColorSpec),
+    /// 58;… — underline color.
+    UnderlineColor(ColorSpec),
+    /// 59 — clear the underline color.
+    ClearUnderlineColor,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

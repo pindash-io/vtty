@@ -9,8 +9,9 @@ use core::mem::size_of;
 use smallvec::SmallVec;
 
 use vtty_core::{
-    Charset, Charsets, ColorId, CursorStyle, Event, KittyFlags, MouseButton, MouseTracking,
-    Recording, Reply, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
+    Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags,
+    MouseButton, MouseTracking, Recording, Reply, SgrEffect, SgrFlags, State,
+    StyleFlags, TermFlags, UnderlineStyle,
 };
 use vtty_status::{ProgramStatus, StatusKind, StatusState};
 
@@ -219,6 +220,112 @@ impl_tagged_codec!(
     2 => CursorStyle::Underline,
     3 => CursorStyle::Bar,
 );
+
+impl Encode for ColorSpec {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
+        match *self {
+            Self::Default => writer.write_byte(0),
+            Self::Ansi(v) => {
+                writer.write_byte(1)?;
+                v.encode(writer)
+            }
+            Self::Indexed(v) => {
+                writer.write_byte(2)?;
+                v.encode(writer)
+            }
+            Self::Rgb(v) => {
+                writer.write_byte(3)?;
+                v.encode(writer)
+            }
+        }
+    }
+
+    fn encoded_len(&self) -> usize {
+        1 + match self {
+            Self::Default => 0,
+            Self::Ansi(_) | Self::Indexed(_) => size_of::<u16>(),
+            Self::Rgb(_) => size_of::<u32>(),
+        }
+    }
+}
+
+impl Decode for ColorSpec {
+    fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
+        Ok(match reader.read_byte()? {
+            0 => Self::Default,
+            1 => Self::Ansi(u16::decode(reader)?),
+            2 => Self::Indexed(u16::decode(reader)?),
+            3 => Self::Rgb(u32::decode(reader)?),
+            _ => return Err(DecodeError::InvalidValue),
+        })
+    }
+}
+
+impl Encode for SgrEffect {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
+        match self {
+            Self::Reset => writer.write_byte(0),
+            Self::Set(f) => {
+                writer.write_byte(1)?;
+                f.encode(writer)
+            }
+            Self::Clear(f) => {
+                writer.write_byte(2)?;
+                f.encode(writer)
+            }
+            Self::Underline(s) => {
+                writer.write_byte(3)?;
+                s.encode(writer)
+            }
+            Self::Fg(c) => {
+                writer.write_byte(4)?;
+                c.encode(writer)
+            }
+            Self::Bg(c) => {
+                writer.write_byte(5)?;
+                c.encode(writer)
+            }
+            Self::UnderlineColor(c) => {
+                writer.write_byte(6)?;
+                c.encode(writer)
+            }
+            Self::ClearUnderlineColor => writer.write_byte(7),
+        }
+    }
+
+    fn encoded_len(&self) -> usize {
+        1 + match self {
+            Self::Reset | Self::ClearUnderlineColor => 0,
+            Self::Set(_) | Self::Clear(_) => size_of::<u16>(),
+            Self::Underline(_) => 1,
+            Self::Fg(c) | Self::Bg(c) | Self::UnderlineColor(c) => {
+                c.encoded_len()
+            }
+        }
+    }
+}
+
+impl Decode for SgrEffect {
+    fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
+        Ok(match reader.read_byte()? {
+            0 => Self::Reset,
+            1 => Self::Set(SgrFlags::decode(reader)?),
+            2 => Self::Clear(SgrFlags::decode(reader)?),
+            3 => Self::Underline(UnderlineStyle::decode(reader)?),
+            4 => Self::Fg(ColorSpec::decode(reader)?),
+            5 => Self::Bg(ColorSpec::decode(reader)?),
+            6 => Self::UnderlineColor(ColorSpec::decode(reader)?),
+            7 => Self::ClearUnderlineColor,
+            _ => return Err(DecodeError::InvalidValue),
+        })
+    }
+}
 
 impl_tagged_codec!(
     Charset,
