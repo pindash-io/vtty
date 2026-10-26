@@ -15,29 +15,28 @@
 //!
 //! ## Usage
 //!
-//! ```rust,ignore
+//! ```rust
 //! use vtty::{Parser, Perform};
 //!
 //! struct Screen;
 //!
 //! impl Perform for Screen {
-//!     fn print_bytes(&mut self, s: &[u8]) { /* printable ASCII run */ }
-//!     fn print(&mut self, c: char) { /* non-ASCII code point */ }
-//!     fn execute(&mut self, b: u8) { /* \n \t \x1b … */ }
-//!     fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
+//!     fn print_bytes(&mut self, _s: &[u8]) { /* printable ASCII run */ }
+//!     fn print(&mut self, _c: char) { /* non-ASCII code point */ }
+//!     fn execute(&mut self, _b: u8) { /* \n \t \x1b … */ }
+//!     fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
 //!         /* CSI Ps ; Ps final */
 //!     }
-//!     fn osc_dispatch(&mut self, params: &[&[u8]], bell: bool) { /* OSC */ }
+//!     fn osc_dispatch(&mut self, _params: &[&[u8]], _bell: bool) { /* OSC */ }
 //! }
 //!
+//! let mut screen = Screen;
 //! let mut parser = Parser::new();
 //! parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
-//!
-//! // With the `simd-transcode` feature enabled, opt into SIMD scanning,
-//! // validation and UTF-8→UTF-32 transcode:
-//! let mut parser = Parser::with_simd();
-//! parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 //! ```
+//!
+//! With the `simd` feature enabled, [`Parser::with_simd`] opts into SIMD
+//! scanning and UTF-8 validation.
 //!
 //! Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
 //! sink with line/cursor geometry), `Reply` (query reply builder),

@@ -75,7 +75,7 @@ const CONTINUATION: char = '\0';
 /// A single screen cell: glyph + SGR attributes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {
-    /// The base glyph. `' '` is blank; [`CONTINUATION`] marks the trailing
+    /// The base glyph. `' '` is blank; `CONTINUATION` marks the trailing
     /// cell of a double-width glyph.
     pub ch: char,
     /// SGR attributes (bold, italic, underline, …).

@@ -75,6 +75,8 @@ jobs:
         run: cargo test --workspace --no-default-features
 
       - name: Docs
+        env:
+          RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --all-features --no-deps
 
   no-std:
