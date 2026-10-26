@@ -94,11 +94,7 @@ impl Selector {
 /// combining mark accepts any non-space base.
 #[inline]
 pub fn mark_attaches(mark: char, base: char) -> bool {
-    let s = Selector::from_char(mark);
-    if s.is_none() {
-        return true;
-    }
-    s.attaches_to(base)
+    Selector::from_char(mark).attaches_to(base)
 }
 
 /// Whether a char is a valid VS15/VS16 ATTACH base — the
@@ -120,11 +116,7 @@ pub fn is_vs_target(c: char) -> bool {
 /// [`mark_attaches`] for the ZWJ/VS family.
 #[inline]
 pub fn mark_is_stray(mark: char, base: char) -> bool {
-    let s = Selector::from_char(mark);
-    if s.is_none() {
-        return false;
-    }
-    !s.attaches_to(base)
+    !mark_attaches(mark, base)
 }
 
 /// Whether a char is a KEYCAP BASE (`#`, `*`, `0-9`). A buffered VS16/VS15
