@@ -66,12 +66,12 @@ impl Selector {
     #[inline]
     pub fn attaches_to(self, base: char) -> bool {
         if self.is_zwj() {
-            is_zwj_target(base)
-        } else if self.is_vs() {
-            is_vs_base(base)
-        } else {
-            true
+            return is_zwj_target(base);
         }
+        if self.is_vs() {
+            return is_vs_base(base);
+        }
+        true
     }
 
     /// The base's TARGET cell width when this selector applies, or `None`
@@ -79,11 +79,13 @@ impl Selector {
     /// is NOT a variation base.
     #[inline]
     pub fn target_width(self, base: char) -> Option<usize> {
-        match self {
-            Self::Vs16 if is_vs_target(base) => Some(2),
-            Self::Vs15 if is_vs_target(base) => Some(1),
-            _ => None,
+        if !self.is_vs() || !is_vs_target(base) {
+            return None;
         }
+        Some(match self {
+            Self::Vs16 => 2,
+            _ => 1,
+        })
     }
 }
 
@@ -92,10 +94,11 @@ impl Selector {
 /// combining mark accepts any non-space base.
 #[inline]
 pub fn mark_attaches(mark: char, base: char) -> bool {
-    match Selector::from_char(mark) {
-        Selector::None => true,
-        s => s.attaches_to(base),
+    let s = Selector::from_char(mark);
+    if s.is_none() {
+        return true;
     }
+    s.attaches_to(base)
 }
 
 /// Whether a char is a valid VS15/VS16 ATTACH base — the
@@ -117,10 +120,11 @@ pub fn is_vs_target(c: char) -> bool {
 /// [`mark_attaches`] for the ZWJ/VS family.
 #[inline]
 pub fn mark_is_stray(mark: char, base: char) -> bool {
-    match Selector::from_char(mark) {
-        Selector::None => false,
-        s => !s.attaches_to(base),
+    let s = Selector::from_char(mark);
+    if s.is_none() {
+        return false;
     }
+    !s.attaches_to(base)
 }
 
 /// Whether a char is a KEYCAP BASE (`#`, `*`, `0-9`). A buffered VS16/VS15
