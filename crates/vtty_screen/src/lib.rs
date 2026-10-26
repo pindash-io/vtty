@@ -35,125 +35,19 @@ use alloc::collections::VecDeque;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::fmt::Write as _;
 use core::ops::Range;
 
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, Perform, SgrFlags};
 use vtty_width::{cell_width, cell_width_sum};
 
-bitflags::bitflags! {
-    /// Per-buffer screen state, swapped wholesale with the alternate screen.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub struct BufferFlags: u8 {
-        /// A wide glyph was written at the last column; the next print wraps.
-        const WRAP_PENDING = 1 << 0;
-        /// DECOM — origin mode (cursor addressing is margin-relative).
-        const ORIGIN = 1 << 1;
-    }
+mod cell;
+mod reflow;
+mod render;
 
-    /// Global screen modes, shared across the main and alternate buffers.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub struct ScreenFlags: u8 {
-        /// DECAWM — autowrap.
-        const WRAP = 1 << 0;
-        /// DECTCEM — cursor visible.
-        const CURSOR_VISIBLE = 1 << 1;
-        /// The alternate screen buffer is active (DEC 47/1046/1047/1049).
-        const ALT_ACTIVE = 1 << 2;
-    }
-}
-
-impl ScreenFlags {
-    /// Power-on modes: DECAWM autowrap + DECTCEM cursor visible.
-    pub const DEFAULT: Self = Self::WRAP.union(Self::CURSOR_VISIBLE);
-}
-
-/// Marker stored in the trailing cell of a double-width glyph. Render skips
-/// it (the lead cell already accounts for both columns).
-const CONTINUATION: char = '\0';
-
-/// A single screen cell: glyph + SGR attributes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Cell {
-    /// The base glyph. `' '` is blank; `CONTINUATION` marks the trailing
-    /// cell of a double-width glyph.
-    pub ch: char,
-    /// SGR attributes (bold, italic, underline, …).
-    pub sgr: SgrFlags,
-    /// Foreground color (indexed or a `>= 258` truecolor palette id).
-    pub fg: ColorId,
-    /// Background color.
-    pub bg: ColorId,
-    /// Trailing zero-width or ZWJ-joined glyphs (combining marks, variation
-    /// selectors, skin tones, emoji family members), inline up to eight.
-    pub combining: [char; 8],
-    /// Number of entries used in [`Cell::combining`].
-    pub combining_len: u8,
-}
-
-impl Default for Cell {
-    fn default() -> Self {
-        Self {
-            ch: ' ',
-            sgr: SgrFlags::DEFAULT,
-            fg: DEFAULT_FG_ID,
-            bg: DEFAULT_BG_ID,
-            combining: ['\0'; 8],
-            combining_len: 0,
-        }
-    }
-}
-
-impl Cell {
-    /// True when this cell is the trailing half of a double-width glyph.
-    #[inline]
-    pub const fn is_continuation(&self) -> bool {
-        self.ch == CONTINUATION
-    }
-
-    /// The trailing combining marks / zero-width glyphs.
-    #[inline]
-    pub fn marks(&self) -> &[char] {
-        &self.combining[..self.combining_len as usize]
-    }
-
-    /// True when the cell is blank (a space with default attributes).
-    #[inline]
-    pub const fn is_blank(&self) -> bool {
-        self.ch == ' '
-            && self.combining_len == 0
-            && self.sgr.is_empty()
-            && self.fg.0 == DEFAULT_FG_ID.0
-            && self.bg.0 == DEFAULT_BG_ID.0
-    }
-}
-
-/// Default DEC tab stops: every 8th column, starting at column 8 (0-based).
-fn default_tabs(cols: u32) -> Vec<bool> {
-    (0..cols).map(|c| c != 0 && c % 8 == 0).collect()
-}
-
-/// The classic xterm 16-color palette (the default theme).
-fn default_palette() -> [u32; 16] {
-    [
-        vtty_core::indexed_rgb(0),
-        vtty_core::indexed_rgb(1),
-        vtty_core::indexed_rgb(2),
-        vtty_core::indexed_rgb(3),
-        vtty_core::indexed_rgb(4),
-        vtty_core::indexed_rgb(5),
-        vtty_core::indexed_rgb(6),
-        vtty_core::indexed_rgb(7),
-        vtty_core::indexed_rgb(8),
-        vtty_core::indexed_rgb(9),
-        vtty_core::indexed_rgb(10),
-        vtty_core::indexed_rgb(11),
-        vtty_core::indexed_rgb(12),
-        vtty_core::indexed_rgb(13),
-        vtty_core::indexed_rgb(14),
-        vtty_core::indexed_rgb(15),
-    ]
-}
+pub use cell::{BufferFlags, Cell, ScreenFlags};
+use cell::{CONTINUATION, default_palette, default_tabs};
+use reflow::{fit_grid, reflow_rows, rows_from};
+use render::{push_sgr, render_cells, trailing_blanks};
 
 /// A minimal cell-grid terminal screen.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -422,7 +316,7 @@ impl Screen {
         if row >= self.rows {
             return String::new();
         }
-        Self::render_cells(&self.cells[self.row_range(row)])
+        render_cells(&self.cells[self.row_range(row)])
     }
 
     /// Render every row to text, one `String` per row.
@@ -450,7 +344,7 @@ impl Screen {
         }
         let cells = &self.cells[self.row_range(row)];
         // Trim trailing blank cells.
-        let last = cells.len() - Self::trailing_blanks(cells);
+        let last = cells.len() - trailing_blanks(cells);
         // `current` is the emitted style; `None` means "default, no SGR
         // emitted yet". Default-styled cells add no escape sequences.
         let mut current: Option<(SgrFlags, ColorId, ColorId)> = None;
@@ -468,7 +362,7 @@ impl Screen {
             } else {
                 let state = (cell.sgr, cell.fg, cell.bg);
                 if current != Some(state) {
-                    Self::push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
+                    push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
                     current = Some(state);
                 }
             }
@@ -479,58 +373,6 @@ impl Screen {
             out.push_str("\x1b[0m");
         }
         out
-    }
-
-    /// Emit an SGR sequence (`ESC [ 0 ; … m`) for a cell's attributes.
-    fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId, palette: &[u32]) {
-        out.push_str("\x1b[0");
-        if sgr.contains(SgrFlags::BOLD) {
-            out.push_str(";1");
-        }
-        if sgr.contains(SgrFlags::FAINT) {
-            out.push_str(";2");
-        }
-        if sgr.contains(SgrFlags::ITALIC) {
-            out.push_str(";3");
-        }
-        if sgr.contains(SgrFlags::UNDERLINE) {
-            out.push_str(";4");
-        }
-        if sgr.contains(SgrFlags::BLINK) {
-            out.push_str(";5");
-        }
-        if sgr.contains(SgrFlags::BLINK_RAPID) {
-            out.push_str(";6");
-        }
-        if sgr.contains(SgrFlags::INVERSE) {
-            out.push_str(";7");
-        }
-        if sgr.contains(SgrFlags::INVISIBLE) {
-            out.push_str(";8");
-        }
-        if sgr.contains(SgrFlags::STRIKETHROUGH) {
-            out.push_str(";9");
-        }
-        Self::push_ansi_color(out, 3, fg, palette);
-        Self::push_ansi_color(out, 4, bg, palette);
-        out.push('m');
-    }
-
-    /// Emit one SGR color (`;{base}8;5;n` indexed or `;{base}8;2;r;g;b`
-    /// truecolor resolved from `palette`). The default color emits nothing —
-    /// the leading `ESC [ 0` already selects it.
-    fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: &[u32]) {
-        let default = if base == 3 {
-            DEFAULT_FG_ID
-        } else {
-            DEFAULT_BG_ID
-        };
-        if id != default && id.0 <= 255 {
-            let _ = write!(out, ";{base}8;5;{}", id.0);
-        } else if let Some(&rgb) = id.0.checked_sub(258).and_then(|i| palette.get(i as usize)) {
-            let [r, g, b] = vtty_core::u32_to_rgb(rgb);
-            let _ = write!(out, ";{base}8;2;{r};{g};{b}");
-        }
     }
 
     /// The number of scrollback lines (oldest first).
@@ -571,11 +413,11 @@ impl Screen {
         let new_rows = rows as usize;
 
         // Reflow scrollback + active buffer together as one logical stream.
-        let active = Self::rows_from(&self.cells, &self.continuation, self.cols);
+        let active = rows_from(&self.cells, &self.continuation, self.cols);
         let mut all_rows = Vec::with_capacity(self.scrollback.len() + active.len());
         all_rows.extend(self.scrollback.iter().cloned());
         all_rows.extend(active);
-        let reflowed = Self::reflow_rows(&all_rows, new_cols);
+        let reflowed = reflow_rows(&all_rows, new_cols);
 
         // The last `rows` rows become the visible screen; the rest return to
         // scrollback (capped at `max_scrollback`).
@@ -586,12 +428,12 @@ impl Screen {
         for row in &reflowed[skip - keep..skip] {
             new_scrollback.push_back(row.clone());
         }
-        let (new_cells, new_cont) = Self::fit_grid(&reflowed, new_cols, new_rows);
+        let (new_cells, new_cont) = fit_grid(&reflowed, new_cols, new_rows);
 
         // Reflow the alternate buffer (it has no scrollback of its own).
-        let alt = Self::rows_from(&self.alt_cells, &self.alt_continuation, self.cols);
-        let alt_reflowed = Self::reflow_rows(&alt, new_cols);
-        let (new_alt_cells, new_alt_cont) = Self::fit_grid(&alt_reflowed, new_cols, new_rows);
+        let alt = rows_from(&self.alt_cells, &self.alt_continuation, self.cols);
+        let alt_reflowed = reflow_rows(&alt, new_cols);
+        let (new_alt_cells, new_alt_cont) = fit_grid(&alt_reflowed, new_cols, new_rows);
 
         self.cols = cols;
         self.rows = rows;
@@ -612,129 +454,6 @@ impl Screen {
         self.tab_stops = default_tabs(cols);
     }
 
-    /// Build a `(row, continuation)` list from a flat grid.
-    fn rows_from(cells: &[Cell], continuation: &[bool], cols: u32) -> Vec<(Vec<Cell>, bool)> {
-        cells
-            .chunks_exact(cols as usize)
-            .zip(continuation)
-            .map(|(row, &cont)| (row.to_vec(), cont))
-            .collect()
-    }
-
-    /// Re-wrap a row list at `width`, dropping trailing blank rows (viewport
-    /// padding) so content stays anchored to the top when the grid shrinks.
-    fn reflow_rows(rows: &[(Vec<Cell>, bool)], width: usize) -> Vec<(Vec<Cell>, bool)> {
-        let mut reflowed = Self::rewrap_rows(rows, width);
-        while reflowed
-            .last()
-            .is_some_and(|(row, _)| row.iter().all(Cell::is_blank))
-        {
-            reflowed.pop();
-        }
-        reflowed
-    }
-
-    /// Fit reflowed rows into a `width × rows` grid, keeping the last `rows`
-    /// rows and their continuation flags.
-    fn fit_grid(
-        reflowed: &[(Vec<Cell>, bool)],
-        width: usize,
-        rows: usize,
-    ) -> (Vec<Cell>, Vec<bool>) {
-        let take = reflowed.len().min(rows);
-        let skip = reflowed.len() - take;
-        let mut cells = vec![Cell::default(); width * rows];
-        let mut cont = vec![false; rows];
-        for i in 0..take {
-            let (row, c) = &reflowed[skip + i];
-            let dst = i * width;
-            cells[dst..dst + width].copy_from_slice(row);
-            cont[i] = *c;
-        }
-        (cells, cont)
-    }
-
-    /// Extract logical lines from a row list, joining soft-wrapped rows and
-    /// dropping double-width continuation markers.
-    fn logical_lines_rows(rows: &[(Vec<Cell>, bool)]) -> Vec<Vec<Cell>> {
-        let mut lines = Vec::new();
-        let mut current: Vec<Cell> = Vec::new();
-        for i in 0..rows.len() {
-            let (cells, cont) = &rows[i];
-            if i > 0 && !cont {
-                lines.push(core::mem::take(&mut current));
-            }
-            // Trim trailing padding blanks — but only on the last row of a
-            // logical line. A soft-wrapped row is full of content, so its
-            // trailing spaces (e.g. the space before the wrap in "hello
-            // world") must be kept.
-            let soft_wrapped = rows.get(i + 1).is_some_and(|(_, next)| *next);
-            let end = if soft_wrapped {
-                cells.len()
-            } else {
-                cells.len() - Self::trailing_blanks(cells)
-            };
-            current.extend(
-                cells[..end]
-                    .iter()
-                    .copied()
-                    .filter(|c| !c.is_continuation()),
-            );
-        }
-        lines.push(current);
-        lines
-    }
-
-    /// Re-wrap a list of `(row, continuation)` pairs at `width`, re-deriving
-    /// the continuation flags from the new layout.
-    fn rewrap_rows(rows: &[(Vec<Cell>, bool)], width: usize) -> Vec<(Vec<Cell>, bool)> {
-        let mut out = Vec::new();
-        for line in Self::logical_lines_rows(rows) {
-            for (i, row) in Self::rewrap(&line, width).into_iter().enumerate() {
-                out.push((row, i > 0));
-            }
-        }
-        out
-    }
-
-    /// Re-wrap a logical line (lead cells only, wide glyphs as one entry) into
-    /// `width`-cell rows, re-adding double-width continuation markers.
-    fn rewrap(line: &[Cell], width: usize) -> Vec<Vec<Cell>> {
-        let mut rows: Vec<Vec<Cell>> = Vec::new();
-        let mut row: Vec<Cell> = Vec::with_capacity(width);
-        for &cell in line {
-            let mut w = cell_width(cell.ch).unwrap_or(1);
-            if w == 0 {
-                continue;
-            }
-            if w == 2 && width < 2 {
-                w = 1;
-            }
-            if row.len() >= width {
-                rows.push(core::mem::take(&mut row));
-                row = Vec::with_capacity(width);
-            }
-            // A wide glyph needs two cells; if only one remains, wrap first.
-            if w == 2 && row.len() == width - 1 {
-                row.resize(width, Cell::default());
-                rows.push(row);
-                row = Vec::with_capacity(width);
-            }
-            row.push(cell);
-            if w == 2 {
-                row.push(Cell {
-                    ch: CONTINUATION,
-                    ..cell
-                });
-            }
-        }
-        if !row.is_empty() || rows.is_empty() {
-            row.resize(width, Cell::default());
-            rows.push(row);
-        }
-        rows
-    }
-
     /// The raw cells of scrollback line `i` (`0` = oldest), or `None`.
     pub fn scrollback_line(&self, i: usize) -> Option<&[Cell]> {
         self.scrollback.get(i).map(|(row, _)| row.as_slice())
@@ -742,9 +461,7 @@ impl Screen {
 
     /// Render scrollback line `i` to text, or `None` out of range.
     pub fn scrollback_text(&self, i: usize) -> Option<String> {
-        self.scrollback
-            .get(i)
-            .map(|(row, _)| Self::render_cells(row))
+        self.scrollback.get(i).map(|(row, _)| render_cells(row))
     }
 
     /// Attach a zero-width glyph (combining mark, variation selector, skin
@@ -768,31 +485,6 @@ impl Screen {
             cell.combining[cell.combining_len as usize] = c;
             cell.combining_len += 1;
         }
-    }
-
-    /// Render a `Cell` slice to plain text (used by
-    /// [`Screen::render_line`] and [`Screen::scrollback_text`]).
-    /// Number of trailing blank cells in `cells`.
-    fn trailing_blanks(cells: &[Cell]) -> usize {
-        let mut n = 0;
-        while n < cells.len() && cells[cells.len() - 1 - n].is_blank() {
-            n += 1;
-        }
-        n
-    }
-
-    fn render_cells(cells: &[Cell]) -> String {
-        let mut s = String::new();
-        for cell in cells {
-            if !cell.is_continuation() {
-                s.push(cell.ch);
-                s.extend(cell.marks().iter().copied());
-            }
-        }
-        while s.ends_with(' ') {
-            s.pop();
-        }
-        s
     }
 
     #[inline]
