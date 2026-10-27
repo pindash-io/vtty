@@ -1,9 +1,0 @@
-# Keep Rust dependencies up to date automatically.
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates
-
-version: 2
-updates:
-  - package-ecosystem: cargo
-    directory: "/"
-    schedule:
-      interval: weekly

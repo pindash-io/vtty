@@ -162,10 +162,13 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-audit
+          tool: cargo-audit,cargo-deny
 
       - name: Audit RustSec advisories
         run: cargo audit
+
+      - name: Deny vulnerable dependencies
+        run: cargo deny check advisories
 
   bench:
     runs-on: ubuntu-latest

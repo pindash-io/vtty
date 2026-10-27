@@ -1,0 +1,9 @@
+# cargo-deny configuration.
+# https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+# Vulnerability advisories always fail now (the `vulnerability` field was
+# removed). The unmaintained check is disabled to avoid failing CI on an
+# unmaintained transitive dependency.
+unmaintained = "none"
+yanked = "warn"
