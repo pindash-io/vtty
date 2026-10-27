@@ -9,9 +9,9 @@ use core::mem::size_of;
 use smallvec::SmallVec;
 
 use vtty_core::{
-    Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags,
-    MouseButton, MouseTracking, Recording, Reply, SgrEffect, SgrFlags, State,
-    StyleFlags, TermFlags, UnderlineStyle,
+    Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags, MouseButton,
+    MouseTracking, Recording, Reply, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
+    UnderlineStyle,
 };
 use vtty_status::{ProgramStatus, StatusKind, StatusState};
 
@@ -222,10 +222,7 @@ impl_tagged_codec!(
 );
 
 impl Encode for ColorSpec {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         match *self {
             Self::Default => writer.write_byte(0),
             Self::Ansi(v) => {
@@ -265,10 +262,7 @@ impl Decode for ColorSpec {
 }
 
 impl Encode for SgrEffect {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         match self {
             Self::Reset => writer.write_byte(0),
             Self::Set(f) => {
@@ -304,9 +298,7 @@ impl Encode for SgrEffect {
             Self::Reset | Self::ClearUnderlineColor => 0,
             Self::Set(_) | Self::Clear(_) => size_of::<u16>(),
             Self::Underline(_) => 1,
-            Self::Fg(c) | Self::Bg(c) | Self::UnderlineColor(c) => {
-                c.encoded_len()
-            }
+            Self::Fg(c) | Self::Bg(c) | Self::UnderlineColor(c) => c.encoded_len(),
         }
     }
 }

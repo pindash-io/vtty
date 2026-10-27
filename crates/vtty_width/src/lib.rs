@@ -447,7 +447,10 @@ mod tests {
         assert_eq!(cell_widths("❤\u{fe0f}ﾞ"), vec![2, 0, 1]);
         // The whole-text DFA still ZWJ-joins `❤` into the `👨` family
         // (`[0, 0]`), but the halfwidth `ﾞ` stays 1 cell.
-        assert_eq!(cell_widths("瘀ｶﾞ👨\u{200d}❤\u{fe0f}ﾞ"), vec![2, 1, 1, 2, 0, 0, 0, 1]);
+        assert_eq!(
+            cell_widths("瘀ｶﾞ👨\u{200d}❤\u{fe0f}ﾞ"),
+            vec![2, 1, 1, 2, 0, 0, 0, 1]
+        );
     }
 }
 

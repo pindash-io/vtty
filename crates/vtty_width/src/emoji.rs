@@ -151,7 +151,8 @@ pub fn is_halfwidth_sound_mark(c: char) -> bool {
 
 /// A category that continues the current emoji run (zero cursor cells).
 #[inline]
-fn is_continuation(cat: EmojiSegmentationCategory) -> bool {    use EmojiSegmentationCategory as C;
+fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
+    use EmojiSegmentationCategory as C;
     matches!(
         cat,
         C::Vs15 | C::Vs16 | C::Zwj | C::KeycapEnd | C::TagSpec | C::TagEnd | C::EmojiModifier
