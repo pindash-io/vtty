@@ -2,9 +2,6 @@
 # https://embarkstudios.github.io/cargo-deny/
 
 [advisories]
-# Fail on known security vulnerabilities; warn on less severe signals so they
-# surface in the logs without breaking the build.
+# Fail on known security vulnerabilities. Secondary advisory classes
+# (unmaintained, unsound, yanked) keep their defaults.
 vulnerability = "deny"
-unmaintained = "warn"
-unsound = "warn"
-yanked = "warn"
