@@ -22,7 +22,7 @@ vtty_width = { path = "crates/vtty_width" }
 vtty_grapheme = { path = "crates/vtty_grapheme" }
 
 # Optional SIMD ground-state run classifier.
-fearless_simd = { version = "1.1", default-features = false }
+fearless_simd = { version = "1.2.0", default-features = false }
 # Optional SIMD UTF-8 validation.
 simdutf8 = "0.1"
 
@@ -30,7 +30,7 @@ base64 = { version = "0.23.1", default-features = false, features = ["alloc"] }
 bitflags = "2"
 const-hex = { version = "1.19.3", default-features = false }
 smallvec = { version = "2.0.0-beta.3", default-features = false }
-compact_str = { version = "0.9.1", default-features = false }
+compact_str = { version = "0.10.0", default-features = false }
 utf8_iter = "1"
 
 icu_properties = { version = "=2.3.0", features = ["compiled_data", "alloc"] }
