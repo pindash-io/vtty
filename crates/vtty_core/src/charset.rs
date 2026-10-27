@@ -183,6 +183,21 @@ impl Scs {
         self.gl = g.min(3);
     }
 
+    /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
+    /// SI (`0x0F`) = LS0, SS2 (`0x8E`) = single-shift G2, SS3 (`0x8F`) =
+    /// single-shift G3. Any other byte is a defensive no-op (the parser
+    /// dispatches only the four shift bytes).
+    #[inline]
+    pub fn apply_shift(&mut self, byte: u8) {
+        match byte {
+            0x0E => self.shift(1),
+            0x0F => self.shift(0),
+            0x8E => self.single_shift = Some(2),
+            0x8F => self.single_shift = Some(3),
+            _ => {}
+        }
+    }
+
     /// The active charset: an `SS2`/`SS3` single shift wins for one char, then the
     /// GL locking shift, otherwise G0.
     pub fn active(&self) -> Charset {
