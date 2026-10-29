@@ -680,12 +680,6 @@ impl Parser {
         self.osc_overflow = take < run.len();
     }
 
-    /// Append one OSC payload byte, discarding (marking overflow) at the cap.
-    #[inline(always)]
-    fn osc_push(&mut self, byte: u8) {
-        self.osc_extend(&[byte]);
-    }
-
     /// Dispatch a collected OSC command and reset the OSC state. An oversized
     /// payload is discarded wholesale (a truncated `OSC 52` would otherwise
     /// decode into garbage). With `bytes`/`end_pos` the params are sliced
@@ -781,7 +775,7 @@ impl Parser {
             self.osc_num_starts = 1;
         }
         if action.contains(Action::OSC_PUT) {
-            self.osc_push(byte);
+            self.osc_extend(&[byte]);
         }
         if action.contains(Action::OSC_END) {
             // Cold terminator (C1 ST / CAN / SUB): the deferred payload was
