@@ -86,11 +86,7 @@ impl crate::reply::Reply {
     /// (`65` = VT500, `64` = VT400, `62` = VT220, `1` = VT100); the rest are
     /// supported-extension codes (EK-VT520-RM §5-9).
     pub fn da1(attrs: &[u32]) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str("\x1b[?");
-        join_display(&mut buf, attrs, ';');
-        buf.push('c');
-        buf
+        join_wrapped("\x1b[?", attrs, ';', "c")
     }
 
     /// Build a DA2 (Secondary Device Attributes) answer:
@@ -159,12 +155,23 @@ impl crate::reply::Reply {
     /// Build a DECTABSR (Tab Stop Report) answer:
     /// `DCS 2 $ u {col/col/…} ST`, one decimal column number per tab stop.
     pub fn dectabsr(cols: &[u32]) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str(DECTABSR_PREFIX);
-        join_display(&mut buf, cols, '/');
-        buf.push_str(crate::reply::ST);
-        buf
+        join_wrapped(DECTABSR_PREFIX, cols, '/', crate::reply::ST)
     }
+}
+
+#[cfg(feature = "reply")]
+/// Build `{prefix}{items joined by sep}{suffix}` in a fresh buffer.
+fn join_wrapped<T: core::fmt::Display>(
+    prefix: &str,
+    items: &[T],
+    sep: char,
+    suffix: &str,
+) -> CompactString {
+    let mut buf = CompactString::default();
+    buf.push_str(prefix);
+    join_display(&mut buf, items, sep);
+    buf.push_str(suffix);
+    buf
 }
 
 #[cfg(feature = "reply")]
