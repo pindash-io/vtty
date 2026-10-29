@@ -527,3 +527,61 @@ fn c1_other_controls_execute_and_cancel() {
     assert!(c.csi.is_empty());
     assert_eq!(c.executed, vec![0x84]);
 }
+
+#[test]
+fn event_to_bytes_round_trips_the_parser() {
+    use smallvec::SmallVec;
+
+    let cases: &[(&[u8], Event)] = &[
+        (b"X", Event::PrintBytes(b"X".to_vec())),
+        (b"\x1b[1;31m", Event::CsiDispatch {
+            params: SmallVec::from_buf([1, 31]),
+            sep: 0,
+            intermediates: SmallVec::new(),
+            final_byte: b'm',
+        }),
+        (b"\x1b[4:2m", Event::CsiDispatch {
+            params: SmallVec::from_buf([4, 2]),
+            sep: 0b01,
+            intermediates: SmallVec::new(),
+            final_byte: b'm',
+        }),
+        (b"\x1b7", Event::EscDispatch {
+            intermediates: SmallVec::new(),
+            byte: b'7',
+        }),
+        // BEL-terminated OSC (ST termination is handled as ESC + `\`, so a
+        // BEL avoids the extra `EscDispatch` the parser emits for the ST
+        // final byte).
+        (b"\x1b]0;title\x07", Event::OscDispatch {
+            params: SmallVec::from_buf([b"0".to_vec(), b"title".to_vec()]),
+            bell_terminated: true,
+        }),
+    ];
+
+    // Single events encode to their canonical bytes and parse back to the
+    // same event.
+    for (bytes, event) in cases {
+        assert_eq!(event.to_bytes().as_slice(), *bytes);
+        let mut parser = Parser::new();
+        let events = parser.parse_events(bytes);
+        assert_eq!(&events[..], &[event.clone()]);
+    }
+}
+
+#[test]
+fn event_to_bytes_dcs_hook_put_unhook() {
+    use smallvec::SmallVec;
+
+    assert_eq!(
+        Event::DcsHook {
+            params: SmallVec::new(),
+            intermediates: SmallVec::from_buf(*b"$"),
+            final_byte: b'q',
+        }
+        .to_bytes(),
+        b"\x1bP$q"
+    );
+    assert_eq!(Event::DcsPut(b'r').to_bytes(), b"r");
+    assert_eq!(Event::DcsUnhook.to_bytes(), b"\x1b\\");
+}

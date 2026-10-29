@@ -3,6 +3,7 @@
 
 //! The owned, trait-free event API: `Event` + `Recording`.
 
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use smallvec::SmallVec;
 
@@ -63,6 +64,103 @@ pub enum Event {
         /// Whether the sequence was terminated by `BEL` (vs `ST`).
         bell_terminated: bool,
     },
+}
+
+impl Event {
+    /// Encode the event back into its canonical escape-sequence bytes — the
+    /// textual inverse of the parser, so `parse_events(e.to_bytes())`
+    /// reproduces `e` (modulo the `-1` empty-param sentinel).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        match self {
+            Event::Print(c) => {
+                let mut buf = [0_u8; 4];
+                out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+            }
+            Event::PrintBytes(s) => out.extend_from_slice(s),
+            Event::Execute(b) => out.push(*b),
+            Event::CsiDispatch {
+                params,
+                sep,
+                intermediates,
+                final_byte,
+            } => {
+                out.extend_from_slice(b"\x1b[");
+                let (prefix, suffix) = split_intermediates(intermediates);
+                out.extend_from_slice(&prefix);
+                push_params(&mut out, params, *sep);
+                out.extend_from_slice(&suffix);
+                out.push(*final_byte);
+            }
+            Event::EscDispatch {
+                intermediates,
+                byte,
+            } => {
+                out.extend_from_slice(b"\x1b");
+                out.extend_from_slice(intermediates);
+                out.push(*byte);
+            }
+            Event::DcsHook {
+                params,
+                intermediates,
+                final_byte,
+            } => {
+                out.extend_from_slice(b"\x1bP");
+                let (prefix, suffix) = split_intermediates(intermediates);
+                out.extend_from_slice(&prefix);
+                push_params(&mut out, params, 0);
+                out.extend_from_slice(&suffix);
+                out.push(*final_byte);
+            }
+            Event::DcsPut(b) => out.push(*b),
+            Event::DcsUnhook => out.extend_from_slice(b"\x1b\\"),
+            Event::OscDispatch {
+                params,
+                bell_terminated,
+            } => {
+                out.extend_from_slice(b"\x1b]");
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        out.push(b';');
+                    }
+                    out.extend_from_slice(p);
+                }
+                if *bell_terminated {
+                    out.push(0x07);
+                } else {
+                    out.extend_from_slice(b"\x1b\\");
+                }
+            }
+        }
+        out
+    }
+}
+
+/// Split CSI/DCS intermediates into the prefix markers (`? > = <`, emitted
+/// before the params) and the suffix bytes (`0x20..0x2f`, emitted after).
+fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
+    let mut prefix = SmallVec::new();
+    let mut suffix = SmallVec::new();
+    for &b in ints {
+        if matches!(b, b'?' | b'>' | b'=' | b'<') {
+            prefix.push(b);
+        } else {
+            suffix.push(b);
+        }
+    }
+    (prefix, suffix)
+}
+
+/// Append numeric params, `;`- or `:`-joined (`sep` bit `i` = param `i`
+/// followed by a colon).
+fn push_params(out: &mut Vec<u8>, params: &[i32], sep: u16) {
+    for (i, p) in params.iter().enumerate() {
+        if i > 0 {
+            let colon = i - 1 < 16 && sep & (1 << (i - 1)) != 0;
+            out.push(if colon { b':' } else { b';' });
+        }
+        out.extend_from_slice(p.to_string().as_bytes());
+    }
 }
 
 /// Records parser events into a `Vec<Event>` (the enum-based, trait-free API).
