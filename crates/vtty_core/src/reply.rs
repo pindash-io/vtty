@@ -46,34 +46,26 @@ impl Reply {
     /// Build an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
     #[inline]
     pub fn xtgettcap_reply(key: &[u8], value: &[u8]) -> CompactString {
-        let mut buf = CompactString::default();
-        xtgettcap(&mut buf, true, key, Some(value));
-        buf
+        xtgettcap_build(true, key, Some(value))
     }
 
     /// Build an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
     /// `=value`, per xterm — a bare name means "supported").
     #[inline]
     pub fn xtgettcap_reply_bool(key: &[u8]) -> CompactString {
-        let mut buf = CompactString::default();
-        xtgettcap(&mut buf, true, key, None);
-        buf
+        xtgettcap_build(true, key, None)
     }
 
     /// Build an XTGETTCAP failure: `DCS 0 + r {hex msg} ST`.
     #[inline]
     pub fn xtgettcap_error(msg: &[u8]) -> CompactString {
-        let mut buf = CompactString::default();
-        xtgettcap(&mut buf, false, msg, None);
-        buf
+        xtgettcap_build(false, msg, None)
     }
 
     /// Build an XTGETTCAP answer with a decimal integer value.
     #[inline]
     pub fn xtgettcap_num(key: &[u8], n: usize) -> CompactString {
-        let mut buf = CompactString::default();
-        xtgettcap_num_append(&mut buf, key, n);
-        buf
+        xtgettcap_num_build(key, n)
     }
 
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
@@ -175,6 +167,22 @@ pub(crate) fn xtgettcap_num_append(buf: &mut CompactString, key: &[u8], n: usize
         buf.push(d as char);
     }
     terminate(buf);
+}
+
+/// Build an XTGETTCAP answer in a fresh buffer.
+#[inline]
+fn xtgettcap_build(ok: bool, key: &[u8], value: Option<&[u8]>) -> CompactString {
+    let mut buf = CompactString::default();
+    xtgettcap(&mut buf, ok, key, value);
+    buf
+}
+
+/// Build an XTGETTCAP decimal-integer answer in a fresh buffer.
+#[inline]
+fn xtgettcap_num_build(key: &[u8], n: usize) -> CompactString {
+    let mut buf = CompactString::default();
+    xtgettcap_num_append(&mut buf, key, n);
+    buf
 }
 
 /// Append an SGR color to `s`: `;{base}9` (default), `;{base}8;5;n`

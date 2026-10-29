@@ -70,11 +70,13 @@ impl ConformanceLevel {
 }
 
 #[cfg(feature = "reply")]
-/// Append `{prefix}{payload} ST` (a DCS/OSC string) to `buf`.
-fn dcs_string(buf: &mut CompactString, prefix: &str, payload: &str) {
+/// Build `{prefix}{payload} ST` (a DCS/OSC string).
+fn dcs_string(prefix: &str, payload: &str) -> CompactString {
+    let mut buf = CompactString::default();
     buf.push_str(prefix);
     buf.push_str(payload);
     buf.push_str(crate::reply::ST);
+    buf
 }
 
 #[cfg(feature = "reply")]
@@ -106,9 +108,7 @@ impl crate::reply::Reply {
     /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
     /// (EK-VT520-RM §5-12).
     pub fn da3(unit_id: &[u8]) -> CompactString {
-        let mut buf = CompactString::default();
-        dcs_string(&mut buf, "\x1bP!|", &const_hex::encode(unit_id));
-        buf
+        dcs_string("\x1bP!|", &const_hex::encode(unit_id))
     }
 
     /// Build a DECTSR (Terminal State Report) answer:
@@ -117,20 +117,14 @@ impl crate::reply::Reply {
     /// EK-VT520-RM §5-160.
     #[inline]
     pub fn dectsr(device_attrs: &str) -> CompactString {
-        let mut buf = CompactString::default();
-        dcs_string(&mut buf, DECTSR_PREFIX, device_attrs);
-        buf
+        dcs_string(DECTSR_PREFIX, device_attrs)
     }
 
     /// Build an XTVERSION answer: `DCS > | {name} {version} ST` (the
     /// `CSI > q` version query, xterm-style).
     pub fn xtversion(name: &str, version: &str) -> CompactString {
         let mut buf = CompactString::default();
-        buf.push_str("\x1bP>|");
-        buf.push_str(name);
-        buf.push(' ');
-        buf.push_str(version);
-        buf.push_str(crate::reply::ST);
+        let _ = write!(buf, "\x1bP>|{name} {version}\x1b\\");
         buf
     }
 
@@ -163,9 +157,7 @@ impl crate::reply::Reply {
     /// screen builds; see EK-VT520-RM §5-30.
     #[inline]
     pub fn deccir(payload: &str) -> CompactString {
-        let mut buf = CompactString::default();
-        dcs_string(&mut buf, DECCIR_PREFIX, payload);
-        buf
+        dcs_string(DECCIR_PREFIX, payload)
     }
 
     /// Build a DECTABSR (Tab Stop Report) answer:
