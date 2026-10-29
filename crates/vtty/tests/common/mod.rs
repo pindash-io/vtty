@@ -54,6 +54,7 @@ impl vte::Perform for VteRec {
         let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
+            sep: 0,
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
         });
@@ -127,6 +128,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
+            sep: 0,
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
         });
@@ -427,6 +429,36 @@ pub(crate) fn has_intermediate_overflow(data: &[u8], limit: u8) -> bool {
 }
 
 /// Build a human-readable difference report when two event streams differ.
+/// Normalize `Event`s for differential comparison against parsers that
+/// cannot express vtty's richer dispatch (`sep` colon bitfield, bulk
+/// `PrintBytes` runs). Expands `PrintBytes` into per-byte `Print` and zeroes
+/// `sep`, so only the semantic action stream is compared.
+pub(crate) fn normalize(events: &[Event]) -> Vec<Event> {
+    let mut out = Vec::with_capacity(events.len());
+    for e in events {
+        match e {
+            Event::PrintBytes(s) => {
+                for &b in s {
+                    out.push(Event::Print(b as char));
+                }
+            }
+            Event::CsiDispatch {
+                params,
+                sep: _,
+                intermediates,
+                final_byte,
+            } => out.push(Event::CsiDispatch {
+                params: params.clone(),
+                sep: 0,
+                intermediates: intermediates.clone(),
+                final_byte: *final_byte,
+            }),
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
 pub(crate) fn diff_report(
     bytes: &[u8],
     left: &[Event],
@@ -434,12 +466,14 @@ pub(crate) fn diff_report(
     left_label: &str,
     right_label: &str,
 ) -> Option<String> {
-    if left == right {
+    let l = normalize(left);
+    let r = normalize(right);
+    if l == r {
         return None;
     }
     let mut s = String::new();
     s.push_str(&format!("  input: {bytes:?}\n"));
-    s.push_str(&format!("  {left_label}: {left:?}\n"));
-    s.push_str(&format!("  {right_label}: {right:?}\n"));
+    s.push_str(&format!("  {left_label}: {l:?}\n"));
+    s.push_str(&format!("  {right_label}: {r:?}\n"));
     Some(s)
 }

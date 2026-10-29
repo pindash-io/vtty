@@ -24,6 +24,7 @@ use crate::{impl_bitflags_codec, impl_tagged_codec};
 // `Event` discriminants. Private on purpose: the tag byte is an implementation
 // detail of the wire format, not part of the public API.
 const TAG_PRINT: u8 = 0;
+const TAG_PRINT_BYTES: u8 = 8;
 const TAG_EXECUTE: u8 = 1;
 const TAG_CSI: u8 = 2;
 const TAG_ESC: u8 = 3;
@@ -39,17 +40,23 @@ impl Encode for Event {
                 writer.write_byte(TAG_PRINT)?;
                 c.encode(writer)
             }
+            Self::PrintBytes(s) => {
+                writer.write_byte(TAG_PRINT_BYTES)?;
+                s.encode(writer)
+            }
             Self::Execute(b) => {
                 writer.write_byte(TAG_EXECUTE)?;
                 b.encode(writer)
             }
             Self::CsiDispatch {
                 params,
+                sep,
                 intermediates,
                 final_byte,
             } => {
                 writer.write_byte(TAG_CSI)?;
                 params.encode(writer)?;
+                sep.encode(writer)?;
                 intermediates.encode(writer)?;
                 final_byte.encode(writer)
             }
@@ -91,12 +98,19 @@ impl Encode for Event {
     fn encoded_len(&self) -> usize {
         1 + match self {
             Self::Print(c) => c.encoded_len(),
+            Self::PrintBytes(s) => s.encoded_len(),
             Self::Execute(b) => b.encoded_len(),
             Self::CsiDispatch {
                 params,
+                sep,
                 intermediates,
                 final_byte,
-            } => params.encoded_len() + intermediates.encoded_len() + final_byte.encoded_len(),
+            } => {
+                params.encoded_len()
+                    + sep.encoded_len()
+                    + intermediates.encoded_len()
+                    + final_byte.encoded_len()
+            }
             Self::EscDispatch {
                 intermediates,
                 byte,
@@ -121,9 +135,11 @@ impl Decode for Event {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
         match reader.read_byte()? {
             TAG_PRINT => Ok(Self::Print(char::decode(reader)?)),
+            TAG_PRINT_BYTES => Ok(Self::PrintBytes(Vec::decode(reader)?)),
             TAG_EXECUTE => Ok(Self::Execute(u8::decode(reader)?)),
             TAG_CSI => Ok(Self::CsiDispatch {
                 params: SmallVec::decode(reader)?,
+                sep: u16::decode(reader)?,
                 intermediates: SmallVec::decode(reader)?,
                 final_byte: u8::decode(reader)?,
             }),
@@ -475,9 +491,11 @@ mod tests {
     fn event_roundtrip() {
         let events = vec![
             Event::Print('λ'),
+            Event::PrintBytes(b"hello".to_vec()),
             Event::Execute(0x1b),
             Event::CsiDispatch {
                 params: SmallVec::from_buf([1, 31]),
+                sep: 0,
                 intermediates: SmallVec::from_buf(*b" "),
                 final_byte: b'm',
             },

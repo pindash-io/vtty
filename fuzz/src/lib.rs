@@ -18,6 +18,7 @@ impl vte::Perform for VteRec {
         let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
+            sep: 0,
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
         });

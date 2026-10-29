@@ -400,10 +400,11 @@ fn event_collector_api() {
         vec![
             Event::CsiDispatch {
                 params: vec![31].into_iter().collect(),
+                sep: 0,
                 intermediates: Vec::new().into_iter().collect(),
                 final_byte: b'm',
             },
-            Event::Print('X'),
+            Event::PrintBytes(b"X".to_vec()),
         ]
     );
 }
