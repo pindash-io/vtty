@@ -21,31 +21,54 @@ use crate::traits::{Decode, Encode};
 use crate::varint::{decode_varint, encode_varint, varint_len};
 use crate::{impl_bitflags_codec, impl_tagged_codec};
 
-// `Event` discriminants. Private on purpose: the tag byte is an implementation
-// detail of the wire format, not part of the public API.
-const TAG_PRINT: u8 = 0;
-const TAG_PRINT_BYTES: u8 = 8;
-const TAG_EXECUTE: u8 = 1;
-const TAG_CSI: u8 = 2;
-const TAG_ESC: u8 = 3;
-const TAG_DCS_HOOK: u8 = 4;
-const TAG_DCS_PUT: u8 = 5;
-const TAG_DCS_UNHOOK: u8 = 6;
-const TAG_OSC: u8 = 7;
+/// `Event` variant discriminant — the tag byte of the wire format, mirroring
+/// `Event`'s declaration order. Private on purpose: the tag is an
+/// implementation detail, not part of the public API.
+#[repr(u8)]
+enum Tag {
+    Print = 0,
+    PrintBytes = 1,
+    Execute = 2,
+    Csi = 3,
+    Esc = 4,
+    DcsHook = 5,
+    DcsPut = 6,
+    DcsUnhook = 7,
+    Osc = 8,
+    /// Any other byte — an invalid wire tag.
+    None = 255,
+}
+
+impl From<u8> for Tag {
+    fn from(b: u8) -> Self {
+        match b {
+            0 => Self::Print,
+            1 => Self::PrintBytes,
+            2 => Self::Execute,
+            3 => Self::Csi,
+            4 => Self::Esc,
+            5 => Self::DcsHook,
+            6 => Self::DcsPut,
+            7 => Self::DcsUnhook,
+            8 => Self::Osc,
+            _ => Self::None,
+        }
+    }
+}
 
 impl Encode for Event {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         match self {
             Self::Print(c) => {
-                writer.write_byte(TAG_PRINT)?;
+                writer.write_byte(Tag::Print as u8)?;
                 c.encode(writer)
             }
             Self::PrintBytes(s) => {
-                writer.write_byte(TAG_PRINT_BYTES)?;
+                writer.write_byte(Tag::PrintBytes as u8)?;
                 s.encode(writer)
             }
             Self::Execute(b) => {
-                writer.write_byte(TAG_EXECUTE)?;
+                writer.write_byte(Tag::Execute as u8)?;
                 b.encode(writer)
             }
             Self::CsiDispatch {
@@ -54,7 +77,7 @@ impl Encode for Event {
                 intermediates,
                 final_byte,
             } => {
-                writer.write_byte(TAG_CSI)?;
+                writer.write_byte(Tag::Csi as u8)?;
                 params.encode(writer)?;
                 sep.encode(writer)?;
                 intermediates.encode(writer)?;
@@ -64,7 +87,7 @@ impl Encode for Event {
                 intermediates,
                 byte,
             } => {
-                writer.write_byte(TAG_ESC)?;
+                writer.write_byte(Tag::Esc as u8)?;
                 intermediates.encode(writer)?;
                 byte.encode(writer)
             }
@@ -73,21 +96,21 @@ impl Encode for Event {
                 intermediates,
                 final_byte,
             } => {
-                writer.write_byte(TAG_DCS_HOOK)?;
+                writer.write_byte(Tag::DcsHook as u8)?;
                 params.encode(writer)?;
                 intermediates.encode(writer)?;
                 final_byte.encode(writer)
             }
             Self::DcsPut(b) => {
-                writer.write_byte(TAG_DCS_PUT)?;
+                writer.write_byte(Tag::DcsPut as u8)?;
                 b.encode(writer)
             }
-            Self::DcsUnhook => writer.write_byte(TAG_DCS_UNHOOK),
+            Self::DcsUnhook => writer.write_byte(Tag::DcsUnhook as u8),
             Self::OscDispatch {
                 params,
                 bell_terminated,
             } => {
-                writer.write_byte(TAG_OSC)?;
+                writer.write_byte(Tag::Osc as u8)?;
                 params.encode(writer)?;
                 bell_terminated.encode(writer)
             }
@@ -133,32 +156,32 @@ impl Encode for Event {
 
 impl Decode for Event {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        match reader.read_byte()? {
-            TAG_PRINT => Ok(Self::Print(char::decode(reader)?)),
-            TAG_PRINT_BYTES => Ok(Self::PrintBytes(Vec::decode(reader)?)),
-            TAG_EXECUTE => Ok(Self::Execute(u8::decode(reader)?)),
-            TAG_CSI => Ok(Self::CsiDispatch {
+        match Tag::from(reader.read_byte()?) {
+            Tag::Print => Ok(Self::Print(char::decode(reader)?)),
+            Tag::PrintBytes => Ok(Self::PrintBytes(Vec::decode(reader)?)),
+            Tag::Execute => Ok(Self::Execute(u8::decode(reader)?)),
+            Tag::Csi => Ok(Self::CsiDispatch {
                 params: SmallVec::decode(reader)?,
                 sep: u16::decode(reader)?,
                 intermediates: SmallVec::decode(reader)?,
                 final_byte: u8::decode(reader)?,
             }),
-            TAG_ESC => Ok(Self::EscDispatch {
+            Tag::Esc => Ok(Self::EscDispatch {
                 intermediates: SmallVec::decode(reader)?,
                 byte: u8::decode(reader)?,
             }),
-            TAG_DCS_HOOK => Ok(Self::DcsHook {
+            Tag::DcsHook => Ok(Self::DcsHook {
                 params: SmallVec::decode(reader)?,
                 intermediates: SmallVec::decode(reader)?,
                 final_byte: u8::decode(reader)?,
             }),
-            TAG_DCS_PUT => Ok(Self::DcsPut(u8::decode(reader)?)),
-            TAG_DCS_UNHOOK => Ok(Self::DcsUnhook),
-            TAG_OSC => Ok(Self::OscDispatch {
+            Tag::DcsPut => Ok(Self::DcsPut(u8::decode(reader)?)),
+            Tag::DcsUnhook => Ok(Self::DcsUnhook),
+            Tag::Osc => Ok(Self::OscDispatch {
                 params: SmallVec::decode(reader)?,
                 bell_terminated: bool::decode(reader)?,
             }),
-            _ => Err(DecodeError::InvalidValue),
+            Tag::None => Err(DecodeError::InvalidValue),
         }
     }
 }
