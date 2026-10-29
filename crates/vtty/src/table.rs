@@ -216,27 +216,23 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
     }
 }
 
-const fn parse_state(v: u8) -> ParseState {
-    match v {
-        0 => ParseState::Ground,
-        1 => ParseState::Escape,
-        2 => ParseState::EscapeIntermediate,
-        3 => ParseState::CsiEntry,
-        4 => ParseState::CsiParam,
-        5 => ParseState::CsiIntermediate,
-        6 => ParseState::CsiIgnore,
-        7 => ParseState::OscString,
-        8 => ParseState::DcsEntry,
-        9 => ParseState::DcsParam,
-        10 => ParseState::DcsIntermediate,
-        11 => ParseState::DcsPassthrough,
-        12 => ParseState::DcsIgnore,
-        13 => ParseState::SosPmApcString,
-        // Only reached from `build_table`'s 0..=13 state indices; the
-        // fallback keeps the compile-time loop total.
-        _ => ParseState::Ground,
-    }
-}
+/// The 14 parser states in `repr(u8)` order, indexed by [`build_table`].
+const STATES: [ParseState; 14] = [
+    ParseState::Ground,
+    ParseState::Escape,
+    ParseState::EscapeIntermediate,
+    ParseState::CsiEntry,
+    ParseState::CsiParam,
+    ParseState::CsiIntermediate,
+    ParseState::CsiIgnore,
+    ParseState::OscString,
+    ParseState::DcsEntry,
+    ParseState::DcsParam,
+    ParseState::DcsIntermediate,
+    ParseState::DcsPassthrough,
+    ParseState::DcsIgnore,
+    ParseState::SosPmApcString,
+];
 
 /// The DEC VT500 transition table expanded to a flat `[state][byte]` lookup
 /// table at compile time. 14 states × 256 bytes = 3584 × 4 bytes ≈ 14 KB,
@@ -249,7 +245,7 @@ const fn build_table() -> [(Action, ParseState); 14 * 256] {
     while s < 14 {
         let mut b = 0_usize;
         while b < 256 {
-            let (action, next) = transition_impl(parse_state(s as u8), b as u8);
+            let (action, next) = transition_impl(STATES[s], b as u8);
             t[s * 256 + b] = (action, next);
             b += 1;
         }
