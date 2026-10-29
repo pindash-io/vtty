@@ -162,10 +162,13 @@ const fn round_channel(v: f32) -> u8 {
 /// Blend RGB `a` 50% toward RGB `b` per channel (the SGR 2 faint/dim effect).
 #[inline]
 pub const fn blend_faint(a: u32, b: u32) -> u32 {
-    let r = (((a >> 16) & 0xff) + ((b >> 16) & 0xff)) >> 1;
-    let g = (((a >> 8) & 0xff) + ((b >> 8) & 0xff)) >> 1;
-    let bl = ((a & 0xff) + (b & 0xff)) >> 1;
-    (r << 16) | (g << 8) | bl
+    let [ar, ag, ab] = u32_to_rgb(a);
+    let [br, bg, bb] = u32_to_rgb(b);
+    rgb(
+        (ar as i32 + br as i32) / 2,
+        (ag as i32 + bg as i32) / 2,
+        (ab as i32 + bb as i32) / 2,
+    )
 }
 
 // ── xterm 256-color table ────────────────────────────────────────────
@@ -250,15 +253,12 @@ pub fn parse(s: &[u8]) -> Option<u32> {
         }
         let mut rgb = 0_u32;
         for (i, part) in [a, b, c].iter().enumerate() {
+            let len = part.len();
+            if !(1..=4).contains(&len) {
+                return None;
+            }
             let v = u32::from_str_radix(part, 16).ok()?;
-            let divisor = match part.len() {
-                1 => 0xF,
-                2 => 0xFF,
-                3 => 0xFFF,
-                4 => 0xFFFF,
-                _ => return None,
-            };
-            rgb |= (v * 255 / divisor) << (16 - 8 * i);
+            rgb |= (v * 255 / ((1 << (4 * len)) - 1)) << (16 - 8 * i);
         }
         return Some(rgb);
     }
