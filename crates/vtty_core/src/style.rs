@@ -273,6 +273,8 @@ pub enum SgrEffect {
 
 use smallvec::SmallVec;
 
+use alloc::string::ToString;
+
 /// Parse an SGR sequence into its effects, appending to `out` (which the
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
 /// ([`ColorSpec`]) so each consumer interns them against its own palette.
@@ -412,6 +414,42 @@ pub fn parse_extended(
 #[inline]
 fn colon_sep(sep: u16, i: usize) -> bool {
     i < 16 && (sep & (1 << i)) != 0
+}
+
+/// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the
+/// colon-separator bitfield (bit `i` = parameter `i` followed by `:`).
+///
+/// Params are inline-allocated — the common 1–8 param SGR sequence never
+/// touches the heap.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Sgr {
+    /// The SGR parameter values.
+    pub params: SmallVec<i32, 8>,
+    /// Bit `i` is set when parameter `i` was followed by a colon.
+    pub sep: u16,
+}
+
+impl Sgr {
+    /// Build an SGR sequence from raw CSI dispatch parts.
+    pub fn new(params: SmallVec<i32, 8>, sep: u16) -> Self {
+        Self { params, sep }
+    }
+
+    /// Encode back into the canonical `CSI … m` sequence, honouring the
+    /// colon-separator bitfield.
+    pub fn to_bytes(&self) -> alloc::vec::Vec<u8> {
+        let mut out = alloc::vec::Vec::with_capacity(16);
+        out.extend_from_slice(b"\x1b[");
+        for (i, p) in self.params.iter().enumerate() {
+            if i > 0 {
+                let colon = i - 1 < 16 && self.sep & (1_u16 << (i - 1)) != 0;
+                out.push(if colon { b':' } else { b';' });
+            }
+            out.extend_from_slice(p.to_string().as_bytes());
+        }
+        out.push(b'm');
+        out
+    }
 }
 
 #[cfg(test)]
@@ -585,5 +623,19 @@ mod tests {
         // Colon-separated forms fall back to `parse_effects`.
         assert_eq!(single_effect(&[4, 2], 0b01), None);
         assert_eq!(single_effect(&[1, 2], 0), None);
+    }
+
+    #[test]
+    fn sgr_encode_round_trips_canonical_bytes() {
+        assert_eq!(
+            Sgr::new(SmallVec::from([1, 31]), 0).to_bytes(),
+            b"\x1b[1;31m"
+        );
+        // Colon-separated form: `4:2` underlines double.
+        assert_eq!(
+            Sgr::new(SmallVec::from([4, 2]), 0b01).to_bytes(),
+            b"\x1b[4:2m"
+        );
+        assert_eq!(Sgr::default().to_bytes(), b"\x1b[m");
     }
 }

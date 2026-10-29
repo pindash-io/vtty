@@ -182,7 +182,7 @@ impl crate::reply::Reply {
 #[cfg(feature = "reply")]
 /// Append `items` to `buf`, separated by `sep`.
 fn join_display<T: core::fmt::Display>(
-    buf: &mut compact_str::CompactString,
+    buf: &mut CompactString,
     items: &[T],
     sep: char,
 ) {

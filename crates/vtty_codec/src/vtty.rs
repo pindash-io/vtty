@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 
 use vtty_core::{
     Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags, MouseButton,
-    MouseTracking, Recording, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
+    MouseTracking, Recording, Sgr, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
     UnderlineStyle,
 };
 use vtty_status::{ProgramStatus, StatusKind, StatusState};
@@ -200,6 +200,26 @@ impl Decode for Recording {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
         Ok(Self {
             events: Vec::decode(reader)?,
+        })
+    }
+}
+
+impl Encode for Sgr {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+        self.params.encode(writer)?;
+        self.sep.encode(writer)
+    }
+
+    fn encoded_len(&self) -> usize {
+        self.params.encoded_len() + size_of::<u16>()
+    }
+}
+
+impl Decode for Sgr {
+    fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
+        Ok(Self {
+            params: SmallVec::decode(reader)?,
+            sep: u16::decode(reader)?,
         })
     }
 }
