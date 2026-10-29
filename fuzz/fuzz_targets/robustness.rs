@@ -60,7 +60,11 @@ fuzz_target!(|data: &[u8]| {
     p.advance(&mut VteNoop, data);
 
     // vt100 (full-screen emulator).
-    let mut p = vt100::Parser::new(24, 80, 0);
+    let mut p = vt100::Parser::new(
+        std::num::NonZero::new(24).expect("24 is non-zero"),
+        std::num::NonZero::new(80).expect("80 is non-zero"),
+        0,
+    );
     p.process(data);
 
     // vtparse.
