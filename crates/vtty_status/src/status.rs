@@ -238,19 +238,13 @@ impl ProgramStatus {
         out.extend_from_slice(OSC_NUM);
         out.push(b';'); // OSC parameter separator
         push_field(out, b"state", self.state.as_bytes());
-        if let Some(id) = &self.id {
-            push_field(out, b"id", id.as_bytes());
-        }
-        if let Some(kind) = self.kind {
-            push_field(out, b"kind", kind.as_bytes());
-        }
+        push_opt_field(out, b"id", self.id.as_ref().map(CompactString::as_bytes));
+        push_opt_field(out, b"kind", self.kind.map(StatusKind::as_bytes));
         if let Some(progress) = self.progress {
             let mut buf = [0_u8; 3];
             push_field(out, b"progress", write_decimal(progress, &mut buf));
         }
-        if let Some(app) = &self.app {
-            push_field(out, b"app", app.as_bytes());
-        }
+        push_opt_field(out, b"app", self.app.as_ref().map(CompactString::as_bytes));
         if let Some(title) = &self.title {
             push_field(out, b"title", B64.encode(title.as_bytes()).as_bytes());
         }
@@ -393,6 +387,14 @@ fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.extend_from_slice(key);
     out.push(b'=');
     out.extend_from_slice(value);
+}
+
+/// Appends `:key=value` to `out` when `value` is `Some`.
+fn push_opt_field(out: &mut Vec<u8>, key: &[u8], value: Option<&[u8]>) {
+    let Some(value) = value else {
+        return;
+    };
+    push_field(out, key, value);
 }
 
 /// Writes `n` (`0..=255`) as a decimal into `buf`, returning the written part.
