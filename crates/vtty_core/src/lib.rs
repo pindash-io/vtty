@@ -62,6 +62,7 @@ pub use perform::Perform;
 pub use reply::Reply;
 pub use state::State;
 pub use style::{ColorSpec, CursorStyle, SgrEffect, SgrFlags, StyleFlags, UnderlineStyle};
+pub use style::{parse_effects, parse_extended, single_code, single_effect};
 #[cfg(feature = "termcap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
 pub use termcap::{Cap, CapValue};
