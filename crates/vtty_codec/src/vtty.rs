@@ -471,11 +471,11 @@ impl Decode for State {
 
 impl Encode for Reply {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
-        self.to_compact_str().as_str().encode(writer)
+        self.as_str().encode(writer)
     }
 
     fn encoded_len(&self) -> usize {
-        self.to_compact_str().as_str().encoded_len()
+        self.as_str().encoded_len()
     }
 }
 
@@ -626,10 +626,13 @@ mod tests {
 
     #[test]
     fn reply_roundtrip() {
-        let reply = Reply::new()
-            .decrqss(true, "m")
-            .decrqm(25, true, 2)
-            .xtgettcap_reply(b"RGB", b"8/8/8");
+        // Accumulate several replies into one buffer (the screen does the
+        // same via `push_reply`; the codec round-trips the combined buffer).
+        let mut buf = String::new();
+        buf.push_str(Reply::decrqss(true, "m").as_str());
+        buf.push_str(Reply::decrqm(25, true, 2).as_str());
+        buf.push_str(Reply::xtgettcap_reply(b"RGB", b"8/8/8").as_str());
+        let reply = Reply::from_text(&buf);
 
         let bytes = ok(encode_to_vec(&reply));
         assert_eq!(bytes.len(), reply.encoded_len());

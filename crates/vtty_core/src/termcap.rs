@@ -343,24 +343,24 @@ impl Cap {
 }
 
 impl crate::Reply {
-    /// Answer an XTGETTCAP capability query (`DCS + q <hex cap> ST`),
-    /// appending the `DCS … ST` reply. The query may pack several
-    /// capabilities, semicolon-separated (nvim/herdr ask for
-    /// `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in order.
-    pub fn termcap(self, cap: &[u8], cols: usize, rows: usize) -> Self {
-        let mut reply = self;
+    /// Build an XTGETTCAP capability query answer (`DCS + q <hex cap> ST`).
+    /// The query may pack several capabilities, semicolon-separated (nvim/herdr
+    /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
+    /// order.
+    pub fn termcap(cap: &[u8], cols: usize, rows: usize) -> Self {
+        let mut reply = Self::default();
         for part in cap.split(|&b| b == b';') {
             if part.is_empty() {
                 continue;
             }
             let (key, value) = Cap::parse(part);
-            reply = match value {
-                CapValue::None => reply.xtgettcap_error(Cap::UNSUPPORTED),
-                CapValue::Bool => reply.xtgettcap_reply_bool(key),
-                CapValue::Text(v) => reply.xtgettcap_reply(key, v),
-                CapValue::Cols => reply.xtgettcap_num(key, cols),
-                CapValue::Rows => reply.xtgettcap_num(key, rows),
-                CapValue::OsName => reply.xtgettcap_reply(key, OS_NAME),
+            match value {
+                CapValue::None => reply.xtgettcap(false, Cap::UNSUPPORTED, None),
+                CapValue::Bool => reply.xtgettcap(true, key, None),
+                CapValue::Text(v) => reply.xtgettcap(true, key, Some(v)),
+                CapValue::Cols => reply.xtgettcap_num_append(key, cols),
+                CapValue::Rows => reply.xtgettcap_num_append(key, rows),
+                CapValue::OsName => reply.xtgettcap(true, key, Some(OS_NAME)),
             };
         }
         reply

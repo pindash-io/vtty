@@ -67,24 +67,25 @@ impl Reply {
 
     /// Terminate a DCS/OSC string with `ST` and mark the reply non-empty.
     #[inline]
-    fn terminate(mut self) -> Self {
+    fn terminate(&mut self) {
         self.buf.push_str(ST);
         self.empty = false;
-        self
     }
 
-    /// Append a DECRQSS answer: `DCS {valid} $ r {value} ST`.
-    pub fn decrqss(mut self, valid: bool, value: &str) -> Self {
-        self.buf
+    /// Build a DECRQSS answer: `DCS {valid} $ r {value} ST`.
+    pub fn decrqss(valid: bool, value: &str) -> Self {
+        let mut this = Self::default();
+        this.buf
             .push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
-        self.buf.push_str(value);
-        self.terminate()
+        this.buf.push_str(value);
+        this.terminate();
+        this
     }
 
-    /// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
-    /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
-    /// failure messages.
-    fn xtgettcap(mut self, ok: bool, key: &[u8], value: Option<&[u8]>) -> Self {
+    /// Append an XTGETTCAP answer to `self`: `DCS {ok} + r {hex key}[={hex
+    /// value}] ST`. `ok` picks `1`/`0`; `value` is omitted for boolean
+    /// capabilities and failure messages.
+    pub(crate) fn xtgettcap(&mut self, ok: bool, key: &[u8], value: Option<&[u8]>) {
         self.buf
             .push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
         self.buf.push_str(&const_hex::encode(key));
@@ -92,31 +93,37 @@ impl Reply {
             self.buf.push('=');
             self.buf.push_str(&const_hex::encode(value));
         }
-        self.terminate()
+        self.terminate();
     }
 
-    /// Append an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
+    /// Build an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
     #[inline]
-    pub fn xtgettcap_reply(self, key: &[u8], value: &[u8]) -> Self {
-        self.xtgettcap(true, key, Some(value))
+    pub fn xtgettcap_reply(key: &[u8], value: &[u8]) -> Self {
+        let mut this = Self::default();
+        this.xtgettcap(true, key, Some(value));
+        this
     }
 
-    /// Append an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
+    /// Build an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
     /// `=value`, per xterm — a bare name means "supported").
     #[inline]
-    pub fn xtgettcap_reply_bool(self, key: &[u8]) -> Self {
-        self.xtgettcap(true, key, None)
+    pub fn xtgettcap_reply_bool(key: &[u8]) -> Self {
+        let mut this = Self::default();
+        this.xtgettcap(true, key, None);
+        this
     }
 
-    /// Append an XTGETTCAP failure: `DCS 0 + r {hex msg} ST`.
+    /// Build an XTGETTCAP failure: `DCS 0 + r {hex msg} ST`.
     #[inline]
-    pub fn xtgettcap_error(self, msg: &[u8]) -> Self {
-        self.xtgettcap(false, msg, None)
+    pub fn xtgettcap_error(msg: &[u8]) -> Self {
+        let mut this = Self::default();
+        this.xtgettcap(false, msg, None);
+        this
     }
 
-    /// Append an XTGETTCAP answer with a decimal integer value, hex-encoding
+    /// Append an XTGETTCAP decimal-integer answer to `self`, hex-encoding
     /// the digits directly (no `to_string` allocation).
-    pub fn xtgettcap_num(mut self, key: &[u8], n: usize) -> Self {
+    pub(crate) fn xtgettcap_num_append(&mut self, key: &[u8], n: usize) {
         self.buf.push_str(XTGETTCAP_OK);
         self.buf.push_str(&const_hex::encode(key));
         self.buf.push('=');
@@ -136,13 +143,22 @@ impl Reply {
             self.buf.push('3');
             self.buf.push(d as char);
         }
-        self.terminate()
+        self.terminate();
     }
 
-    /// Append an SGR reply (`m…`) from a pen's palette ids + style flags.
+    /// Build an XTGETTCAP answer with a decimal integer value.
+    #[inline]
+    pub fn xtgettcap_num(key: &[u8], n: usize) -> Self {
+        let mut this = Self::default();
+        this.xtgettcap_num_append(key, n);
+        this
+    }
+
+    /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
     /// Starts with `0` (reset-all), like vte. `palette` resolves RGB ids.
-    pub fn sgr(mut self, fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> Self {
-        let buf = self.buffer_mut();
+    pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> Self {
+        let mut this = Self::default();
+        let buf = this.buffer_mut();
         buf.push_str("0");
         if flags.contains(SgrFlags::BOLD) {
             buf.push_str(";1");
@@ -158,49 +174,53 @@ impl Reply {
         }
         push_sgr_color(buf, 3, fg, DEFAULT_FG_ID, palette);
         push_sgr_color(buf, 4, bg, DEFAULT_BG_ID, palette);
-        self
+        this
     }
 
-    /// Append an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
+    /// Build an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
     /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
     /// convention).
     #[inline]
-    pub fn osc_color(mut self, code: u16, rgb: u32) -> Self {
-        self.buffer_mut()
+    pub fn osc_color(code: u16, rgb: u32) -> Self {
+        let mut this = Self::default();
+        this.buffer_mut()
             .push_str(&crate::color::format_osc_color_reply(code, rgb));
-        self
+        this
     }
 
-    /// Append an `OSC 4` palette-entry reply
+    /// Build an `OSC 4` palette-entry reply
     /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
     #[inline]
-    pub fn osc_palette(mut self, index: usize, rgb: u32) -> Self {
-        self.buffer_mut()
+    pub fn osc_palette(index: usize, rgb: u32) -> Self {
+        let mut this = Self::default();
+        this.buffer_mut()
             .push_str(&crate::color::format_osc_palette_reply(index, rgb));
-        self
+        this
     }
 
-    /// Append the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
+    /// Build the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
     #[inline]
-    pub fn osc_background(mut self, c: [f32; 4]) -> Self {
+    pub fn osc_background(c: [f32; 4]) -> Self {
         let fixed = crate::color::format_osc_background(c);
         // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
-        self.buffer_mut()
+        let mut this = Self::default();
+        this.buffer_mut()
             .push_str(core::str::from_utf8(&fixed).unwrap_or_default());
-        self
+        this
     }
 
-    /// Append a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
+    /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
     /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
     /// includes the `?` for `CSI ?Ps$p` queries.
-    pub fn decrqm(mut self, param: i32, private: bool, state: u8) -> Self {
-        let buf = self.buffer_mut();
+    pub fn decrqm(param: i32, private: bool, state: u8) -> Self {
+        let mut this = Self::default();
+        let buf = this.buffer_mut();
         buf.push_str("\x1b[");
         if private {
             buf.push('?');
         }
         let _ = write!(buf, "{param};{state}$y");
-        self
+        this
     }
 
     /// Finish and return the accumulated reply.
@@ -210,10 +230,9 @@ impl Reply {
     }
 
     /// The accumulated reply text.
-    #[doc(hidden)]
     #[inline]
-    pub fn to_compact_str(&self) -> CompactString {
-        self.buf.clone()
+    pub fn as_str(&self) -> &str {
+        self.buf.as_str()
     }
 
     /// Builds a reply from raw text (used by the codec crate).
@@ -264,30 +283,28 @@ mod tests {
 
     #[test]
     fn decrqm_reply_format() {
-        assert_eq!(Reply::new().decrqm(25, true, 1).finish(), "\x1b[?25;1$y");
-        assert_eq!(Reply::new().decrqm(25, true, 2).finish(), "\x1b[?25;2$y");
-        assert_eq!(Reply::new().decrqm(25, true, 0).finish(), "\x1b[?25;0$y");
-        assert_eq!(Reply::new().decrqm(4, false, 2).finish(), "\x1b[4;2$y");
+        assert_eq!(Reply::decrqm(25, true, 1).finish(), "\x1b[?25;1$y");
+        assert_eq!(Reply::decrqm(25, true, 2).finish(), "\x1b[?25;2$y");
+        assert_eq!(Reply::decrqm(25, true, 0).finish(), "\x1b[?25;0$y");
+        assert_eq!(Reply::decrqm(4, false, 2).finish(), "\x1b[4;2$y");
     }
 
     #[test]
     fn decrqss_reply_format() {
-        assert_eq!(Reply::new().decrqss(true, "m").finish(), "\x1bP1$rm\x1b\\");
-        assert_eq!(Reply::new().decrqss(false, "x").finish(), "\x1bP0$rx\x1b\\");
+        assert_eq!(Reply::decrqss(true, "m").finish(), "\x1bP1$rm\x1b\\");
+        assert_eq!(Reply::decrqss(false, "x").finish(), "\x1bP0$rx\x1b\\");
     }
 
     #[test]
     fn sgr_reply_format() {
         let pal = [0_u32; 256];
         assert_eq!(
-            Reply::new()
-                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &pal,)
+            Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &pal,)
                 .finish(),
             "0;39;49"
         );
         assert_eq!(
-            Reply::new()
-                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::BOLD, &pal)
+            Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::BOLD, &pal)
                 .finish(),
             "0;1;39;49"
         );
@@ -295,8 +312,7 @@ mod tests {
         let mut pal = [0_u32; 259];
         pal[258] = 0x112233;
         assert_eq!(
-            Reply::new()
-                .sgr(ColorId(5), ColorId(258), SgrFlags::empty(), &pal)
+            Reply::sgr(ColorId(5), ColorId(258), SgrFlags::empty(), &pal)
                 .finish(),
             "0;38;5;5;48;2;17;34;51"
         );
@@ -305,15 +321,14 @@ mod tests {
     #[test]
     fn reply_is_empty() {
         assert!(Reply::new().is_empty());
-        assert!(!Reply::new().decrqss(true, "m").is_empty());
-        assert!(!Reply::new().decrqm(25, true, 1).is_empty());
+        assert!(!Reply::decrqss(true, "m").is_empty());
+        assert!(!Reply::decrqm(25, true, 1).is_empty());
         assert!(
-            !Reply::new()
-                .sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &[])
+            !Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &[])
                 .is_empty()
         );
-        assert!(!Reply::new().xtgettcap_reply(b"TN", b"xterm").is_empty());
-        assert!(!Reply::new().xtgettcap_num(b"co", 80).is_empty());
-        assert!(!Reply::new().dectabsr(&[8]).is_empty());
+        assert!(!Reply::xtgettcap_reply(b"TN", b"xterm").is_empty());
+        assert!(!Reply::xtgettcap_num(b"co", 80).is_empty());
+        assert!(!Reply::dectabsr(&[8]).is_empty());
     }
 }
