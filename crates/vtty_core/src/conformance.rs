@@ -115,6 +115,18 @@ impl crate::reply::Reply {
         self.dcs_string(DECTSR_PREFIX, device_attrs)
     }
 
+    /// Append an XTVERSION answer: `DCS > | {name} {version} ST` (the
+    /// `CSI > q` version query, xterm-style).
+    pub fn xtversion(mut self, name: &str, version: &str) -> Self {
+        let buf = self.buffer_mut();
+        buf.push_str("\x1bP>|");
+        buf.push_str(name);
+        buf.push(' ');
+        buf.push_str(version);
+        buf.push_str(crate::reply::ST);
+        self
+    }
+
     /// Append a DECCTR (Color Table Report) answer:
     /// `DCS 2 $ s {Pc;2;r;g;b / …} ST`. Each entry is `(color_number, red,
     /// green, blue)` with 8-bit RGB (0-255), scaled to the DEC 0-100
@@ -237,6 +249,17 @@ mod tests {
         assert_eq!(
             Reply::new().da3(&[0x00, 0x01, 0x02, 0x05]).finish(),
             "\x1bP!|00010205\x1b\\"
+        );
+    }
+
+    #[cfg(feature = "reply")]
+    #[test]
+    fn xtversion_reply_format() {
+        use crate::reply::Reply;
+
+        assert_eq!(
+            Reply::new().xtversion("jetfish", "0.1").finish(),
+            "\x1bP>|jetfish 0.1\x1b\\"
         );
     }
 
