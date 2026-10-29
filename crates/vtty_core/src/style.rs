@@ -435,20 +435,18 @@ impl Sgr {
         Self { params, sep }
     }
 
-    /// Encode back into the canonical `CSI … m` sequence, honouring the
+    /// Append the canonical `CSI … m` sequence to `out`, honouring the
     /// colon-separator bitfield.
-    pub fn to_bytes(&self) -> alloc::vec::Vec<u8> {
-        let mut out = alloc::vec::Vec::with_capacity(16);
-        out.extend_from_slice(b"\x1b[");
+    pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
+        out.extend_from_slice_copy(b"\x1b[");
         for (i, p) in self.params.iter().enumerate() {
             if i > 0 {
                 let colon = i - 1 < 16 && self.sep & (1_u16 << (i - 1)) != 0;
                 out.push(if colon { b':' } else { b';' });
             }
-            out.extend_from_slice(p.to_string().as_bytes());
+            out.extend_from_slice_copy(p.to_string().as_bytes());
         }
         out.push(b'm');
-        out
     }
 }
 
@@ -627,15 +625,17 @@ mod tests {
 
     #[test]
     fn sgr_encode_round_trips_canonical_bytes() {
-        assert_eq!(
-            Sgr::new(SmallVec::from([1, 31]), 0).to_bytes(),
-            b"\x1b[1;31m"
-        );
+        let mut out = SmallVec::<u8, 16>::new();
+        Sgr::new(SmallVec::from([1, 31]), 0).write_bytes(&mut out);
+        assert_eq!(out.as_slice(), b"\x1b[1;31m");
+
         // Colon-separated form: `4:2` underlines double.
-        assert_eq!(
-            Sgr::new(SmallVec::from([4, 2]), 0b01).to_bytes(),
-            b"\x1b[4:2m"
-        );
-        assert_eq!(Sgr::default().to_bytes(), b"\x1b[m");
+        out.clear();
+        Sgr::new(SmallVec::from([4, 2]), 0b01).write_bytes(&mut out);
+        assert_eq!(out.as_slice(), b"\x1b[4:2m");
+
+        out.clear();
+        Sgr::default().write_bytes(&mut out);
+        assert_eq!(out.as_slice(), b"\x1b[m");
     }
 }

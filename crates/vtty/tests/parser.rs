@@ -562,7 +562,9 @@ fn event_to_bytes_round_trips_the_parser() {
     // Single events encode to their canonical bytes and parse back to the
     // same event.
     for (bytes, event) in cases {
-        assert_eq!(event.to_bytes().as_slice(), *bytes);
+        let mut out = SmallVec::<u8, 16>::new();
+        event.write_bytes(&mut out);
+        assert_eq!(out.as_slice(), *bytes);
         let mut parser = Parser::new();
         let events = parser.parse_events(bytes);
         assert_eq!(&events[..], &[event.clone()]);
@@ -573,15 +575,20 @@ fn event_to_bytes_round_trips_the_parser() {
 fn event_to_bytes_dcs_hook_put_unhook() {
     use smallvec::SmallVec;
 
-    assert_eq!(
-        Event::DcsHook {
-            params: SmallVec::new(),
-            intermediates: SmallVec::from_buf(*b"$"),
-            final_byte: b'q',
-        }
-        .to_bytes(),
-        b"\x1bP$q"
-    );
-    assert_eq!(Event::DcsPut(b'r').to_bytes(), b"r");
-    assert_eq!(Event::DcsUnhook.to_bytes(), b"\x1b\\");
+    let mut out = SmallVec::<u8, 16>::new();
+    Event::DcsHook {
+        params: SmallVec::new(),
+        intermediates: SmallVec::from_buf(*b"$"),
+        final_byte: b'q',
+    }
+    .write_bytes(&mut out);
+    assert_eq!(out.as_slice(), b"\x1bP$q");
+
+    out.clear();
+    Event::DcsPut(b'r').write_bytes(&mut out);
+    assert_eq!(out.as_slice(), b"r");
+
+    out.clear();
+    Event::DcsUnhook.write_bytes(&mut out);
+    assert_eq!(out.as_slice(), b"\x1b\\");
 }

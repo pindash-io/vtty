@@ -67,17 +67,16 @@ pub enum Event {
 }
 
 impl Event {
-    /// Encode the event back into its canonical escape-sequence bytes — the
-    /// textual inverse of the parser, so `parse_events(e.to_bytes())`
-    /// reproduces `e` (modulo the `-1` empty-param sentinel).
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::new();
+    /// Append the canonical escape-sequence bytes to `out` — the textual
+    /// inverse of the parser, so re-parsing the appended bytes reproduces
+    /// `self` (modulo the `-1` empty-param sentinel).
+    pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
         match self {
             Event::Print(c) => {
                 let mut buf = [0_u8; 4];
-                out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+                out.extend_from_slice_copy(c.encode_utf8(&mut buf).as_bytes());
             }
-            Event::PrintBytes(s) => out.extend_from_slice(s),
+            Event::PrintBytes(s) => out.extend_from_slice_copy(s),
             Event::Execute(b) => out.push(*b),
             Event::CsiDispatch {
                 params,
@@ -85,19 +84,19 @@ impl Event {
                 intermediates,
                 final_byte,
             } => {
-                out.extend_from_slice(b"\x1b[");
+                out.extend_from_slice_copy(b"\x1b[");
                 let (prefix, suffix) = split_intermediates(intermediates);
-                out.extend_from_slice(&prefix);
-                push_params(&mut out, params, *sep);
-                out.extend_from_slice(&suffix);
+                out.extend_from_slice_copy(&prefix);
+                push_params(out, params, *sep);
+                out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
             Event::EscDispatch {
                 intermediates,
                 byte,
             } => {
-                out.extend_from_slice(b"\x1b");
-                out.extend_from_slice(intermediates);
+                out.extend_from_slice_copy(b"\x1b");
+                out.extend_from_slice_copy(intermediates);
                 out.push(*byte);
             }
             Event::DcsHook {
@@ -105,34 +104,33 @@ impl Event {
                 intermediates,
                 final_byte,
             } => {
-                out.extend_from_slice(b"\x1bP");
+                out.extend_from_slice_copy(b"\x1bP");
                 let (prefix, suffix) = split_intermediates(intermediates);
-                out.extend_from_slice(&prefix);
-                push_params(&mut out, params, 0);
-                out.extend_from_slice(&suffix);
+                out.extend_from_slice_copy(&prefix);
+                push_params(out, params, 0);
+                out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
             Event::DcsPut(b) => out.push(*b),
-            Event::DcsUnhook => out.extend_from_slice(b"\x1b\\"),
+            Event::DcsUnhook => out.extend_from_slice_copy(b"\x1b\\"),
             Event::OscDispatch {
                 params,
                 bell_terminated,
             } => {
-                out.extend_from_slice(b"\x1b]");
+                out.extend_from_slice_copy(b"\x1b]");
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
                         out.push(b';');
                     }
-                    out.extend_from_slice(p);
+                    out.extend_from_slice_copy(p);
                 }
                 if *bell_terminated {
                     out.push(0x07);
                 } else {
-                    out.extend_from_slice(b"\x1b\\");
+                    out.extend_from_slice_copy(b"\x1b\\");
                 }
             }
         }
-        out
     }
 }
 
@@ -153,13 +151,13 @@ fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
 
 /// Append numeric params, `;`- or `:`-joined (`sep` bit `i` = param `i`
 /// followed by a colon).
-fn push_params(out: &mut Vec<u8>, params: &[i32], sep: u16) {
+fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u16) {
     for (i, p) in params.iter().enumerate() {
         if i > 0 {
             let colon = i - 1 < 16 && sep & (1 << (i - 1)) != 0;
             out.push(if colon { b':' } else { b';' });
         }
-        out.extend_from_slice(p.to_string().as_bytes());
+        out.extend_from_slice_copy(p.to_string().as_bytes());
     }
 }
 
