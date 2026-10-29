@@ -347,22 +347,24 @@ impl crate::Reply {
     /// The query may pack several capabilities, semicolon-separated (nvim/herdr
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
-    pub fn termcap(cap: &[u8], cols: usize, rows: usize) -> Self {
-        let mut reply = Self::default();
+    pub fn termcap(cap: &[u8], cols: usize, rows: usize) -> compact_str::CompactString {
+        use crate::reply::{xtgettcap, xtgettcap_num_append};
+
+        let mut buf = compact_str::CompactString::default();
         for part in cap.split(|&b| b == b';') {
             if part.is_empty() {
                 continue;
             }
             let (key, value) = Cap::parse(part);
             match value {
-                CapValue::None => reply.xtgettcap(false, Cap::UNSUPPORTED, None),
-                CapValue::Bool => reply.xtgettcap(true, key, None),
-                CapValue::Text(v) => reply.xtgettcap(true, key, Some(v)),
-                CapValue::Cols => reply.xtgettcap_num_append(key, cols),
-                CapValue::Rows => reply.xtgettcap_num_append(key, rows),
-                CapValue::OsName => reply.xtgettcap(true, key, Some(OS_NAME)),
+                CapValue::None => xtgettcap(&mut buf, false, Cap::UNSUPPORTED, None),
+                CapValue::Bool => xtgettcap(&mut buf, true, key, None),
+                CapValue::Text(v) => xtgettcap(&mut buf, true, key, Some(v)),
+                CapValue::Cols => xtgettcap_num_append(&mut buf, key, cols),
+                CapValue::Rows => xtgettcap_num_append(&mut buf, key, rows),
+                CapValue::OsName => xtgettcap(&mut buf, true, key, Some(OS_NAME)),
             };
         }
-        reply
+        buf
     }
 }

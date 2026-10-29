@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 
 use vtty_core::{
     Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags, MouseButton,
-    MouseTracking, Recording, Reply, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
+    MouseTracking, Recording, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
     UnderlineStyle,
 };
 use vtty_status::{ProgramStatus, StatusKind, StatusState};
@@ -469,22 +469,6 @@ impl Decode for State {
     }
 }
 
-impl Encode for Reply {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
-        self.as_str().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.as_str().encoded_len()
-    }
-}
-
-impl Decode for Reply {
-    fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Ok(Self::from_text(&String::decode(reader)?))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -622,23 +606,6 @@ mod tests {
             decode_from_slice::<State>(&[0x01, b'a', 0x00, 0x01]),
             Err(DecodeError::InvalidValue)
         );
-    }
-
-    #[test]
-    fn reply_roundtrip() {
-        // Accumulate several replies into one buffer (the screen does the
-        // same via `push_reply`; the codec round-trips the combined buffer).
-        let mut buf = String::new();
-        buf.push_str(Reply::decrqss(true, "m").as_str());
-        buf.push_str(Reply::decrqm(25, true, 2).as_str());
-        buf.push_str(Reply::xtgettcap_reply(b"RGB", b"8/8/8").as_str());
-        let reply = Reply::from_text(&buf);
-
-        let bytes = ok(encode_to_vec(&reply));
-        assert_eq!(bytes.len(), reply.encoded_len());
-        let restored = ok(decode_from_slice::<Reply>(&bytes));
-        assert_eq!(restored.is_empty(), reply.is_empty());
-        assert_eq!(restored.finish(), reply.finish());
     }
 
     #[test]

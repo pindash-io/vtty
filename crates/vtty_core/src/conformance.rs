@@ -10,6 +10,9 @@
 use core::fmt::Write as _;
 
 #[cfg(feature = "reply")]
+use compact_str::CompactString;
+
+#[cfg(feature = "reply")]
 /// DECTSR answer prefix — `DCS 1 $ s` (Terminal State Report). The final is
 /// a lowercase `s` (the EK-VT510-RM errata on vt100.net corrects the printed
 /// uppercase `S`).
@@ -67,26 +70,25 @@ impl ConformanceLevel {
 }
 
 #[cfg(feature = "reply")]
-impl crate::reply::Reply {
-    /// Append `{prefix}{payload} ST` (a DCS/OSC string) to `self`.
-    fn dcs_string(&mut self, prefix: &str, payload: &str) {
-        let buf = self.buffer_mut();
-        buf.push_str(prefix);
-        buf.push_str(payload);
-        buf.push_str(crate::reply::ST);
-    }
+/// Append `{prefix}{payload} ST` (a DCS/OSC string) to `buf`.
+fn dcs_string(buf: &mut CompactString, prefix: &str, payload: &str) {
+    buf.push_str(prefix);
+    buf.push_str(payload);
+    buf.push_str(crate::reply::ST);
+}
 
+#[cfg(feature = "reply")]
+impl crate::reply::Reply {
     /// Build a DA1 (Primary Device Attributes) answer:
     /// `CSI ? {a0};{a1};… c`. The first attribute is the service class
     /// (`65` = VT500, `64` = VT400, `62` = VT220, `1` = VT100); the rest are
     /// supported-extension codes (EK-VT520-RM §5-9).
-    pub fn da1(attrs: &[u32]) -> Self {
-        let mut this = Self::default();
-        let buf = this.buffer_mut();
+    pub fn da1(attrs: &[u32]) -> CompactString {
+        let mut buf = CompactString::default();
         buf.push_str("\x1b[?");
-        join_display(buf, attrs, ';');
+        join_display(&mut buf, attrs, ';');
         buf.push('c');
-        this
+        buf
     }
 
     /// Build a DA2 (Secondary Device Attributes) answer:
@@ -94,19 +96,19 @@ impl crate::reply::Reply {
     /// terminal identification code (`64` = VT520, `65` = color VT525),
     /// `firmware` the version (`10` = V1.0, `20` = V2.0), and `keyboard`
     /// `0` (STD) or `1` (PC).
-    pub fn da2(id: u32, firmware: u32, keyboard: u32) -> Self {
-        let mut this = Self::default();
-        let _ = write!(this.buffer_mut(), "\x1b[>{id};{firmware};{keyboard}c");
-        this
+    pub fn da2(id: u32, firmware: u32, keyboard: u32) -> CompactString {
+        let mut buf = CompactString::default();
+        let _ = write!(buf, "\x1b[>{id};{firmware};{keyboard}c");
+        buf
     }
 
     /// Build a DA3 (Tertiary Device Attributes) answer:
     /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
     /// (EK-VT520-RM §5-12).
-    pub fn da3(unit_id: &[u8]) -> Self {
-        let mut this = Self::default();
-        this.dcs_string("\x1bP!|", &const_hex::encode(unit_id));
-        this
+    pub fn da3(unit_id: &[u8]) -> CompactString {
+        let mut buf = CompactString::default();
+        dcs_string(&mut buf, "\x1bP!|", &const_hex::encode(unit_id));
+        buf
     }
 
     /// Build a DECTSR (Terminal State Report) answer:
@@ -114,32 +116,30 @@ impl crate::reply::Reply {
     /// device-attribute string (the DA1/DA2/DA3 response bodies), per
     /// EK-VT520-RM §5-160.
     #[inline]
-    pub fn dectsr(device_attrs: &str) -> Self {
-        let mut this = Self::default();
-        this.dcs_string(DECTSR_PREFIX, device_attrs);
-        this
+    pub fn dectsr(device_attrs: &str) -> CompactString {
+        let mut buf = CompactString::default();
+        dcs_string(&mut buf, DECTSR_PREFIX, device_attrs);
+        buf
     }
 
     /// Build an XTVERSION answer: `DCS > | {name} {version} ST` (the
     /// `CSI > q` version query, xterm-style).
-    pub fn xtversion(name: &str, version: &str) -> Self {
-        let mut this = Self::default();
-        let buf = this.buffer_mut();
+    pub fn xtversion(name: &str, version: &str) -> CompactString {
+        let mut buf = CompactString::default();
         buf.push_str("\x1bP>|");
         buf.push_str(name);
         buf.push(' ');
         buf.push_str(version);
         buf.push_str(crate::reply::ST);
-        this
+        buf
     }
 
     /// Build a DECCTR (Color Table Report) answer:
     /// `DCS 2 $ s {Pc;2;r;g;b / …} ST`. Each entry is `(color_number, red,
     /// green, blue)` with 8-bit RGB (0-255), scaled to the DEC 0-100
     /// coordinate range (rounding to nearest).
-    pub fn decctr(entries: &[(u8, u8, u8, u8)]) -> Self {
-        let mut this = Self::default();
-        let buf = this.buffer_mut();
+    pub fn decctr(entries: &[(u8, u8, u8, u8)]) -> CompactString {
+        let mut buf = CompactString::default();
         buf.push_str(DECCTR_PREFIX);
         for (i, &(idx, r, g, b)) in entries.iter().enumerate() {
             if i > 0 {
@@ -154,7 +154,7 @@ impl crate::reply::Reply {
             );
         }
         buf.push_str(crate::reply::ST);
-        this
+        buf
     }
 
     /// Build a DECCIR (Cursor Information Report) answer:
@@ -162,21 +162,20 @@ impl crate::reply::Reply {
     /// visual attributes, origin mode, and active G0–G3 charsets), which a
     /// screen builds; see EK-VT520-RM §5-30.
     #[inline]
-    pub fn deccir(payload: &str) -> Self {
-        let mut this = Self::default();
-        this.dcs_string(DECCIR_PREFIX, payload);
-        this
+    pub fn deccir(payload: &str) -> CompactString {
+        let mut buf = CompactString::default();
+        dcs_string(&mut buf, DECCIR_PREFIX, payload);
+        buf
     }
 
     /// Build a DECTABSR (Tab Stop Report) answer:
     /// `DCS 2 $ u {col/col/…} ST`, one decimal column number per tab stop.
-    pub fn dectabsr(cols: &[u32]) -> Self {
-        let mut this = Self::default();
-        let buf = this.buffer_mut();
+    pub fn dectabsr(cols: &[u32]) -> CompactString {
+        let mut buf = CompactString::default();
         buf.push_str(DECTABSR_PREFIX);
-        join_display(buf, cols, '/');
+        join_display(&mut buf, cols, '/');
         buf.push_str(crate::reply::ST);
-        this
+        buf
     }
 }
 
@@ -249,14 +248,14 @@ mod tests {
         // DA1: service class + extensions (EK-VT520-RM §5-9 example shape).
         assert_eq!(
             Reply::da1(&[65, 1, 2, 7, 9, 12, 18, 19, 21, 23])
-                .finish(),
+                ,
             "\x1b[?65;1;2;7;9;12;18;19;21;23c"
         );
         // DA2: id;firmware;keyboard (EK-VT520-RM §5-11 example).
-        assert_eq!(Reply::da2(64, 20, 1).finish(), "\x1b[>64;20;1c");
+        assert_eq!(Reply::da2(64, 20, 1), "\x1b[>64;20;1c");
         // DA3: unit ID as hex byte pairs (EK-VT520-RM §5-12 example).
         assert_eq!(
-            Reply::da3(&[0x00, 0x01, 0x02, 0x05]).finish(),
+            Reply::da3(&[0x00, 0x01, 0x02, 0x05]),
             "\x1bP!|00010205\x1b\\"
         );
     }
@@ -267,7 +266,7 @@ mod tests {
         use crate::reply::Reply;
 
         assert_eq!(
-            Reply::xtversion("jetfish", "0.1").finish(),
+            Reply::xtversion("jetfish", "0.1"),
             "\x1bP>|jetfish 0.1\x1b\\"
         );
     }
@@ -279,10 +278,10 @@ mod tests {
 
         // Lowercase `s` final (EK-VT510-RM errata).
         assert_eq!(
-            Reply::dectsr("?64;1;2;7;8;9;15;18;21c").finish(),
+            Reply::dectsr("?64;1;2;7;8;9;15;18;21c"),
             "\x1bP1$s?64;1;2;7;8;9;15;18;21c\x1b\\"
         );
-        assert_eq!(Reply::dectsr("").finish(), "\x1bP1$s\x1b\\");
+        assert_eq!(Reply::dectsr(""), "\x1bP1$s\x1b\\");
     }
 
     #[cfg(feature = "reply")]
@@ -293,10 +292,10 @@ mod tests {
         // 8-bit RGB scales to 0-100: 255→100, 0→0, 128→50.
         assert_eq!(
             Reply::decctr(&[(0, 255, 0, 0), (7, 0, 128, 255)])
-                .finish(),
+                ,
             "\x1bP2$s0;2;100;0;0/7;2;0;50;100\x1b\\"
         );
-        assert_eq!(Reply::decctr(&[]).finish(), "\x1bP2$s\x1b\\");
+        assert_eq!(Reply::decctr(&[]), "\x1bP2$s\x1b\\");
     }
 
     #[cfg(feature = "reply")]
@@ -305,7 +304,7 @@ mod tests {
         use crate::reply::Reply;
 
         assert_eq!(
-            Reply::deccir("1;3;7;0;0;0;0").finish(),
+            Reply::deccir("1;3;7;0;0;0;0"),
             "\x1bP1$u1;3;7;0;0;0;0\x1b\\"
         );
     }
@@ -318,9 +317,9 @@ mod tests {
         // The EK-VT520-RM §5-157 example: stops at columns 9, 17, 25, …
         assert_eq!(
             Reply::dectabsr(&[9, 17, 25, 33, 41, 49, 57, 65, 73])
-                .finish(),
+                ,
             "\x1bP2$u9/17/25/33/41/49/57/65/73\x1b\\"
         );
-        assert_eq!(Reply::dectabsr(&[]).finish(), "\x1bP2$u\x1b\\");
+        assert_eq!(Reply::dectabsr(&[]), "\x1bP2$u\x1b\\");
     }
 }
