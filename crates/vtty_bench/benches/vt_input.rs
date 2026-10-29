@@ -455,7 +455,11 @@ fn bench_vt_input(c: &mut Criterion) {
             "vt100",
             case,
             bytes,
-            vt100::Parser::new(ROWS, COLS, 0),
+            vt100::Parser::new(
+                std::num::NonZero::new(ROWS).expect("ROWS is non-zero"),
+                std::num::NonZero::new(COLS).expect("COLS is non-zero"),
+                0,
+            ),
             |mut parser| {
                 parser.process(bytes);
                 parser
