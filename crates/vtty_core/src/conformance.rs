@@ -181,11 +181,7 @@ impl crate::reply::Reply {
 
 #[cfg(feature = "reply")]
 /// Append `items` to `buf`, separated by `sep`.
-fn join_display<T: core::fmt::Display>(
-    buf: &mut CompactString,
-    items: &[T],
-    sep: char,
-) {
+fn join_display<T: core::fmt::Display>(buf: &mut CompactString, items: &[T], sep: char) {
     for (i, item) in items.iter().enumerate() {
         if i > 0 {
             buf.push(sep);
@@ -247,8 +243,7 @@ mod tests {
 
         // DA1: service class + extensions (EK-VT520-RM §5-9 example shape).
         assert_eq!(
-            Reply::da1(&[65, 1, 2, 7, 9, 12, 18, 19, 21, 23])
-                ,
+            Reply::da1(&[65, 1, 2, 7, 9, 12, 18, 19, 21, 23]),
             "\x1b[?65;1;2;7;9;12;18;19;21;23c"
         );
         // DA2: id;firmware;keyboard (EK-VT520-RM §5-11 example).
@@ -291,8 +286,7 @@ mod tests {
 
         // 8-bit RGB scales to 0-100: 255→100, 0→0, 128→50.
         assert_eq!(
-            Reply::decctr(&[(0, 255, 0, 0), (7, 0, 128, 255)])
-                ,
+            Reply::decctr(&[(0, 255, 0, 0), (7, 0, 128, 255)]),
             "\x1bP2$s0;2;100;0;0/7;2;0;50;100\x1b\\"
         );
         assert_eq!(Reply::decctr(&[]), "\x1bP2$s\x1b\\");
@@ -316,8 +310,7 @@ mod tests {
 
         // The EK-VT520-RM §5-157 example: stops at columns 9, 17, 25, …
         assert_eq!(
-            Reply::dectabsr(&[9, 17, 25, 33, 41, 49, 57, 65, 73])
-                ,
+            Reply::dectabsr(&[9, 17, 25, 33, 41, 49, 57, 65, 73]),
             "\x1bP2$u9/17/25/33/41/49/57/65/73\x1b\\"
         );
         assert_eq!(Reply::dectabsr(&[]), "\x1bP2$u\x1b\\");

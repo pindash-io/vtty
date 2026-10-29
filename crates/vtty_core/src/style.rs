@@ -331,9 +331,7 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     match params {
         [38, 2, r, g, b] => Some(SgrEffect::Fg(ColorSpec::rgb(*r, *g, *b))),
         [48, 2, r, g, b] => Some(SgrEffect::Bg(ColorSpec::rgb(*r, *g, *b))),
-        [58, 2, r, g, b] => {
-            Some(SgrEffect::UnderlineColor(ColorSpec::rgb(*r, *g, *b)))
-        }
+        [58, 2, r, g, b] => Some(SgrEffect::UnderlineColor(ColorSpec::rgb(*r, *g, *b))),
         [38, 5, n] => Some(SgrEffect::Fg(ColorSpec::indexed(*n))),
         [48, 5, n] => Some(SgrEffect::Bg(ColorSpec::indexed(*n))),
         [58, 5, n] => Some(SgrEffect::UnderlineColor(ColorSpec::indexed(*n))),
@@ -377,11 +375,7 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
-pub fn parse_extended(
-    params: &[i32],
-    sep: u16,
-    i: usize,
-) -> Option<(ColorSpec, usize)> {
+pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
     let len = params.len();
     let colon = colon_sep(sep, i);
     // A colon after the `g` slot (i + 4) marks the colorspace form.
@@ -564,12 +558,12 @@ mod tests {
     fn sgr_parse_effects_reset_and_attrs() {
         let mut out = SmallVec::new();
         parse_effects(&[], 0, &mut out);
-        assert_eq!(out.as_slice(), &[SgrEffect::Reset]);
+        assert_eq!(out.as_ref(), &[SgrEffect::Reset]);
 
         out.clear();
         parse_effects(&[1, 4], 0, &mut out);
         assert_eq!(
-            out.as_slice(),
+            out.as_ref(),
             &[
                 SgrEffect::Set(SgrFlags::BOLD),
                 SgrEffect::Underline(UnderlineStyle::Single),
@@ -581,7 +575,7 @@ mod tests {
     fn sgr_parse_effects_extended_rgb() {
         let mut out = SmallVec::new();
         parse_effects(&[38, 2, 255, 0, 128], 0, &mut out);
-        assert_eq!(out.as_slice(), &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]);
+        assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]);
     }
 
     #[test]
@@ -590,7 +584,7 @@ mod tests {
         let mut out = SmallVec::new();
         parse_effects(&[4, 2], 0b01, &mut out);
         assert_eq!(
-            out.as_slice(),
+            out.as_ref(),
             &[SgrEffect::Underline(UnderlineStyle::Double)]
         );
 
@@ -598,10 +592,7 @@ mod tests {
         // after the `g` slot (bit 4) marks the colorspace form.
         out.clear();
         parse_effects(&[38, 2, 0, 1, 2, 3], 0b11111, &mut out);
-        assert_eq!(
-            out.as_slice(),
-            &[SgrEffect::Fg(ColorSpec::rgb(1, 2, 3))]
-        );
+        assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(1, 2, 3))]);
     }
 
     #[test]
@@ -614,10 +605,7 @@ mod tests {
             single_effect(&[48, 5, 196], 0),
             Some(SgrEffect::Bg(ColorSpec::indexed(196)))
         );
-        assert_eq!(
-            single_effect(&[1], 0),
-            Some(SgrEffect::Set(SgrFlags::BOLD))
-        );
+        assert_eq!(single_effect(&[1], 0), Some(SgrEffect::Set(SgrFlags::BOLD)));
         // Colon-separated forms fall back to `parse_effects`.
         assert_eq!(single_effect(&[4, 2], 0b01), None);
         assert_eq!(single_effect(&[1, 2], 0), None);
@@ -627,15 +615,15 @@ mod tests {
     fn sgr_encode_round_trips_canonical_bytes() {
         let mut out = SmallVec::<u8, 16>::new();
         Sgr::new(SmallVec::from([1, 31]), 0).write_bytes(&mut out);
-        assert_eq!(out.as_slice(), b"\x1b[1;31m");
+        assert_eq!(out.as_ref(), b"\x1b[1;31m");
 
         // Colon-separated form: `4:2` underlines double.
         out.clear();
         Sgr::new(SmallVec::from([4, 2]), 0b01).write_bytes(&mut out);
-        assert_eq!(out.as_slice(), b"\x1b[4:2m");
+        assert_eq!(out.as_ref(), b"\x1b[4:2m");
 
         out.clear();
         Sgr::default().write_bytes(&mut out);
-        assert_eq!(out.as_slice(), b"\x1b[m");
+        assert_eq!(out.as_ref(), b"\x1b[m");
     }
 }

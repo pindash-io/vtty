@@ -81,17 +81,15 @@ impl Reply {
     pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str("0");
-        if flags.contains(SgrFlags::BOLD) {
-            buf.push_str(";1");
-        }
-        if flags.contains(SgrFlags::ITALIC) {
-            buf.push_str(";3");
-        }
-        if flags.contains(SgrFlags::UNDERLINE) {
-            buf.push_str(";4");
-        }
-        if flags.contains(SgrFlags::INVERSE) {
-            buf.push_str(";7");
+        for (flag, code) in [
+            (SgrFlags::BOLD, ";1"),
+            (SgrFlags::ITALIC, ";3"),
+            (SgrFlags::UNDERLINE, ";4"),
+            (SgrFlags::INVERSE, ";7"),
+        ] {
+            if flags.contains(flag) {
+                buf.push_str(code);
+            }
         }
         push_sgr_color(&mut buf, 3, fg, DEFAULT_FG_ID, palette);
         push_sgr_color(&mut buf, 4, bg, DEFAULT_BG_ID, palette);
@@ -103,28 +101,22 @@ impl Reply {
     /// convention).
     #[inline]
     pub fn osc_color(code: u16, rgb: u32) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str(&crate::color::format_osc_color_reply(code, rgb));
-        buf
+        crate::color::format_osc_color_reply(code, rgb)
     }
 
     /// Build an `OSC 4` palette-entry reply
     /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
     #[inline]
     pub fn osc_palette(index: usize, rgb: u32) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str(&crate::color::format_osc_palette_reply(index, rgb));
-        buf
+        crate::color::format_osc_palette_reply(index, rgb)
     }
 
     /// Build the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
     #[inline]
     pub fn osc_background(c: [f32; 4]) -> CompactString {
-        let fixed = crate::color::format_osc_background(c);
         // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
-        let mut buf = CompactString::default();
-        buf.push_str(core::str::from_utf8(&fixed).unwrap_or_default());
-        buf
+        let fixed = crate::color::format_osc_background(c);
+        CompactString::from(core::str::from_utf8(&fixed).unwrap_or_default())
     }
 
     /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
@@ -150,12 +142,7 @@ fn terminate(buf: &mut CompactString) {
 /// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
 /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
 /// failure messages.
-pub(crate) fn xtgettcap(
-    buf: &mut CompactString,
-    ok: bool,
-    key: &[u8],
-    value: Option<&[u8]>,
-) {
+pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Option<&[u8]>) {
     buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
     buf.push_str(&const_hex::encode(key));
     if let Some(value) = value {

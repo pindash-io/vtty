@@ -72,13 +72,13 @@ impl Event {
     /// `self` (modulo the `-1` empty-param sentinel).
     pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
         match self {
-            Event::Print(c) => {
+            Self::Print(c) => {
                 let mut buf = [0_u8; 4];
                 out.extend_from_slice_copy(c.encode_utf8(&mut buf).as_bytes());
             }
-            Event::PrintBytes(s) => out.extend_from_slice_copy(s),
-            Event::Execute(b) => out.push(*b),
-            Event::CsiDispatch {
+            Self::PrintBytes(s) => out.extend_from_slice_copy(s),
+            Self::Execute(b) => out.push(*b),
+            Self::CsiDispatch {
                 params,
                 sep,
                 intermediates,
@@ -91,7 +91,7 @@ impl Event {
                 out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
-            Event::EscDispatch {
+            Self::EscDispatch {
                 intermediates,
                 byte,
             } => {
@@ -99,7 +99,7 @@ impl Event {
                 out.extend_from_slice_copy(intermediates);
                 out.push(*byte);
             }
-            Event::DcsHook {
+            Self::DcsHook {
                 params,
                 intermediates,
                 final_byte,
@@ -111,9 +111,9 @@ impl Event {
                 out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
-            Event::DcsPut(b) => out.push(*b),
-            Event::DcsUnhook => out.extend_from_slice_copy(b"\x1b\\"),
-            Event::OscDispatch {
+            Self::DcsPut(b) => out.push(*b),
+            Self::DcsUnhook => out.extend_from_slice_copy(b"\x1b\\"),
+            Self::OscDispatch {
                 params,
                 bell_terminated,
             } => {
@@ -247,12 +247,7 @@ impl Recording {
     }
 
     /// Record a DCS header.
-    pub fn dcs_hook(
-        &mut self,
-        params: &[i32],
-        intermediates: &[u8],
-        final_byte: u8,
-    ) -> &mut Self {
+    pub fn dcs_hook(&mut self, params: &[i32], intermediates: &[u8], final_byte: u8) -> &mut Self {
         self.push(Event::DcsHook {
             params: SmallVec::from_slice_copy(params),
             intermediates: SmallVec::from_slice_copy(intermediates),
@@ -307,8 +302,7 @@ impl Recording {
                     params,
                     bell_terminated,
                 } => {
-                    let refs: Vec<&[u8]> =
-                        params.iter().map(|v| v.as_slice()).collect();
+                    let refs: Vec<&[u8]> = params.iter().map(|v| v.as_slice()).collect();
                     target.osc_dispatch(&refs, *bell_terminated);
                 }
             }
