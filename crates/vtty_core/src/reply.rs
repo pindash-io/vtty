@@ -36,11 +36,10 @@ pub struct Reply;
 impl Reply {
     /// Build a DECRQSS answer: `DCS {valid} $ r {value} ST`.
     pub fn decrqss(valid: bool, value: &str) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str(if valid { DECRQSS_OK } else { DECRQSS_ERR });
-        buf.push_str(value);
-        terminate(&mut buf);
-        buf
+        compact_str::format_compact!(
+            "{}{value}\x1b\\",
+            if valid { DECRQSS_OK } else { DECRQSS_ERR }
+        )
     }
 
     /// Build an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
@@ -115,13 +114,7 @@ impl Reply {
     /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
     /// includes the `?` for `CSI ?Ps$p` queries.
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
-        let mut buf = CompactString::default();
-        buf.push_str("\x1b[");
-        if private {
-            buf.push('?');
-        }
-        let _ = write!(buf, "{param};{state}$y");
-        buf
+        compact_str::format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
     }
 }
 

@@ -99,9 +99,7 @@ impl crate::reply::Reply {
     /// `firmware` the version (`10` = V1.0, `20` = V2.0), and `keyboard`
     /// `0` (STD) or `1` (PC).
     pub fn da2(id: u32, firmware: u32, keyboard: u32) -> CompactString {
-        let mut buf = CompactString::default();
-        let _ = write!(buf, "\x1b[>{id};{firmware};{keyboard}c");
-        buf
+        compact_str::format_compact!("\x1b[>{id};{firmware};{keyboard}c")
     }
 
     /// Build a DA3 (Tertiary Device Attributes) answer:
@@ -123,9 +121,7 @@ impl crate::reply::Reply {
     /// Build an XTVERSION answer: `DCS > | {name} {version} ST` (the
     /// `CSI > q` version query, xterm-style).
     pub fn xtversion(name: &str, version: &str) -> CompactString {
-        let mut buf = CompactString::default();
-        let _ = write!(buf, "\x1bP>|{name} {version}\x1b\\");
-        buf
+        compact_str::format_compact!("\x1bP>|{name} {version}\x1b\\")
     }
 
     /// Build a DECCTR (Color Table Report) answer:
