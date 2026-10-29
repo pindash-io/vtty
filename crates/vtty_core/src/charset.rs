@@ -201,16 +201,8 @@ impl Scs {
     /// The active charset: an `SS2`/`SS3` single shift wins for one char, then the
     /// GL locking shift, otherwise G0.
     pub fn active(&self) -> Charset {
-        match self.single_shift {
-            Some(2) => self.charsets.g2(),
-            Some(3) => self.charsets.g3(),
-            _ => match self.gl {
-                1 => self.charsets.g1(),
-                2 => self.charsets.g2(),
-                3 => self.charsets.g3(),
-                _ => self.charsets.g0(),
-            },
-        }
+        self.charsets
+            .get(self.single_shift.unwrap_or(self.gl) as usize)
     }
 
     /// Translate a char through the active charset.
