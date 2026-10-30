@@ -250,6 +250,25 @@ jobs:
         if: matrix.os == 'openbsd'
         run: cargo check -Z build-std -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target x86_64-unknown-openbsd --all-features
 
+  bsd-aarch64:
+    # aarch64 BSD targets are all tier 3 with no cross-rs image and no rustup
+    # std, so they are checked from source with nightly build-std. Same
+    # compile-only scope as the `bsd` job.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [freebsd, netbsd, openbsd]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Check library crates (build-std)
+        run: cargo check -Z build-std -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target aarch64-unknown-${{ matrix.os }} --all-features
+
   msrv:
     runs-on: ubuntu-latest
     steps:
