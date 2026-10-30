@@ -251,22 +251,27 @@ pub fn parse(s: &[u8]) -> Option<u32> {
         if parts.next().is_some() {
             return None;
         }
-        let mut rgb = 0_u32;
-        for (i, part) in [a, b, c].iter().enumerate() {
-            let len = part.len();
-            if !(1..=4).contains(&len) {
-                return None;
-            }
-            let v = u32::from_str_radix(part, 16).ok()?;
-            rgb |= (v * 255 / ((1 << (4 * len)) - 1)) << (16 - 8 * i);
-        }
-        return Some(rgb);
+        return Some(rgb(
+            scale_channel(a)? as i32,
+            scale_channel(b)? as i32,
+            scale_channel(c)? as i32,
+        ));
     }
     if s.starts_with('#') {
         let [r, g, b] = decode_rgb(s)?;
-        return Some(((r as u32) << 16) | ((g as u32) << 8) | b as u32);
+        return Some(rgb(r as i32, g as i32, b as i32));
     }
     None
+}
+
+/// Scale one `rgb:` channel of 1..=4 hex digits to 8 bits (`XParseColor`).
+fn scale_channel(part: &str) -> Option<u8> {
+    let len = part.len();
+    if !(1..=4).contains(&len) {
+        return None;
+    }
+    let v = u32::from_str_radix(part, 16).ok()?;
+    Some((v * 255 / ((1 << (4 * len)) - 1)) as u8)
 }
 
 // ── OSC color replies ─────────────────────────────────────────────────
