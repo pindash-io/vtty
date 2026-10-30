@@ -101,22 +101,5 @@ pub(crate) fn default_tabs(cols: u32) -> Vec<bool> {
 
 /// The classic xterm 16-color palette (the default theme).
 pub(crate) fn default_palette() -> [u32; 16] {
-    [
-        vtty_core::indexed_rgb(0),
-        vtty_core::indexed_rgb(1),
-        vtty_core::indexed_rgb(2),
-        vtty_core::indexed_rgb(3),
-        vtty_core::indexed_rgb(4),
-        vtty_core::indexed_rgb(5),
-        vtty_core::indexed_rgb(6),
-        vtty_core::indexed_rgb(7),
-        vtty_core::indexed_rgb(8),
-        vtty_core::indexed_rgb(9),
-        vtty_core::indexed_rgb(10),
-        vtty_core::indexed_rgb(11),
-        vtty_core::indexed_rgb(12),
-        vtty_core::indexed_rgb(13),
-        vtty_core::indexed_rgb(14),
-        vtty_core::indexed_rgb(15),
-    ]
+    core::array::from_fn(|i| vtty_core::indexed_rgb(i as u8))
 }
