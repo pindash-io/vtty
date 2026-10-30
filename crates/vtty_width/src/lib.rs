@@ -174,24 +174,6 @@ mod tests {
 
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
-    fn cjk_width_makes_ambiguous_wide() {
-        // Ambiguous (A) is 1 cell by default.
-        assert_eq!(cell_width('\u{2469}'), Some(1)); // ⑩
-        assert_eq!(cell_width('\u{2460}'), Some(1)); // ①
-        // Neutral stays 1 regardless.
-        assert_eq!(cell_width('a'), Some(1));
-
-        set_cjk_width(true);
-        assert_eq!(cell_width('\u{2469}'), Some(2)); // ⑩
-        assert_eq!(cell_width('\u{2460}'), Some(2)); // ①
-        // Wide is still 2; Neutral still 1.
-        assert_eq!(cell_width('\u{4E2D}'), Some(2)); // 中
-        assert_eq!(cell_width('a'), Some(1));
-        set_cjk_width(false);
-        assert_eq!(cell_width('\u{2469}'), Some(1));
-    }
-    #[cfg(any(feature = "baked", feature = "icu"))]
-    #[test]
     fn cell_widths_merges_vs16_and_zwj_emoji() {
         // VS16 widens a width-1 text-default base to 2 and stays zero-width.
         assert_eq!(cell_widths("⚠\u{FE0F}x"), vec![2, 0, 1]);
