@@ -322,10 +322,10 @@ impl_tagged_codec!(
 
 impl Encode for Charsets {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
-        self.g0().encode(writer)?;
-        self.g1().encode(writer)?;
-        self.g2().encode(writer)?;
-        self.g3().encode(writer)
+        for g in 0..4 {
+            self.get(g).encode(writer)?;
+        }
+        Ok(())
     }
 }
 
