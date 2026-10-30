@@ -172,3 +172,29 @@ impl Write for VecWriter<'_> {
         Ok(())
     }
 }
+
+/// A sink that counts bytes without storing them, used to compute
+/// [`crate::Encode::encoded_len`].
+#[derive(Debug, Default)]
+pub(crate) struct CountWriter {
+    len: usize,
+}
+
+impl CountWriter {
+    /// An empty counter.
+    pub(crate) const fn new() -> Self {
+        Self { len: 0 }
+    }
+
+    /// The number of bytes written so far.
+    pub(crate) const fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl Write for CountWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<(), EncodeError> {
+        self.len += buf.len();
+        Ok(())
+    }
+}

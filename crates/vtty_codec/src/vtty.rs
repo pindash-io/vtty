@@ -5,7 +5,6 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::mem::size_of;
 use smallvec::SmallVec;
 
 use vtty_core::{
@@ -18,7 +17,7 @@ use vtty_status::{ProgramStatus, StatusKind, StatusState};
 use crate::error::{DecodeError, EncodeError};
 use crate::io::{Read, Write};
 use crate::traits::{Decode, Encode};
-use crate::varint::{decode_varint, encode_varint, varint_len};
+use crate::varint::{decode_varint, encode_varint};
 use crate::{impl_bitflags_codec, impl_tagged_codec};
 
 /// `Event` variant discriminant — the tag byte of the wire format, mirroring
@@ -117,41 +116,6 @@ impl Encode for Event {
             _ => unreachable!("non-exhaustive enum has an unknown variant"),
         }
     }
-
-    fn encoded_len(&self) -> usize {
-        1 + match self {
-            Self::Print(c) => c.encoded_len(),
-            Self::PrintBytes(s) => s.encoded_len(),
-            Self::Execute(b) => b.encoded_len(),
-            Self::CsiDispatch {
-                params,
-                sep,
-                intermediates,
-                final_byte,
-            } => {
-                params.encoded_len()
-                    + sep.encoded_len()
-                    + intermediates.encoded_len()
-                    + final_byte.encoded_len()
-            }
-            Self::EscDispatch {
-                intermediates,
-                byte,
-            } => intermediates.encoded_len() + byte.encoded_len(),
-            Self::DcsHook {
-                params,
-                intermediates,
-                final_byte,
-            } => params.encoded_len() + intermediates.encoded_len() + final_byte.encoded_len(),
-            Self::DcsPut(b) => b.encoded_len(),
-            Self::DcsUnhook => 0,
-            Self::OscDispatch {
-                params,
-                bell_terminated,
-            } => params.encoded_len() + bell_terminated.encoded_len(),
-            _ => unreachable!("non-exhaustive enum has an unknown variant"),
-        }
-    }
 }
 
 impl Decode for Event {
@@ -190,10 +154,6 @@ impl Encode for Recording {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.events.encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        self.events.encoded_len()
-    }
 }
 
 impl Decode for Recording {
@@ -209,10 +169,6 @@ impl Encode for Sgr {
         self.params.encode(writer)?;
         self.sep.encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        self.params.encoded_len() + size_of::<u16>()
-    }
 }
 
 impl Decode for Sgr {
@@ -227,10 +183,6 @@ impl Decode for Sgr {
 impl Encode for ColorId {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.index().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        size_of::<u16>()
     }
 }
 
@@ -298,14 +250,6 @@ impl Encode for ColorSpec {
             }
         }
     }
-
-    fn encoded_len(&self) -> usize {
-        1 + match self {
-            Self::Default => 0,
-            Self::Ansi(_) | Self::Indexed(_) => size_of::<u16>(),
-            Self::Rgb(_) => size_of::<u32>(),
-        }
-    }
 }
 
 impl Decode for ColorSpec {
@@ -351,15 +295,6 @@ impl Encode for SgrEffect {
             Self::ClearUnderlineColor => writer.write_byte(7),
         }
     }
-
-    fn encoded_len(&self) -> usize {
-        1 + match self {
-            Self::Reset | Self::ClearUnderlineColor => 0,
-            Self::Set(_) | Self::Clear(_) => size_of::<u16>(),
-            Self::Underline(_) => 1,
-            Self::Fg(c) | Self::Bg(c) | Self::UnderlineColor(c) => c.encoded_len(),
-        }
-    }
 }
 
 impl Decode for SgrEffect {
@@ -391,10 +326,6 @@ impl Encode for Charsets {
         self.g1().encode(writer)?;
         self.g2().encode(writer)?;
         self.g3().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        4
     }
 }
 
@@ -435,16 +366,6 @@ impl Encode for ProgramStatus {
         self.title.encode(writer)?;
         self.msg.encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        self.state.encoded_len()
-            + self.id.encoded_len()
-            + self.kind.encoded_len()
-            + self.progress.encoded_len()
-            + self.app.encoded_len()
-            + self.title.encoded_len()
-            + self.msg.encoded_len()
-    }
 }
 
 impl Decode for ProgramStatus {
@@ -466,10 +387,6 @@ impl Encode for State {
         self.text.encode(writer)?;
         encode_varint(writer, self.cursor)?;
         encode_varint(writer, self.line_start)
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.text.encoded_len() + varint_len(self.cursor) + varint_len(self.line_start)
     }
 }
 

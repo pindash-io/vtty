@@ -41,13 +41,3 @@ pub(crate) fn decode_varint<R: Read + ?Sized>(reader: &mut R) -> Result<usize, D
         shift += 7;
     }
 }
-
-/// The number of bytes [`encode_varint`] writes for `value`.
-pub(crate) fn varint_len(mut value: usize) -> usize {
-    let mut len = 1;
-    while value >= 0x80 {
-        value >>= 7;
-        len += 1;
-    }
-    len
-}

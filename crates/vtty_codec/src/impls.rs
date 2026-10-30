@@ -5,7 +5,6 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::mem::size_of;
 
 use compact_str::CompactString;
 use smallvec::SmallVec;
@@ -13,7 +12,7 @@ use smallvec::SmallVec;
 use crate::error::{DecodeError, EncodeError};
 use crate::io::{Read, Write};
 use crate::traits::{Decode, Encode};
-use crate::varint::{decode_varint, encode_varint, varint_len};
+use crate::varint::{decode_varint, encode_varint};
 
 macro_rules! impl_fixed_int {
     ($($ty:ty),+ $(,)?) => {
@@ -21,10 +20,6 @@ macro_rules! impl_fixed_int {
             impl Encode for $ty {
                 fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
                     writer.write(&self.to_le_bytes())
-                }
-
-                fn encoded_len(&self) -> usize {
-                    core::mem::size_of::<$ty>()
                 }
             }
 
@@ -45,10 +40,6 @@ impl Encode for bool {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         writer.write_byte(u8::from(*self))
     }
-
-    fn encoded_len(&self) -> usize {
-        1
-    }
 }
 
 impl Decode for bool {
@@ -65,10 +56,6 @@ impl Encode for char {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         u32::from(*self).encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        size_of::<u32>()
-    }
 }
 
 impl Decode for char {
@@ -80,10 +67,6 @@ impl Decode for char {
 impl Encode for f32 {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        size_of::<u32>()
     }
 }
 
@@ -97,10 +80,6 @@ impl Encode for f64 {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        size_of::<u64>()
-    }
 }
 
 impl Decode for f64 {
@@ -112,10 +91,6 @@ impl Decode for f64 {
 impl Encode for () {
     fn encode<W: Write + ?Sized>(&self, _writer: &mut W) -> Result<(), EncodeError> {
         Ok(())
-    }
-
-    fn encoded_len(&self) -> usize {
-        0
     }
 }
 
@@ -133,13 +108,6 @@ impl<T: Encode> Encode for Option<T> {
                 true.encode(writer)?;
                 value.encode(writer)
             }
-        }
-    }
-
-    fn encoded_len(&self) -> usize {
-        1 + match self {
-            Self::None => 0,
-            Self::Some(value) => value.encoded_len(),
         }
     }
 }
@@ -162,19 +130,11 @@ impl<T: Encode> Encode for [T] {
         }
         Ok(())
     }
-
-    fn encoded_len(&self) -> usize {
-        varint_len(self.len()) + self.iter().map(|item| item.encoded_len()).sum::<usize>()
-    }
 }
 
 impl<T: Encode> Encode for Vec<T> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_slice().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.as_slice().encoded_len()
     }
 }
 
@@ -193,10 +153,6 @@ impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_ref().encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        self.as_ref().encoded_len()
-    }
 }
 
 impl<T: Decode, const N: usize> Decode for SmallVec<T, N> {
@@ -214,19 +170,11 @@ impl Encode for str {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_bytes().encode(writer)
     }
-
-    fn encoded_len(&self) -> usize {
-        self.as_bytes().encoded_len()
-    }
 }
 
 impl Encode for String {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.as_str().encoded_len()
     }
 }
 
@@ -239,10 +187,6 @@ impl Decode for String {
 impl Encode for CompactString {
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.as_str().encoded_len()
     }
 }
 
@@ -261,10 +205,6 @@ macro_rules! impl_bitflags_codec {
             impl Encode for $ty {
                 fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
                     self.bits().encode(writer)
-                }
-
-                fn encoded_len(&self) -> usize {
-                    size_of::<$bits>()
                 }
             }
 
@@ -289,10 +229,6 @@ macro_rules! impl_tagged_codec {
                     $($variant => writer.write_byte($tag),)+
                     _ => unreachable!("non-exhaustive enum has an unknown variant"),
                 }
-            }
-
-            fn encoded_len(&self) -> usize {
-                1
             }
         }
 
