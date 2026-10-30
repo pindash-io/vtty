@@ -123,24 +123,19 @@ impl Properties {
                 const { CodePointSetData::new::<ExtendedPictographic>() };
         }
         let mut b = 0_u16;
-        if EMOJI.with(|p| p.contains(ch)) {
-            b |= Self::EMOJI;
+        macro_rules! set_flag {
+            ($set:ident => $flag:ident) => {
+                if $set.with(|p| p.contains(ch)) {
+                    b |= Self::$flag;
+                }
+            };
         }
-        if PRES.with(|p| p.contains(ch)) {
-            b |= Self::EMOJI_PRESENTATION;
-        }
-        if MOD.with(|p| p.contains(ch)) {
-            b |= Self::EMOJI_MODIFIER;
-        }
-        if MOD_BASE.with(|p| p.contains(ch)) {
-            b |= Self::MODIFIER_BASE;
-        }
-        if RI.with(|p| p.contains(ch)) {
-            b |= Self::REGIONAL_INDICATOR;
-        }
-        if EXT_PICT.with(|p| p.contains(ch)) {
-            b |= Self::EXTENDED_PICTOGRAPHIC;
-        }
+        set_flag!(EMOJI => EMOJI);
+        set_flag!(PRES => EMOJI_PRESENTATION);
+        set_flag!(MOD => EMOJI_MODIFIER);
+        set_flag!(MOD_BASE => MODIFIER_BASE);
+        set_flag!(RI => REGIONAL_INDICATOR);
+        set_flag!(EXT_PICT => EXTENDED_PICTOGRAPHIC);
         if crate::icu::ambiguous_icu(ch) {
             b |= Self::AMBIGUOUS;
         }
