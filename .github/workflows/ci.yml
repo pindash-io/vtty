@@ -161,10 +161,11 @@ jobs:
         run: cargo fuzz run codec --target ${{ matrix.target }} -- -max_total_time=30
 
   cross:
-    # Cross-compile Linux targets the native matrix doesn't cover. `cross`
-    # (cross-rs) ships Docker toolchains with the C/C++ cross compilers that
-    # rio-vt's simdutf build script needs; `rustup target add` alone only
-    # installs the Rust std.
+    # Cross-check the library crates for Linux targets the native matrix
+    # doesn't cover. The library is pure Rust — rio-vt's simdutf C++ build
+    # script only lives in vtty's dev-deps and is built natively by the test
+    # job — so this needs no cross C/C++ toolchain. (cross-rs's aarch64 g++
+    # is too old for simdutf's `vld1q_u32_x2` NEON intrinsic anyway.)
     env:
       # Pinned so a future cross release can't silently break CI.
       CROSS_VERSION: v0.2.5
@@ -192,11 +193,6 @@ jobs:
 
       - name: Check library crates (cross)
         run: cross check -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target ${{ matrix.target }} --all-features
-
-      - name: Build vtty tests (cross)
-        # Builds dev-deps (rio-vt → simdutf C++) cross-compiled and linked,
-        # but doesn't run them (avoids QEMU flakiness on non-native targets).
-        run: cross build --tests -p vtty --target ${{ matrix.target }} --all-features
 
   msrv:
     runs-on: ubuntu-latest
