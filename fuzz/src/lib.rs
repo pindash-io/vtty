@@ -70,25 +70,50 @@ pub fn run_vtty_simd(bytes: &[u8]) -> Vec<Event> {
 }
 
 /// Normalize vtty's representation to the vte-family convention:
+/// - bulk `PrintBytes` runs expand to per-byte `Print`;
+/// - the colon-separator `sep` bitfield zeroes (vte can't express it);
 /// - the `-1` empty-colon sentinel becomes 0;
 /// - a param-less CSI/DCS dispatches `[]` in vtty but `[0]` in vte.
 fn run_vtty_parser(mut p: vtty::Parser, bytes: &[u8]) -> Vec<Event> {
-    let mut events = p.parse_events(bytes);
-    for e in &mut events {
-        let params: &mut smallvec::SmallVec<i32, 6> = match e {
-            Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => params,
-            _ => continue,
-        };
-        for p in params.iter_mut() {
-            if *p == -1 {
-                *p = 0;
+    let events = p.parse_events(bytes);
+    let mut out = Vec::with_capacity(events.len());
+    for mut e in events {
+        // Params first: normalize the empty-colon sentinel and the empty
+        // param list.
+        match &mut e {
+            Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => {
+                for p in params.iter_mut() {
+                    if *p == -1 {
+                        *p = 0;
+                    }
+                }
+                if params.is_empty() {
+                    params.push(0);
+                }
             }
+            _ => {}
         }
-        if params.is_empty() {
-            params.push(0);
+        match e {
+            Event::PrintBytes(s) => {
+                for &b in &s {
+                    out.push(Event::Print(b as char));
+                }
+            }
+            Event::CsiDispatch {
+                params,
+                sep: _,
+                intermediates,
+                final_byte,
+            } => out.push(Event::CsiDispatch {
+                params,
+                sep: 0,
+                intermediates,
+                final_byte,
+            }),
+            other => out.push(other),
         }
     }
-    events
+    out
 }
 
 /// Whether `second` is a valid second byte for a constrained 3/4-byte `lead`
@@ -445,7 +470,26 @@ fn has_c1_divergence(data: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::has_rio_utf8_simd_divergence;
+    use super::{has_rio_utf8_simd_divergence, run_vte, run_vtty};
+
+    #[test]
+    fn differential_normalization_matches_vte() {
+        // The CI fuzz crash: bulk print runs plus a UTF-8 check mark must
+        // expand to per-byte `Print`, matching vte.
+        let data: &[u8] = &[
+            36, 32, 108, 115, 32, 45, 108, 97, 13, 10, 116, 111, 116, 97, 108, 32, 48, 13, 10, 27,
+            91, 49, 59, 51, 50, 109, 100, 111, 110, 101, 27, 91, 48, 109, 32, 226, 156, 147, 32,
+            13, 10, 36, 32, 101, 120, 105, 116, 13, 10,
+        ];
+        assert_eq!(run_vtty(data), run_vte(data));
+
+        // Colon-separated params must zero the `sep` bitfield.
+        assert_eq!(run_vtty(b"\x1b[4:2m"), run_vte(b"\x1b[4:2m"));
+        assert_eq!(
+            run_vtty(b"\x1b[38:2::255:0:0m"),
+            run_vte(b"\x1b[38:2::255:0:0m")
+        );
+    }
 
     #[test]
     fn valid_utf8_is_not_flagged() {
