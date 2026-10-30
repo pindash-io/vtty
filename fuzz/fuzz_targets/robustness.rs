@@ -3,6 +3,7 @@
 // a full-screen emulator (no event stream to compare).
 
 #![no_main]
+#![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
 

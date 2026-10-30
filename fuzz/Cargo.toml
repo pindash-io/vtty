@@ -58,3 +58,6 @@ path = "fuzz_targets/codec.rs"
 test = false
 doc = false
 bench = false
+
+[lints]
+workspace = true

@@ -1,6 +1,7 @@
 // Differential fuzz target: vtty vs the reference `vte` parser.
 
 #![no_main]
+#![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
 use vtty_fuzz::{has_known_divergence, run_vte, run_vtty};

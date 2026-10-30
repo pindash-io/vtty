@@ -4,6 +4,11 @@
 // which pure mutation takes longer to discover.
 
 #![no_main]
+#![allow(
+    missing_docs,
+    clippy::cast_possible_truncation,
+    reason = "fuzz target is internal test infrastructure; byte generation truncates intentionally"
+)]
 
 use libfuzzer_sys::fuzz_target;
 use vtty_fuzz::{has_known_divergence, run_vte, run_vtty};

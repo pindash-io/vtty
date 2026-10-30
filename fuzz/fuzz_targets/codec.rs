@@ -3,6 +3,7 @@
 // bytes must never panic (or over-allocate) any decoder.
 
 #![no_main]
+#![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
 use vtty::{Event, Parser, State};
@@ -17,6 +18,7 @@ fuzz_target!(|data: &[u8]| {
     assert_eq!(
         decode_from_slice::<Vec<Event>>(&bytes).expect("event decode"),
         events,
+        "event stream round-trip",
     );
 
     // 2. Byte-cursor state round-trip.
@@ -28,6 +30,7 @@ fuzz_target!(|data: &[u8]| {
     assert_eq!(
         decode_from_slice::<State>(&bytes).expect("state decode"),
         state,
+        "byte-cursor state round-trip",
     );
 
     // 3. Robustness: arbitrary bytes never panic or over-allocate a decoder.

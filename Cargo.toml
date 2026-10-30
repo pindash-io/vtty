@@ -3,7 +3,6 @@ resolver = "3"
 members = ["crates/*", "fuzz"]
 
 [workspace.package]
-authors = ["Fangdun Tsai <fundon@pindash.io>"]
 description = "Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and no_std support."
 keywords = ["terminal", "vt", "ansi", "parser", "escape"]
 categories = ["parsing", "text-processing"]

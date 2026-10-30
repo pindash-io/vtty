@@ -3,6 +3,7 @@
 // divergences are the same.
 
 #![no_main]
+#![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
 use vtty_fuzz::{

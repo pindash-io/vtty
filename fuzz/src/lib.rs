@@ -1,5 +1,13 @@
 // Shared helpers for the differential fuzz targets.
 
+// The fuzz harness is internal test infrastructure (`publish = false`), not a
+// documented public API.
+#![allow(
+    missing_docs,
+    missing_debug_implementations,
+    reason = "fuzz harness is internal test infrastructure, not a documented API"
+)]
+
 pub use vtty::Event;
 
 /// Records vte's `Perform` callbacks into `vtty::Event`.
@@ -147,7 +155,7 @@ pub fn has_known_divergence(data: &[u8]) -> bool {
 }
 
 /// rio-vt's SIMD decoder (C++ `simdutf`) reports the wrong error offset on
-/// x86_64 when a ground-state chunk is malformed, corrupting the decode.
+/// `x86_64` when a ground-state chunk is malformed, corrupting the decode.
 /// vtty/vte decode it correctly, so `differential-rio` skips any malformed
 /// ground-state UTF-8: a lone continuation, an invalid lead
 /// (`0xc0`/`0xc1`/`0xf5..=0xff`), or a truncated/ill-formed sequence.
