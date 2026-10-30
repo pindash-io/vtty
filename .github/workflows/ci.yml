@@ -107,12 +107,18 @@ jobs:
           cargo check -p vtty --no-default-features --target thumbv7em-none-eabihf
 
   fuzz-smoke:
+    # Native runners only: libFuzzer needs rustc's `-Z sanitizer=fuzzer`,
+    # which is unsupported on Windows MSVC, and the rio-vt/simdutf C++ build
+    # script wants the host toolchain. The ARM NEON and x86 SSE/AVX SIMD
+    # backends are each exercised on their native Linux/macOS runners.
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.os }}
@@ -153,6 +159,44 @@ jobs:
 
       - name: Fuzz smoke — codec round-trip
         run: cargo fuzz run codec --target ${{ matrix.target }} -- -max_total_time=30
+
+  cross:
+    # Cross-compile Linux targets the native matrix doesn't cover. `cross`
+    # (cross-rs) ships Docker toolchains with the C/C++ cross compilers that
+    # rio-vt's simdutf build script needs; `rustup target add` alone only
+    # installs the Rust std.
+    env:
+      # Pinned so a future cross release can't silently break CI.
+      CROSS_VERSION: v0.2.5
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross
+        run: |
+          dir="$RUNNER_TEMP/cross-download"
+          mkdir "$dir"
+          echo "$dir" >> "$GITHUB_PATH"
+          cd "$dir"
+          curl -LO "https://github.com/cross-rs/cross/releases/download/$CROSS_VERSION/cross-x86_64-unknown-linux-musl.tar.gz"
+          tar xf cross-x86_64-unknown-linux-musl.tar.gz
+
+      - name: Check library crates (cross)
+        run: cross check -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target ${{ matrix.target }} --all-features
+
+      - name: Build vtty tests (cross)
+        # Builds dev-deps (rio-vt → simdutf C++) cross-compiled and linked,
+        # but doesn't run them (avoids QEMU flakiness on non-native targets).
+        run: cross build --tests -p vtty --target ${{ matrix.target }} --all-features
 
   msrv:
     runs-on: ubuntu-latest
