@@ -13,32 +13,20 @@ use crate::cell::Cell;
 /// Emit an SGR sequence (`ESC [ 0 ; … m`) for a cell's attributes.
 pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId, palette: &[u32]) {
     out.push_str("\x1b[0");
-    if sgr.contains(SgrFlags::BOLD) {
-        out.push_str(";1");
-    }
-    if sgr.contains(SgrFlags::FAINT) {
-        out.push_str(";2");
-    }
-    if sgr.contains(SgrFlags::ITALIC) {
-        out.push_str(";3");
-    }
-    if sgr.contains(SgrFlags::UNDERLINE) {
-        out.push_str(";4");
-    }
-    if sgr.contains(SgrFlags::BLINK) {
-        out.push_str(";5");
-    }
-    if sgr.contains(SgrFlags::BLINK_RAPID) {
-        out.push_str(";6");
-    }
-    if sgr.contains(SgrFlags::INVERSE) {
-        out.push_str(";7");
-    }
-    if sgr.contains(SgrFlags::INVISIBLE) {
-        out.push_str(";8");
-    }
-    if sgr.contains(SgrFlags::STRIKETHROUGH) {
-        out.push_str(";9");
+    for (flag, code) in [
+        (SgrFlags::BOLD, ";1"),
+        (SgrFlags::FAINT, ";2"),
+        (SgrFlags::ITALIC, ";3"),
+        (SgrFlags::UNDERLINE, ";4"),
+        (SgrFlags::BLINK, ";5"),
+        (SgrFlags::BLINK_RAPID, ";6"),
+        (SgrFlags::INVERSE, ";7"),
+        (SgrFlags::INVISIBLE, ";8"),
+        (SgrFlags::STRIKETHROUGH, ";9"),
+    ] {
+        if sgr.contains(flag) {
+            out.push_str(code);
+        }
     }
     push_ansi_color(out, 3, fg, palette);
     push_ansi_color(out, 4, bg, palette);
