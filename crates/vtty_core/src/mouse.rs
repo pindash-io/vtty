@@ -199,6 +199,15 @@ mod tests {
     }
 
     #[test]
+    fn mouse_encode_utf8_mode() {
+        let utf8 = MouseTracking::ENABLED | MouseTracking::UTF8;
+        assert_eq!(
+            MouseButton::Left.encode(utf8, 0, 0, true).as_deref(),
+            Some(&b"\x1b[M !!"[..])
+        );
+    }
+
+    #[test]
     fn mouse_encode_shared_encoder() {
         // Tracking off → no report.
         let off = MouseTracking::empty();

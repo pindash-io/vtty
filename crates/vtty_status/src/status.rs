@@ -521,6 +521,50 @@ mod tests {
     }
 
     #[test]
+    fn parse_enforces_limits() {
+        // Payload over the sequence limit.
+        assert_eq!(ProgramStatus::parse(&[b'x'; 4097]), None);
+        // App over the length limit.
+        let mut payload = Vec::from(b"state=idle:app=".as_slice());
+        payload.extend_from_slice(&[b'a'; 33]);
+        assert_eq!(ProgramStatus::parse(&payload), None);
+        // Non-digit progress is treated as absent, not fatal.
+        assert_eq!(parsed(b"state=working:progress=abc").progress, None);
+        // Id over the length limit.
+        let mut payload = Vec::from(b"state=working:id=".as_slice());
+        payload.extend_from_slice(&[b'a'; 129]);
+        assert_eq!(ProgramStatus::parse(&payload), None);
+        // Id over the depth limit (9 segments).
+        assert_eq!(
+            ProgramStatus::parse(b"state=working:id=a/b/c/d/e/f/g/h/i"),
+            None
+        );
+        // Id segment with a non-ident byte.
+        assert_eq!(ProgramStatus::parse(b"state=working:id=a,b"), None);
+        // Title over the encoded length limit.
+        let mut payload = Vec::from(b"state=done:title=".as_slice());
+        payload.extend_from_slice(&[b'A'; 257]);
+        assert_eq!(ProgramStatus::parse(&payload), None);
+        // Msg decodes over the decoded length limit.
+        let msg = B64.encode([0_u8; 2049]);
+        let mut payload = Vec::from(b"state=done:msg=".as_slice());
+        payload.extend_from_slice(msg.as_bytes());
+        assert_eq!(ProgramStatus::parse(&payload), None);
+    }
+
+    struct NoopSink;
+
+    impl Perform for NoopSink {}
+
+    impl PerformProgramStatus for NoopSink {}
+
+    #[test]
+    fn program_status_default_is_noop() {
+        let mut sink = NoopSink;
+        sink.program_status(ProgramStatus::default());
+    }
+
+    #[test]
     fn control_classification() {
         assert_eq!(Control::of('\0'), Some(Control::C0));
         assert_eq!(Control::of('\u{1f}'), Some(Control::C0));

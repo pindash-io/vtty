@@ -630,4 +630,67 @@ mod tests {
         Sgr::default().write_bytes(&mut out);
         assert_eq!(out.as_ref(), b"\x1b[m");
     }
+
+    #[test]
+    fn single_code_maps_all_sgr_codes() {
+        assert_eq!(single_code(0), Some(SgrEffect::Reset));
+        assert_eq!(
+            single_code(4),
+            Some(SgrEffect::Underline(UnderlineStyle::Single))
+        );
+        assert_eq!(
+            single_code(21),
+            Some(SgrEffect::Underline(UnderlineStyle::Double))
+        );
+        assert_eq!(single_code(31), Some(SgrEffect::Fg(ColorSpec::Ansi(1))));
+        assert_eq!(single_code(39), Some(SgrEffect::Fg(ColorSpec::Default)));
+        assert_eq!(single_code(44), Some(SgrEffect::Bg(ColorSpec::Ansi(4))));
+        assert_eq!(single_code(49), Some(SgrEffect::Bg(ColorSpec::Default)));
+        assert_eq!(single_code(59), Some(SgrEffect::ClearUnderlineColor));
+        assert_eq!(single_code(92), Some(SgrEffect::Fg(ColorSpec::Ansi(10))));
+        assert_eq!(single_code(103), Some(SgrEffect::Bg(ColorSpec::Ansi(11))));
+        assert_eq!(single_code(1), Some(SgrEffect::Set(SgrFlags::BOLD)));
+        assert_eq!(
+            single_code(22),
+            Some(SgrEffect::Clear(SgrFlags::BOLD | SgrFlags::FAINT))
+        );
+        assert_eq!(single_code(99), None);
+    }
+
+    #[test]
+    fn cursor_style_from_osc() {
+        assert_eq!(CursorStyle::from_osc(0), CursorStyle::Block);
+        assert_eq!(CursorStyle::from_osc(1), CursorStyle::Bar);
+        assert_eq!(CursorStyle::from_osc(2), CursorStyle::Underline);
+        assert_eq!(CursorStyle::from_osc(9), CursorStyle::None);
+    }
+
+    #[test]
+    fn parse_extended_and_effects_edges() {
+        assert_eq!(
+            parse_extended(&[38, 5, 196], 0, 0),
+            Some((ColorSpec::Indexed(196), 2))
+        );
+        // RGB with too-few params is rejected.
+        assert_eq!(parse_extended(&[38, 2, 255, 0], 0, 0), None);
+        // An unknown sub-param is rejected.
+        assert_eq!(parse_extended(&[38, 3, 255], 0, 0), None);
+
+        // parse_effects skips a malformed extended color (38;2 with too few
+        // params), then continues with the remaining codes.
+        let mut out = SmallVec::<SgrEffect, 8>::new();
+        parse_effects(&[38, 2, 255, 0], 0, &mut out);
+        assert_eq!(
+            out.as_ref(),
+            &[SgrEffect::Set(SgrFlags::FAINT), SgrEffect::Reset]
+        );
+
+        // Underline color (58) maps to UnderlineColor.
+        let mut out = SmallVec::<SgrEffect, 8>::new();
+        parse_effects(&[58, 5, 196], 0, &mut out);
+        assert_eq!(
+            out.as_ref(),
+            &[SgrEffect::UnderlineColor(ColorSpec::Indexed(196))]
+        );
+    }
 }

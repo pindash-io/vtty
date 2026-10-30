@@ -221,4 +221,40 @@ mod tests {
             "0;38;5;5;48;2;17;34;51"
         );
     }
+
+    #[test]
+    fn sgr_rgb_id_out_of_palette_falls_back_to_default() {
+        let pal = [0_u32; 256];
+        assert_eq!(
+            Reply::sgr(ColorId(258), DEFAULT_BG_ID, SgrFlags::empty(), &pal),
+            "0;39;49"
+        );
+    }
+
+    #[test]
+    fn xtgettcap_reply_formats() {
+        assert_eq!(
+            Reply::xtgettcap_reply(b"RGB", b"8/8/8"),
+            "\x1bP1+r524742=382f382f38\x1b\\"
+        );
+        assert_eq!(Reply::xtgettcap_reply_bool(b"am"), "\x1bP1+r616d\x1b\\");
+        assert_eq!(Reply::xtgettcap_error(b"nope"), "\x1bP0+r6e6f7065\x1b\\");
+        assert_eq!(Reply::xtgettcap_num(b"co", 80), "\x1bP1+r636f=3830\x1b\\");
+    }
+
+    #[test]
+    fn osc_reply_formats() {
+        assert_eq!(
+            Reply::osc_color(10, 0x112233),
+            "\x1b]10;rgb:1111/2222/3333\x1b\\"
+        );
+        assert_eq!(
+            Reply::osc_palette(4, 0x112233),
+            "\x1b]4;4;rgb:1111/2222/3333\x1b\\"
+        );
+        assert_eq!(
+            Reply::osc_background([1.0, 0.0, 0.0, 1.0]),
+            "\x1b]11;rgb:ffff/0000/0000\x1b\\"
+        );
+    }
 }

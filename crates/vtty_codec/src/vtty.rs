@@ -558,4 +558,83 @@ mod tests {
         };
         assert_eq!(roundtrip(&status), status);
     }
+
+    #[test]
+    fn colorspec_roundtrip() {
+        assert_eq!(roundtrip(&ColorSpec::Default), ColorSpec::Default);
+        assert_eq!(roundtrip(&ColorSpec::Ansi(7)), ColorSpec::Ansi(7));
+        assert_eq!(roundtrip(&ColorSpec::Indexed(196)), ColorSpec::Indexed(196));
+        assert_eq!(
+            roundtrip(&ColorSpec::Rgb(0x112233)),
+            ColorSpec::Rgb(0x112233)
+        );
+        assert_eq!(
+            decode_from_slice::<ColorSpec>(&[0xff]),
+            Err(DecodeError::InvalidValue)
+        );
+    }
+
+    #[test]
+    fn sgr_effect_roundtrip() {
+        assert_eq!(roundtrip(&SgrEffect::Reset), SgrEffect::Reset);
+        assert_eq!(
+            roundtrip(&SgrEffect::Set(SgrFlags::BOLD)),
+            SgrEffect::Set(SgrFlags::BOLD)
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::Clear(SgrFlags::ITALIC)),
+            SgrEffect::Clear(SgrFlags::ITALIC)
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::Underline(UnderlineStyle::Dotted)),
+            SgrEffect::Underline(UnderlineStyle::Dotted)
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::Fg(ColorSpec::Ansi(3))),
+            SgrEffect::Fg(ColorSpec::Ansi(3))
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::Bg(ColorSpec::Rgb(0x010203))),
+            SgrEffect::Bg(ColorSpec::Rgb(0x010203))
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::UnderlineColor(ColorSpec::Indexed(5))),
+            SgrEffect::UnderlineColor(ColorSpec::Indexed(5))
+        );
+        assert_eq!(
+            roundtrip(&SgrEffect::ClearUnderlineColor),
+            SgrEffect::ClearUnderlineColor
+        );
+        assert_eq!(
+            decode_from_slice::<SgrEffect>(&[0xff]),
+            Err(DecodeError::InvalidValue)
+        );
+    }
+
+    #[test]
+    fn sgr_roundtrip() {
+        let sgr = Sgr::new(SmallVec::from_buf([38, 2, -1, 1, 2, 3]), 0b0010);
+        assert_eq!(roundtrip(&sgr), sgr);
+    }
+
+    #[test]
+    fn status_enums_roundtrip() {
+        for state in [
+            StatusState::Idle,
+            StatusState::Working,
+            StatusState::Done,
+            StatusState::Blocked,
+            StatusState::Error,
+            StatusState::Clear,
+        ] {
+            assert_eq!(roundtrip(&state), state);
+        }
+        for kind in [
+            StatusKind::Permission,
+            StatusKind::Question,
+            StatusKind::Auth,
+        ] {
+            assert_eq!(roundtrip(&kind), kind);
+        }
+    }
 }

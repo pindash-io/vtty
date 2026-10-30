@@ -98,6 +98,51 @@ mod tests {
         assert_eq!(vs_width('x'), 0);
         assert_eq!(vs_width('\u{200D}'), 0);
     }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn emoji_predicates_classify_selectors_and_bases() {
+        // Selector classification.
+        assert!(Selector::Vs16.is_vs());
+        assert!(Selector::Vs15.is_vs());
+        assert!(!Selector::Zwj.is_vs());
+        assert!(Selector::Zwj.is_zwj());
+        assert!(!Selector::Vs16.is_zwj());
+        assert!(Selector::None.is_none());
+        assert_eq!(Selector::from_char('\u{FE0F}'), Selector::Vs16);
+        assert_eq!(Selector::from_char('\u{FE0E}'), Selector::Vs15);
+        assert_eq!(Selector::from_char('\u{200D}'), Selector::Zwj);
+        assert_eq!(Selector::from_char('\u{0301}'), Selector::None);
+
+        // VS/ZWJ attach and target predicates.
+        assert!(is_vs_base('❤'));
+        assert!(!is_vs_base('a'));
+        assert!(!is_vs_base('1'));
+        assert!(is_vs_target('👍'));
+        assert!(!is_vs_target('1'));
+        assert!(is_zwj_target('👍'));
+        assert!(!is_zwj_target('a'));
+        assert!(mark_attaches('\u{FE0F}', '❤'));
+        assert!(!mark_attaches('\u{FE0F}', 'a'));
+        assert!(!mark_attaches('\u{200D}', 'a'));
+        assert!(mark_is_stray('\u{FE0F}', 'a'));
+        assert!(!mark_is_stray('\u{FE0F}', '❤'));
+        assert!(is_keycap_base('1'));
+        assert!(is_keycap_base('#'));
+        assert!(!is_keycap_base('a'));
+
+        // attaches_to / target_width.
+        assert!(Selector::Vs16.attaches_to('❤'));
+        assert!(!Selector::Vs16.attaches_to('a'));
+        assert!(Selector::Zwj.attaches_to('👍'));
+        assert!(!Selector::Zwj.attaches_to('a'));
+        // A combining mark (not a selector) attaches to any base.
+        assert!(Selector::None.attaches_to('a'));
+        assert_eq!(Selector::Vs16.target_width('👍'), Some(2));
+        assert_eq!(Selector::Vs15.target_width('👍'), Some(1));
+        assert_eq!(Selector::Vs16.target_width('a'), None);
+        assert_eq!(Selector::Zwj.target_width('👍'), None);
+    }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn is_zero_width_covers_continuations_and_controls() {
@@ -308,6 +353,7 @@ mod tests {
         assert_eq!(cell_widths("\u{0301}"), vec![1]);
     }
 
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn mark_after_space_followed_by_mark_is_standalone() {
         // A mark after a SPACE that is itself followed by ANOTHER mark must
@@ -383,6 +429,35 @@ mod tests {
         assert_eq!(cell_advance(28.9, cw), 2.0 * cw);
         assert_eq!(cell_advance(32.0, cw), 2.0 * cw);
     }
+
+    #[test]
+    fn cell_col_char_boundaries_floor_ceil_end() {
+        // "👍🏽x" → widths [2, 0, 1]: wide lead, zero-width modifier, ASCII.
+        let w = [2, 0, 1];
+        // Floor: a column inside a wide glyph maps to its lead char.
+        assert_eq!(cell_col_char_from_widths(&w, 0), 0);
+        assert_eq!(cell_col_char_from_widths(&w, 1), 0);
+        assert_eq!(cell_col_char_from_widths(&w, 2), 2);
+        assert_eq!(cell_col_char_from_widths(&w, 3), 3);
+        // Ceil: the first char whose start cell is at or past the column; a
+        // zero-width continuation at the boundary is included.
+        assert_eq!(cell_col_char_ceil_from_widths(&w, 0), 0);
+        assert_eq!(cell_col_char_ceil_from_widths(&w, 1), 1);
+        assert_eq!(cell_col_char_ceil_from_widths(&w, 2), 1);
+        assert_eq!(cell_col_char_ceil_from_widths(&w, 3), 3);
+        // End: one past the glyph ending at the column, trailing zero-width
+        // continuations included.
+        assert_eq!(cell_col_char_end_from_widths(&w, 0), 2);
+        assert_eq!(cell_col_char_end_from_widths(&w, 1), 2);
+        assert_eq!(cell_col_char_end_from_widths(&w, 2), 2);
+        assert_eq!(cell_col_char_end_from_widths(&w, 3), 3);
+
+        // Single-width chars: floor and ceil agree; end is one past the char.
+        let s = [1, 1, 1];
+        assert_eq!(cell_col_char_from_widths(&s, 1), 1);
+        assert_eq!(cell_col_char_ceil_from_widths(&s, 1), 1);
+        assert_eq!(cell_col_char_end_from_widths(&s, 1), 1);
+    }
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn cell_col_byte_widths_steps_over_merged_emoji() {
@@ -419,6 +494,7 @@ mod tests {
         assert_eq!(cell_widths("か\u{3099}"), vec![2, 0]);
     }
 
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn halfwidth_sound_mark_does_not_attach_to_emoji_base() {
         // U+FF9E/U+FF9F are Grapheme_Extend, so the emoji DFA used to attach
@@ -512,4 +588,38 @@ fn stray_zwj_after_non_emoji_does_not_swallow_next() {
     );
     // A stray ZWJ after a plain ASCII letter behaves the same.
     assert_eq!(cell_widths("a\u{200D}👍"), vec![1, 0, 2]);
+}
+
+#[test]
+fn first_non_ascii_and_printable_scans() {
+    assert_eq!(first_non_ascii(b"abc"), 3);
+    assert_eq!(first_non_ascii(b"a\xe4b"), 1);
+    assert_eq!(first_non_printable_ascii(b"abc"), 3);
+    assert_eq!(first_non_printable_ascii(b"ab\x00c"), 2);
+    // A non-ASCII byte inside the first 16-byte SIMD chunk.
+    assert_eq!(first_non_ascii(b"0123456789abcde\x80f"), 15);
+}
+
+#[test]
+fn cell_col_byte_widths_ascii_fast_path() {
+    // All-ASCII: one byte per cell, clamped to the text length.
+    assert_eq!(cell_col_byte_widths("abc", 2), 2);
+    assert_eq!(cell_col_byte_widths("abc", 99), 3);
+}
+
+#[test]
+fn cell_col_boundaries_past_end() {
+    // Past-end columns fall through to the full length.
+    assert_eq!(cell_col_char_end_from_widths(&[1, 1], 5), 2);
+    assert_eq!(cell_col_byte_widths("中ab", 99), 5);
+}
+
+#[cfg(all(not(feature = "baked"), feature = "icu"))]
+#[test]
+fn from_icu_resolves_properties() {
+    let emoji = Properties::from_icu('👍');
+    assert!(emoji.is_emoji());
+    assert!(emoji.is_emoji_presentation());
+    assert_eq!(emoji.width(), 2);
+    assert!(!Properties::from_icu('a').is_emoji());
 }

@@ -257,7 +257,7 @@ pub(crate) fn transition(state: ParseState, b: u8) -> (Action, ParseState) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Action, ParseState, transition};
+    use super::{Action, ParseState, TABLE, build_table, transition};
 
     /// Independent transcription of Paul Flo Williams' VT500 parser state
     /// diagram (<https://vt100.net/emu/dec_ansi_parser>), restricted to
@@ -459,5 +459,12 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Run the const builder at runtime so its arms are covered, and assert
+    /// the flat `TABLE` agrees with it entry for entry.
+    #[test]
+    fn table_builder_matches_const_table() {
+        assert_eq!(build_table(), TABLE);
     }
 }

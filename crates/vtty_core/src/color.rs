@@ -370,4 +370,51 @@ mod tests {
         assert_eq!(reply.len(), 25);
         assert_eq!(&reply, b"\x1b]11;rgb:ffff/fcfc/fcfc\x1b\\");
     }
+
+    #[test]
+    fn color_id_conversions_and_comparisons() {
+        assert_eq!(ColorId::from(300_i32), ColorId(255));
+        assert_eq!(ColorId::from(-1_i32), ColorId(0));
+        assert_eq!(ColorId::from(7_i32), ColorId(7));
+        assert_eq!(ColorId::from(7_u16), ColorId(7));
+        assert_eq!(ColorId::from(7_usize), ColorId(7));
+        assert_eq!(ColorId(7).index(), 7);
+        assert_eq!(*ColorId(7), 7_u16);
+        assert!(ColorId(4) == 4_i32);
+        assert!(ColorId(4) == 4_usize);
+        assert!(ColorId(4) == 4_u16);
+    }
+
+    #[test]
+    fn rgba_round_trips_and_faint_blend() {
+        assert_eq!(u32_to_rgb(0x112233), [0x11, 0x22, 0x33]);
+        assert_eq!(u32_to_rgba(0x000000), [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(u32_to_rgba(0xffffff), [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(rgba_to_u32([1.0, 0.0, 0.0, 1.0]), 0xff0000);
+        assert_eq!(blend_faint(0x000000, 0xffffff), 0x7f7f7f);
+    }
+
+    #[test]
+    fn indexed_rgb_cube_mid_levels_and_gray() {
+        assert_eq!(indexed_rgb(16 + 2 * 36 + 2 * 6 + 2), 0x878787);
+        assert_eq!(indexed_rgb(243), 0x767676);
+    }
+
+    #[test]
+    fn color_id_debug_matches_raw_index() {
+        use alloc::string::String;
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = write!(&mut s, "{:?}", ColorId(7));
+        assert_eq!(s, "7");
+    }
+
+    #[test]
+    fn parse_hex_color_and_extra_rgb_channel() {
+        assert_eq!(parse_hex_color("#ff0000"), Some([1.0, 0.0, 0.0, 1.0]));
+        assert_eq!(parse_hex_color("ff0000"), Some([1.0, 0.0, 0.0, 1.0]));
+        assert_eq!(parse_hex_color("nonsense"), None);
+        // Four `rgb:` channels are rejected.
+        assert_eq!(parse(b"rgb:ff/00/00/00"), None);
+    }
 }

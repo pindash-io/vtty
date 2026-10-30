@@ -921,8 +921,12 @@ const MAX_PARAM_VALUE: i32 = 65535;
 
 #[cfg(test)]
 mod tests {
-    use super::Parser;
+    use super::{MAX_OSC_PAYLOAD, Parser};
+    use crate::Event;
+    use crate::Recording;
     use crate::table::{Action, ParseState};
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     /// DEC's "anywhere" invariant for 8-bit C1 controls
     /// (<https://vt100.net/emu/dec_ansi_parser>): introducers re-enter their
@@ -1018,5 +1022,82 @@ mod tests {
             q.reset();
             assert!(q.simd_enabled(), "reset must preserve the SIMD config");
         }
+    }
+
+    #[test]
+    fn empty_input_returns_no_events() {
+        assert!(Parser::new().parse_events(b"").is_empty());
+    }
+
+    #[test]
+    fn osc_param_overflow_drops_excess() {
+        let events = Parser::new()
+            .parse_events(b"\x1b]0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19\x07");
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn c1_utf8_flushes_as_execute() {
+        // U+0080 (C2 80) is a C1 control, dispatched as `execute`, not print.
+        assert_eq!(
+            Parser::new().parse_events(b"\xc2\x80"),
+            vec![Event::Execute(0x80)]
+        );
+    }
+
+    #[test]
+    fn c0_controls_in_escape_state_execute() {
+        // NUL stays in escape; CAN/SUB also return to ground.
+        assert_eq!(
+            Parser::new().parse_events(b"\x1b\x00"),
+            vec![Event::Execute(0x00)]
+        );
+        assert_eq!(
+            Parser::new().parse_events(b"\x1b\x18"),
+            vec![Event::Execute(0x18)]
+        );
+    }
+
+    #[test]
+    fn c1_utf8_split_across_chunks_executes() {
+        let mut p = Parser::new();
+        let mut rec = Recording::new();
+        p.advance(&mut rec, &[0xc2]);
+        p.advance(&mut rec, &[0x80]);
+        assert_eq!(rec.events, vec![Event::Execute(0x80)]);
+    }
+
+    #[test]
+    fn multibyte_split_across_chunks_prints() {
+        let mut p = Parser::new();
+        let mut rec = Recording::new();
+        p.advance(&mut rec, &[0xe4]);
+        p.advance(&mut rec, &[0xb8, 0xad]); // 中
+        assert_eq!(rec.events, vec![Event::Print('中')]);
+    }
+
+    #[test]
+    fn dcs_dispatches_hook_put_unhook() {
+        let events = Parser::new().parse_events(b"\x1bP1;2qab\x1b\\");
+        // DcsHook, DcsPut(a), DcsPut(b), DcsUnhook, then EscDispatch for the ST final.
+        assert_eq!(events.len(), 5);
+    }
+
+    #[test]
+    fn csi_with_middle_intermediate_is_ignored() {
+        // A middle intermediate pushes the CSI into ignore mode (DEC CsiIgnore).
+        assert!(Parser::new().parse_events(b"\x1b[1 2m").is_empty());
+    }
+
+    #[test]
+    fn osc_payload_overflow_is_capped() {
+        // A payload past MAX_OSC_PAYLOAD is capped and flagged, never panics.
+        let mut input = Vec::with_capacity(MAX_OSC_PAYLOAD + 16);
+        input.extend_from_slice(b"\x1b]0;");
+        input.extend(core::iter::repeat_n(b'a', MAX_OSC_PAYLOAD + 1));
+        input.push(0x07);
+        let events = Parser::new().parse_events(&input);
+        // An over-limit OSC is dropped wholesale, so it yields no events.
+        assert!(events.is_empty());
     }
 }

@@ -361,4 +361,33 @@ mod tests {
             vt_free(s);
         }
     }
+
+    /// The version constant, the flush path, the text pointer accessor, and
+    /// the null-state `vt_line_range` guard.
+    #[test]
+    fn version_flush_text_and_null_state_line_range() {
+        unsafe {
+            // The ABI version is a compile-time non-zero constant.
+            assert_ne!(vt_version(), 0);
+
+            let s = vt_new();
+            // A partial UTF-8 sequence flushes as U+FFFD.
+            let bytes = [0xe4_u8, 0xb8];
+            vt_advance(s, bytes.as_ptr(), 2);
+            vt_flush(s);
+            assert_eq!(vt_text_len(s), 3);
+            let text = vt_text(s);
+            assert!(!text.is_null());
+            assert_eq!(
+                std::slice::from_raw_parts(text.cast::<u8>(), 3),
+                &[0xef, 0xbf, 0xbd]
+            );
+            vt_free(s);
+
+            // A null state with valid out-params hits the null-state guard.
+            let mut start = 0_usize;
+            let mut end = 0_usize;
+            assert!(!vt_line_range(std::ptr::null(), 0, &mut start, &mut end));
+        }
+    }
 }

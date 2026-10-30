@@ -306,4 +306,12 @@ mod tests {
             );
         }
     }
+
+    /// Run the const builders at runtime so their arms are covered, and
+    /// assert they reproduce the compile-time tables.
+    #[test]
+    fn builders_reproduce_the_const_tables() {
+        assert_eq!(build_shufutf8(), SHUFUTF8);
+        assert_eq!(build_utf8bigindex(), UTF8BIGINDEX);
+    }
 }

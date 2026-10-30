@@ -851,6 +851,120 @@ mod tests {
     }
 
     #[test]
+    fn delete_lines_shifts_up_and_blanks_bottom() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"aaa\r\nbbb\r\nccc");
+        run(&mut s, b"\x1b[1;1H\x1b[M"); // DL at row 1 (1-based)
+        assert_eq!(s.render_line(0), "bbb");
+        assert_eq!(s.render_line(1), "ccc");
+        assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn insert_chars_opens_a_gap() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde");
+        run(&mut s, b"\x1b[1;2H\x1b[2@"); // ICH 2 at column 2 (1-based)
+        assert_eq!(s.render_line(0), "a  bc");
+        assert_eq!(s.cell(0, 1).map(|c| c.ch), Some(' '));
+        assert_eq!(s.cell(0, 3).map(|c| c.ch), Some('b'));
+        assert_eq!(s.cell(0, 4).map(|c| c.ch), Some('c'));
+    }
+
+    #[test]
+    fn delete_chars_closes_the_gap() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde");
+        run(&mut s, b"\x1b[1;2H\x1b[2P"); // DCH 2 at column 2 (1-based)
+        assert_eq!(s.render_line(0), "ade");
+        assert_eq!(s.cell(0, 1).map(|c| c.ch), Some('d'));
+        assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('e'));
+        assert_eq!(s.cell(0, 3).map(|c| c.ch), Some(' '));
+    }
+
+    #[test]
+    fn line_edit_ignores_cursor_outside_margins() {
+        let mut s = Screen::new(3, 4);
+        run(&mut s, b"aaa\r\nbbb\r\nccc\r\nddd");
+        run(&mut s, b"\x1b[2;3r"); // margins rows 2-3 (1-based)
+        // Cursor above the top margin: IL must not move anything.
+        run(&mut s, b"\x1b[1;1H\x1b[L");
+        assert_eq!(s.lines(), vec!["aaa", "bbb", "ccc", "ddd"]);
+        // Cursor below the bottom margin: DL must not move anything.
+        run(&mut s, b"\x1b[4;1H\x1b[M");
+        assert_eq!(s.lines(), vec!["aaa", "bbb", "ccc", "ddd"]);
+    }
+
+    #[test]
+    fn erase_in_display_from_cursor_to_end() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"abc\r\ndef\r\nghi");
+        run(&mut s, b"\x1b[2;2H\x1b[J"); // ED 0 at row 2 col 2 (1-based)
+        assert_eq!(s.render_line(0), "abc");
+        assert_eq!(s.render_line(1), "d");
+        assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn erase_in_display_start_to_cursor() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"abc\r\ndef\r\nghi");
+        run(&mut s, b"\x1b[2;2H\x1b[1J"); // ED 1
+        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(1), "  f");
+        assert_eq!(s.render_line(2), "ghi");
+    }
+
+    #[test]
+    fn erase_in_display_whole_screen_keeps_cursor() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"abc\r\ndef\r\nghi");
+        run(&mut s, b"\x1b[2;2H\x1b[2J"); // ED 2
+        assert_eq!(s.lines(), vec!["", "", ""]);
+        assert_eq!(s.cursor(), (1, 1));
+    }
+
+    #[test]
+    fn erase_in_line_to_end() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[K"); // EL 0 at column 3 (1-based)
+        assert_eq!(s.render_line(0), "ab");
+        assert_eq!(s.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn erase_in_line_start_to_cursor() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[1K"); // EL 1
+        assert_eq!(s.render_line(0), "   de");
+        assert_eq!(s.cell(0, 2).map(|c| c.ch), Some(' '));
+        assert_eq!(s.cell(0, 3).map(|c| c.ch), Some('d'));
+    }
+
+    #[test]
+    fn erase_in_line_whole_line() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[2K"); // EL 2
+        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn erase_chars_clamps_to_line_end() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde");
+        run(&mut s, b"\x1b[1;2H\x1b[3X"); // ECH 3 at column 2 (1-based)
+        assert_eq!(s.render_line(0), "a   e");
+        assert_eq!(s.cell(0, 1).map(|c| c.ch), Some(' '));
+        assert_eq!(s.cell(0, 3).map(|c| c.ch), Some(' '));
+        assert_eq!(s.cell(0, 4).map(|c| c.ch), Some('e'));
+
+        // Oversized count clamps to the line end instead of overflowing.
+        run(&mut s, b"\x1b[1;2H\x1b[99X");
+        assert_eq!(s.render_line(0), "a");
+    }
+
+    #[test]
     fn title() {
         let mut s = Screen::new(4, 1);
         run(&mut s, b"\x1b]0;hello\x07");
@@ -1081,5 +1195,385 @@ mod tests {
     fn zero_dimensions_clamp() {
         let s = Screen::new(0, 0);
         assert_eq!((s.cols(), s.rows()), (1, 1));
+    }
+
+    #[test]
+    fn reverse_index_scrolls_down_at_top_margin() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"aaa\r\nbbb\r\nccc");
+        run(&mut s, b"\x1b[1;1H\x1bM"); // RI at the top row
+        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(1), "aaa");
+        assert_eq!(s.render_line(2), "bbb");
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn reverse_index_mid_screen_moves_up() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"\x1b[2;1H\x1bM"); // RI at row 2, not the top
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn ind_and_nel_linefeed() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"\x1b[1;2H\x1bD"); // IND: down one line, keep column
+        assert_eq!(s.cursor(), (1, 1));
+        run(&mut s, b"\x1bE"); // NEL: home column, then down one line
+        assert_eq!(s.cursor(), (2, 0));
+    }
+
+    #[test]
+    fn origin_mode_clamps_to_margins() {
+        let mut s = Screen::new(3, 5);
+        run(&mut s, b"\x1b[2;4r\x1b[?6h"); // margins rows 2-4, DECOM on
+        run(&mut s, b"\x1b[1;1H"); // CUP 1;1 is margin-relative
+        assert_eq!(s.cursor(), (1, 0));
+        run(&mut s, b"\x1b[5;1H"); // row 5 clamps to the bottom margin
+        assert_eq!(s.cursor(), (3, 0));
+        run(&mut s, b"\x1b[1;1H\x1b[A"); // CUU clamps to the top margin
+        assert_eq!(s.cursor(), (1, 0));
+        run(&mut s, b"\x1b[3;1H\x1b[B"); // CUD clamps to the bottom margin
+        assert_eq!(s.cursor(), (3, 0));
+        run(&mut s, b"\x1b[?6l\x1b[1;1H"); // DECOM off: CUP 1;1 is row 0
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn invalid_margins_are_ignored() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"\x1b[3;1H"); // move the cursor first
+        run(&mut s, b"\x1b[3;1r"); // top >= bottom: ignored
+        assert_eq!(s.cursor(), (2, 0));
+        run(&mut s, b"\x1b[1;5r"); // bottom >= rows: ignored
+        assert_eq!(s.cursor(), (2, 0));
+    }
+
+    #[test]
+    fn set_margins_with_only_top() {
+        let mut s = Screen::new(3, 5);
+        run(&mut s, b"\x1b[2r"); // top row 2, bottom defaults to the last row
+        assert_eq!(s.cursor(), (1, 0)); // homed to the top margin
+        run(&mut s, b"a\r\nb\r\nc\r\nd");
+        assert_eq!(s.lines(), vec!["", "a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn cursor_movement_commands() {
+        let mut s = Screen::new(5, 3);
+        run(&mut s, b"\x1b[2;2H"); // CUP
+        assert_eq!(s.cursor(), (1, 1));
+        run(&mut s, b"\x1b[2A"); // CUU clamps to row 0
+        assert_eq!(s.cursor(), (0, 1));
+        run(&mut s, b"\x1b[3B"); // CUD clamps to row 2
+        assert_eq!(s.cursor(), (2, 1));
+        run(&mut s, b"\x1b[2C"); // CUF
+        assert_eq!(s.cursor(), (2, 3));
+        run(&mut s, b"\x1b[1D"); // CUB
+        assert_eq!(s.cursor(), (2, 2));
+        run(&mut s, b"\x1b[2G"); // CHA
+        assert_eq!(s.cursor(), (2, 1));
+        run(&mut s, b"\x1b[1d"); // VPA
+        assert_eq!(s.cursor(), (0, 1));
+    }
+
+    #[test]
+    fn tbc_unknown_mode_is_noop() {
+        let mut s = Screen::new(20, 1);
+        run(&mut s, b"\x1b[2g"); // unknown TBC mode: no-op
+        assert!(s.tab_stop_at(8));
+    }
+
+    #[test]
+    fn sgr_color_codes_set_fg_and_bg() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[31;44mX"); // red fg, blue bg
+        assert_eq!(s.cell(0, 0).map(|c| c.fg), Some(ColorId(1)));
+        assert_eq!(s.cell(0, 0).map(|c| c.bg), Some(ColorId(4)));
+        run(&mut s, b"\x1b[92;103mY"); // bright green fg, bright yellow bg
+        assert_eq!(s.cell(0, 1).map(|c| c.fg), Some(ColorId(10)));
+        assert_eq!(s.cell(0, 1).map(|c| c.bg), Some(ColorId(11)));
+        run(&mut s, b"\x1b[39;49mZ"); // default fg and bg
+        assert_eq!(s.cell(0, 2).map(|c| c.fg), Some(DEFAULT_FG_ID));
+        assert_eq!(s.cell(0, 2).map(|c| c.bg), Some(DEFAULT_BG_ID));
+    }
+
+    #[test]
+    fn sgr_indexed_and_rgb_bg_colors() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[38;5;196;48;5;21mX"); // indexed fg and bg
+        assert_eq!(s.cell(0, 0).map(|c| c.fg), Some(ColorId(196)));
+        assert_eq!(s.cell(0, 0).map(|c| c.bg), Some(ColorId(21)));
+        run(&mut s, b"\x1b[48;2;1;2;3mY"); // RGB background
+        assert_eq!(s.cell(0, 1).map(|c| c.bg), Some(ColorId(258)));
+        assert_eq!(s.color_rgb(ColorId(258)), Some(0x010203));
+    }
+
+    #[test]
+    fn sgr_empty_resets_and_underline_color_skipped() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[31mX\x1b[mY"); // bare CSI m resets
+        assert_eq!(s.cell(0, 1).map(|c| c.fg), Some(DEFAULT_FG_ID));
+        run(&mut s, b"\x1b[58;5;196mZ"); // underline color is skipped
+        assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('Z'));
+        assert_eq!(s.cell(0, 2).map(|c| c.fg), Some(DEFAULT_FG_ID));
+    }
+
+    #[test]
+    fn sgr_reset_flags_clear_attributes() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[1;3mX"); // bold + italic
+        assert_eq!(
+            s.cell(0, 0).map(|c| c.sgr.contains(SgrFlags::BOLD)),
+            Some(true)
+        );
+        assert_eq!(
+            s.cell(0, 0).map(|c| c.sgr.contains(SgrFlags::ITALIC)),
+            Some(true)
+        );
+        run(&mut s, b"\x1b[22mY"); // 22 clears bold (and faint), italic stays
+        assert_eq!(
+            s.cell(0, 1).map(|c| c.sgr.contains(SgrFlags::BOLD)),
+            Some(false)
+        );
+        assert_eq!(
+            s.cell(0, 1).map(|c| c.sgr.contains(SgrFlags::ITALIC)),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn ris_resets_screen() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"abc\r\n\x1b[31m");
+        s.set_max_scrollback(5);
+        run(&mut s, b"\x1bc"); // RIS
+        assert_eq!(s.lines(), vec!["", "", ""]);
+        assert_eq!(s.cursor(), (0, 0));
+        assert_eq!(s.scrollback_len(), 0);
+    }
+
+    #[test]
+    fn alt_screen_reenter_and_leave_are_noops() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"main");
+        run(&mut s, b"\x1b[?1049h"); // enter alt
+        assert!(s.is_alt_screen());
+        run(&mut s, b"\x1b[?1049h"); // re-enter: no-op
+        assert!(s.is_alt_screen());
+        run(&mut s, b"\x1b[?1049l"); // leave
+        assert!(!s.is_alt_screen());
+        run(&mut s, b"\x1b[?1049l"); // leave again: no-op
+        assert!(!s.is_alt_screen());
+    }
+
+    #[test]
+    fn cell_and_render_line_out_of_range() {
+        let s = Screen::new(3, 2);
+        assert_eq!(s.cell(2, 0), None);
+        assert_eq!(s.cell(0, 3), None);
+        assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn render_ansi_multiple_rows() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"a\r\n\x1b[1mb");
+        let ansi = s.render_ansi();
+        assert!(ansi.contains("a\r\n"));
+        assert!(ansi.contains("b"));
+        // Wide glyphs skip their continuation cell.
+        run(&mut s, b"\x1b[2J\x1b[1;1H");
+        run(&mut s, "中".as_bytes());
+        assert!(s.render_ansi_line(0).contains("中"));
+    }
+
+    #[test]
+    fn max_scrollback_getter_and_shrink() {
+        let mut s = Screen::new(3, 2);
+        s.set_max_scrollback(5);
+        assert_eq!(s.max_scrollback(), 5);
+        run(&mut s, b"a\r\nb\r\nc\r\nd\r\ne");
+        assert_eq!(s.scrollback_len(), 3);
+        s.set_max_scrollback(2); // shrinking truncates the oldest
+        assert_eq!(s.scrollback_len(), 2);
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn resize_same_size_is_noop() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"abc");
+        s.resize(3, 2);
+        assert_eq!(s.render_line(0), "abc");
+    }
+
+    #[test]
+    fn scrollback_line_returns_raw_cells() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"a\r\nb\r\nc");
+        assert_eq!(s.scrollback_line(0).map(|r| r.len()), Some(3));
+        assert_eq!(s.scrollback_line(1), None);
+    }
+
+    #[test]
+    fn cnl_and_cpl_move_and_home() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"\x1b[1;2H\x1b[E"); // CNL: down one, home column
+        assert_eq!(s.cursor(), (1, 0));
+        run(&mut s, b"\x1b[F"); // CPL: up one, home column
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn su_and_sd_scroll() {
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"aaa\r\nbbb\r\nccc");
+        run(&mut s, b"\x1b[1;1H\x1b[T"); // SD: scroll down
+        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(1), "aaa");
+        assert_eq!(s.render_line(2), "bbb");
+        run(&mut s, b"\x1b[1;1H\x1b[S"); // SU: scroll up
+        assert_eq!(s.render_line(0), "aaa");
+        assert_eq!(s.render_line(1), "bbb");
+        assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn decstbm_restore_resets_margins() {
+        let mut s = Screen::new(3, 5);
+        run(&mut s, b"\x1b[2;4r"); // margins rows 2-4
+        assert_eq!(s.cursor(), (1, 0));
+        run(&mut s, b"\x1b[?r"); // DECSTBM restore
+        run(&mut s, b"\x1b[1;1H"); // home is now row 0
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn leading_mark_with_no_base_is_dropped() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, "\u{301}x".as_bytes()); // lone combining mark at column 0
+        assert_eq!(s.render_line(0), "x");
+    }
+
+    #[test]
+    fn unhandled_sequences_fall_through() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[Z"); // unhandled CSI final (Cbt)
+        run(&mut s, b"\x00"); // unhandled C0 execute (NUL)
+        run(&mut s, b"\x1b]52;x\x07"); // unhandled OSC (52)
+        run(&mut s, b"\x1b6"); // unhandled ESC final
+        assert_eq!(s.render_line(0), "");
+    }
+
+    #[test]
+    fn chunked_multibyte_hits_print() {
+        let mut s = Screen::new(4, 1);
+        let mut p = Parser::new();
+        p.advance(&mut s, &[0xe4]);
+        p.advance(&mut s, &[0xb8, 0xad]); // 中
+        assert_eq!(s.render_line(0), "中");
+    }
+
+    #[test]
+    fn invalid_utf8_prints_replacement_char() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\xffx"); // invalid lead byte -> U+FFFD
+        assert_eq!(s.render_line(0), "\u{FFFD}x");
+    }
+
+    #[test]
+    fn dec_private_modes_set_and_reset() {
+        let mut s = Screen::new(4, 4);
+        run(&mut s, b"\x1b[?7l"); // DECAWM off
+        run(&mut s, b"\x1b[?25l"); // DECTCEM off
+        run(&mut s, b"\x1b[?9999h"); // unhandled mode: no-op
+        // DEC 1048 saves and restores only the cursor.
+        run(&mut s, b"\x1b[3;3H\x1b[?1048h");
+        run(&mut s, b"\x1b[1;1H\x1b[?1048l");
+        assert_eq!(s.cursor(), (2, 2));
+    }
+
+    #[test]
+    fn sgr_empty_colorspace_and_unknown_color_form() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[38:2::255:0:0mX"); // empty colorspace is skipped
+        assert_eq!(s.cell(0, 0).map(|c| c.fg), Some(ColorId(258)));
+        assert_eq!(s.color_rgb(ColorId(258)), Some(0xff0000));
+        run(&mut s, b"\x1b[0m\x1b[38;3;255mY"); // unknown sub-param: ignored
+        assert_eq!(s.cell(0, 1).map(|c| c.fg), Some(DEFAULT_FG_ID));
+    }
+
+    #[test]
+    fn put_char_combining_mark_attaches_to_base() {
+        let mut s = Screen::new(4, 1);
+        s.put_char('a');
+        s.put_char('\u{301}'); // width 0 -> attach to 'a'
+        assert_eq!(s.render_line(0), "a\u{301}");
+    }
+
+    #[test]
+    fn render_ansi_line_out_of_range_is_empty() {
+        let s = Screen::new(4, 1);
+        assert_eq!(s.render_ansi_line(99), "");
+    }
+
+    #[test]
+    fn render_ansi_resets_after_styled_run() {
+        let mut s = Screen::new(6, 1);
+        run(&mut s, b"\x1b[1ma\x1b[0mb");
+        let ansi = s.render_ansi_line(0);
+        assert!(ansi.contains("\x1b[0;1m"));
+        assert!(ansi.contains('a'));
+        assert!(ansi.contains('b'));
+    }
+
+    #[test]
+    fn mark_after_space_is_dropped() {
+        let mut s = Screen::new(4, 1);
+        s.put_char(' ');
+        s.put_char('\u{301}'); // no visible base: dropped
+        assert_eq!(s.cell(0, 0).map(|c| c.combining_len), Some(0));
+    }
+
+    #[test]
+    fn put_cluster_empty_is_noop() {
+        let mut s = Screen::new(4, 1);
+        s.put_cluster("");
+        assert_eq!(s.render_line(0), "");
+    }
+
+    #[test]
+    fn wide_char_without_wrap_clamps_to_one_cell() {
+        let mut s = Screen::new(3, 1);
+        run(&mut s, b"\x1b[?7l"); // DECAWM off
+        run(&mut s, b"ab");
+        run(&mut s, "中".as_bytes()); // width 2 at the last column -> width 1
+        assert_eq!(s.render_line(0), "ab中");
+    }
+
+    #[test]
+    fn wide_char_at_last_column_wraps() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"ab"); // cursor at the last column
+        run(&mut s, "中".as_bytes()); // width 2 -> wraps to the next row
+        assert_eq!(s.render_line(0), "ab");
+        assert_eq!(s.render_line(1), "中");
+    }
+
+    #[test]
+    fn resize_reflow_clamps_and_wraps_wide() {
+        // Width 1: a wide glyph clamps to one cell.
+        let mut s = Screen::new(3, 1);
+        run(&mut s, "中".as_bytes());
+        s.resize(1, 1);
+        assert_eq!(s.render_line(0), "中");
+        // Width 2: a wide glyph after a single cell wraps to the next row.
+        let mut s = Screen::new(4, 1);
+        run(&mut s, "a中".as_bytes());
+        s.resize(2, 2);
+        assert_eq!(s.render_line(0), "a");
+        assert_eq!(s.render_line(1), "中");
     }
 }

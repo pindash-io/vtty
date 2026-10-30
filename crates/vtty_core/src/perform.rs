@@ -84,3 +84,86 @@ pub trait Perform {
     /// An operating-system command ended (params split on `;`). Default: ignore.
     fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::String;
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    /// Records the leaf callbacks so the delegating defaults are observable.
+    #[derive(Default)]
+    struct Recorder {
+        printed: String,
+        executed: Vec<u8>,
+        put_bytes: Vec<u8>,
+    }
+
+    impl Perform for Recorder {
+        fn print(&mut self, c: char) {
+            self.printed.push(c);
+        }
+
+        fn print_bytes(&mut self, s: &[u8]) {
+            self.printed.extend(s.iter().map(|&b| b as char));
+        }
+
+        fn execute(&mut self, b: u8) {
+            self.executed.push(b);
+        }
+
+        fn put(&mut self, b: u8) {
+            self.put_bytes.push(b);
+        }
+    }
+
+    /// An empty sink: exercises every no-op default body directly.
+    struct Noop;
+
+    impl Perform for Noop {}
+
+    #[test]
+    fn print_codepoints_defaults_to_per_codepoint_print() {
+        let mut r = Recorder::default();
+        r.print_codepoints(&[0x41, 0x1F600, 0x110000]);
+        assert_eq!(r.printed, "A\u{1F600}\u{FFFD}");
+    }
+
+    #[test]
+    fn print_line_defaults_to_bytes_then_lf() {
+        let mut r = Recorder::default();
+        r.print_line(b"hi");
+        assert_eq!(r.printed, "hi");
+        assert_eq!(r.executed, vec![b'\n']);
+    }
+
+    #[test]
+    fn print_crlf_line_defaults_to_bytes_then_cr_lf() {
+        let mut r = Recorder::default();
+        r.print_crlf_line(b"hi");
+        assert_eq!(r.printed, "hi");
+        assert_eq!(r.executed, vec![b'\r', b'\n']);
+    }
+
+    #[test]
+    fn put_slice_defaults_to_per_byte_put() {
+        let mut r = Recorder::default();
+        r.put_slice(&[1, 2, 3]);
+        assert_eq!(r.put_bytes, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn noop_defaults_run_without_panicking() {
+        let mut n = Noop;
+        n.print('x');
+        n.print_bytes(b"hi");
+        n.execute(b'\n');
+        n.put(7);
+        n.csi_dispatch(&[1, 0], 0, b"?", b'm');
+        n.esc_dispatch(b"", b'7');
+        n.hook(&[0], b"", b'q');
+        n.unhook();
+        n.osc_dispatch(&[b"0", b"hello"], true);
+    }
+}

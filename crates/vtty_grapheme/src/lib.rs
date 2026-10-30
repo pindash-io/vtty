@@ -409,4 +409,28 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn grapheme_accessors() {
+        let g = Grapheme::new(1, 4);
+        assert_eq!(g.start(), 1);
+        assert_eq!(g.end(), 4);
+        assert_eq!(g.len(), 3);
+        assert!(!g.is_empty());
+        assert!(Grapheme::new(2, 2).is_empty());
+    }
+
+    #[test]
+    fn hangul_lvt_t_and_prepend_clusters() {
+        // GB8: (LVT | T) × T stays one cluster.
+        assert_eq!(clusters_vec("각ᆨ"), ["각ᆨ"]);
+        // GB9b: Prepend × (anything) stays one cluster.
+        assert_eq!(clusters_vec("\u{0600}a"), ["\u{0600}a"]);
+    }
+
+    #[test]
+    fn zwj_after_non_emoji_resets_gb11() {
+        // GB9 attaches the ZWJ to 'a'; 'b' then starts a new cluster.
+        assert_eq!(clusters_vec("a\u{200D}b"), ["a\u{200D}", "b"]);
+    }
 }

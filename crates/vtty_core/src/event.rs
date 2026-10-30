@@ -339,3 +339,82 @@ impl Perform for Recording {
         self.osc(params, bell_terminated);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use smallvec::SmallVec;
+
+    #[test]
+    fn write_bytes_print_and_execute() {
+        let mut out = SmallVec::<u8, 8>::new();
+        Event::Print('中').write_bytes(&mut out);
+        assert_eq!(&out[..], "中".as_bytes());
+        out.clear();
+        Event::Execute(b'\n').write_bytes(&mut out);
+        assert_eq!(&out[..], b"\n");
+    }
+
+    #[test]
+    fn write_bytes_csi_with_private_marker() {
+        let mut out = SmallVec::<u8, 16>::new();
+        Event::CsiDispatch {
+            params: SmallVec::from_buf([25]),
+            sep: 0,
+            intermediates: SmallVec::from_buf(*b"?"),
+            final_byte: b'h',
+        }
+        .write_bytes(&mut out);
+        assert_eq!(&out[..], b"\x1b[?25h");
+    }
+
+    #[test]
+    fn write_bytes_osc_st_terminated() {
+        let mut out = SmallVec::<u8, 16>::new();
+        Event::OscDispatch {
+            params: SmallVec::from_buf([b"0".to_vec(), b"t".to_vec()]),
+            bell_terminated: false,
+        }
+        .write_bytes(&mut out);
+        assert_eq!(&out[..], b"\x1b]0;t\x1b\\");
+    }
+
+    #[test]
+    fn replay_forwards_every_event() {
+        let mut rec = Recording::new();
+        rec.print_char('A');
+        rec.print_ascii(b"bc");
+        rec.control(b'\n');
+        rec.csi(&[1, 31], 0, b"", b'm');
+
+        let mut target = Recording::new();
+        rec.replay(&mut target);
+        assert_eq!(target.events, rec.events);
+    }
+
+    #[test]
+    fn recording_accessors_and_replay_all_variants() {
+        let mut rec = Recording::new();
+        assert!(rec.is_empty());
+        assert_eq!(rec.len(), 0);
+        rec.print_char('A');
+        rec.esc(b"", b'7');
+        rec.dcs_hook(&[0], b"", b'q');
+        rec.dcs_put(b'x');
+        rec.dcs_unhook();
+        rec.osc(&[&b"0"[..], &b"t"[..]], true);
+        assert!(!rec.is_empty());
+        assert_eq!(rec.len(), 6);
+        assert_eq!(rec.iter().count(), 6);
+
+        // Replay every variant onto a fresh recording.
+        let mut target = Recording::new();
+        rec.replay(&mut target);
+        assert_eq!(target.events, rec.events);
+
+        // Drain empties the recording and yields the events.
+        let drained: Vec<_> = rec.drain().collect();
+        assert_eq!(drained.len(), 6);
+        assert!(rec.is_empty());
+    }
+}

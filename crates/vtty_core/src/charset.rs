@@ -234,6 +234,56 @@ mod tests {
     }
 
     #[test]
+    fn dec_special_graphics_full_table() {
+        let table = [
+            ('_', ' '),
+            ('`', '◆'),
+            ('a', '▒'),
+            ('b', '␉'),
+            ('c', '␌'),
+            ('d', '␍'),
+            ('e', '␊'),
+            ('f', '°'),
+            ('g', '±'),
+            ('h', '␤'),
+            ('i', '␋'),
+            ('j', '┘'),
+            ('k', '┐'),
+            ('l', '┌'),
+            ('m', '└'),
+            ('n', '┼'),
+            ('o', '⎺'),
+            ('p', '⎻'),
+            ('q', '─'),
+            ('r', '⎼'),
+            ('s', '⎽'),
+            ('t', '├'),
+            ('u', '┤'),
+            ('v', '┴'),
+            ('w', '┬'),
+            ('x', '│'),
+            ('y', '≤'),
+            ('z', '≥'),
+            ('{', 'π'),
+            ('|', '≠'),
+            ('}', '£'),
+            ('~', '·'),
+        ];
+        for (c, expected) in table {
+            assert_eq!(dec_special_graphics(c), expected, "for {c:?}");
+        }
+        // Unmapped chars pass through.
+        assert_eq!(dec_special_graphics('A'), 'A');
+        assert_eq!(dec_special_graphics('^'), '^');
+    }
+
+    #[test]
+    fn charset_defaults_are_ascii() {
+        assert_eq!(Charsets::default(), Charsets::ascii());
+        assert_eq!(Scs::default(), Scs::ascii());
+    }
+
+    #[test]
     fn charset_map() {
         assert_eq!(Charset::Ascii.map('q'), 'q');
         assert_eq!(Charset::Dec.map('q'), '─');
@@ -253,6 +303,43 @@ mod tests {
     #[should_panic(expected = "charset slot must be 0..=3")]
     fn charsets_get_out_of_range_panics() {
         Charsets::ascii().get(4);
+    }
+
+    #[test]
+    fn british_maps_hash_to_pound() {
+        assert_eq!(Charset::British.map('#'), '£');
+        assert_eq!(Charset::British.map('A'), 'A');
+    }
+
+    #[test]
+    fn dec_special_graphics_passthrough() {
+        assert_eq!(dec_special_graphics('A'), 'A');
+        assert_eq!(dec_special_graphics('~'), '·');
+    }
+
+    #[test]
+    fn designate_clamps_to_last_slot() {
+        let mut sets = Charsets::ascii();
+        sets.designate(9, Charset::Dec);
+        assert_eq!(sets.g3(), Charset::Dec);
+        assert_eq!(sets.g0(), Charset::Ascii);
+    }
+
+    #[test]
+    fn g_slot_accessors() {
+        let mut sets = Charsets::ascii();
+        sets.designate(1, Charset::British);
+        assert_eq!(sets.g0(), Charset::Ascii);
+        assert_eq!(sets.g1(), Charset::British);
+        assert_eq!(sets.g2(), Charset::Ascii);
+        assert_eq!(sets.g3(), Charset::Ascii);
+    }
+
+    #[test]
+    fn charsets_index_and_index_mut() {
+        let mut sets = Charsets::ascii();
+        sets[1] = Charset::Dec;
+        assert_eq!(sets[1], Charset::Dec);
     }
 }
 
@@ -281,5 +368,32 @@ mod scs_tests {
         assert_eq!(s.map('q'), '─');
         s.single_shift = None;
         assert_eq!(s.map('q'), 'q');
+    }
+
+    #[test]
+    fn scs_apply_shift_controls() {
+        let mut s = Scs::ascii();
+        s.designate(1, Charset::British);
+        s.apply_shift(0x0E); // SO -> LS1
+        assert_eq!(s.map('#'), '£');
+        s.apply_shift(0x0F); // SI -> LS0
+        assert_eq!(s.map('#'), '#');
+        s.apply_shift(0x8E); // SS2 -> single-shift G2
+        assert_eq!(s.active(), s.charsets.g2());
+        s.apply_shift(0x8F); // SS3 -> single-shift G3
+        assert_eq!(s.active(), s.charsets.g3());
+        s.apply_shift(0x00); // defensive no-op keeps the single shift
+        assert_eq!(s.active(), s.charsets.g3());
+    }
+
+    #[test]
+    fn scs_shift_clamps_and_defaults_to_g0() {
+        let mut s = Scs::ascii();
+        s.shift(9);
+        assert_eq!(s.gl, 3);
+        s.shift(0);
+        assert_eq!(s.gl, 0);
+        s.single_shift = None;
+        assert_eq!(s.active(), s.charsets.g0());
     }
 }

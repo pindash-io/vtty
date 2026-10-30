@@ -470,7 +470,10 @@ fn has_c1_divergence(data: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{has_rio_utf8_simd_divergence, run_vte, run_vtty};
+    use super::{
+        has_c1_divergence, has_intermediate_overflow, has_known_divergence,
+        has_rio_utf8_simd_divergence, run_vte, run_vtty,
+    };
 
     #[test]
     fn differential_normalization_matches_vte() {
@@ -553,5 +556,39 @@ mod tests {
         // Without the `]` final, the escape sequence is still open: `D5 31`
         // are escape-payload/ignored bytes, not ground UTF-8.
         assert!(!has_rio_utf8_simd_divergence(b"\x1b\xc2\xc2 \xd5\x31"));
+    }
+
+    #[test]
+    fn vte_adapter_handles_esc_dcs_osc() {
+        // ESC dispatch.
+        assert_eq!(run_vte(b"\x1b7").len(), 1);
+        // DCS hook/put/unhook with a payload.
+        assert!(run_vte(b"\x1bPqab\x1b\\").len() >= 2);
+        // OSC dispatch (BEL-terminated).
+        assert_eq!(run_vte(b"\x1b]0;title\x07").len(), 1);
+    }
+
+    #[test]
+    fn known_divergence_flags_del_and_c1() {
+        assert!(has_known_divergence(b"\x7f"));
+        assert!(has_known_divergence(b"\x9b1m"));
+        assert!(!has_known_divergence(b"abc"));
+    }
+
+    #[test]
+    fn intermediate_overflow_detection() {
+        assert!(has_intermediate_overflow(b"\x1b  !m", 1));
+        assert!(!has_intermediate_overflow(b"\x1b m", 1));
+        assert!(!has_intermediate_overflow(b"abc", 1));
+    }
+
+    #[test]
+    fn c1_divergence_in_sequences() {
+        // Raw C1 CSI introducer in ground state.
+        assert!(has_c1_divergence(b"\x9b"));
+        // A C1 byte inside a CSI sequence.
+        assert!(has_c1_divergence(b"\x1b[\x9b"));
+        // Plain ASCII has no C1 divergence.
+        assert!(!has_c1_divergence(b"abc"));
     }
 }

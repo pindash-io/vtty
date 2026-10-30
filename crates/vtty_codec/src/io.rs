@@ -198,3 +198,18 @@ impl Write for CountWriter {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slice_writer_remaining_and_position() {
+        let mut buf = [0_u8; 8];
+        let mut w = SliceWriter::new(&mut buf);
+        assert_eq!(w.remaining(), 8);
+        let _ = w.write_byte(1);
+        assert_eq!(w.remaining(), 7);
+        assert_eq!(w.position(), 1);
+    }
+}

@@ -359,3 +359,77 @@ pub(crate) fn decode_utf8<P: Perform>(
     let consumed = (valid - pos) - it.as_slice().len();
     consumed.max(1)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utf8_lead_lengths_and_bits() {
+        assert_eq!(utf8_lead(0x00), (1, 0x00));
+        assert_eq!(utf8_lead(0x7f), (1, 0x7f));
+        assert_eq!(utf8_lead(0xc2), (2, 0x02));
+        assert_eq!(utf8_lead(0xdf), (2, 0x1f));
+        assert_eq!(utf8_lead(0xe0), (3, 0x00));
+        assert_eq!(utf8_lead(0xef), (3, 0x0f));
+        assert_eq!(utf8_lead(0xf0), (4, 0x00));
+        assert_eq!(utf8_lead(0xf4), (4, 0x04));
+        // Continuation, overlong, and out-of-range bytes are invalid leads.
+        assert_eq!(utf8_lead(0x80), (0, 0));
+        assert_eq!(utf8_lead(0xbf), (0, 0));
+        assert_eq!(utf8_lead(0xc0), (0, 0));
+        assert_eq!(utf8_lead(0xc1), (0, 0));
+        assert_eq!(utf8_lead(0xf5), (0, 0));
+        assert_eq!(utf8_lead(0xff), (0, 0));
+    }
+
+    #[test]
+    fn utf8_second_byte_constraints() {
+        // 0xE0: only 0xA0..=0xBF (no overlong).
+        assert!(!utf8_second_byte_valid(0xe0, 0x9f));
+        assert!(utf8_second_byte_valid(0xe0, 0xa0));
+        assert!(utf8_second_byte_valid(0xe0, 0xbf));
+        assert!(!utf8_second_byte_valid(0xe0, 0xc0));
+        // 0xED: only 0x80..=0x9F (no surrogates).
+        assert!(!utf8_second_byte_valid(0xed, 0x7f));
+        assert!(utf8_second_byte_valid(0xed, 0x80));
+        assert!(utf8_second_byte_valid(0xed, 0x9f));
+        assert!(!utf8_second_byte_valid(0xed, 0xa0));
+        // 0xF0: only 0x90..=0xBF (no overlong).
+        assert!(!utf8_second_byte_valid(0xf0, 0x8f));
+        assert!(utf8_second_byte_valid(0xf0, 0x90));
+        assert!(utf8_second_byte_valid(0xf0, 0xbf));
+        // 0xF4: only 0x80..=0x8F (no > U+10FFFF).
+        assert!(utf8_second_byte_valid(0xf4, 0x80));
+        assert!(utf8_second_byte_valid(0xf4, 0x8f));
+        assert!(!utf8_second_byte_valid(0xf4, 0x90));
+        // Unconstrained leads accept any continuation.
+        assert!(utf8_second_byte_valid(0xe1, 0x80));
+        assert!(utf8_second_byte_valid(0xc2, 0x80));
+    }
+
+    #[test]
+    fn trailing_partial_detects_truncation() {
+        // Empty and ASCII tails have no partial.
+        assert_eq!(trailing_partial(b""), None);
+        assert_eq!(trailing_partial(b"abc"), None);
+        // A lead byte at the very end is a partial.
+        assert_eq!(trailing_partial(b"ab\xe4"), Some((2, 0x04, 2)));
+        // Invalid and overlong bytes are not partials.
+        assert_eq!(trailing_partial(b"a\xff"), None);
+        assert_eq!(trailing_partial(b"a\xc0"), None);
+        assert_eq!(trailing_partial(b"\xc0\x80"), None);
+        // All continuations and no lead is not a partial.
+        assert_eq!(trailing_partial(b"\x80\x80"), None);
+        assert_eq!(trailing_partial(b"\x80\x80\x80\x80"), None);
+        // A truncated 3-byte sequence carries its code point forward.
+        assert_eq!(trailing_partial(b"\xe4\xb8"), Some((0, 0x138, 1)));
+        // A truncated 4-byte sequence (the first three bytes of U+1F600).
+        assert_eq!(trailing_partial(b"\xf0\x9f\x98"), Some((0, 0x7d8, 1)));
+        // A complete sequence is not a partial.
+        assert_eq!(trailing_partial(b"\xe4\xb8\x80"), None);
+        // Out-of-range second bytes are invalid, not partial.
+        assert_eq!(trailing_partial(b"\xf4\x90\x80"), None);
+        assert_eq!(trailing_partial(b"\xe0\x80"), None);
+    }
+}

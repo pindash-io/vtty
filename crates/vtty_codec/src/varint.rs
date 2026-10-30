@@ -41,3 +41,18 @@ pub(crate) fn decode_varint<R: Read + ?Sized>(reader: &mut R) -> Result<usize, D
         shift += 7;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::DecodeError;
+    use crate::io::SliceReader;
+
+    #[test]
+    fn decode_varint_rejects_overflow() {
+        // Eleven continuation bytes push the shift past `usize::BITS`.
+        let bytes = [0x80_u8; 11];
+        let mut reader = SliceReader::new(&bytes);
+        assert_eq!(decode_varint(&mut reader), Err(DecodeError::InvalidValue));
+    }
+}

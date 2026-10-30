@@ -139,3 +139,81 @@ impl<T: Decode> Iterator for DecodeIter<'_, T> {
 pub fn decode_iter<T: Decode>(bytes: &[u8]) -> DecodeIter<'_, T> {
     DecodeIter::new(bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::DecodeError;
+    use alloc::vec;
+
+    #[test]
+    fn decoder_advance_incremental() {
+        // `Vec<u8>` encodes as varint len + bytes: [2, b'a', b'b'].
+        let mut dec = Decoder::<Vec<u8>>::new();
+        assert_eq!(dec.advance(&[2]), Ok(None));
+        assert_eq!(dec.advance(b"a"), Ok(None));
+        assert_eq!(dec.advance(b"b"), Ok(Some(vec![b'a', b'b'])));
+        assert!(dec.buf.is_empty());
+    }
+
+    #[test]
+    fn decoder_advance_rejects_invalid() {
+        // `bool` rejects any byte other than 0 or 1.
+        let mut dec = Decoder::<bool>::new();
+        assert_eq!(dec.advance(&[2]), Err(DecodeError::InvalidValue));
+    }
+
+    #[test]
+    fn decoder_finish_errors_on_truncated() {
+        assert_eq!(
+            Decoder::<Vec<u8>>::new().finish(),
+            Err(DecodeError::UnexpectedEof)
+        );
+        // A length prefix promising more bytes than arrived.
+        let mut dec = Decoder::<Vec<u8>>::new();
+        assert_eq!(dec.advance(&[3, b'a']), Ok(None));
+        assert_eq!(dec.finish(), Err(DecodeError::UnexpectedEof));
+    }
+
+    #[test]
+    fn decode_iter_stops_after_truncated_tail() {
+        // One complete value, then a `Vec<u8>` whose length promises more
+        // bytes than remain.
+        let bytes = [1, b'a', 3, b'b'];
+        let mut it = decode_iter::<Vec<u8>>(&bytes);
+        assert_eq!(it.next(), Some(Ok(vec![b'a'])));
+        assert_eq!(it.next(), Some(Err(DecodeError::UnexpectedEof)));
+        assert_eq!(it.next(), None);
+    }
+
+    #[test]
+    fn decoder_default_and_debug() {
+        use alloc::string::String;
+        use core::fmt::Write as _;
+
+        let dec = Decoder::<u8>::default();
+        assert_eq!(dec.buf.len(), 0);
+        let mut s = String::new();
+        let _ = write!(&mut s, "{dec:?}");
+        assert!(s.contains("Decoder"));
+
+        let it = decode_iter::<u8>(b"");
+        let mut s = String::new();
+        let _ = write!(&mut s, "{it:?}");
+        assert!(s.contains("DecodeIter"));
+    }
+
+    #[test]
+    fn decoder_finish_rejects_trailing_bytes() {
+        let mut dec = Decoder::<u8>::new();
+        dec.buf.extend_from_slice(&[5, 6]);
+        assert_eq!(dec.finish(), Err(DecodeError::UnexpectedEof));
+    }
+
+    #[test]
+    fn decoder_finish_succeeds_on_complete_buffer() {
+        let mut dec = Decoder::<u8>::new();
+        dec.buf.extend_from_slice(&[5]);
+        assert_eq!(dec.finish(), Ok(5));
+    }
+}
