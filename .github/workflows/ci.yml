@@ -53,13 +53,22 @@ jobs:
         run: cargo hack check --workspace --feature-powerset --skip default
 
   test:
-    # Compile + test on Linux (x86_64) and macOS (aarch64), so both the
-    # x86 SSE/AVX and ARM NEON SIMD backends are exercised.
+    # Compile + test natively on x86_64 Linux, ARM64 Linux, ARM64 macOS, and
+    # x86_64 Windows, so the x86 SSE/AVX and ARM NEON SIMD backends are both
+    # exercised. Native runners avoid cross-compiling the rio-vt/simdutf C++
+    # build script (which needs a matching cross toolchain).
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
+          - os: macos-latest
+          - os: windows-latest
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
