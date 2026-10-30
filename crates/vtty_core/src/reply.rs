@@ -10,6 +10,7 @@
 
 use core::fmt::Write as _;
 
+use alloc::string::ToString;
 use compact_str::CompactString;
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
@@ -137,29 +138,10 @@ pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Op
     terminate(buf);
 }
 
-/// Append an XTGETTCAP decimal-integer answer, hex-encoding the digits
-/// directly (no `to_string` allocation).
+/// Append an XTGETTCAP decimal-integer answer, hex-encoding the digits of
+/// the decimal form (same bytes as [`xtgettcap`] with a numeric value).
 pub(crate) fn xtgettcap_num_append(buf: &mut CompactString, key: &[u8], n: usize) {
-    buf.push_str(XTGETTCAP_OK);
-    buf.push_str(&const_hex::encode(key));
-    buf.push('=');
-    // Decimal digits → their hex pairs: '0'..'9' = 0x30..0x39 → "30".."39".
-    let mut digits = [0_u8; 20];
-    let mut i = digits.len();
-    let mut n = n;
-    loop {
-        i -= 1;
-        digits[i] = b'0' + (n % 10) as u8;
-        n /= 10;
-        if n == 0 {
-            break;
-        }
-    }
-    for &d in &digits[i..] {
-        buf.push('3');
-        buf.push(d as char);
-    }
-    terminate(buf);
+    xtgettcap(buf, true, key, Some(n.to_string().as_bytes()));
 }
 
 /// Build an XTGETTCAP answer in a fresh buffer.

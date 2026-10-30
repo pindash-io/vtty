@@ -199,6 +199,17 @@ pub fn graphemes(text: &str) -> Graphemes<'_> {
     }
 }
 
+impl Graphemes<'_> {
+    /// Start a new cluster at `idx` with `gcb` as its first char (GB1 and the
+    /// break branch share this reset).
+    fn start_cluster(&mut self, idx: usize, gcb: Gcb) {
+        self.cluster_start = idx;
+        self.left = Some(gcb);
+        self.gb11 = step_gb11(Gb11::None, gcb);
+        self.ri = u32::from(gcb == Gcb::RegionalIndicator);
+    }
+}
+
 impl Iterator for Graphemes<'_> {
     type Item = Grapheme;
 
@@ -228,19 +239,13 @@ impl Iterator for Graphemes<'_> {
             match self.left {
                 None => {
                     // GB1: sot ÷ — the first char always starts a cluster.
-                    self.cluster_start = idx;
-                    self.left = Some(gcb);
-                    self.gb11 = step_gb11(Gb11::None, gcb);
-                    self.ri = u32::from(gcb == Gcb::RegionalIndicator);
+                    self.start_cluster(idx, gcb);
                 }
                 Some(left) => {
                     if breaks_between(left, gcb, self.gb11, self.ri) {
                         // Break before `ch`: emit the cluster ending at `idx`.
                         let cluster = Grapheme::new(self.cluster_start, idx);
-                        self.cluster_start = idx;
-                        self.left = Some(gcb);
-                        self.gb11 = step_gb11(Gb11::None, gcb);
-                        self.ri = u32::from(gcb == Gcb::RegionalIndicator);
+                        self.start_cluster(idx, gcb);
                         return Some(cluster);
                     }
                     // No break: extend the current cluster.
