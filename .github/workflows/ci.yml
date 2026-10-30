@@ -53,11 +53,10 @@ jobs:
         run: cargo hack check --workspace --feature-powerset --skip default
 
   test:
-    # Compile + test natively on x86_64 Linux, ARM64 Linux, x86_64 + ARM64
-    # macOS, and x86_64 Windows, so the x86 SSE/AVX and ARM NEON SIMD backends
-    # are both exercised. Native runners avoid cross-compiling the
-    # rio-vt/simdutf C++ build script (which needs a matching cross toolchain).
-    # macos-latest is ARM64; macos-13 is the last Intel (x86_64) runner.
+    # Compile + test natively on x86_64 Linux, ARM64 Linux, ARM64 macOS, and
+    # x86_64 Windows, so the x86 SSE/AVX and ARM NEON SIMD backends are both
+    # exercised. Native runners avoid cross-compiling the rio-vt/simdutf C++
+    # build script (which needs a matching cross toolchain).
     strategy:
       fail-fast: false
       matrix:
@@ -65,7 +64,6 @@ jobs:
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
           - os: macos-latest
-          - os: macos-13
           - os: windows-latest
     runs-on: ${{ matrix.os }}
     defaults:
@@ -123,8 +121,6 @@ jobs:
             target: aarch64-linux
           - os: macos-latest
             target: aarch64-macos
-          - os: macos-13
-            target: x86_64-macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -137,7 +133,6 @@ jobs:
             x86_64-linux) echo "TRIPLE=x86_64-unknown-linux-gnu" >> "$GITHUB_ENV" ;;
             aarch64-linux) echo "TRIPLE=aarch64-unknown-linux-gnu" >> "$GITHUB_ENV" ;;
             aarch64-macos) echo "TRIPLE=aarch64-apple-darwin" >> "$GITHUB_ENV" ;;
-            x86_64-macos) echo "TRIPLE=x86_64-apple-darwin" >> "$GITHUB_ENV" ;;
           esac
 
       - name: Install target
