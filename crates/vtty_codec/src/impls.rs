@@ -140,12 +140,7 @@ impl<T: Encode> Encode for Vec<T> {
 
 impl<T: Decode> Decode for Vec<T> {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        let len = decode_varint(reader)?;
-        let mut vec = Self::new();
-        for _ in 0..len {
-            vec.push(T::decode(reader)?);
-        }
-        Ok(vec)
+        decode_seq(reader)
     }
 }
 
@@ -157,13 +152,17 @@ impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
 
 impl<T: Decode, const N: usize> Decode for SmallVec<T, N> {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        let len = decode_varint(reader)?;
-        let mut vec = Self::new();
-        for _ in 0..len {
-            vec.push(T::decode(reader)?);
-        }
-        Ok(vec)
+        decode_seq(reader)
     }
+}
+
+/// Decode a length-prefixed sequence of `T`s into any `FromIterator`
+/// collection (shared by `Vec` and `SmallVec`).
+fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
+    reader: &mut R,
+) -> Result<C, DecodeError> {
+    let len = decode_varint(reader)?;
+    (0..len).map(|_| T::decode(reader)).collect()
 }
 
 impl Encode for str {
