@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="pele pele-state" viewBox="0 0 1164 827" width="1164" height="827" style="max-width:100%;height:auto;--_bg:var(--pele-bg,#fff);--_fg:var(--pele-fg,#1f1f1f);--_m:var(--pele-muted,#6e6e6e);--_l:var(--pele-line,#1f1f1f);--_s:var(--pele-surface,#f3f3f3);--_a:var(--pele-surface-alt,#e6e6e6);--_b:var(--pele-border,#8a8a8a);--_c:var(--pele-accent,#5b7bd5);color:var(--_fg);--_tw:var(--pele-title-weight,bold);--_fm:var(--pele-font-mono,monospace);font:16px sans-serif;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;font-family:var(--pele-font,sans-serif)" fill="var(--_fg)" role="graphics-document document" aria-roledescription="state">
+<style>
+.pele {
+  --pele-bg: #ffffff;
+  --pele-fg: #1c1c1c;
+  --pele-muted: #656565;
+  --pele-line: #808080;
+  --pele-surface: #fcfcfc;
+  --pele-surface-alt: #f1f1f1;
+  --pele-border: #c9c9c9;
+}
+.pele .blue rect { fill: #c3e0ff; }
+.pele .orange rect { fill: #f0d3bf; }
+.pele .purple rect { fill: #e3d5ff; }
+.pele .yellow rect { fill: #f0dcbf; }
+.pele .teal rect { fill: #bfe3df; }
+.pele .tan rect { fill: #e5d9ce; }
+.pele .pink rect { fill: #ffcbe6; }
+.pele .breaks rect {
+  fill: #ffecee !important;
+  stroke: #e72e3b !important;
+  stroke-width: 2.5px !important;
+}
+.pele .breaks text {
+  fill: #cd2834 !important;
+}
+.pele .mayBreak rect {
+  fill: #fff3e6 !important;
+  stroke: #e8730c !important;
+  stroke-width: 2.5px !important;
+}
+.pele .mayBreak text {
+  fill: #b85a06 !important;
+}
+.pele .bugPath rect {
+  stroke: #1680f3 !important;
+  stroke-width: 2.5px !important;
+}
+.pele .repeats rect {
+  stroke: #9b35d6 !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 3;
+}
+@media (prefers-color-scheme: dark) {
+  .pele {
+    --pele-bg: #1f1f1f;
+    --pele-fg: #f5f5f5;
+    --pele-muted: #acacac;
+    --pele-line: #939393;
+    --pele-surface: #121212;
+    --pele-surface-alt: #2c2c2c;
+    --pele-border: #4e4e4e;
+  }
+  .pele .blue rect { fill: #1b3857; }
+  .pele .orange rect { fill: #573117; }
+  .pele .purple rect { fill: #3c2e57; }
+  .pele .yellow rect { fill: #573d17; }
+  .pele .teal rect { fill: #174641; }
+  .pele .tan rect { fill: #3d3127; }
+  .pele .pink rect { fill: #57233e; }
+  .pele .breaks rect {
+    fill: #2e2021 !important;
+    stroke: #cf2b35 !important;
+  }
+  .pele .breaks text {
+    fill: #ff6463 !important;
+  }
+  .pele .mayBreak rect {
+    fill: #2e2619 !important;
+    stroke: #d0700f !important;
+  }
+  .pele .mayBreak text {
+    fill: #ffa257 !important;
+  }
+  .pele .bugPath rect {
+    stroke: #116dd2 !important;
+  }
+  .pele .repeats rect {
+    stroke: #9a3fcf !important;
+  }
+}
+</style><text class="pele-title" font-weight="var(--_tw)" text-anchor="middle" xml:space="preserve"><tspan x="582" y="25.6">VT escape-sequence parser</tspan></text><g transform="translate(0,36)"><g class="pele-clusters"><g class="pele-cluster pele-state-composite" data-id="legend"><rect x="583.46" y="8" width="409.87" height="112" rx="10" fill="var(--_a)" fill-opacity="0.5" stroke="var(--_b)"/><path d="M583.46,44H993.33" fill="none" stroke="var(--_b)"/><text class="pele-cluster-label" x="788.4" y="31.6" text-anchor="middle">Legend</text></g></g><g class="pele-edges" fill="none" stroke="var(--_l)" stroke-linecap="round"><g class="pele-edge pele-transition" data-id="edge0"><path d="M536.46,120L536.46,157"/><path class="pele-marker" d="M536.46,164L533.1,156L539.82,156Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge1"><path d="M516.01,208L516.01,221C516.01,237.74 464.39,248 380.16,248C295.94,248 244.32,263.2 244.32,288L244.32,328"/><path class="pele-marker" d="M244.32,335L240.96,327L247.68,327Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge2"><path d="M271.18,335L271.18,325.38C271.18,320.19 389.41,318.18 389.41,313L389.41,288C389.41,270.64 415.41,260 457.82,260C500.24,260 526.23,245.18 526.23,221L526.23,215"/><path class="pele-marker" d="M526.23,208L529.59,216L522.87,216Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge3"><path d="M245.18,379C245.18,413 136.54,413 136.54,447L136.54,487C136.54,493.94 120.25,493.94 120.25,500.88L120.25,505.5"/><path class="pele-marker" d="M120.25,512.5L116.89,504.5L123.61,504.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge4"><path d="M261.18,379L261.18,593.75C261.18,602.14 428.89,604.11 428.89,612.5L428.89,618.5"/><path class="pele-marker" d="M428.89,625.5L425.53,617.5L432.25,617.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge5"><path d="M277.18,379C277.18,403.8 288.12,419 305.98,419C323.83,419 334.77,429.64 334.77,447L334.77,487C334.77,493.94 355.67,493.94 355.67,500.88L355.67,505.5"/><path class="pele-marker" d="M355.67,512.5L352.31,504.5L359.03,504.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge6"><path d="M293.18,379C293.18,396.36 324.07,407 374.47,407C424.87,407 455.76,422.2 455.76,447L455.76,505.5"/><path class="pele-marker" d="M455.76,512.5L452.4,504.5L459.12,504.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge7"><path d="M104.25,512.5L104.25,294.25C104.25,258.14 180.54,236 305.02,236C429.49,236 505.78,230.02 505.78,220.25L505.78,215"/><path class="pele-marker" d="M505.78,208L509.14,216L502.42,216Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge8"><path d="M116.25,556.5L116.25,706.75C116.25,711.44 428.89,720.81 428.89,725.5L428.89,731.5"/><path class="pele-marker" d="M428.89,738.5L425.53,730.5L432.25,730.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge9"><path d="M460.89,625.5L460.89,612.5C460.89,607.81 851.15,598.44 851.15,593.75L851.15,335C851.15,278 556.91,278 556.91,221L556.91,215"/><path class="pele-marker" d="M556.91,208L560.27,216L553.55,216Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge10"><path d="M444.89,669.5L444.89,731.5"/><path class="pele-marker" d="M444.89,738.5L441.53,730.5L448.25,730.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge11"><path d="M371.67,512.5L371.67,499.5C371.67,488.25 536.46,488.25 536.46,477L536.46,215"/><path class="pele-marker" d="M536.46,208L539.82,216L533.1,216Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge12"><path d="M516.59,512.5L516.59,499.5C516.59,490.74 747.68,485.76 747.68,477L747.68,335C747.68,278 546.69,278 546.69,221L546.69,215"/><path class="pele-marker" d="M546.69,208L550.05,216L543.33,216Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge13"><path d="M502.8,556.5L502.8,600C502.8,606.94 444.89,606.94 444.89,613.88L444.89,618.5"/><path class="pele-marker" d="M444.89,625.5L441.53,617.5L448.25,617.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge14"><path d="M460.89,738.5L460.89,725.5C460.89,720.81 1058.86,711.44 1058.86,706.75L1058.86,335C1058.86,278 567.14,278 567.14,221L567.14,215"/><path class="pele-marker" d="M567.14,208L570.5,216L563.78,216Z" fill="var(--_l)" stroke="none"/></g></g><g class="pele-edge-labels" font-size="14"><g class="pele-edge-label" data-id="edge1"><rect x="193.64" y="290" width="101.37" height="21" rx="3" fill="var(--_bg)"/><text x="244.32" y="305.4" text-anchor="middle">you press ESC</text></g><g class="pele-edge-label" data-id="edge2"><rect x="315.01" y="290" width="148.81" height="21" rx="3" fill="var(--_bg)"/><text x="389.41" y="305.4" text-anchor="middle">CAN or SUB cancels it</text></g><g class="pele-edge-label" data-id="edge3"><rect x="114.25" y="456.5" width="44.57" height="21" rx="3" fill="var(--_bg)"/><text x="136.54" y="471.9" text-anchor="middle">ESC [</text></g><g class="pele-edge-label" data-id="edge4"><rect x="236.18" y="524" width="50.01" height="21" rx="3" fill="var(--_bg)"/><text x="261.18" y="539.4" text-anchor="middle">ESC P</text></g><g class="pele-edge-label" data-id="edge5"><rect x="312.49" y="456.5" width="44.57" height="21" rx="3" fill="var(--_bg)"/><text x="334.77" y="471.9" text-anchor="middle">ESC ]</text></g><g class="pele-edge-label" data-id="edge6"><rect x="385.05" y="449" width="141.41" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="455.76" y="462.9">you type ESC X, ^, or</tspan><tspan x="455.76" y="480.9">underscore</tspan></text></g><g class="pele-edge-label" data-id="edge7"><rect x="10" y="339" width="188.5" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="104.25" y="352.9">CAN or SUB cancels it or the</tspan><tspan x="104.25" y="370.9">final byte dispatches it</tspan></text></g><g class="pele-edge-label" data-id="edge8"><rect x="31.33" y="637" width="169.84" height="21" rx="3" fill="var(--_bg)"/><text x="116.25" y="652.4" text-anchor="middle">a bad intermediate arrives</text></g><g class="pele-edge-label" data-id="edge9"><rect x="757.68" y="516.5" width="186.93" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="851.15" y="530.4">CAN or SUB cancels it or ST</tspan><tspan x="851.15" y="548.4">ends it and unhooks</tspan></text></g><g class="pele-edge-label" data-id="edge10"><rect x="359.97" y="690" width="169.84" height="21" rx="3" fill="var(--_bg)"/><text x="444.89" y="705.4" text-anchor="middle">a bad intermediate arrives</text></g><g class="pele-edge-label" data-id="edge11"><rect x="438.71" y="339" width="195.5" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="536.46" y="352.9">CAN or SUB cancels it or BEL</tspan><tspan x="536.46" y="370.9">or ST ends it</tspan></text></g><g class="pele-edge-label" data-id="edge12"><rect x="654.21" y="339" width="186.93" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="747.68" y="352.9">CAN or SUB cancels it or ST</tspan><tspan x="747.68" y="370.9">ends it with nothing to report</tspan></text></g><g class="pele-edge-label" data-id="edge13"><rect x="409.69" y="577" width="186.21" height="21" rx="3" fill="var(--_bg)"/><text x="502.8" y="592.4" text-anchor="middle">the first content byte hooks it</text></g><g class="pele-edge-label" data-id="edge14"><rect x="964.61" y="516.5" width="188.5" height="36" rx="3" fill="var(--_bg)"/><text text-anchor="middle" xml:space="preserve"><tspan x="1058.86" y="530.4">CAN or SUB cancels it or the</tspan><tspan x="1058.86" y="548.4">final byte ends the discard</tspan></text></g></g><g class="pele-nodes"><g class="pele-node pele-state blue" data-id="s0" transform="translate(536.46,186)"><rect x="-42.68" y="-22" width="85.36" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Ground</text></g><g class="pele-node pele-state teal" data-id="s1" transform="translate(271.18,357)"><rect x="-42.68" y="-22" width="85.36" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Escape</text></g><g class="pele-node pele-state teal" data-id="s2" transform="translate(116.25,534.5)"><rect x="-29.34" y="-22" width="58.67" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">CSI</text></g><g class="pele-node pele-state teal" data-id="s3" transform="translate(444.89,647.5)"><rect x="-32.89" y="-22" width="65.78" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">DCS</text></g><g class="pele-node pele-state teal" data-id="s4" transform="translate(363.67,534.5)"><rect x="-33.34" y="-22" width="66.67" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">OSC</text></g><g class="pele-node pele-state teal" data-id="s5" transform="translate(502.8,534.5)"><rect x="-65.79" y="-22" width="131.58" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">SOS/PM/APC</text></g><g class="pele-node pele-state orange" data-id="s6" transform="translate(444.89,760.5)"><rect x="-38.68" y="-22" width="77.36" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Ignore</text></g><g class="pele-node pele-state-start" data-id="root_start" transform="translate(536.46,113)"><circle r="7" fill="var(--_l)"/></g><g class="pele-node pele-state blue" data-id="lg0" transform="translate(628.36,82)"><rect x="-28.9" y="-22" width="57.79" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Idle</text></g><g class="pele-node pele-state teal" data-id="lg1" transform="translate(763.51,82)"><rect x="-66.26" y="-22" width="132.51" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">In a sequence</text></g><g class="pele-node pele-state orange" data-id="lg2" transform="translate(923.55,82)"><rect x="-53.78" y="-22" width="107.57" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Discarding</text></g></g></g></svg>
