@@ -194,6 +194,48 @@ jobs:
       - name: Check library crates (cross)
         run: cross check -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target ${{ matrix.target }} --all-features
 
+  bsd:
+    # Compile-check the library crates for the BSDs the native matrix can't
+    # reach. FreeBSD and NetBSD use cross-rs images; OpenBSD has no cross-rs
+    # image and no rustup std (tier 3), so it is checked from source with
+    # nightly build-std. All three are compile checks, not VM test runs.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [freebsd, netbsd, openbsd]
+    env:
+      # Pinned so a future cross release can't silently break CI.
+      CROSS_VERSION: v0.2.5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.os != 'openbsd'
+
+      - uses: dtolnay/rust-toolchain@nightly
+        if: matrix.os == 'openbsd'
+        with:
+          components: rust-src
+
+      - name: Install cross
+        if: matrix.os != 'openbsd'
+        run: |
+          dir="$RUNNER_TEMP/cross-download"
+          mkdir "$dir"
+          echo "$dir" >> "$GITHUB_PATH"
+          cd "$dir"
+          curl -LO "https://github.com/cross-rs/cross/releases/download/$CROSS_VERSION/cross-x86_64-unknown-linux-musl.tar.gz"
+          tar xf cross-x86_64-unknown-linux-musl.tar.gz
+
+      - name: Check library crates (cross)
+        if: matrix.os != 'openbsd'
+        run: cross check -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target x86_64-unknown-${{ matrix.os }} --all-features
+
+      - name: Check library crates (build-std)
+        if: matrix.os == 'openbsd'
+        run: cargo check -Z build-std -p vtty -p vtty_core -p vtty_codec -p vtty_width -p vtty_grapheme -p vtty_status -p vtty_screen --target x86_64-unknown-openbsd --all-features
+
   msrv:
     runs-on: ubuntu-latest
     steps:
