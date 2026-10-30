@@ -133,213 +133,97 @@ impl CapValue {
 #[derive(Clone, Copy, Debug)]
 pub struct Cap;
 
+/// Defines the terminfo capability table: one entry per capability
+/// generates its `Cap` name const and its `parse` match arm, so the two
+/// lists cannot drift apart.
+macro_rules! caps {
+    ($(
+        $name:ident => $bytes:literal => $value:ident $(, [$($alias:ident => $abytes:literal),+ $(,)?])*
+    ),+ $(,)?) => {
+        impl Cap {
+            $(
+                #[allow(missing_docs, reason = "capability name and value are self-documenting")]
+                pub const $name: &'static [u8] = $bytes;
+                $($(
+                    #[allow(missing_docs, reason = "capability name and value are self-documenting")]
+                    pub const $alias: &'static [u8] = $abytes;
+                )+)*
+            )+
+
+            /// Parse a query name into a capability (canonical key + value),
+            /// accepting the long/short terminfo aliases. Unknown names map to
+            /// [`CapValue::None`].
+            pub fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
+                match query {
+                    $(Self::$name $( $(| Self::$alias)+ )* => (Self::$name, CapValue::$value),)+
+                    _ => (Self::NONE, CapValue::None),
+                }
+            }
+        }
+    };
+}
+
 impl Cap {
-    /// `b"TN"`.
-    pub const TN: &'static [u8] = b"TN";
-    /// `b"Co"`.
-    pub const CO: &'static [u8] = b"Co";
-    /// `b"pa"`.
-    pub const PA: &'static [u8] = b"pa";
-    /// `b"RGB"`.
-    pub const RGB: &'static [u8] = b"RGB";
-    /// `b"Tc"` (truecolor boolean).
-    pub const TC: &'static [u8] = b"Tc";
-    /// `b"co"`.
-    pub const COLS: &'static [u8] = b"co";
-    /// `b"li"`.
-    pub const ROWS: &'static [u8] = b"li";
-    /// `b"it"`.
-    pub const IT: &'static [u8] = b"it";
-    /// `b"am"`.
-    pub const AM: &'static [u8] = b"am";
-    /// `b"bce"`.
-    pub const BCE: &'static [u8] = b"bce";
-    /// `b"ccc"`.
-    pub const CCC: &'static [u8] = b"ccc";
-    /// `b"xenl"`.
-    pub const XENL: &'static [u8] = b"xenl";
-    /// `b"xn"`.
-    pub const XN: &'static [u8] = b"xn";
-    /// `b"XT"`.
-    pub const XT: &'static [u8] = b"XT";
-    /// `b"XF"`.
-    pub const XF: &'static [u8] = b"XF";
-    /// `b"sixel"`.
-    pub const SIXEL: &'static [u8] = b"sixel";
-    /// `b"iterm2"`.
-    pub const ITERM2: &'static [u8] = b"iterm2";
-    /// `b"kitty"`.
-    pub const KITTY: &'static [u8] = b"kitty";
-    /// `b"setaf"`.
-    pub const SETAF: &'static [u8] = b"setaf";
-    /// `b"setab"`.
-    pub const SETAB: &'static [u8] = b"setab";
-    /// `b"op"`.
-    pub const OP: &'static [u8] = b"op";
-    /// `b"oc"`.
-    pub const OC: &'static [u8] = b"oc";
-    /// `b"Smulx"`.
-    pub const SMULX: &'static [u8] = b"Smulx";
-    /// `b"Setulc"` (set underline color).
-    pub const SETULC: &'static [u8] = b"Setulc";
-    /// `b"Ss"`.
-    pub const SS: &'static [u8] = b"Ss";
-    /// `b"Se"`.
-    pub const SE: &'static [u8] = b"Se";
-    /// `b"Cs"`.
-    pub const CS: &'static [u8] = b"Cs";
-    /// `b"Cr"`.
-    pub const CR: &'static [u8] = b"Cr";
-    /// `b"E3"`.
-    pub const E3: &'static [u8] = b"E3";
-    /// `b"clear"`.
-    pub const CLEAR: &'static [u8] = b"clear";
-    /// `b"cup"`.
-    pub const CUP: &'static [u8] = b"cup";
-    /// `b"smkx"`.
-    pub const SMKX: &'static [u8] = b"smkx";
-    /// `b"rmkx"`.
-    pub const RMKX: &'static [u8] = b"rmkx";
-    /// `b"smcup"`.
-    pub const SMCUP: &'static [u8] = b"smcup";
-    /// `b"rmcup"`.
-    pub const RMCUP: &'static [u8] = b"rmcup";
-    /// `b"smacs"`.
-    pub const SMACS: &'static [u8] = b"smacs";
-    /// `b"rmacs"`.
-    pub const RMACS: &'static [u8] = b"rmacs";
-    /// `b"civis"`.
-    pub const CIVIS: &'static [u8] = b"civis";
-    /// `b"cnorm"`.
-    pub const CNORM: &'static [u8] = b"cnorm";
-    /// `b"kbs"`.
-    pub const KBS: &'static [u8] = b"kbs";
-    /// `b"kdch1"`.
-    pub const KDCH1: &'static [u8] = b"kdch1";
-    /// `b"kich1"`.
-    pub const KICH1: &'static [u8] = b"kich1";
-    /// `b"khome"`.
-    pub const KHOME: &'static [u8] = b"khome";
-    /// `b"kend"`.
-    pub const KEND: &'static [u8] = b"kend";
-    /// `b"kcuu1"`.
-    pub const KCUU1: &'static [u8] = b"kcuu1";
-    /// `b"kcud1"`.
-    pub const KCUD1: &'static [u8] = b"kcud1";
-    /// `b"kcub1"`.
-    pub const KCUB1: &'static [u8] = b"kcub1";
-    /// `b"kcuf1"`.
-    pub const KCUF1: &'static [u8] = b"kcuf1";
-    /// `b"indn"`.
-    pub const INDN: &'static [u8] = b"indn";
-    /// `b"query-os-name"`.
-    pub const QUERY_OS_NAME: &'static [u8] = b"query-os-name";
     /// `b""`.
     pub const NONE: &'static [u8] = b"";
     /// `b"unsupported"`.
     pub const UNSUPPORTED: &'static [u8] = b"unsupported";
-    /// `b"setrgbf"`.
-    pub const SETRGBF: &'static [u8] = b"setrgbf";
-    /// `b"setrgbb"`.
-    pub const SETRGBB: &'static [u8] = b"setrgbb";
-    /// `b"sync"`.
-    pub const SYNC: &'static [u8] = b"sync";
-    /// `b"acsc"`.
-    pub const ACSC: &'static [u8] = b"acsc";
-    /// `b"name"`.
-    pub const NAME: &'static [u8] = b"name";
-    /// `b"colors"`.
-    pub const COLORS: &'static [u8] = b"colors";
-    /// `b"pairs"`.
-    pub const PAIRS: &'static [u8] = b"pairs";
-    /// `b"cols"`.
-    pub const COLUMNS: &'static [u8] = b"cols";
-    /// `b"lines"`.
-    pub const LINES: &'static [u8] = b"lines";
-    /// `b"TK"`.
-    pub const TK: &'static [u8] = b"TK";
-    /// `b"cl"`.
-    pub const CL: &'static [u8] = b"cl";
-    /// `b"cm"`.
-    pub const CM: &'static [u8] = b"cm";
-    /// `b"ks"`.
-    pub const KS: &'static [u8] = b"ks";
-    /// `b"ke"`.
-    pub const KE: &'static [u8] = b"ke";
-    /// `b"ti"`.
-    pub const TI: &'static [u8] = b"ti";
-    /// `b"te"`.
-    pub const TE: &'static [u8] = b"te";
-    /// `b"as"`.
-    pub const AS: &'static [u8] = b"as";
-    /// `b"ae"`.
-    pub const AE: &'static [u8] = b"ae";
-    /// `b"vi"`.
-    pub const VI: &'static [u8] = b"vi";
-    /// `b"ve"`.
-    pub const VE: &'static [u8] = b"ve";
+}
 
-    /// Parse a query name into a capability (canonical key + value),
-    /// accepting the long/short terminfo aliases. Unknown names map to
-    /// [`CapValue::None`].
-    pub fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
-        match query {
-            Self::TN | Self::NAME => (Self::TN, CapValue::TEXT_TN),
-            Self::CO | Self::COLORS => (Self::CO, CapValue::TEXT_CO),
-            Self::PA | Self::PAIRS => (Self::PA, CapValue::TEXT_PA),
-            Self::RGB => (Self::RGB, CapValue::TEXT_RGB),
-            Self::TC => (Self::TC, CapValue::Bool),
-            Self::COLS | Self::COLUMNS => (Self::COLS, CapValue::Cols),
-            Self::ROWS | Self::LINES => (Self::ROWS, CapValue::Rows),
-            Self::IT => (Self::IT, CapValue::TEXT_IT),
-            Self::AM => (Self::AM, CapValue::Bool),
-            Self::BCE => (Self::BCE, CapValue::Bool),
-            Self::CCC => (Self::CCC, CapValue::Bool),
-            Self::XENL | Self::XN => (Self::XN, CapValue::Bool),
-            Self::XT => (Self::XT, CapValue::Bool),
-            Self::XF => (Self::XF, CapValue::Bool),
-            Self::SIXEL => (Self::SIXEL, CapValue::Bool),
-            Self::ITERM2 => (Self::ITERM2, CapValue::Bool),
-            Self::KITTY | Self::TK => (Self::KITTY, CapValue::TEXT_KITTY),
-            Self::SETRGBF => (Self::SETRGBF, CapValue::TEXT_SETRGBF),
-            Self::SETRGBB => (Self::SETRGBB, CapValue::TEXT_SETRGBB),
-            Self::SETAF => (Self::SETAF, CapValue::TEXT_SETAF),
-            Self::SETAB => (Self::SETAB, CapValue::TEXT_SETAB),
-            Self::OP => (Self::OP, CapValue::TEXT_OP),
-            Self::OC => (Self::OC, CapValue::TEXT_OC),
-            Self::SMULX => (Self::SMULX, CapValue::TEXT_SMULX),
-            Self::SETULC => (Self::SETULC, CapValue::TEXT_SETULC),
-            Self::SS => (Self::SS, CapValue::TEXT_SS),
-            Self::SE => (Self::SE, CapValue::TEXT_SE),
-            Self::CS => (Self::CS, CapValue::TEXT_CS),
-            Self::CR => (Self::CR, CapValue::TEXT_CR),
-            Self::SYNC => (Self::SYNC, CapValue::TEXT_SYNC),
-            Self::E3 => (Self::E3, CapValue::TEXT_E3),
-            Self::CLEAR | Self::CL => (Self::CLEAR, CapValue::TEXT_CLEAR),
-            Self::CUP | Self::CM => (Self::CUP, CapValue::TEXT_CUP),
-            Self::SMKX | Self::KS => (Self::SMKX, CapValue::TEXT_SMKX),
-            Self::RMKX | Self::KE => (Self::RMKX, CapValue::TEXT_RMKX),
-            Self::SMCUP | Self::TI => (Self::SMCUP, CapValue::TEXT_SMCUP),
-            Self::RMCUP | Self::TE => (Self::RMCUP, CapValue::TEXT_RMCUP),
-            Self::SMACS | Self::AS => (Self::SMACS, CapValue::TEXT_SMACS),
-            Self::RMACS | Self::AE => (Self::RMACS, CapValue::TEXT_RMACS),
-            Self::ACSC => (Self::ACSC, CapValue::TEXT_ACSC),
-            Self::CIVIS | Self::VI => (Self::CIVIS, CapValue::TEXT_CIVIS),
-            Self::CNORM | Self::VE => (Self::CNORM, CapValue::TEXT_CNORM),
-            Self::KBS => (Self::KBS, CapValue::TEXT_KBS),
-            Self::KDCH1 => (Self::KDCH1, CapValue::TEXT_KDCH1),
-            Self::KICH1 => (Self::KICH1, CapValue::TEXT_KICH1),
-            Self::KHOME => (Self::KHOME, CapValue::TEXT_KHOME),
-            Self::KEND => (Self::KEND, CapValue::TEXT_KEND),
-            Self::KCUU1 => (Self::KCUU1, CapValue::TEXT_KCUU1),
-            Self::KCUD1 => (Self::KCUD1, CapValue::TEXT_KCUD1),
-            Self::KCUB1 => (Self::KCUB1, CapValue::TEXT_KCUB1),
-            Self::KCUF1 => (Self::KCUF1, CapValue::TEXT_KCUF1),
-            Self::INDN => (Self::INDN, CapValue::TEXT_INDN),
-            Self::QUERY_OS_NAME => (Self::QUERY_OS_NAME, CapValue::OsName),
-            _ => (Self::NONE, CapValue::None),
-        }
-    }
+caps! {
+    TN => b"TN" => TEXT_TN, [NAME => b"name"],
+    CO => b"Co" => TEXT_CO, [COLORS => b"colors"],
+    PA => b"pa" => TEXT_PA, [PAIRS => b"pairs"],
+    RGB => b"RGB" => TEXT_RGB,
+    TC => b"Tc" => Bool,
+    COLS => b"co" => Cols, [COLUMNS => b"cols"],
+    ROWS => b"li" => Rows, [LINES => b"lines"],
+    IT => b"it" => TEXT_IT,
+    AM => b"am" => Bool,
+    BCE => b"bce" => Bool,
+    CCC => b"ccc" => Bool,
+    XN => b"xn" => Bool, [XENL => b"xenl"],
+    XT => b"XT" => Bool,
+    XF => b"XF" => Bool,
+    SIXEL => b"sixel" => Bool,
+    ITERM2 => b"iterm2" => Bool,
+    KITTY => b"kitty" => TEXT_KITTY, [TK => b"TK"],
+    SETRGBF => b"setrgbf" => TEXT_SETRGBF,
+    SETRGBB => b"setrgbb" => TEXT_SETRGBB,
+    SETAF => b"setaf" => TEXT_SETAF,
+    SETAB => b"setab" => TEXT_SETAB,
+    OP => b"op" => TEXT_OP,
+    OC => b"oc" => TEXT_OC,
+    SMULX => b"Smulx" => TEXT_SMULX,
+    SETULC => b"Setulc" => TEXT_SETULC,
+    SS => b"Ss" => TEXT_SS,
+    SE => b"Se" => TEXT_SE,
+    CS => b"Cs" => TEXT_CS,
+    CR => b"Cr" => TEXT_CR,
+    SYNC => b"sync" => TEXT_SYNC,
+    E3 => b"E3" => TEXT_E3,
+    CLEAR => b"clear" => TEXT_CLEAR, [CL => b"cl"],
+    CUP => b"cup" => TEXT_CUP, [CM => b"cm"],
+    SMKX => b"smkx" => TEXT_SMKX, [KS => b"ks"],
+    RMKX => b"rmkx" => TEXT_RMKX, [KE => b"ke"],
+    SMCUP => b"smcup" => TEXT_SMCUP, [TI => b"ti"],
+    RMCUP => b"rmcup" => TEXT_RMCUP, [TE => b"te"],
+    SMACS => b"smacs" => TEXT_SMACS, [AS => b"as"],
+    RMACS => b"rmacs" => TEXT_RMACS, [AE => b"ae"],
+    ACSC => b"acsc" => TEXT_ACSC,
+    CIVIS => b"civis" => TEXT_CIVIS, [VI => b"vi"],
+    CNORM => b"cnorm" => TEXT_CNORM, [VE => b"ve"],
+    KBS => b"kbs" => TEXT_KBS,
+    KDCH1 => b"kdch1" => TEXT_KDCH1,
+    KICH1 => b"kich1" => TEXT_KICH1,
+    KHOME => b"khome" => TEXT_KHOME,
+    KEND => b"kend" => TEXT_KEND,
+    KCUU1 => b"kcuu1" => TEXT_KCUU1,
+    KCUD1 => b"kcud1" => TEXT_KCUD1,
+    KCUB1 => b"kcub1" => TEXT_KCUB1,
+    KCUF1 => b"kcuf1" => TEXT_KCUF1,
+    INDN => b"indn" => TEXT_INDN,
+    QUERY_OS_NAME => b"query-os-name" => OsName,
 }
 
 impl crate::Reply {
