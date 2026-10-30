@@ -15,6 +15,18 @@
 use smallvec::SmallVec;
 use vtty::Event;
 
+/// Flatten a params object (vte/rio-vt's nested sub-param iterator) into the
+/// flat `i32` vector [`Event`] uses.
+macro_rules! flat_params {
+    ($params:expr) => {
+        $params
+            .iter()
+            .flatten()
+            .map(|&v| v as i32)
+            .collect::<SmallVec<i32, 6>>()
+    };
+}
+
 /// Run vtty (scalar path) and normalize to the vte-family convention:
 /// - the `-1` empty-colon sentinel becomes 0 (vte uses 0 for an empty param);
 /// - a param-less CSI/DCS dispatches `[]` in vtty but `[0]` in vte/rio-vt.
@@ -51,9 +63,8 @@ impl vte::Perform for VteRec {
         self.acts.push(Event::Execute(b));
     }
     fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
-            params: flat,
+            params: flat_params!(params),
             sep: 0,
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
@@ -66,9 +77,8 @@ impl vte::Perform for VteRec {
         });
     }
     fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
-            params: flat,
+            params: flat_params!(params),
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
         });
@@ -125,9 +135,8 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
-            params: flat,
+            params: flat_params!(params),
             sep: 0,
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
@@ -146,9 +155,8 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
-            params: flat,
+            params: flat_params!(params),
             intermediates: int.iter().copied().collect(),
             final_byte: f as u8,
         });
