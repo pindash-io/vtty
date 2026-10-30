@@ -509,16 +509,16 @@ impl Screen {
                 self.cursor_up(n(0));
                 self.cursor_col = 0;
             }
-            (false, b'G') => self.cha(params.first().copied().unwrap_or(1).max(1) as u32), // CHA
-            (false, b'd') => self.vpa(params.first().copied().unwrap_or(1).max(1) as u32), // VPA
+            (false, b'G') => self.cha(n(0)), // CHA
+            (false, b'd') => self.vpa(n(0)), // VPA
             (false, b'H') | (false, b'f') => self.cup(n(0), n(1)), // CUP / HVP
             (false, b'J') => self.erase_in_display(params.first().copied().unwrap_or(0)), // ED
             (false, b'K') => self.erase_in_line(params.first().copied().unwrap_or(0)), // EL
-            (false, b'L') => self.insert_lines(n(0)),              // IL
-            (false, b'M') => self.delete_lines(n(0)),              // DL
-            (false, b'P') => self.delete_chars(n(0)),              // DCH
-            (false, b'@') => self.insert_chars(n(0)),              // ICH
-            (false, b'X') => self.erase_chars(n(0)),               // ECH
+            (false, b'L') => self.insert_lines(n(0)), // IL
+            (false, b'M') => self.delete_lines(n(0)), // DL
+            (false, b'P') => self.delete_chars(n(0)), // DCH
+            (false, b'@') => self.insert_chars(n(0)), // ICH
+            (false, b'X') => self.erase_chars(n(0)), // ECH
             (false, b'S') => {
                 // SU
                 for _ in 0..n(0) {

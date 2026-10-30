@@ -36,8 +36,7 @@ impl Screen {
                     match params.get(i + 1).copied() {
                         Some(5) => {
                             if let Some(&n) = params.get(i + 2) {
-                                let id = ColorId((n.clamp(0, 255)) as u16);
-                                self.set_color(is_fg, id);
+                                self.set_color(is_fg, ColorId::from(n));
                                 i += 2;
                             }
                         }
@@ -123,16 +122,9 @@ impl Screen {
                 6 => self.flags.set(BufferFlags::ORIGIN, set), // DECOM
                 7 => self.modes.set(ScreenFlags::WRAP, set),   // DECAWM
                 25 => self.modes.set(ScreenFlags::CURSOR_VISIBLE, set), // DECTCEM
-                47 => {
+                47 | 1046 | 1047 | 1049 => {
                     if set {
-                        self.enter_alt(false); // DEC 47
-                    } else {
-                        self.leave_alt();
-                    }
-                }
-                1046 | 1047 | 1049 => {
-                    if set {
-                        self.enter_alt(true); // DEC 1046/1047/1049
+                        self.enter_alt(p != 47); // DEC 1046/1047/1049 clear; DEC 47 keeps content
                     } else {
                         self.leave_alt();
                     }

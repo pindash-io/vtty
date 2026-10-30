@@ -312,45 +312,30 @@ impl Recording {
 
 impl Perform for Recording {
     fn print(&mut self, c: char) {
-        self.events.push(Event::Print(c));
+        self.print_char(c);
     }
     fn print_bytes(&mut self, s: &[u8]) {
-        self.events.push(Event::PrintBytes(s.to_vec()));
+        self.print_ascii(s);
     }
     fn execute(&mut self, byte: u8) {
-        self.events.push(Event::Execute(byte));
+        self.control(byte);
     }
     fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
-        self.events.push(Event::CsiDispatch {
-            params: SmallVec::from_slice_copy(params),
-            sep,
-            intermediates: SmallVec::from_slice_copy(intermediates),
-            final_byte,
-        });
+        self.csi(params, sep, intermediates, final_byte);
     }
     fn esc_dispatch(&mut self, intermediates: &[u8], byte: u8) {
-        self.events.push(Event::EscDispatch {
-            intermediates: SmallVec::from_slice_copy(intermediates),
-            byte,
-        });
+        self.esc(intermediates, byte);
     }
     fn hook(&mut self, params: &[i32], intermediates: &[u8], final_byte: u8) {
-        self.events.push(Event::DcsHook {
-            params: SmallVec::from_slice_copy(params),
-            intermediates: SmallVec::from_slice_copy(intermediates),
-            final_byte,
-        });
+        self.dcs_hook(params, intermediates, final_byte);
     }
     fn put(&mut self, byte: u8) {
-        self.events.push(Event::DcsPut(byte));
+        self.dcs_put(byte);
     }
     fn unhook(&mut self) {
-        self.events.push(Event::DcsUnhook);
+        self.dcs_unhook();
     }
     fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
-        self.events.push(Event::OscDispatch {
-            params: SmallVec::from_iter(params.iter().map(|p| p.to_vec())),
-            bell_terminated,
-        });
+        self.osc(params, bell_terminated);
     }
 }
