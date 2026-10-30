@@ -303,12 +303,7 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
                 let Some((c, skip)) = parse_extended(params, sep, i) else {
                     continue;
                 };
-                let e = match code {
-                    38 => SgrEffect::Fg(c),
-                    48 => SgrEffect::Bg(c),
-                    _ => SgrEffect::UnderlineColor(c),
-                };
-                out.push(e);
+                out.push(extended_effect(code, c));
                 for _ in 0..skip {
                     iter.next();
                 }
@@ -329,14 +324,23 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
         return None;
     }
     match params {
-        [38, 2, r, g, b] => Some(SgrEffect::Fg(ColorSpec::rgb(*r, *g, *b))),
-        [48, 2, r, g, b] => Some(SgrEffect::Bg(ColorSpec::rgb(*r, *g, *b))),
-        [58, 2, r, g, b] => Some(SgrEffect::UnderlineColor(ColorSpec::rgb(*r, *g, *b))),
-        [38, 5, n] => Some(SgrEffect::Fg(ColorSpec::indexed(*n))),
-        [48, 5, n] => Some(SgrEffect::Bg(ColorSpec::indexed(*n))),
-        [58, 5, n] => Some(SgrEffect::UnderlineColor(ColorSpec::indexed(*n))),
+        [code @ (38 | 48 | 58), 2, r, g, b] => {
+            Some(extended_effect(*code, ColorSpec::rgb(*r, *g, *b)))
+        }
+        [code @ (38 | 48 | 58), 5, n] => Some(extended_effect(*code, ColorSpec::indexed(*n))),
         [code] => single_code(*code),
         _ => None,
+    }
+}
+
+/// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
+/// underline), shared by the single-effect fast path and `parse_effects`.
+#[inline]
+fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
+    match code {
+        38 => SgrEffect::Fg(spec),
+        48 => SgrEffect::Bg(spec),
+        _ => SgrEffect::UnderlineColor(spec),
     }
 }
 
