@@ -13,7 +13,7 @@ pub trait Encode {
 
     /// The exact number of bytes [`Encode::encode`] will write.
     ///
-    /// The default encodes into a [`CountWriter`]; override it only when a
+    /// The default encodes into a `CountWriter`; override it only when a
     /// closed-form length is cheaper than re-running the encode logic.
     fn encoded_len(&self) -> usize {
         let mut counter = CountWriter::new();
