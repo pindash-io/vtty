@@ -21,6 +21,10 @@ const OS_NAME: &[u8] = if cfg!(target_os = "macos") {
     b"windows"
 } else if cfg!(target_os = "freebsd") {
     b"freebsd"
+} else if cfg!(target_os = "netbsd") {
+    b"netbsd"
+} else if cfg!(target_os = "openbsd") {
+    b"openbsd"
 } else {
     b"unknown"
 };
