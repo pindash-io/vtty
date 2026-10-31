@@ -235,12 +235,7 @@ impl crate::Reply {
     /// The query may pack several capabilities, semicolon-separated (nvim/herdr
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
-    pub fn termcap(
-        cap: &[u8],
-        cols: usize,
-        rows: usize,
-        tn: &[u8],
-    ) -> compact_str::CompactString {
+    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> compact_str::CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
         let mut buf = compact_str::CompactString::default();
@@ -290,9 +285,18 @@ mod tests {
             Reply::termcap(b"RGB", 80, 24, b"jetfish"),
             "\x1bP1+r524742=382f382f38\x1b\\"
         );
-        assert_eq!(Reply::termcap(b"am", 80, 24, b"jetfish"), "\x1bP1+r616d\x1b\\");
-        assert_eq!(Reply::termcap(b"co", 80, 24, b"jetfish"), "\x1bP1+r636f=3830\x1b\\");
-        assert_eq!(Reply::termcap(b"li", 80, 24, b"jetfish"), "\x1bP1+r6c69=3234\x1b\\");
+        assert_eq!(
+            Reply::termcap(b"am", 80, 24, b"jetfish"),
+            "\x1bP1+r616d\x1b\\"
+        );
+        assert_eq!(
+            Reply::termcap(b"co", 80, 24, b"jetfish"),
+            "\x1bP1+r636f=3830\x1b\\"
+        );
+        assert_eq!(
+            Reply::termcap(b"li", 80, 24, b"jetfish"),
+            "\x1bP1+r6c69=3234\x1b\\"
+        );
         assert_eq!(
             Reply::termcap(b"nope", 80, 24, b"jetfish"),
             "\x1bP0+r756e737570706f72746564\x1b\\"
@@ -304,7 +308,10 @@ mod tests {
         let mut expected = String::from("\x1bP1+r71756572792d6f732d6e616d65=");
         expected.push_str(&const_hex::encode(OS_NAME));
         expected.push_str("\x1b\\");
-        assert_eq!(Reply::termcap(b"query-os-name", 80, 24, b"jetfish"), expected.as_str());
+        assert_eq!(
+            Reply::termcap(b"query-os-name", 80, 24, b"jetfish"),
+            expected.as_str()
+        );
     }
 
     #[test]
