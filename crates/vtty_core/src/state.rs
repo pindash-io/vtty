@@ -10,7 +10,6 @@ use crate::perform::Perform;
 
 /// Minimal byte-cursor state (the O(bytes) floor).
 #[derive(Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct State {
     /// Accumulated text (lines joined by `\n`).
     pub text: String,

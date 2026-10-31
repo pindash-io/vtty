@@ -421,7 +421,6 @@ fn colon_sep(sep: u16, i: usize) -> bool {
 /// Params are inline-allocated — the common 1–8 param SGR sequence never
 /// touches the heap.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[non_exhaustive]
 pub struct Sgr {
     /// The SGR parameter values.
     pub params: SmallVec<i32, 8>,

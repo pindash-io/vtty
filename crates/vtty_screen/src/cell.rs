@@ -40,7 +40,6 @@ pub(crate) const CONTINUATION: char = '\0';
 
 /// A single screen cell: glyph + SGR attributes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct Cell {
     /// The base glyph. `' '` is blank; `CONTINUATION` marks the trailing
     /// cell of a double-width glyph.

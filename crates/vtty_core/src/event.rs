@@ -166,7 +166,6 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
 /// The [`crate::Perform`] callback path is the zero-allocation hot path; this
 /// recording allocates one `Event` per dispatch, for tests and tooling.
 #[derive(Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct Recording {
     /// Decoded events in dispatch order.
     pub events: Vec<Event>,
