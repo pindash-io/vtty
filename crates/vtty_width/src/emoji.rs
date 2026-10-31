@@ -18,6 +18,7 @@ use crate::properties::{Gcb, Properties, cell_width, emoji_category};
 /// are NOT selectors: they accept any non-space base instead of rejecting
 /// non-emoji bases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Selector {
     /// VS16 (U+FE0F): forces emoji presentation (width 2).
     Vs16,

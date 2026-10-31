@@ -248,6 +248,7 @@ impl Encode for ColorSpec {
                 writer.write_byte(3)?;
                 v.encode(writer)
             }
+            _ => unreachable!("non-exhaustive enum has an unknown variant"),
         }
     }
 }
@@ -293,6 +294,7 @@ impl Encode for SgrEffect {
                 c.encode(writer)
             }
             Self::ClearUnderlineColor => writer.write_byte(7),
+            _ => unreachable!("non-exhaustive enum has an unknown variant"),
         }
     }
 }

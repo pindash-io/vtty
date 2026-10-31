@@ -167,6 +167,7 @@ pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
 /// `Glue_After_Zwj`) are folded into [`Gcb::Other`] — emoji sequences are
 /// handled by [`crate::emoji`]'s DFA.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 #[repr(u8)]
 pub enum Gcb {
     /// Other (including the emoji-specific GCB values).
