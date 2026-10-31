@@ -45,11 +45,11 @@ pub enum CapValue {
     Rows,
     /// The OS name (`query-os-name`).
     OsName,
+    /// The terminal name (`TN`), supplied by the host.
+    Tn,
 }
 
 impl CapValue {
-    /// Text value for `TN`.
-    pub const TEXT_TN: Self = Self::Text(b"jetfish");
     /// Text value for `CO`.
     pub const TEXT_CO: Self = Self::Text(b"256");
     /// Text value for `PA`.
@@ -175,7 +175,7 @@ impl Cap {
 }
 
 caps! {
-    TN => b"TN" => TEXT_TN, [NAME => b"name"],
+    TN => b"TN" => Tn, [NAME => b"name"],
     CO => b"Co" => TEXT_CO, [COLORS => b"colors"],
     PA => b"pa" => TEXT_PA, [PAIRS => b"pairs"],
     RGB => b"RGB" => TEXT_RGB,
@@ -235,7 +235,12 @@ impl crate::Reply {
     /// The query may pack several capabilities, semicolon-separated (nvim/herdr
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
-    pub fn termcap(cap: &[u8], cols: usize, rows: usize) -> compact_str::CompactString {
+    pub fn termcap(
+        cap: &[u8],
+        cols: usize,
+        rows: usize,
+        tn: &[u8],
+    ) -> compact_str::CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
         let mut buf = compact_str::CompactString::default();
@@ -251,6 +256,7 @@ impl crate::Reply {
                 CapValue::Cols => xtgettcap_num_append(&mut buf, key, cols),
                 CapValue::Rows => xtgettcap_num_append(&mut buf, key, rows),
                 CapValue::OsName => xtgettcap(&mut buf, true, key, Some(OS_NAME)),
+                CapValue::Tn => xtgettcap(&mut buf, true, key, Some(tn)),
             };
         }
         buf
@@ -281,14 +287,14 @@ mod tests {
     #[test]
     fn termcap_replies_for_each_value_kind() {
         assert_eq!(
-            Reply::termcap(b"RGB", 80, 24),
+            Reply::termcap(b"RGB", 80, 24, b"jetfish"),
             "\x1bP1+r524742=382f382f38\x1b\\"
         );
-        assert_eq!(Reply::termcap(b"am", 80, 24), "\x1bP1+r616d\x1b\\");
-        assert_eq!(Reply::termcap(b"co", 80, 24), "\x1bP1+r636f=3830\x1b\\");
-        assert_eq!(Reply::termcap(b"li", 80, 24), "\x1bP1+r6c69=3234\x1b\\");
+        assert_eq!(Reply::termcap(b"am", 80, 24, b"jetfish"), "\x1bP1+r616d\x1b\\");
+        assert_eq!(Reply::termcap(b"co", 80, 24, b"jetfish"), "\x1bP1+r636f=3830\x1b\\");
+        assert_eq!(Reply::termcap(b"li", 80, 24, b"jetfish"), "\x1bP1+r6c69=3234\x1b\\");
         assert_eq!(
-            Reply::termcap(b"nope", 80, 24),
+            Reply::termcap(b"nope", 80, 24, b"jetfish"),
             "\x1bP0+r756e737570706f72746564\x1b\\"
         );
     }
@@ -298,13 +304,13 @@ mod tests {
         let mut expected = String::from("\x1bP1+r71756572792d6f732d6e616d65=");
         expected.push_str(&const_hex::encode(OS_NAME));
         expected.push_str("\x1b\\");
-        assert_eq!(Reply::termcap(b"query-os-name", 80, 24), expected.as_str());
+        assert_eq!(Reply::termcap(b"query-os-name", 80, 24, b"jetfish"), expected.as_str());
     }
 
     #[test]
     fn termcap_answers_packed_query_in_order() {
         assert_eq!(
-            Reply::termcap(b"RGB;am;co", 80, 24),
+            Reply::termcap(b"RGB;am;co", 80, 24, b"jetfish"),
             "\x1bP1+r524742=382f382f38\x1b\\\x1bP1+r616d\x1b\\\x1bP1+r636f=3830\x1b\\"
         );
     }
@@ -312,7 +318,7 @@ mod tests {
     #[test]
     fn termcap_skips_empty_parts() {
         assert_eq!(
-            Reply::termcap(b";;RGB;;", 80, 24),
+            Reply::termcap(b";;RGB;;", 80, 24, b"jetfish"),
             "\x1bP1+r524742=382f382f38\x1b\\"
         );
     }
