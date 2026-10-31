@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   charset designation and shifting.
 - Added a CJK width mode to `vtty_width` (`set_cjk_width`) that renders
   East Asian Width "Ambiguous" chars as two cells.
+- Added `Reply::xtversion` for the `CSI > q` version query.
+- Added `Event::write_bytes` for serializing events back to their byte form.
+- Added the SGR effect parser to `vtty_core::style` (`SgrEffect`,
+  `parse_effects`, `single_code`, `single_effect`).
+- Added `Scs::apply_shift` for the SO/SI/SS2/SS3 control-byte shifting.
+- Added `Recording` replay and helper methods (`print_char`, `control`, `csi`,
+  `esc`, `osc`, …).
 
 ### Changed
 
@@ -27,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a new `None` variant) instead of `Option<Selector>`.
 - **Breaking:** `vtty_width::baked` is no longer public.
 - `vtty_codec::{EncodeError, DecodeError}` are now `#[non_exhaustive]`.
+- **Breaking:** `Reply` builders are now associated functions returning
+  `CompactString`, and the `Reply` codec was dropped.
+- **Breaking:** `Reply::termcap` now takes the terminal name as an argument
+  instead of a hardcoded `TN` value.
+- Pure builders and queries are now `#[must_use]`.
 
 ### Fixed
 
@@ -34,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which were previously counted as one cell in some sequences.
 - Fixed C1 control cancellation inside OSC/DCS strings.
 - Fixed the run end-char boundary in `vtty_width::cell_col_char_end_from_widths`.
+- Fixed `query-os-name` reporting `unknown` on NetBSD and OpenBSD.
 
 ## [0.1.0]
 
