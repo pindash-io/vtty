@@ -134,6 +134,7 @@ named_bytes!(
 /// A report without `id` addresses the root record; each report replaces its
 /// record completely.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ProgramStatus {
     /// The reported state. Required by the protocol.
     pub state: StatusState,

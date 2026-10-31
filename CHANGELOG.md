@@ -38,7 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CompactString`, and the `Reply` codec was dropped.
 - **Breaking:** `Reply::termcap` now takes the terminal name as an argument
   instead of a hardcoded `TN` value.
-- Pure builders and queries are now `#[must_use]`.
+- **Breaking:** `State`, `Sgr`, `Recording`, `ProgramStatus`, and `Cell`
+  are now `#[non_exhaustive]`; construct them via their `Default` impl and
+  field assignment rather than struct literals.
+- Pure builders and queries are now `#[must_use]`, along with the lazy
+  `Graphemes`, `ClusterWidths`, and `DecodeIter` iterator types.
 
 ### Fixed
 

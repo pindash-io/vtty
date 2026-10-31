@@ -158,9 +158,9 @@ impl Encode for Recording {
 
 impl Decode for Recording {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Ok(Self {
-            events: Vec::decode(reader)?,
-        })
+        let mut this = Self::default();
+        this.events = Vec::decode(reader)?;
+        Ok(this)
     }
 }
 
@@ -173,10 +173,10 @@ impl Encode for Sgr {
 
 impl Decode for Sgr {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Ok(Self {
-            params: SmallVec::decode(reader)?,
-            sep: u16::decode(reader)?,
-        })
+        let mut this = Self::default();
+        this.params = SmallVec::decode(reader)?;
+        this.sep = u16::decode(reader)?;
+        Ok(this)
     }
 }
 
@@ -372,15 +372,15 @@ impl Encode for ProgramStatus {
 
 impl Decode for ProgramStatus {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Ok(Self {
-            state: StatusState::decode(reader)?,
-            id: Option::decode(reader)?,
-            kind: Option::decode(reader)?,
-            progress: Option::decode(reader)?,
-            app: Option::decode(reader)?,
-            title: Option::decode(reader)?,
-            msg: Option::decode(reader)?,
-        })
+        let mut this = Self::default();
+        this.state = StatusState::decode(reader)?;
+        this.id = Option::decode(reader)?;
+        this.kind = Option::decode(reader)?;
+        this.progress = Option::decode(reader)?;
+        this.app = Option::decode(reader)?;
+        this.title = Option::decode(reader)?;
+        this.msg = Option::decode(reader)?;
+        Ok(this)
     }
 }
 
@@ -400,11 +400,11 @@ impl Decode for State {
         if line_start > cursor || cursor > text.len() {
             return Err(DecodeError::InvalidValue);
         }
-        Ok(Self {
-            text,
-            cursor,
-            line_start,
-        })
+        let mut this = Self::default();
+        this.text = text;
+        this.cursor = cursor;
+        this.line_start = line_start;
+        Ok(this)
     }
 }
 
@@ -466,9 +466,8 @@ mod tests {
 
     #[test]
     fn recording_roundtrip() {
-        let recording = Recording {
-            events: vec![Event::Print('a'), Event::Execute(b'\n')],
-        };
+        let mut recording = Recording::default();
+        recording.events = vec![Event::Print('a'), Event::Execute(b'\n')];
         assert_eq!(roundtrip(&recording), recording);
     }
 
@@ -549,15 +548,14 @@ mod tests {
 
     #[test]
     fn program_status_roundtrip() {
-        let status = ProgramStatus {
-            state: StatusState::Blocked,
-            id: Some("build/test".into()),
-            kind: Some(StatusKind::Permission),
-            progress: Some(40),
-            app: Some("terraform".into()),
-            title: Some("US East".into()),
-            msg: Some("Deploying v2".into()),
-        };
+        let mut status = ProgramStatus::default();
+        status.state = StatusState::Blocked;
+        status.id = Some("build/test".into());
+        status.kind = Some(StatusKind::Permission);
+        status.progress = Some(40);
+        status.app = Some("terraform".into());
+        status.title = Some("US East".into());
+        status.msg = Some("Deploying v2".into());
         assert_eq!(roundtrip(&status), status);
     }
 
