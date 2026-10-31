@@ -150,8 +150,8 @@ impl MouseButton {
         }
         // X10's single-byte coordinates top out at 222: `32 + coord + 1`
         // must fit in one byte (≤ 255), so a coordinate ≥ 223 would wrap
-        // and corrupt the byte stream. Ghostty's X10 encoder drops the
-        // event instead (`cell.x > 222 || cell.y > 222` → return).
+        // and corrupt the byte stream; the event is dropped instead
+        // (`cell.x > 222 || cell.y > 222` → return).
         if x > 222 || y > 222 {
             return None;
         }
@@ -266,7 +266,7 @@ mod tests {
         );
 
         // X10's single-byte coordinates top out at 222 (222 + 1 + 32 = 255);
-        // a larger coordinate would wrap and must be dropped (Ghostty).
+        // a larger coordinate would wrap and must be dropped.
         assert_eq!(
             MouseButton::Left.encode(x10, 222, 0, true).as_deref(),
             Some(&b"\x1b[M \xff!"[..])

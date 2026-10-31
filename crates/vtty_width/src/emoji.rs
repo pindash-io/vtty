@@ -123,7 +123,7 @@ pub fn mark_is_stray(mark: char, base: char) -> bool {
 /// Whether a char is a KEYCAP BASE (`#`, `*`, `0-9`). A buffered VS16/VS15
 /// after it ATTACHES (the DFA groups it into the keycap sequence — the base
 /// widens to 2 cells only in the COMPLETE `base VS16 U+20E3`); a DIRECT lone
-/// selector is still dropped (Ghostty's `ExtPict` rule).
+/// selector is still dropped.
 #[inline]
 pub fn is_keycap_base(c: char) -> bool {
     emoji_category(c) == EmojiSegmentationCategory::KeycapBase
@@ -179,8 +179,8 @@ fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
 /// `parley_emoji` presentation — one column narrower for a bare keycap: a
 /// keycap base is 2 cells only in the COMPLETE `base + VS16 + U+20E3`
 /// sequence (the no-VS16 `1 U+20E3` and the incomplete `1 VS16` both stay
-/// text-default 1 — Ghostty drops a VS16 after a keycap base because it is
-/// not `Extended_Pictographic`).
+/// text-default 1 — a VS16 after a keycap base is dropped because it is not
+/// `Extended_Pictographic`).
 #[inline]
 fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usize {
     if emoji_category(lead) == EmojiSegmentationCategory::KeycapBase {
@@ -312,8 +312,8 @@ pub(crate) fn finalize_lead(
         } else {
             // A lone mark, OR a mark followed by another combining mark with
             // only a SPACE base: it must occupy its own cell so the following
-            // mark has a VISIBLE base (Ghostty renders it left of the next
-            // glyph). A visible base already gives the next mark a base.
+            // mark has a VISIBLE base (it renders left of the next glyph).
+            // A visible base already gives the next mark a base.
             1
         }
     } else {

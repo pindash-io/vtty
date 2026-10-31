@@ -437,7 +437,7 @@ pub fn cell_width(c: char) -> Option<usize> {
         return Some(2);
     }
     // CJK width mode: East Asian Width "Ambiguous" (A) becomes 2 cells,
-    // matching wcwidth under a CJK locale / Ghostty's `cjk_width`.
+    // matching wcwidth under a CJK locale.
     if w == 1 && p.is_ambiguous() && crate::cjk_width() {
         return Some(2);
     }

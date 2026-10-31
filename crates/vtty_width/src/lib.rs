@@ -70,7 +70,7 @@ pub use width::{
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
-/// (like `wcwidth` under a CJK locale, or Ghostty's `cjk_width`). Off by
+/// (like `wcwidth` under a CJK locale). Off by
 /// default — Ambiguous chars stay 1 cell.
 static CJK_WIDTH: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 

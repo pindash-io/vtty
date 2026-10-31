@@ -234,8 +234,8 @@ fn decode_utf8_12<S: Simd>(
     }
 }
 
-/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (rio-vt/ghostty
-/// shape: one end-of-code-point mask per block, then a 12-byte chunk loop).
+/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (one end-of-code-
+/// point mask per block, then a 12-byte chunk loop).
 /// Returns `(code_points_written, bytes_consumed)`; a full block consumes 52
 /// bytes (the last 12 overlap into the next call), a sub-64-byte tail falls
 /// back to scalar decode.

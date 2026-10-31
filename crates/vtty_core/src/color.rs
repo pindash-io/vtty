@@ -243,7 +243,7 @@ pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
 /// `#RRGGBB`) into a 0xRRGGBB `u32`.
 ///
 /// `rgb:` channels of 1..4 hex digits are scaled to 8 bits (`XParseColor`
-/// semantics), matching Ghostty and Zellij.
+/// semantics).
 pub fn parse(s: &[u8]) -> Option<u32> {
     let s = core::str::from_utf8(s).ok()?;
     if let Some(rest) = s.strip_prefix("rgb:") {

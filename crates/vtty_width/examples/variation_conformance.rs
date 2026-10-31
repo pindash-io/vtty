@@ -4,7 +4,7 @@
 //! - Every TEXT-STYLE sequence (`base + VS15`) must collapse to `[1, 0]`.
 //! - Every EMOJI-STYLE sequence (`base + VS16`) must collapse to `[2, 0]`,
 //!   EXCEPT the keycap bases (`#`, `*`, `0-9`) — a lone VS16 without the
-//!   trailing U+20E3 is an INCOMPLETE keycap and is dropped (Ghostty drops a
+//!   trailing U+20E3 is an INCOMPLETE keycap and is dropped (a
 //!   VS16 after a keycap base because it is not `Extended_Pictographic`), so
 //!   those 12 stay `[1, 0]`. The complete `base VS16 U+20E3` keycap widens
 //!   normally.
@@ -64,7 +64,7 @@ fn main() {
             "emoji style" => {
                 let is_keycap = matches!(base, '0'..='9' | '#' | '*');
                 if is_keycap {
-                    // The incomplete keycap: lone VS16 is dropped (Ghostty).
+                    // The incomplete keycap: lone VS16 is dropped.
                     if w == [1, 0] {
                         keycap += 1;
                     } else {

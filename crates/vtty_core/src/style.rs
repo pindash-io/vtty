@@ -191,9 +191,8 @@ impl CursorStyle {
         }
     }
 
-    /// Map a DECSCUSR parameter to a shape; unsupported codes →
-    /// [`Self::None`] (the caller leaves the cursor style unchanged —
-    /// Ghostty ignores invalid values instead of hiding the cursor).
+    /// Map a DECSCUSR parameter to a shape; unsupported codes → [`Self::None`]
+    /// (the caller leaves the cursor style unchanged).
     #[inline]
     pub const fn from_decscusr(param: i32) -> Self {
         match param {
@@ -377,7 +376,7 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
 
 /// Parse an extended color (38/48/58): `X;5;n` / `X;2;r;g;b` and the colon
 /// forms `X:5:n`, `X:2:r:g:b`, `X:2:cs:r:g:b` / `X:2::r:g:b` (the colorspace
-/// is skipped — ghostty/xterm read the triplet as RGB, no CMY conversion).
+/// is skipped — xterm reads the triplet as RGB, no CMY conversion).
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
@@ -532,8 +531,8 @@ mod tests {
         assert_eq!(CursorStyle::from_decscusr(4), CursorStyle::Underline);
         assert_eq!(CursorStyle::from_decscusr(5), CursorStyle::Bar);
         assert_eq!(CursorStyle::from_decscusr(6), CursorStyle::Bar);
-        // Unsupported codes are ignored by the caller (Ghostty leaves the
-        // style unchanged), so the mapper returns `None`.
+        // Unsupported codes are ignored by the caller, so the mapper returns
+        // `None`.
         assert_eq!(CursorStyle::from_decscusr(7), CursorStyle::None);
     }
 

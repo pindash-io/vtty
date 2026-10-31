@@ -183,7 +183,7 @@ pub(crate) fn decode_utf8<P: Perform>(
                 let s = s.as_bytes();
                 #[cfg(feature = "simd-transcode")]
                 {
-                    // Unified SIMD transcode (rio-vt/ghostty): 64-byte blocks,
+                    // Unified SIMD transcode: 64-byte blocks,
                     // one end-of-code-point mask each, 12-byte chunks with the
                     // `0x924` fast path. C0/C1 split out via `execute`; the rest
                     // is one `print_codepoints` run.

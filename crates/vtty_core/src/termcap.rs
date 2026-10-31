@@ -7,8 +7,8 @@
 //! the terminal's advertised terminfo values. The reply formatting lives in
 //! [`Reply`](crate::Reply); this module maps each query name to a [`Cap`]
 //! variant (handling aliases) and that variant to its canonical reply key +
-//! value — mirroring Rio's `misc/rio.termcap`/`rio.terminfo` (the subset real
-//! apps probe: nvim `RGB`/`setrgbf`/`Smulx`/`Ss`/`sync`, fish
+//! value (the subset real apps probe: nvim `RGB`/`setrgbf`/`Smulx`/`Ss`/`sync`,
+//! fish
 //! `query-os-name`, tmux `setaf`/`setab`).
 
 use compact_str::CompactString;
