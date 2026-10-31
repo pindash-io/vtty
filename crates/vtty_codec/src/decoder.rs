@@ -92,6 +92,7 @@ impl<T: Decode> Decoder<T> {
 /// [`DecodeIter::next`] returns `None` at the end of the slice, `Some(Ok(T))`
 /// for each complete value, and stops after the first `Some(Err(..))` (e.g. a
 /// truncated trailing value).
+#[must_use]
 pub struct DecodeIter<'a, T> {
     reader: SliceReader<'a>,
     done: bool,

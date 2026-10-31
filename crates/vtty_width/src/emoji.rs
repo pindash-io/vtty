@@ -1,12 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Emoji segmentation — the UTS #51 rules for which chars merge into one
-//! terminal glyph, plus the `Run` state machine the width model drives.
-//!
-//! The public predicates ([`mark_attaches`], [`is_vs_base`], [`is_zwj_target`],
-//! …) answer single questions about a mark and a base; a private `Run` state
-//! machine drives the [`crate::width`] model.
+//! Emoji segmentation, the UTS #51 rules for which chars merge into one
+//! terminal glyph.
 
 use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 

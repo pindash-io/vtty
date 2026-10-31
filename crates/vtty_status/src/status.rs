@@ -226,6 +226,7 @@ impl ProgramStatus {
     }
 
     /// The full `OSC 7501 ; pairs ST` sequence.
+    #[must_use]
     pub fn to_osc(&self) -> Vec<u8> {
         let mut out = Vec::new();
         self.write_osc(&mut out);

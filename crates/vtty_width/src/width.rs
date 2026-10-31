@@ -1,13 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! String-level cell width — the width model built on [`crate::emoji`].
-//!
-//! A private `Widths` iterator is the single streaming source of truth: it
-//! walks a string, merges emoji sequences through the UTS #51 DFA, and yields
-//! one cell width per char in order. [`cell_widths`], [`cell_width_sum`] and
-//! [`cell_col_byte_widths`] are thin views over it; [`cell_advance`] snaps a
-//! font glyph advance to the same grid.
+//! String-level cell width, built on [`crate::emoji`]. A private `Widths`
+//! iterator merges emoji sequences through the UTS #51 DFA and yields one cell
+//! width per char.
 
 use crate::emoji::{Run, Selector, finalize_lead, run_continues};
 use crate::properties::{cell_width, emoji_category, first_non_printable_ascii};

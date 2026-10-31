@@ -161,6 +161,7 @@ fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
 /// Yields [`Grapheme`] ranges in order; the first cluster starts at 0 and
 /// the last ends at `text.len()`.
 #[derive(Debug)]
+#[must_use]
 pub struct Graphemes<'a> {
     iter: core::str::CharIndices<'a>,
     text: &'a str,
@@ -265,6 +266,7 @@ impl Iterator for Graphemes<'_> {
 /// Iterator over per-cluster display cell widths (1 or 2; 0 for a cluster
 /// that is only zero-width marks).
 #[derive(Debug)]
+#[must_use]
 pub struct ClusterWidths<'a> {
     graphemes: Graphemes<'a>,
     text: &'a str,
@@ -290,6 +292,7 @@ impl Iterator for ClusterWidths<'_> {
 }
 
 /// The number of grapheme clusters in `text`.
+#[must_use]
 pub fn cluster_count(text: &str) -> usize {
     graphemes(text).count()
 }
@@ -298,6 +301,7 @@ pub fn cluster_count(text: &str) -> usize {
 ///
 /// Equivalent to [`vtty_width::cell_width_sum`] when the cluster boundaries
 /// and the emoji width model agree (they do for UAX #29 vs UTS #51 sequences).
+#[must_use]
 pub fn cluster_width_sum(text: &str) -> usize {
     // Printable-ASCII fast path: every byte is one cell, so the total is the
     // byte length. Controls are zero-width and take the general path.

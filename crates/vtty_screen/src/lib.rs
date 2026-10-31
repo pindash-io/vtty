@@ -317,6 +317,7 @@ impl Screen {
 
     /// Render one row to plain text, trimming trailing spaces and skipping
     /// double-width continuation cells.
+    #[must_use]
     pub fn render_line(&self, row: u32) -> String {
         if row >= self.rows {
             return String::new();
@@ -325,6 +326,7 @@ impl Screen {
     }
 
     /// Render every row to text, one `String` per row.
+    #[must_use]
     pub fn lines(&self) -> Vec<String> {
         (0..self.rows).map(|r| self.render_line(r)).collect()
     }
@@ -332,6 +334,7 @@ impl Screen {
     /// Render every row to ANSI-styled text (for snapshots/tests): each row
     /// `\r\n`-terminated, cells carrying their SGR attributes. Trailing blank
     /// cells are trimmed; each line ends with an SGR reset.
+    #[must_use]
     pub fn render_ansi(&self) -> String {
         let mut out = String::new();
         for row in 0..self.rows {
@@ -342,6 +345,7 @@ impl Screen {
     }
 
     /// Render one row to ANSI-styled text (no trailing newline).
+    #[must_use]
     pub fn render_ansi_line(&self, row: u32) -> String {
         let mut out = String::new();
         if row >= self.rows {

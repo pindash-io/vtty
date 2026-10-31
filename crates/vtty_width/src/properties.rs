@@ -1,13 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Per-codepoint properties and single-char width — the lookup layer the
-//! emoji segmentation ([`crate::emoji`]) and the width model
-//! ([`crate::width`]) build on.
-//!
-//! [`Properties`] packs the parley emoji flags plus the display width into a
-//! single byte (baked table or ICU4X runtime); [`cell_width`], [`vs_width`]
-//! and [`is_zero_width`] are the single-char width predicates.
+//! Per-codepoint properties and single-char width, the lookup layer the emoji
+//! segmentation and width model build on.
 
 use parley_emoji::EmojiSegmentationCategory;
 
