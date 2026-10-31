@@ -7,7 +7,7 @@
 //! 9/1000/1002/1003/1005/1006/1015/1016 — see [xterm ctlseqs, Mouse
 //! Tracking](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking).
 
-use compact_str::CompactString;
+use compact_str::{CompactString, format_compact};
 use smallvec::SmallVec;
 
 /// Inline capacity for a mouse sequence. SGR (`ESC [ < cb ; x ; y M/m`) is
@@ -91,7 +91,7 @@ impl MouseButton {
         // `Motion` = motion + left button (a drag, `cb=32`);
         // `MotionNoButton` = pure hover (`cb=35`). The button code is used
         // verbatim so ratatui/crossterm can tell Drag(Left) from Moved.
-        compact_str::format_compact!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
+        format_compact!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
     }
 
     /// Encode this event in X10 style (`CSI M Cb Cx Cy`, single bytes).

@@ -10,7 +10,7 @@
 use core::fmt::Write as _;
 
 #[cfg(feature = "reply")]
-use compact_str::CompactString;
+use compact_str::{CompactString, format_compact};
 
 #[cfg(feature = "reply")]
 /// DECTSR answer prefix — `DCS 1 $ s` (Terminal State Report). The final is
@@ -97,7 +97,7 @@ impl crate::reply::Reply {
     /// `0` (STD) or `1` (PC).
     #[must_use]
     pub fn da2(id: u32, firmware: u32, keyboard: u32) -> CompactString {
-        compact_str::format_compact!("\x1b[>{id};{firmware};{keyboard}c")
+        format_compact!("\x1b[>{id};{firmware};{keyboard}c")
     }
 
     /// Build a DA3 (Tertiary Device Attributes) answer:
@@ -122,7 +122,7 @@ impl crate::reply::Reply {
     /// `CSI > q` version query, xterm-style).
     #[must_use]
     pub fn xtversion(name: &str, version: &str) -> CompactString {
-        compact_str::format_compact!("\x1bP>|{name} {version}\x1b\\")
+        format_compact!("\x1bP>|{name} {version}\x1b\\")
     }
 
     /// Build a DECCTR (Color Table Report) answer:

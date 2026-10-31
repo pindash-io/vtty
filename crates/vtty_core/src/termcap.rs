@@ -11,6 +11,8 @@
 //! apps probe: nvim `RGB`/`setrgbf`/`Smulx`/`Ss`/`sync`, fish
 //! `query-os-name`, tmux `setaf`/`setab`).
 
+use compact_str::CompactString;
+
 /// OS name for the non-standard `query-os-name` capability. `cfg!` is
 /// `no_std`-safe (unlike `std::env::consts::OS`).
 const OS_NAME: &[u8] = if cfg!(target_os = "macos") {
@@ -236,10 +238,10 @@ impl crate::Reply {
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
     #[must_use]
-    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> compact_str::CompactString {
+    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
-        let mut buf = compact_str::CompactString::default();
+        let mut buf = CompactString::default();
         for part in cap.split(|&b| b == b';') {
             if part.is_empty() {
                 continue;

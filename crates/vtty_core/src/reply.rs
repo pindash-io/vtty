@@ -11,7 +11,7 @@
 use core::fmt::Write as _;
 
 use alloc::string::ToString;
-use compact_str::CompactString;
+use compact_str::{CompactString, format_compact};
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
 
@@ -38,7 +38,7 @@ impl Reply {
     /// Build a DECRQSS answer: `DCS {valid} $ r {value} ST`.
     #[must_use]
     pub fn decrqss(valid: bool, value: &str) -> CompactString {
-        compact_str::format_compact!(
+        format_compact!(
             "{}{value}\x1b\\",
             if valid { DECRQSS_OK } else { DECRQSS_ERR }
         )
@@ -125,7 +125,7 @@ impl Reply {
     /// includes the `?` for `CSI ?Ps$p` queries.
     #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
-        compact_str::format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
+        format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
     }
 }
 

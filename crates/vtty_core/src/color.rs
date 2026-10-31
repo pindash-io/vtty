@@ -3,6 +3,7 @@
 
 //! The palette index type used by reply formatting.
 
+use compact_str::{CompactString, format_compact};
 use core::fmt;
 use core::ops::Deref;
 
@@ -281,23 +282,19 @@ fn scale_channel(part: &str) -> Option<u8> {
 /// convention).
 #[inline]
 #[must_use]
-pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString {
+pub fn format_osc_color_reply(code: u16, rgb: u32) -> CompactString {
     let [r, g, b] = u32_to_rgb(rgb);
     // Direct `{:02x}` hex (each channel doubled to 4 digits) — no intermediate
     // `const_hex::encode` heap strings; `format_compact!` writes inline.
-    compact_str::format_compact!(
-        "\x1b]{code};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\"
-    )
+    format_compact!("\x1b]{code};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\")
 }
 
 /// Format an `OSC 4` palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
 #[must_use]
-pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactString {
+pub fn format_osc_palette_reply(index: usize, rgb: u32) -> CompactString {
     let [r, g, b] = u32_to_rgb(rgb);
-    compact_str::format_compact!(
-        "\x1b]4;{index};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\"
-    )
+    format_compact!("\x1b]4;{index};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\")
 }
 
 /// Format the full `OSC 11` background reply as a fixed 25-byte buffer:
