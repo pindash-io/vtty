@@ -947,9 +947,18 @@ checksum = "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
 
 [[package]]
 name = "smallvec"
-version = "2.0.0-beta.3"
+version = "2.0.0-beta.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "260f642f866b34ad70fb59f47aed43ab21c36d5d82891f82b0cf4cd551a187d2"
+checksum = "d1a521aaffa9ff9b9f5c7f50a8eb60aebd11d6467d43684128d5552f6ce02003"
+dependencies = [
+ "smallvec-macro",
+]
+
+[[package]]
+name = "smallvec-macro"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8aa3a1ebad7c7d912534fac818e45203fe094907e97806786285f8f440222e5a"
 
 [[package]]
 name = "stable_deref_trait"
@@ -1122,7 +1131,7 @@ dependencies = [
  "fearless_simd",
  "rio-vt",
  "simdutf8",
- "smallvec 2.0.0-beta.3",
+ "smallvec 2.0.0-beta.4",
  "utf8_iter",
  "vte",
  "vtty_codec",
@@ -1136,7 +1145,7 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "rio-vt",
- "smallvec 2.0.0-beta.3",
+ "smallvec 2.0.0-beta.4",
  "vt100",
  "vte",
  "vtparse",
@@ -1161,7 +1170,7 @@ name = "vtty_codec"
 version = "0.1.0"
 dependencies = [
  "compact_str",
- "smallvec 2.0.0-beta.3",
+ "smallvec 2.0.0-beta.4",
  "vtty_core",
  "vtty_status",
 ]
@@ -1173,7 +1182,7 @@ dependencies = [
  "bitflags",
  "compact_str",
  "const-hex",
- "smallvec 2.0.0-beta.3",
+ "smallvec 2.0.0-beta.4",
 ]
 
 [[package]]

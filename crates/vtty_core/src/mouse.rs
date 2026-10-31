@@ -133,9 +133,7 @@ impl MouseButton {
             return None;
         }
         if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {
-            return Some(SmallVec::from_slice_copy(
-                self.encode_sgr(x, y, pressed).as_bytes(),
-            ));
+            return Some(SmallVec::from(self.encode_sgr(x, y, pressed).as_bytes()));
         }
         // Drag motion reports only in any-motion (1003) mode; release is
         // `Cb = 3`.
@@ -144,7 +142,7 @@ impl MouseButton {
         }
         let b = if pressed { self } else { Self::Release };
         if tracking.contains(MouseTracking::UTF8) {
-            return Some(SmallVec::from_slice_copy(b.encode_utf8(x, y).as_bytes()));
+            return Some(SmallVec::from(b.encode_utf8(x, y).as_bytes()));
         }
         // X10's single-byte coordinates top out at 222: `32 + coord + 1`
         // must fit in one byte (≤ 255), so a coordinate ≥ 223 would wrap

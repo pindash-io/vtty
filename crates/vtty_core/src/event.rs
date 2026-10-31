@@ -231,9 +231,9 @@ impl Recording {
         final_byte: u8,
     ) -> &mut Self {
         self.push(Event::CsiDispatch {
-            params: SmallVec::from_slice_copy(params),
+            params: SmallVec::from(params),
             sep,
-            intermediates: SmallVec::from_slice_copy(intermediates),
+            intermediates: SmallVec::from(intermediates),
             final_byte,
         })
     }
@@ -241,7 +241,7 @@ impl Recording {
     /// Record a raw ESC sequence.
     pub fn esc(&mut self, intermediates: &[u8], byte: u8) -> &mut Self {
         self.push(Event::EscDispatch {
-            intermediates: SmallVec::from_slice_copy(intermediates),
+            intermediates: SmallVec::from(intermediates),
             byte,
         })
     }
@@ -249,8 +249,8 @@ impl Recording {
     /// Record a DCS header.
     pub fn dcs_hook(&mut self, params: &[i32], intermediates: &[u8], final_byte: u8) -> &mut Self {
         self.push(Event::DcsHook {
-            params: SmallVec::from_slice_copy(params),
-            intermediates: SmallVec::from_slice_copy(intermediates),
+            params: SmallVec::from(params),
+            intermediates: SmallVec::from(intermediates),
             final_byte,
         })
     }

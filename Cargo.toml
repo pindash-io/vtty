@@ -28,7 +28,7 @@ simdutf8 = "0.1"
 base64 = { version = "0.23.1", default-features = false, features = ["alloc"] }
 bitflags = "2"
 const-hex = { version = "1.19.3", default-features = false }
-smallvec = { version = "2.0.0-beta.3", default-features = false }
+smallvec = { version = "2.0.0-beta.4", default-features = false }
 compact_str = { version = "0.10.0", default-features = false }
 utf8_iter = "1"
 
