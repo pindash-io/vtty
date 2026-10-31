@@ -220,7 +220,6 @@ impl CursorStyle {
 
 /// An unresolved SGR color (before palette interning).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
 pub enum ColorSpec {
     /// 39/49 — restore the default fg/bg.
     Default,
@@ -250,7 +249,6 @@ impl ColorSpec {
 
 /// A single parsed SGR effect, in sequence order.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
 pub enum SgrEffect {
     /// 0 — reset all attributes and colors.
     Reset,
