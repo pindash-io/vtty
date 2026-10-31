@@ -138,6 +138,7 @@ impl Parser {
     /// Parse bytes, collecting every dispatch into a `Vec<Event>` — the
     /// convenience enum API; [`Self::advance`] + [`Perform`] is the
     /// zero-allocation hot path. Unbounded `Vec`, so tests/tooling only.
+    #[must_use]
     pub fn parse_events(&mut self, bytes: &[u8]) -> Vec<Event> {
         let mut c = Recording::default();
         self.advance(&mut c, bytes);

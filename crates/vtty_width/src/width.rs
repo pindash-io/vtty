@@ -142,6 +142,7 @@ impl Iterator for Widths<'_> {
 /// following VS16/ZWJ.
 ///
 /// Spec: Layer 2 `w₂` in `docs/width-model-spec.md`.
+#[must_use]
 pub fn cell_widths(text: &str) -> Vec<usize> {
     let mut widths = Vec::with_capacity(text.len());
     widths.extend(Widths::new(text));
@@ -152,6 +153,7 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
 /// streaming counterpart of `cell_widths(text).iter().sum()`.
 ///
 /// Spec: `Σ w₂` in `docs/width-model-spec.md`.
+#[must_use]
 pub fn cell_width_sum(text: &str) -> usize {
     // Printable-ASCII fast path: every byte is one cell, so the total is the
     // byte length — no per-char work (the streaming `Widths` sums 1 per byte).
@@ -183,6 +185,7 @@ pub const fn cell_advance(advance: f32, cell_w: f32) -> f32 {
 /// Returns `widths.len()` past the last cell. The FLOOR boundary: a column on
 /// a wide glyph's second cell maps back to that glyph's lead char.
 #[inline]
+#[must_use]
 pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
     let mut cell = 0;
     for (i, &w) in widths.iter().enumerate() {
@@ -198,6 +201,7 @@ pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
 /// column `col` (the CEIL boundary) — a zero-width char sitting exactly at
 /// the boundary IS included. Returns `widths.len()` past the last cell.
 #[inline]
+#[must_use]
 pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
     let mut cell = 0;
     for (i, &w) in widths.iter().enumerate() {
@@ -213,6 +217,7 @@ pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
 /// cell column `col`, including its trailing zero-width continuations.
 /// Returns `widths.len()` past the last cell.
 #[inline]
+#[must_use]
 pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
     let mut cell = 0;
     for (i, &w) in widths.iter().enumerate() {
@@ -233,6 +238,7 @@ pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
 /// including VS16 and ZWJ emoji merged to a single 2-cell unit. Zero-width
 /// continuations (the VS16/ZWJ components) are skipped. Clamped to `text.len()`
 /// when the column is past the last cell.
+#[must_use]
 pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
     // Printable-ASCII fast path: one cell per byte, no width table needed.
     if first_non_printable_ascii(text.as_bytes()) == text.len() {

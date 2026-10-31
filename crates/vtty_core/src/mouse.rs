@@ -84,6 +84,7 @@ impl MouseButton {
     /// 0-based; the emitted protocol is 1-based. Press/release differ only
     /// in the final byte (`M`/`m`).
     #[inline]
+    #[must_use]
     pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> CompactString {
         let final_byte = if pressed { 'M' } else { 'm' };
         let (x, y) = (x + 1, y + 1);
@@ -97,6 +98,7 @@ impl MouseButton {
     /// `Cx`/`Cy` are RAW bytes (`32 + coord`, truncated) — they may be
     /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
+    #[must_use]
     pub fn encode_x10(self, x: u16, y: u16) -> SmallVec<u8, MOUSE_SEQ_INLINE> {
         let (cb, cx, cy) = self.x10_bytes(x, y);
         SmallVec::from([0x1b, b'[', b'M', cb, cx as u8, cy as u8])
@@ -106,6 +108,7 @@ impl MouseButton {
     /// prefix, but `Cx`/`Cy` are UTF-8 encoded instead of truncated single
     /// bytes. Built inline (no heap `String`).
     #[inline]
+    #[must_use]
     pub fn encode_utf8(self, x: u16, y: u16) -> CompactString {
         let (cb, cx, cy) = self.x10_bytes(x, y);
         let mut b = CompactString::new("");
@@ -118,6 +121,7 @@ impl MouseButton {
 
     /// Encode a mouse event under the given tracking configuration, or `None`
     /// when tracking is disabled. `x`/`y` are 0-based cell coordinates.
+    #[must_use]
     pub fn encode(
         self,
         tracking: MouseTracking,

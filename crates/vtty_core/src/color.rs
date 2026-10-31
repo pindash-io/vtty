@@ -280,6 +280,7 @@ fn scale_channel(part: &str) -> Option<u8> {
 /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
 /// convention).
 #[inline]
+#[must_use]
 pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString {
     let [r, g, b] = u32_to_rgb(rgb);
     // Direct `{:02x}` hex (each channel doubled to 4 digits) — no intermediate
@@ -291,6 +292,7 @@ pub fn format_osc_color_reply(code: u16, rgb: u32) -> compact_str::CompactString
 
 /// Format an `OSC 4` palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
+#[must_use]
 pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactString {
     let [r, g, b] = u32_to_rgb(rgb);
     compact_str::format_compact!(
@@ -303,6 +305,7 @@ pub fn format_osc_palette_reply(index: usize, rgb: u32) -> compact_str::CompactS
 /// (8-bit channels repeated to 4 hex digits, the xterm convention
 /// lazygit/others expect).
 #[inline]
+#[must_use]
 pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
     let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
     let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);

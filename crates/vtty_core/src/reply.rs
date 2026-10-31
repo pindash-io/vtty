@@ -36,6 +36,7 @@ pub struct Reply;
 
 impl Reply {
     /// Build a DECRQSS answer: `DCS {valid} $ r {value} ST`.
+    #[must_use]
     pub fn decrqss(valid: bool, value: &str) -> CompactString {
         compact_str::format_compact!(
             "{}{value}\x1b\\",
@@ -45,6 +46,7 @@ impl Reply {
 
     /// Build an XTGETTCAP answer: `DCS 1 + r {hex key}={hex value} ST`.
     #[inline]
+    #[must_use]
     pub fn xtgettcap_reply(key: &[u8], value: &[u8]) -> CompactString {
         xtgettcap_build(true, key, Some(value))
     }
@@ -52,24 +54,28 @@ impl Reply {
     /// Build an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
     /// `=value`, per xterm — a bare name means "supported").
     #[inline]
+    #[must_use]
     pub fn xtgettcap_reply_bool(key: &[u8]) -> CompactString {
         xtgettcap_build(true, key, None)
     }
 
     /// Build an XTGETTCAP failure: `DCS 0 + r {hex msg} ST`.
     #[inline]
+    #[must_use]
     pub fn xtgettcap_error(msg: &[u8]) -> CompactString {
         xtgettcap_build(false, msg, None)
     }
 
     /// Build an XTGETTCAP answer with a decimal integer value.
     #[inline]
+    #[must_use]
     pub fn xtgettcap_num(key: &[u8], n: usize) -> CompactString {
         xtgettcap_num_build(key, n)
     }
 
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
     /// Starts with `0` (reset-all), like vte. `palette` resolves RGB ids.
+    #[must_use]
     pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str("0");
@@ -92,6 +98,7 @@ impl Reply {
     /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
     /// convention).
     #[inline]
+    #[must_use]
     pub fn osc_color(code: u16, rgb: u32) -> CompactString {
         crate::color::format_osc_color_reply(code, rgb)
     }
@@ -99,12 +106,14 @@ impl Reply {
     /// Build an `OSC 4` palette-entry reply
     /// `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
     #[inline]
+    #[must_use]
     pub fn osc_palette(index: usize, rgb: u32) -> CompactString {
         crate::color::format_osc_palette_reply(index, rgb)
     }
 
     /// Build the fixed `OSC 11` background reply `ESC]11;rgb:… ESC\`.
     #[inline]
+    #[must_use]
     pub fn osc_background(c: [f32; 4]) -> CompactString {
         // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
         let fixed = crate::color::format_osc_background(c);
@@ -114,6 +123,7 @@ impl Reply {
     /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
     /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
     /// includes the `?` for `CSI ?Ps$p` queries.
+    #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
         compact_str::format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
     }

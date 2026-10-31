@@ -85,6 +85,7 @@ impl crate::reply::Reply {
     /// `CSI ? {a0};{a1};… c`. The first attribute is the service class
     /// (`65` = VT500, `64` = VT400, `62` = VT220, `1` = VT100); the rest are
     /// supported-extension codes (EK-VT520-RM §5-9).
+    #[must_use]
     pub fn da1(attrs: &[u32]) -> CompactString {
         join_wrapped("\x1b[?", attrs, ';', "c")
     }
@@ -94,6 +95,7 @@ impl crate::reply::Reply {
     /// terminal identification code (`64` = VT520, `65` = color VT525),
     /// `firmware` the version (`10` = V1.0, `20` = V2.0), and `keyboard`
     /// `0` (STD) or `1` (PC).
+    #[must_use]
     pub fn da2(id: u32, firmware: u32, keyboard: u32) -> CompactString {
         compact_str::format_compact!("\x1b[>{id};{firmware};{keyboard}c")
     }
@@ -101,6 +103,7 @@ impl crate::reply::Reply {
     /// Build a DA3 (Tertiary Device Attributes) answer:
     /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
     /// (EK-VT520-RM §5-12).
+    #[must_use]
     pub fn da3(unit_id: &[u8]) -> CompactString {
         dcs_string("\x1bP!|", &const_hex::encode(unit_id))
     }
@@ -110,12 +113,14 @@ impl crate::reply::Reply {
     /// device-attribute string (the DA1/DA2/DA3 response bodies), per
     /// EK-VT520-RM §5-160.
     #[inline]
+    #[must_use]
     pub fn dectsr(device_attrs: &str) -> CompactString {
         dcs_string(DECTSR_PREFIX, device_attrs)
     }
 
     /// Build an XTVERSION answer: `DCS > | {name} {version} ST` (the
     /// `CSI > q` version query, xterm-style).
+    #[must_use]
     pub fn xtversion(name: &str, version: &str) -> CompactString {
         compact_str::format_compact!("\x1bP>|{name} {version}\x1b\\")
     }
@@ -124,6 +129,7 @@ impl crate::reply::Reply {
     /// `DCS 2 $ s {Pc;2;r;g;b / …} ST`. Each entry is `(color_number, red,
     /// green, blue)` with 8-bit RGB (0-255), scaled to the DEC 0-100
     /// coordinate range (rounding to nearest).
+    #[must_use]
     pub fn decctr(entries: &[(u8, u8, u8, u8)]) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str(DECCTR_PREFIX);
@@ -148,12 +154,14 @@ impl crate::reply::Reply {
     /// visual attributes, origin mode, and active G0–G3 charsets), which a
     /// screen builds; see EK-VT520-RM §5-30.
     #[inline]
+    #[must_use]
     pub fn deccir(payload: &str) -> CompactString {
         dcs_string(DECCIR_PREFIX, payload)
     }
 
     /// Build a DECTABSR (Tab Stop Report) answer:
     /// `DCS 2 $ u {col/col/…} ST`, one decimal column number per tab stop.
+    #[must_use]
     pub fn dectabsr(cols: &[u32]) -> CompactString {
         join_wrapped(DECTABSR_PREFIX, cols, '/', crate::reply::ST)
     }

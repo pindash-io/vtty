@@ -235,6 +235,7 @@ impl crate::Reply {
     /// The query may pack several capabilities, semicolon-separated (nvim/herdr
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
+    #[must_use]
     pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> compact_str::CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
