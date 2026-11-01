@@ -8,9 +8,9 @@
 //! tables](https://vt100.net/emu/ctrlseq_dec.html); the individual report
 //! formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR) follow EK-VT520-RM §5.
 
+use alloc::string::ToString;
 use core::fmt::Write as _;
 
-use alloc::string::ToString;
 use compact_str::{CompactString, format_compact};
 
 use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
@@ -79,15 +79,16 @@ impl Reply {
     pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str("0");
-        for (flag, code) in [
+        for (_, code) in [
             (SgrFlags::BOLD, ";1"),
             (SgrFlags::ITALIC, ";3"),
             (SgrFlags::UNDERLINE, ";4"),
             (SgrFlags::INVERSE, ";7"),
-        ] {
-            if flags.contains(flag) {
-                buf.push_str(code);
-            }
+        ]
+        .into_iter()
+        .filter(|(flag, _)| flags.contains(*flag))
+        {
+            buf.push_str(code);
         }
         push_sgr_color(&mut buf, 3, fg, DEFAULT_FG_ID, palette);
         push_sgr_color(&mut buf, 4, bg, DEFAULT_BG_ID, palette);

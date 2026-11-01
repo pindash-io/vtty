@@ -13,7 +13,7 @@ use crate::cell::Cell;
 /// Emit an SGR sequence (`ESC [ 0 ; … m`) for a cell's attributes.
 pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId, palette: &[u32]) {
     out.push_str("\x1b[0");
-    for (flag, code) in [
+    for (_, code) in [
         (SgrFlags::BOLD, ";1"),
         (SgrFlags::FAINT, ";2"),
         (SgrFlags::ITALIC, ";3"),
@@ -23,10 +23,11 @@ pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId
         (SgrFlags::INVERSE, ";7"),
         (SgrFlags::INVISIBLE, ";8"),
         (SgrFlags::STRIKETHROUGH, ";9"),
-    ] {
-        if sgr.contains(flag) {
-            out.push_str(code);
-        }
+    ]
+    .into_iter()
+    .filter(|(flag, _)| sgr.contains(*flag))
+    {
+        out.push_str(code);
     }
     push_ansi_color(out, 3, fg, palette);
     push_ansi_color(out, 4, bg, palette);
