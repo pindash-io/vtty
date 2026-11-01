@@ -1764,4 +1764,14 @@ mod tests {
         run(&mut s, b"\x1b]9;1;hello\x07");
         assert_eq!(s.progress(), Progress::Error);
     }
+
+    #[test]
+    fn cursor_horizontal_forward_does_not_overflow() {
+        // The forward branch must saturate like the backward branch, so a
+        // near-maximum column plus a large param cannot overflow.
+        let mut s = Screen::new(3, 2);
+        s.cursor_col = u32::MAX - 5;
+        s.cursor_horizontal(65535, false);
+        assert_eq!(s.cursor_col, s.cols - 1);
+    }
 }

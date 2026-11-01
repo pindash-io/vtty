@@ -60,7 +60,7 @@ impl Screen {
         self.cursor_col = if backward {
             self.cursor_col.saturating_sub(n)
         } else {
-            (self.cursor_col + n).min(self.cols - 1)
+            self.cursor_col.saturating_add(n).min(self.cols - 1)
         };
     }
 
