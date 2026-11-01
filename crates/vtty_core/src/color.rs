@@ -3,9 +3,10 @@
 
 //! The palette index type used by reply formatting.
 
-use compact_str::{CompactString, format_compact};
 use core::fmt;
 use core::ops::Deref;
+
+use compact_str::{CompactString, format_compact};
 
 /// A palette index: `0..=255` the 256-color table, `256`/`257` default
 /// fg/bg, `258+` RGB truecolors inserted on demand.

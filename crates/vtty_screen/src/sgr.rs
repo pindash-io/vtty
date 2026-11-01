@@ -3,10 +3,10 @@
 
 //! sgr commands for [`Screen`](crate::Screen).
 
-use crate::cell::{BufferFlags, Cell, ScreenFlags};
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
 use crate::Screen;
+use crate::cell::{BufferFlags, Cell, ScreenFlags};
 
 impl Screen {
     pub(crate) fn sgr(&mut self, params: &[i32]) {

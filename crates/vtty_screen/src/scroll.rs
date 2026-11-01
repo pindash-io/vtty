@@ -3,9 +3,8 @@
 
 //! scroll commands for [`Screen`](crate::Screen).
 
-use crate::cell::Cell;
-
 use crate::Screen;
+use crate::cell::Cell;
 
 impl Screen {
     /// LF: down one line (scrolling within the margins), keeping the column.

@@ -3,10 +3,10 @@
 
 //! put commands for [`Screen`](crate::Screen).
 
-use crate::cell::{BufferFlags, CONTINUATION, Cell, ScreenFlags};
 use vtty_width::{cell_width, cell_width_sum};
 
 use crate::Screen;
+use crate::cell::{BufferFlags, CONTINUATION, Cell, ScreenFlags};
 
 impl Screen {
     /// Write one glyph, handling double-width cells and autowrap.

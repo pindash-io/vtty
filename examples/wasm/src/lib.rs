@@ -6,9 +6,10 @@
 
 use std::fmt::Write as _;
 
+use wasm_bindgen::prelude::*;
+
 use vtty::{ColorId, Parser, SgrFlags};
 use vtty_screen::Screen;
-use wasm_bindgen::prelude::*;
 
 /// Demo grid size.
 const COLS: u32 = 80;

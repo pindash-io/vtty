@@ -270,9 +270,9 @@ pub enum SgrEffect {
 
 // ── SGR parameter decoding ───────────────────────────────────────────
 
-use smallvec::SmallVec;
-
 use alloc::string::ToString;
+
+use smallvec::SmallVec;
 
 /// Parse an SGR sequence into its effects, appending to `out` (which the
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved

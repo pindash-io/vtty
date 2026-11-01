@@ -3,9 +3,8 @@
 
 //! edit commands for [`Screen`](crate::Screen).
 
-use crate::cell::Cell;
-
 use crate::Screen;
+use crate::cell::Cell;
 
 impl Screen {
     pub(crate) fn insert_lines(&mut self, n: u32) {

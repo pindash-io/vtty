@@ -3,9 +3,8 @@
 
 //! cursor commands for [`Screen`](crate::Screen).
 
-use crate::cell::BufferFlags;
-
 use crate::Screen;
+use crate::cell::BufferFlags;
 
 impl Screen {
     #[inline]

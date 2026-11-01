@@ -3,9 +3,8 @@
 
 //! erase commands for [`Screen`](crate::Screen).
 
-use crate::cell::Cell;
-
 use crate::Screen;
+use crate::cell::Cell;
 
 impl Screen {
     pub(crate) fn erase_in_display(&mut self, mode: i32) {
