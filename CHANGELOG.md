@@ -45,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   feature is enabled.
 - `vtty_screen` full-screen scrolling now rotates a ring buffer (O(cols) per
   line) instead of memmoving the grid.
+- `vtty_codec::EncodeError` now has an `UnknownVariant` variant; encoding a
+  `#[non_exhaustive]` enum with an unknown variant errors instead of
+  panicking.
+- Removed the `VTTY_EMOJI_FAST` build knob from `vtty_width`, which emitted
+  `unsafe` code incompatible with the crate's `forbid(unsafe_code)`.
 
 ### Fixed
 
@@ -53,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed C1 control cancellation inside OSC/DCS strings.
 - Fixed the run end-char boundary in `vtty_width::cell_col_char_end_from_widths`.
 - Fixed `query-os-name` reporting `unknown` on NetBSD and OpenBSD.
+- Fixed `vtty_codec` decoding a length prefix larger than the remaining
+  input, which could force a huge allocation on a malicious stream.
 
 ## [0.1.0]
 
