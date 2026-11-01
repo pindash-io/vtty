@@ -49,6 +49,18 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
 /// byte (`0x80..=0x9f`), or the `;` param separator. The rest are `OSC_PUT`.
 #[inline(always)]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
+    // Fast path: OSC runs are often short — a `;` or terminator right after
+    // the introducer or a previous separator skips the SIMD dispatch.
+    if let Some(&b) = bytes.first()
+        && ((b & 0x60) == 0 || b == 0x3b)
+    {
+        return 0;
+    }
+    if let Some(&b) = bytes.get(1)
+        && ((b & 0x60) == 0 || b == 0x3b)
+    {
+        return 1;
+    }
     let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::OscBoundary))
 }
@@ -58,6 +70,18 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
 /// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
 #[inline(always)]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
+    // Fast path: a terminator (`CAN`/`SUB`/`ESC`/`DEL`/high-bit) right at the
+    // run start skips the SIMD dispatch.
+    if let Some(&b) = bytes.first()
+        && (b >= 0x80 || matches!(b, 0x18 | 0x1a | 0x1b | 0x7f))
+    {
+        return 0;
+    }
+    if let Some(&b) = bytes.get(1)
+        && (b >= 0x80 || matches!(b, 0x18 | 0x1a | 0x1b | 0x7f))
+    {
+        return 1;
+    }
     let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::DcsBoundary))
 }
