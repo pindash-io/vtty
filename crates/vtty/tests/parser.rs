@@ -191,6 +191,16 @@ fn csi_colon_rgb() {
 }
 
 #[test]
+fn csi_colon_empty_middle_param() {
+    // nvim's underline color emits a double colon with an empty colorspace
+    // component: `ESC[58:2::r:g:b m`. The empty middle param must surface as
+    // the `-1` sentinel, not an explicit `0`.
+    let c = parse(b"\x1b[58:2::255:0:0m");
+    assert_eq!(c.csi[0].0, vec![58, 2, u16::MAX, 255, 0, 0]);
+    assert_eq!(c.csi[0].3, vec![true, true, true, true, true, false]);
+}
+
+#[test]
 fn csi_private_marker_intermediate() {
     let c = parse(b"\x1b[?25h");
     assert_eq!(c.csi[0].2, 'h');
