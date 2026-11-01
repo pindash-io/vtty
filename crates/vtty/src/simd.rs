@@ -51,15 +51,8 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
     // Fast path: OSC runs are often short — a `;` or terminator right after
     // the introducer or a previous separator skips the SIMD dispatch.
-    if let Some(&b) = bytes.first()
-        && is_osc_boundary(b)
-    {
-        return 0;
-    }
-    if let Some(&b) = bytes.get(1)
-        && is_osc_boundary(b)
-    {
-        return 1;
+    if let Some(i) = bytes.iter().take(2).position(|&b| is_osc_boundary(b)) {
+        return i;
     }
     let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::OscBoundary))
@@ -72,15 +65,8 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
     // Fast path: a terminator (`CAN`/`SUB`/`ESC`/`DEL`/high-bit) right at the
     // run start skips the SIMD dispatch.
-    if let Some(&b) = bytes.first()
-        && is_dcs_boundary(b)
-    {
-        return 0;
-    }
-    if let Some(&b) = bytes.get(1)
-        && is_dcs_boundary(b)
-    {
-        return 1;
+    if let Some(i) = bytes.iter().take(2).position(|&b| is_dcs_boundary(b)) {
+        return i;
     }
     let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::DcsBoundary))
