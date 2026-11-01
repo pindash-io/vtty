@@ -21,19 +21,19 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- |
-| plain | 12.43 GiB/s | **28.18 GiB/s** | 2.03 GiB/s | 706 MiB/s | 1.79 GiB/s | 212 MiB/s |
-| scroll_storm | 2.16 GiB/s | **2.39 GiB/s** | 2.03 GiB/s | 733 MiB/s | 1.94 GiB/s | 116 MiB/s |
-| utf8_mixed | 1.24 GiB/s | **2.15 GiB/s** | 1.31 GiB/s | 394 MiB/s | 1.79 GiB/s | 272 MiB/s |
-| ansi_mixed | 1.45 GiB/s | **1.46 GiB/s** | 484 MiB/s | 314 MiB/s | 581 MiB/s | 280 MiB/s |
-| ansi_two_styles | **1.47 GiB/s** | 1.43 GiB/s | 540 MiB/s | 341 MiB/s | 556 MiB/s | 243 MiB/s |
-| ansi_bare_csi | **1.74 GiB/s** | 1.65 GiB/s | 713 MiB/s | 421 MiB/s | 710 MiB/s | 239 MiB/s |
-| sgr_churn | 1.44 GiB/s | **1.53 GiB/s** | 502 MiB/s | 364 MiB/s | 686 MiB/s | 389 MiB/s |
-| cursor_motion | 1.42 GiB/s | **1.43 GiB/s** | 503 MiB/s | 349 MiB/s | 594 MiB/s | 387 MiB/s |
-| sync_churn | **1.86 GiB/s** | 1.66 GiB/s | 579 MiB/s | 380 MiB/s | 700 MiB/s | 144 MiB/s |
-| truecolor_unique | **1.43 GiB/s** | 1.32 GiB/s | 510 MiB/s | 346 MiB/s | 716 MiB/s | 420 MiB/s |
-| bracketed_paste | **2.74 GiB/s** | 2.24 GiB/s | 1.12 GiB/s | 511 MiB/s | 1.06 GiB/s | 237 MiB/s |
-| osc_heavy | 2.67 GiB/s | **2.71 GiB/s** | 541 MiB/s | 208 MiB/s | 2.31 GiB/s | 215 MiB/s |
-| dcs_sixel | 6.72 GiB/s | **7.21 GiB/s** | 906 MiB/s | 813 MiB/s | 6.04 GiB/s | 737 MiB/s |
+| plain | 10.47 GiB/s | **27.79 GiB/s** | 2.01 GiB/s | 695 MiB/s | 1.77 GiB/s | 149 MiB/s |
+| scroll_storm | 2.14 GiB/s | **2.36 GiB/s** | 2.00 GiB/s | 721 MiB/s | 1.93 GiB/s | 104 MiB/s |
+| utf8_mixed | 1.22 GiB/s | **2.12 GiB/s** | 1.27 GiB/s | 390 MiB/s | 1.77 GiB/s | 202 MiB/s |
+| ansi_mixed | **1.32 GiB/s** | 1.27 GiB/s | 473 MiB/s | 311 MiB/s | 560 MiB/s | 251 MiB/s |
+| ansi_two_styles | **1.31 GiB/s** | 1.30 GiB/s | 532 MiB/s | 331 MiB/s | 552 MiB/s | 216 MiB/s |
+| ansi_bare_csi | **1.78 GiB/s** | 1.58 GiB/s | 709 MiB/s | 414 MiB/s | 690 MiB/s | 191 MiB/s |
+| sgr_churn | 1.25 GiB/s | **1.25 GiB/s** | 492 MiB/s | 348 MiB/s | 674 MiB/s | 360 MiB/s |
+| cursor_motion | **1.21 GiB/s** | 1.21 GiB/s | 496 MiB/s | 339 MiB/s | 580 MiB/s | 368 MiB/s |
+| sync_churn | **1.71 GiB/s** | 1.52 GiB/s | 561 MiB/s | 366 MiB/s | 678 MiB/s | 127 MiB/s |
+| truecolor_unique | **1.13 GiB/s** | 1.06 GiB/s | 499 MiB/s | 331 MiB/s | 692 MiB/s | 399 MiB/s |
+| bracketed_paste | **2.82 GiB/s** | 2.14 GiB/s | 1.08 GiB/s | 498 MiB/s | 1.03 GiB/s | 176 MiB/s |
+| osc_heavy | **2.59 GiB/s** | 2.54 GiB/s | 533 MiB/s | 204 MiB/s | 2.11 GiB/s | 186 MiB/s |
+| dcs_sixel | 6.54 GiB/s | **6.71 GiB/s** | 894 MiB/s | 805 MiB/s | 5.91 GiB/s | 663 MiB/s |
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
