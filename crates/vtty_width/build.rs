@@ -11,8 +11,6 @@
 //! Env knobs:
 //! - `VTTY_EMOJI_COMPRESSION` (default 5.0): 0 = flat direct index,
 //!   >= 10 = smallest table.
-//! - `VTTY_EMOJI_FAST` (default unset): set to emit `get_unchecked` array
-//!   access instead of the default bounds-checked lookup.
 #![expect(
     clippy::cast_possible_truncation,
     reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
@@ -65,7 +63,6 @@ fn main() {
         .ok()
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(5.0);
-    let unsafe_access = env::var_os("VTTY_EMOJI_FAST").is_some();
 
     // ── Compute the per-codepoint value ───────────────────────────────
     let emoji = CodePointSetData::new::<Emoji>();
@@ -179,7 +176,9 @@ fn main() {
         &info,
         best,
         "emoji_packtab",
-        packtab::codegen::Language::Rust { unsafe_access },
+        packtab::codegen::Language::Rust {
+            unsafe_access: false,
+        },
     );
 
     let (gcb_info, gcb_best) = packtab::pack_table(&gcb_data, Some(0), compression);
@@ -187,7 +186,9 @@ fn main() {
         &gcb_info,
         gcb_best,
         "emoji_gcb",
-        packtab::codegen::Language::Rust { unsafe_access },
+        packtab::codegen::Language::Rust {
+            unsafe_access: false,
+        },
     );
 
     let wrappers = format!(
@@ -222,5 +223,4 @@ fn main() {
     fs::write(out_dir.join("emoji_gcb.rs"), gcb_wrappers).unwrap();
 
     println!("cargo:rerun-if-env-changed=VTTY_EMOJI_COMPRESSION");
-    println!("cargo:rerun-if-env-changed=VTTY_EMOJI_FAST");
 }
