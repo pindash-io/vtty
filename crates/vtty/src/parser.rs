@@ -572,7 +572,7 @@ impl Parser {
     #[inline]
     fn advance_osc_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
-        let n = first_osc_boundary(run);
+        let n = first_osc_boundary(run, self.simd_enabled());
         if n > 0 {
             if !self.osc_deferring {
                 self.osc_extend(&run[..n]);
@@ -619,7 +619,7 @@ impl Parser {
     #[inline]
     fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
-        let n = first_dcs_boundary(run);
+        let n = first_dcs_boundary(run, self.simd_enabled());
         if n > 0 {
             p.put_slice(&run[..n]);
             return i + n;

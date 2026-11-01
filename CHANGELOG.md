@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `Reply::termcap` now takes the terminal name as an argument
   instead of a hardcoded `TN` value.
 - Pure builders and queries are now `#[must_use]`.
+- OSC and DCS payload boundary scanning now uses SIMD when the `simd`
+  feature is enabled.
 
 ### Fixed
 

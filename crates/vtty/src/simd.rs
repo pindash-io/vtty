@@ -45,6 +45,23 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
+/// Index of the first OSC payload boundary: a C0 byte (`< 0x20`), a raw C1
+/// byte (`0x80..=0x9f`), or the `;` param separator. The rest are `OSC_PUT`.
+#[inline(always)]
+pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
+    let level = Level::new();
+    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::OscBoundary))
+}
+
+/// Index of the first DCS passthrough boundary: a byte `>= 0x80`, or
+/// `CAN`/`SUB`/`ESC`/`DEL`. The PUT class is
+/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
+#[inline(always)]
+pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
+    let level = Level::new();
+    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::DcsBoundary))
+}
+
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
 enum ScanKind {
@@ -52,6 +69,10 @@ enum ScanKind {
     NonPrintable,
     /// The `ESC` byte (`0x1b`) — the state-machine sequence introducer.
     Esc,
+    /// OSC payload boundary: C0 (`< 0x20`), C1 (`0x80..=0x9f`), or `;`.
+    OscBoundary,
+    /// DCS passthrough boundary: `>= 0x80`, or `CAN`/`SUB`/`ESC`/`DEL`.
+    DcsBoundary,
 }
 
 /// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
@@ -66,6 +87,21 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
         ScanKind::Esc => {
             // b == 0x1b.
             simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
+        }
+        ScanKind::OscBoundary => {
+            // (b & 0x60) == 0 → C0 (< 0x20) or C1 (0x80..=0x9f); or b == ';'.
+            let c0c1 = simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0));
+            let semi = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x3b));
+            c0c1 | semi
+        }
+        ScanKind::DcsBoundary => {
+            // b >= 0x80, or CAN/SUB/ESC/DEL.
+            let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x80));
+            let can = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x18));
+            let sub = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1a));
+            let esc = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b));
+            let del = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x7f));
+            high | can | sub | esc | del
         }
     }
 }
@@ -125,6 +161,8 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {
         ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
         ScanKind::Esc => b == 0x1b,
+        ScanKind::OscBoundary => (b & 0x60) == 0 || b == 0x3b,
+        ScanKind::DcsBoundary => b >= 0x80 || matches!(b, 0x18 | 0x1a | 0x1b | 0x7f),
     }
 }
 

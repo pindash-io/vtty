@@ -97,7 +97,14 @@ const fn osc_is_stop(b: u8) -> bool {
 /// (`< 0x20`, including `BEL`/`ESC`), a raw C1 byte (`0x80..=0x9f`), or the `;`
 /// param separator (`0x3b`). The rest are `OSC_PUT` bytes.
 #[inline]
-pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
+pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
+    #[cfg(feature = "simd")]
+    if simd {
+        return crate::simd::first_osc_boundary(bytes);
+    }
+    #[cfg(not(feature = "simd"))]
+    let _ = simd;
+
     first_where(bytes, osc_stop_mask, osc_is_stop)
 }
 
@@ -119,7 +126,14 @@ const fn dcs_is_stop(b: u8) -> bool {
 /// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`; everything else (`CAN`, `SUB`, `ESC`, `DEL`,
 /// and any byte `>= 0x80`) ends the run or is ignored.
 #[inline]
-pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
+pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
+    #[cfg(feature = "simd")]
+    if simd {
+        return crate::simd::first_dcs_boundary(bytes);
+    }
+    #[cfg(not(feature = "simd"))]
+    let _ = simd;
+
     first_where(bytes, dcs_stop_mask, dcs_is_stop)
 }
 
@@ -200,7 +214,7 @@ mod tests {
             for b in 0..=255_u8 {
                 let bytes = [a, b];
                 assert_eq!(
-                    first_osc_boundary(&bytes),
+                    first_osc_boundary(&bytes, false),
                     scalar_osc(&bytes),
                     "OSC boundary mismatch for [{a:#04x}, {b:#04x}]"
                 );
@@ -214,7 +228,7 @@ mod tests {
             for b in 0..=255_u8 {
                 let bytes = [a, b];
                 assert_eq!(
-                    first_dcs_boundary(&bytes),
+                    first_dcs_boundary(&bytes, false),
                     scalar_dcs(&bytes),
                     "DCS boundary mismatch for [{a:#04x}, {b:#04x}]"
                 );
@@ -235,8 +249,16 @@ mod tests {
             let mut v = bytes.clone();
             v.push(b);
             v.extend_from_slice(b"tail");
-            assert_eq!(first_osc_boundary(&v), scalar_osc(&v), "OSC for {b:#04x}");
-            assert_eq!(first_dcs_boundary(&v), scalar_dcs(&v), "DCS for {b:#04x}");
+            assert_eq!(
+                first_osc_boundary(&v, false),
+                scalar_osc(&v),
+                "OSC for {b:#04x}"
+            );
+            assert_eq!(
+                first_dcs_boundary(&v, false),
+                scalar_dcs(&v),
+                "DCS for {b:#04x}"
+            );
         }
     }
 
@@ -249,16 +271,47 @@ mod tests {
                 let mut bytes = [b'B'; 16];
                 bytes[pos] = a;
                 assert_eq!(
-                    first_osc_boundary(&bytes),
+                    first_osc_boundary(&bytes, false),
                     scalar_osc(&bytes),
                     "OSC SWAR boundary mismatch for {a:#04x} at pos {pos}"
                 );
                 assert_eq!(
-                    first_dcs_boundary(&bytes),
+                    first_dcs_boundary(&bytes, false),
                     scalar_dcs(&bytes),
                     "DCS SWAR boundary mismatch for {a:#04x} at pos {pos}"
                 );
             }
+        }
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn simd_boundaries_match_swar() {
+        // Cross-check the SIMD 16-byte classifiers against the already-validated
+        // SWAR scanners over pseudo-random buffers covering chunk + tail paths.
+        let mut seed = 0x0123_4567_89ab_cdef_u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..10_000 {
+            let len = (next() % 96) as usize;
+            let mut bytes = [0_u8; 96];
+            for b in bytes.iter_mut().take(len) {
+                *b = next() as u8;
+            }
+            assert_eq!(
+                first_osc_boundary(&bytes[..len], true),
+                first_osc_boundary(&bytes[..len], false),
+                "SIMD/SWAR OSC mismatch at len {len}"
+            );
+            assert_eq!(
+                first_dcs_boundary(&bytes[..len], true),
+                first_dcs_boundary(&bytes[..len], false),
+                "SIMD/SWAR DCS mismatch at len {len}"
+            );
         }
     }
 }
