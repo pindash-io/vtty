@@ -27,6 +27,13 @@ pub trait Read {
     /// `Ok(0)` means end of input.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, DecodeError>;
 
+    /// The total input length remaining, if known up front. Slice readers
+    /// report it; streaming readers return `None`.
+    #[inline]
+    fn len_hint(&self) -> Option<usize> {
+        None
+    }
+
     /// Reads a single byte.
     #[inline]
     fn read_byte(&mut self) -> Result<u8, DecodeError> {
@@ -135,6 +142,10 @@ impl Read for SliceReader<'_> {
         buf[..n].copy_from_slice(&self.buf[self.pos..self.pos + n]);
         self.pos += n;
         Ok(n)
+    }
+
+    fn len_hint(&self) -> Option<usize> {
+        Some(self.buf.len() - self.pos)
     }
 }
 

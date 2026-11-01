@@ -384,4 +384,17 @@ mod tests {
             Err(DecodeError::InvalidValue)
         );
     }
+
+    #[test]
+    fn sequence_length_bounded_by_input() {
+        // A `usize::MAX` length prefix with a few payload bytes used to force
+        // a huge `collect` pre-allocation; it must now be rejected up front.
+        let mut bytes = [0xff_u8; 9].to_vec();
+        bytes.push(0x01); // LEB128 for `usize::MAX`.
+        bytes.extend_from_slice(&[1, 2, 3]);
+        assert_eq!(
+            decode_from_slice::<Vec<u8>>(&bytes),
+            Err(DecodeError::UnexpectedEof)
+        );
+    }
 }

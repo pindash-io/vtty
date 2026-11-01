@@ -5,6 +5,7 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
+
 use smallvec::SmallVec;
 
 use vtty_core::{
@@ -113,7 +114,7 @@ impl Encode for Event {
                 params.encode(writer)?;
                 bell_terminated.encode(writer)
             }
-            _ => unreachable!("non-exhaustive enum has an unknown variant"),
+            _ => Err(EncodeError::UnknownVariant),
         }
     }
 }

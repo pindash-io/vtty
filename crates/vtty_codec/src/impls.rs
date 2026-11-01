@@ -162,6 +162,14 @@ fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
     reader: &mut R,
 ) -> Result<C, DecodeError> {
     let len = decode_varint(reader)?;
+    // Every element encodes at least one byte, so a length prefix larger than
+    // the remaining input can never be satisfied. Return early before
+    // `collect` pre-allocates `len` elements (a malicious prefix would
+    // otherwise force a huge allocation). `UnexpectedEof` keeps the streaming
+    // decoder's partial-input semantics: it reads as "need more bytes".
+    if reader.len_hint().is_some_and(|remaining| len > remaining) {
+        return Err(DecodeError::UnexpectedEof);
+    }
     (0..len).map(|_| T::decode(reader)).collect()
 }
 
@@ -226,7 +234,7 @@ macro_rules! impl_tagged_codec {
             fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
                 match *self {
                     $($variant => writer.write_byte($tag),)+
-                    _ => unreachable!("non-exhaustive enum has an unknown variant"),
+                    _ => Err(EncodeError::UnknownVariant),
                 }
             }
         }

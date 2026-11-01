@@ -11,12 +11,16 @@ use core::fmt;
 pub enum EncodeError {
     /// The destination buffer is too small to hold the value.
     BufferTooSmall,
+    /// A value carries a variant this build does not know. A `#[non_exhaustive]`
+    /// enum gained a variant after this crate was compiled.
+    UnknownVariant,
 }
 
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BufferTooSmall => f.write_str("encode buffer too small"),
+            Self::UnknownVariant => f.write_str("unknown enum variant"),
         }
     }
 }
