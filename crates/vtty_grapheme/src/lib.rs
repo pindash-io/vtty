@@ -41,6 +41,10 @@ pub struct Grapheme {
 
 impl Grapheme {
     /// Construct a cluster spanning `[start, end)`.
+    ///
+    /// The range must satisfy `start <= end`. [`graphemes`] always produces
+    /// valid ranges; [`Self::len`] clamps so an inconsistent range reads as
+    /// empty rather than underflowing.
     #[inline]
     pub const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
@@ -61,7 +65,7 @@ impl Grapheme {
     /// The cluster's length in bytes.
     #[inline]
     pub const fn len(self) -> usize {
-        self.end - self.start
+        self.end.saturating_sub(self.start)
     }
 
     /// Whether the cluster is empty (never produced by [`graphemes`]).
@@ -436,5 +440,12 @@ mod tests {
     fn zwj_after_non_emoji_resets_gb11() {
         // GB9 attaches the ZWJ to 'a'; 'b' then starts a new cluster.
         assert_eq!(clusters_vec("a\u{200D}b"), ["a\u{200D}", "b"]);
+    }
+
+    #[test]
+    fn len_clamps_inconsistent_range() {
+        // `new` is public, so a reversed range is constructible. `len` must
+        // stay total instead of underflowing.
+        assert_eq!(Grapheme::new(5, 3).len(), 0);
     }
 }
