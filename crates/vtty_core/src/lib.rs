@@ -15,6 +15,14 @@
 //! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
 //! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
+//!
+//! ## Stability
+//!
+//! `#[non_exhaustive]` marks enums that mirror a still-growing external
+//! vocabulary, so a future variant cannot break a downstream `match` in
+//! silence. Closed sets such as [`ColorSpec`] and [`SgrEffect`] stay
+//! exhaustive. Types with public fields stay constructible by struct
+//! literal, so they are never `#[non_exhaustive]`.
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]

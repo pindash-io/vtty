@@ -17,4 +17,12 @@ API.
 - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
   implies `reply`.
 
+## Stability
+
+`#[non_exhaustive]` marks enums that mirror a still-growing external
+vocabulary, so a future variant cannot break a downstream `match` in
+silence. Closed sets such as [`ColorSpec`](https://docs.rs/vtty_core/latest/vtty_core/style/enum.ColorSpec.html) and [`SgrEffect`](https://docs.rs/vtty_core/latest/vtty_core/style/enum.SgrEffect.html) stay
+exhaustive. Types with public fields stay constructible by struct
+literal, so they are never `#[non_exhaustive]`.
+
 <!-- cargo-rdme end -->
