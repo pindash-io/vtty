@@ -48,9 +48,12 @@ impl State {
 
     /// 0-based BYTE column of the cursor within its line (offset from the
     /// line start, not a terminal cell column — this byte-cursor state has no
-    /// cell grid).
+    /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
+    /// [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {
-        self.cursor.min(self.text.len()) - self.line_start
+        self.cursor
+            .min(self.text.len())
+            .saturating_sub(self.line_start)
     }
 
     /// Byte range `[start, end)` of line `line` (0-based). `end` is exclusive:
@@ -193,5 +196,18 @@ mod tests {
         s.execute(0x00);
         assert_eq!(s.text, "a");
         assert_eq!(s.cursor, 1);
+    }
+
+    #[test]
+    fn cursor_col_clamps_inconsistent_state() {
+        // The fields are `pub`, so an embedder can set them inconsistently.
+        // `cursor_col` must stay total instead of underflowing.
+        let s = state("abc");
+        assert_eq!(s.cursor_col(), 0);
+        let s = State {
+            line_start: 5,
+            ..state("abc")
+        };
+        assert_eq!(s.cursor_col(), 0);
     }
 }
