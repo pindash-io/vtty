@@ -252,6 +252,31 @@ fn truecolor_unique(total: usize) -> Vec<u8> {
     out.into_bytes()
 }
 
+/// nvim-shaped SGR traffic, modeled on `nvim`'s TUI (`src/nvim/tui/tui.c`):
+/// truecolor fg/bg per token, attribute flags, `0` resets, and colon-syntax
+/// undercurl plus underline color. Attribute and color sequences are separate,
+/// matching `update_attrs`.
+fn nvim_sgr(total: usize) -> Vec<u8> {
+    let mut line = String::new();
+    for i in 0..30 {
+        let r = (i * 37) % 256;
+        let g = (i * 67) % 256;
+        let b = (i * 13) % 256;
+        // Bold keyword: attribute flag, then truecolor fg, then reset.
+        line += &format!("\x1b[1m\x1b[38;2;{r};{g};{b}mfn\x1b[0m ");
+        // String literal: truecolor fg + bg.
+        let w = (i * 53 + 8) % 256;
+        line += &format!("\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m ");
+        // Underlined link: undercurl + underline color (colon, empty param).
+        line += &format!("\x1b[4:3m\x1b[58:2::{r};{g};{b}mlink\x1b[0m ");
+        // Plain run.
+        line += "const v = ";
+        line += &format!("{i}; ");
+    }
+    line += "\r\n";
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
 /// Bracketed paste (`ESC[200~` … `ESC[201~`) wrapping content that includes
 /// embedded SGR and control bytes, exercising paste-marker CSI dispatch plus
 /// ground-state re-entry over mixed printable/control content.
@@ -374,6 +399,7 @@ fn corpus() -> Vec<(&'static str, Vec<u8>)> {
         ("cursor_motion", cursor_motion(BYTES)),
         ("sync_churn", sync_churn(BYTES)),
         ("truecolor_unique", truecolor_unique(BYTES)),
+        ("nvim_sgr", nvim_sgr(BYTES)),
         ("bracketed_paste", bracketed_paste(BYTES)),
         ("osc_heavy", osc_heavy(BYTES)),
         ("dcs_sixel", dcs_sixel(BYTES)),
