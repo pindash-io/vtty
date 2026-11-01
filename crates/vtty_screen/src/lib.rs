@@ -15,6 +15,9 @@
 //! commands. Combining marks and ZWJ emoji families (up to eight trailing
 //! glyphs) attach to their base cell.
 //!
+//! Sixel, `ReGIS`, and downloadable soft fonts are out of scope. This is a
+//! text cell grid, not a pixel emulator.
+//!
 //! The cursor, erase, insert/delete and scroll commands follow EK-VT520-RM
 //! (ANSI Control Functions).
 
