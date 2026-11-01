@@ -51,7 +51,7 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
     // Fast path: OSC runs are often short — a `;` or terminator right after
     // the introducer or a previous separator skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(|&b| is_osc_boundary(b)) {
+    if let Some(i) = bytes.iter().take(2).position(is_osc_boundary) {
         return i;
     }
     let level = Level::new();
@@ -65,7 +65,7 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
     // Fast path: a terminator (`CAN`/`SUB`/`ESC`/`DEL`/high-bit) right at the
     // run start skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(|&b| is_dcs_boundary(b)) {
+    if let Some(i) = bytes.iter().take(2).position(is_dcs_boundary) {
         return i;
     }
     let level = Level::new();
@@ -74,14 +74,14 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
 
 /// OSC payload boundary: C0 (`< 0x20`), C1 (`0x80..=0x9f`), or `;`.
 #[inline(always)]
-const fn is_osc_boundary(b: u8) -> bool {
-    (b & 0x60) == 0 || b == 0x3b
+const fn is_osc_boundary(b: &u8) -> bool {
+    (*b & 0x60) == 0 || *b == 0x3b
 }
 
 /// DCS passthrough boundary: `>= 0x80`, or `CAN`/`SUB`/`ESC`/`DEL`.
 #[inline(always)]
-const fn is_dcs_boundary(b: u8) -> bool {
-    b >= 0x80 || matches!(b, 0x18 | 0x1a | 0x1b | 0x7f)
+const fn is_dcs_boundary(b: &u8) -> bool {
+    *b >= 0x80 || matches!(*b, 0x18 | 0x1a | 0x1b | 0x7f)
 }
 
 /// What terminates the scan run.
@@ -183,8 +183,8 @@ fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {
         ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
         ScanKind::Esc => b == 0x1b,
-        ScanKind::OscBoundary => is_osc_boundary(b),
-        ScanKind::DcsBoundary => is_dcs_boundary(b),
+        ScanKind::OscBoundary => is_osc_boundary(&b),
+        ScanKind::DcsBoundary => is_dcs_boundary(&b),
     }
 }
 
