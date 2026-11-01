@@ -60,6 +60,8 @@ pub struct Screen {
     pub(crate) cols: u32,
     pub(crate) rows: u32,
     pub(crate) cells: Vec<Cell>,
+    /// Ring-buffer offset: logical row `0` lives at physical row `scroll_top`.
+    pub(crate) scroll_top: u32,
     pub(crate) cursor_row: u32,
     pub(crate) cursor_col: u32,
     pub(crate) saved_row: u32,
@@ -88,6 +90,8 @@ pub struct Screen {
     // The alternate screen buffer (DEC 47/1046/1047/1049): the same
     // per-buffer state as the main screen, swapped in/out wholesale.
     pub(crate) alt_cells: Vec<Cell>,
+    /// Ring-buffer offset for the alternate screen buffer.
+    pub(crate) alt_scroll_top: u32,
     pub(crate) alt_cursor_row: u32,
     pub(crate) alt_cursor_col: u32,
     pub(crate) alt_saved_row: u32,
@@ -121,6 +125,7 @@ impl Screen {
             cols,
             rows,
             cells: vec![Cell::default(); (cols * rows) as usize],
+            scroll_top: 0,
             cursor_row: 0,
             cursor_col: 0,
             saved_row: 0,
@@ -138,6 +143,7 @@ impl Screen {
             default_bg: 0x000000,
             title: String::new(),
             alt_cells: vec![Cell::default(); (cols * rows) as usize],
+            alt_scroll_top: 0,
             alt_cursor_row: 0,
             alt_cursor_col: 0,
             alt_saved_row: 0,
@@ -172,6 +178,7 @@ impl Screen {
     /// Reset to a blank grid, default styles, margins and cursor (RIS).
     pub fn reset(&mut self) {
         self.cells.fill(Cell::default());
+        self.scroll_top = 0;
         self.reset_cursor_style_margins();
         self.saved_row = 0;
         self.saved_col = 0;
@@ -181,6 +188,7 @@ impl Screen {
         self.title.clear();
         // Reset the alternate buffer too.
         self.alt_cells.fill(Cell::default());
+        self.alt_scroll_top = 0;
         self.alt_cursor_row = 0;
         self.alt_cursor_col = 0;
         self.alt_saved_row = 0;
@@ -243,6 +251,7 @@ impl Screen {
         core::mem::swap(&mut self.top_margin, &mut self.alt_top_margin);
         core::mem::swap(&mut self.bottom_margin, &mut self.alt_bottom_margin);
         core::mem::swap(&mut self.continuation, &mut self.alt_continuation);
+        core::mem::swap(&mut self.scroll_top, &mut self.alt_scroll_top);
     }
 
     /// Column count.
@@ -275,7 +284,7 @@ impl Screen {
         if row >= self.rows || col >= self.cols {
             return None;
         }
-        Some(&self.cells[(row * self.cols + col) as usize])
+        Some(&self.cells[self.row_offset(row) + col as usize])
     }
 
     /// Whether column `col` has a tab stop.
@@ -309,9 +318,47 @@ impl Screen {
         self.default_bg = bg;
     }
 
+    /// The physical flat offset of logical `row`'s first cell, accounting for
+    /// the ring-buffer scroll offset.
+    #[inline]
+    pub(crate) fn row_offset(&self, row: u32) -> usize {
+        (((self.scroll_top + row) % self.rows) * self.cols) as usize
+    }
+
+    /// The physical row index of logical `row`.
+    #[inline]
+    pub(crate) fn phys_row(&self, row: u32) -> usize {
+        ((self.scroll_top + row) % self.rows) as usize
+    }
+
+    /// Rotate the active grid so logical row `0` sits at physical offset `0`.
+    /// Region operations memmove contiguous physical ranges, so they call this
+    /// first; full-screen scrolls rotate the ring in place instead.
+    pub(crate) fn materialize(&mut self) {
+        if self.scroll_top == 0 {
+            return;
+        }
+        self.cells
+            .rotate_left((self.scroll_top * self.cols) as usize);
+        self.continuation.rotate_left(self.scroll_top as usize);
+        self.scroll_top = 0;
+    }
+
+    /// [`Self::materialize`] for the alternate screen buffer.
+    pub(crate) fn materialize_alt(&mut self) {
+        if self.alt_scroll_top == 0 {
+            return;
+        }
+        self.alt_cells
+            .rotate_left((self.alt_scroll_top * self.cols) as usize);
+        self.alt_continuation
+            .rotate_left(self.alt_scroll_top as usize);
+        self.alt_scroll_top = 0;
+    }
+
     /// The cell index range of `row`.
     fn row_range(&self, row: u32) -> Range<usize> {
-        let start = (row * self.cols) as usize;
+        let start = self.row_offset(row);
         start..start + self.cols as usize
     }
 
@@ -421,6 +468,10 @@ impl Screen {
         let new_cols = cols as usize;
         let new_rows = rows as usize;
 
+        // Restore logical layout so reflow reads rows in display order.
+        self.materialize();
+        self.materialize_alt();
+
         // Reflow scrollback + active buffer together as one logical stream.
         let active = rows_from(&self.cells, &self.continuation, self.cols);
         let mut all_rows = Vec::with_capacity(self.scrollback.len() + active.len());
@@ -482,7 +533,8 @@ impl Screen {
             return;
         }
         let mut col = self.cursor_col - 1;
-        let idx = |col: u32| (self.cursor_row * self.cols + col) as usize;
+        let base = self.row_offset(self.cursor_row);
+        let idx = |col: u32| base + col as usize;
         if self.cells[idx(col)].is_continuation() {
             col = col.saturating_sub(1);
         }
@@ -1579,5 +1631,57 @@ mod tests {
         s.resize(2, 2);
         assert_eq!(s.render_line(0), "a");
         assert_eq!(s.render_line(1), "中");
+    }
+
+    #[test]
+    fn region_scroll_after_full_screen_scroll() {
+        // Full-screen scroll rotates the ring (scroll_top != 0); a later
+        // DECSTBM region scroll must materialize the ring first.
+        let mut s = Screen::new(3, 3);
+        run(&mut s, b"a\r\nb\r\nc\r\nd");
+        assert_eq!(s.render_line(0), "b");
+        assert_eq!(s.render_line(1), "c");
+        assert_eq!(s.render_line(2), "d");
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
+
+        // Region rows 1-2 (1-based) = 0..=1 (0-based).
+        run(&mut s, b"\x1b[1;2r");
+        run(&mut s, b"e\r\nf\r\ng");
+        assert_eq!(s.render_line(0), "f");
+        assert_eq!(s.render_line(1), "g");
+        assert_eq!(s.render_line(2), "d");
+        // Region scrolls still discard, so only `a` remains in scrollback.
+        assert_eq!(s.scrollback_len(), 1);
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn resize_after_full_screen_scroll_reflows() {
+        // Reflow must materialize the ring before reading rows in order.
+        let mut s = Screen::new(4, 2);
+        run(&mut s, b"aaaa\r\nbbbb\r\ncccc");
+        assert_eq!(s.render_line(0), "bbbb");
+        assert_eq!(s.render_line(1), "cccc");
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaa"));
+
+        s.resize(8, 2);
+        assert_eq!(s.render_line(0), "bbbb");
+        assert_eq!(s.render_line(1), "cccc");
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaa"));
+    }
+
+    #[test]
+    fn reverse_index_after_full_screen_scroll() {
+        // RI at the top margin rotates the ring back down and blanks row 0.
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"a\r\nb\r\nc");
+        assert_eq!(s.render_line(0), "b");
+        assert_eq!(s.render_line(1), "c");
+
+        run(&mut s, b"\x1b[H\x1bM");
+        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(1), "b");
+        assert_eq!(s.scrollback_len(), 1);
+        assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
     }
 }

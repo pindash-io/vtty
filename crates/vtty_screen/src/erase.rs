@@ -29,8 +29,8 @@ impl Screen {
     /// Erase columns `[c0, c1)` of row `row` (0-based, `c1` exclusive).
     #[inline]
     pub(crate) fn erase_row_range(&mut self, row: u32, c0: u32, c1: u32) {
-        let base = row * self.cols;
-        self.cells[(base + c0) as usize..(base + c1) as usize].fill(Cell::default());
+        let base = self.row_offset(row);
+        self.cells[base + c0 as usize..base + c1 as usize].fill(Cell::default());
     }
 
     pub(crate) fn erase_from_cursor_to_end(&mut self) {
@@ -61,7 +61,7 @@ impl Screen {
 
     pub(crate) fn erase_chars(&mut self, n: u32) {
         let n = n.min(self.cols - self.cursor_col);
-        let start = (self.cursor_row * self.cols + self.cursor_col) as usize;
+        let start = self.row_offset(self.cursor_row) + self.cursor_col as usize;
         self.cells[start..start + n as usize].fill(Cell::default());
     }
 }

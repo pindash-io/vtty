@@ -28,7 +28,8 @@ impl Screen {
         if soft_wrap {
             self.cursor_col = 0;
         }
-        self.continuation[self.cursor_row as usize] = soft_wrap;
+        let row = self.phys_row(self.cursor_row);
+        self.continuation[row] = soft_wrap;
     }
 
     /// Move the cursor down one line, scrolling within the margins if at the
@@ -69,8 +70,10 @@ impl Screen {
         if self.scrollback.len() >= self.max_scrollback {
             self.scrollback.pop_front();
         }
-        let row = self.cells[..self.cols as usize].to_vec();
-        let cont = self.continuation[0];
+        let width = self.cols as usize;
+        let start = (self.scroll_top as usize) * width;
+        let row = self.cells[start..start + width].to_vec();
+        let cont = self.continuation[self.scroll_top as usize];
         self.scrollback.push_back((row, cont));
     }
 
@@ -85,6 +88,31 @@ impl Screen {
         let width = self.cols as usize;
         let top = self.top_margin as usize;
         let bottom = self.bottom_margin as usize;
+
+        // Full-screen scrolls rotate the ring in place — O(cols) per line
+        // instead of memmoving the whole grid.
+        if top == 0 && bottom == self.rows as usize - 1 {
+            if down {
+                // RI / SD: rotate down; the new top row is blank.
+                self.scroll_top = (self.scroll_top + self.rows - 1) % self.rows;
+                let start = (self.scroll_top as usize) * width;
+                self.cells[start..start + width].fill(Cell::default());
+                self.continuation[self.scroll_top as usize] = false;
+            } else {
+                // LF / SU: rotate up; the scrolled-out top row goes to
+                // scrollback and its physical slot becomes the new bottom row.
+                let top_row = self.scroll_top as usize;
+                self.push_scrollback();
+                self.scroll_top = (self.scroll_top + 1) % self.rows;
+                let start = top_row * width;
+                self.cells[start..start + width].fill(Cell::default());
+                self.continuation[top_row] = false;
+            }
+            return;
+        }
+
+        // Region scroll (DECSTBM): restore the logical layout, then memmove.
+        self.materialize();
         let start = top * width;
         let end = (bottom + 1) * width;
         if down {
@@ -93,11 +121,6 @@ impl Screen {
             self.continuation.copy_within(top..bottom, top + 1);
             self.continuation[top] = false;
         } else {
-            // Full-screen scrolls push the top row into scrollback (editing
-            // operations such as IL/DL scroll in place and do not).
-            if top == 0 && bottom == self.rows as usize - 1 {
-                self.push_scrollback();
-            }
             self.cells.copy_within(start + width..end, start);
             self.cells[end - width..end].fill(Cell::default());
             // Shift the soft-wrap flags up with the rows; the new blank

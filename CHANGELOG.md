@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pure builders and queries are now `#[must_use]`.
 - OSC and DCS payload boundary scanning now uses SIMD when the `simd`
   feature is enabled.
+- `vtty_screen` full-screen scrolling now rotates a ring buffer (O(cols) per
+  line) instead of memmoving the grid.
 
 ### Fixed
 

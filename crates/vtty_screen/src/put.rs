@@ -43,7 +43,7 @@ impl Screen {
             combining: ['\0'; 8],
             combining_len: 0,
         };
-        let idx = (self.cursor_row * self.cols + self.cursor_col) as usize;
+        let idx = self.row_offset(self.cursor_row) + self.cursor_col as usize;
         self.cells[idx] = cell;
         self.cursor_col += width;
         if width == 2 {

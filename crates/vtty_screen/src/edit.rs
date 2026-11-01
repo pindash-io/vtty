@@ -19,6 +19,8 @@ impl Screen {
     /// Insert (`insert = true`) or delete (`false`) blank lines at the cursor
     /// within the scroll region, shifting the soft-wrap flags with the rows.
     pub(crate) fn shift_lines(&mut self, n: u32, insert: bool) {
+        // Region memmoves need logical == physical layout.
+        self.materialize();
         for _ in 0..n {
             if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
                 break;
@@ -54,8 +56,9 @@ impl Screen {
     /// on the current line.
     pub(crate) fn shift_chars(&mut self, n: u32, insert: bool) {
         let n = n.min(self.cols - self.cursor_col) as usize;
-        let start = (self.cursor_row * self.cols + self.cursor_col) as usize;
-        let end = ((self.cursor_row + 1) * self.cols) as usize;
+        let row = self.row_offset(self.cursor_row);
+        let start = row + self.cursor_col as usize;
+        let end = row + self.cols as usize;
         if insert {
             self.cells.copy_within(start..end - n, start + n);
             self.cells[start..start + n].fill(Cell::default());
