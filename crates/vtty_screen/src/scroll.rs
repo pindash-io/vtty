@@ -93,7 +93,11 @@ impl Screen {
         if top == 0 && bottom == self.rows as usize - 1 {
             if down {
                 // RI / SD: rotate down; the new top row is blank.
-                self.scroll_top = (self.scroll_top + self.rows - 1) % self.rows;
+                self.scroll_top = if self.scroll_top == 0 {
+                    self.rows - 1
+                } else {
+                    self.scroll_top - 1
+                };
                 let start = (self.scroll_top as usize) * width;
                 self.cells[start..start + width].fill(Cell::default());
                 self.continuation[self.scroll_top as usize] = false;

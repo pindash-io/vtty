@@ -142,7 +142,7 @@ impl Screen {
         Self {
             cols,
             rows,
-            cells: vec![Cell::default(); (cols * rows) as usize],
+            cells: vec![Cell::default(); (cols as usize) * (rows as usize)],
             scroll_top: 0,
             cursor_row: 0,
             cursor_col: 0,
@@ -161,7 +161,7 @@ impl Screen {
             default_bg: 0x000000,
             title: String::new(),
             progress: Progress::default(),
-            alt_cells: vec![Cell::default(); (cols * rows) as usize],
+            alt_cells: vec![Cell::default(); (cols as usize) * (rows as usize)],
             alt_scroll_top: 0,
             alt_cursor_row: 0,
             alt_cursor_col: 0,
@@ -372,13 +372,14 @@ impl Screen {
     /// the ring-buffer scroll offset.
     #[inline]
     pub(crate) fn row_offset(&self, row: u32) -> usize {
-        (((self.scroll_top + row) % self.rows) * self.cols) as usize
+        let phys = (self.scroll_top as usize + row as usize) % self.rows as usize;
+        phys * self.cols as usize
     }
 
     /// The physical row index of logical `row`.
     #[inline]
     pub(crate) fn phys_row(&self, row: u32) -> usize {
-        ((self.scroll_top + row) % self.rows) as usize
+        (self.scroll_top as usize + row as usize) % self.rows as usize
     }
 
     /// Rotate the active grid so logical row `0` sits at physical offset `0`.
@@ -389,7 +390,7 @@ impl Screen {
             return;
         }
         self.cells
-            .rotate_left((self.scroll_top * self.cols) as usize);
+            .rotate_left(self.scroll_top as usize * self.cols as usize);
         self.continuation.rotate_left(self.scroll_top as usize);
         self.scroll_top = 0;
     }
@@ -400,7 +401,7 @@ impl Screen {
             return;
         }
         self.alt_cells
-            .rotate_left((self.alt_scroll_top * self.cols) as usize);
+            .rotate_left(self.alt_scroll_top as usize * self.cols as usize);
         self.alt_continuation
             .rotate_left(self.alt_scroll_top as usize);
         self.alt_scroll_top = 0;
