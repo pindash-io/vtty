@@ -1163,6 +1163,7 @@ dependencies = [
  "vte",
  "vtparse",
  "vtty",
+ "vtty_screen",
 ]
 
 [[package]]

@@ -256,7 +256,7 @@ fn truecolor_unique(total: usize) -> Vec<u8> {
 /// truecolor fg/bg per token, attribute flags, `0` resets, and colon-syntax
 /// undercurl plus underline color. Attribute and color sequences are separate,
 /// matching `update_attrs`.
-fn nvim_sgr(total: usize) -> Vec<u8> {
+fn sgr_nvim(total: usize) -> Vec<u8> {
     let mut line = String::new();
     for i in 0..30 {
         let r = (i * 37) % 256;
@@ -399,7 +399,7 @@ fn corpus() -> Vec<(&'static str, Vec<u8>)> {
         ("cursor_motion", cursor_motion(BYTES)),
         ("sync_churn", sync_churn(BYTES)),
         ("truecolor_unique", truecolor_unique(BYTES)),
-        ("nvim_sgr", nvim_sgr(BYTES)),
+        ("sgr_nvim", sgr_nvim(BYTES)),
         ("bracketed_paste", bracketed_paste(BYTES)),
         ("osc_heavy", osc_heavy(BYTES)),
         ("dcs_sixel", dcs_sixel(BYTES)),
@@ -496,5 +496,47 @@ fn bench_vt_input(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_vt_input);
+/// Full pipeline for the nvim-shaped SGR cases: parser + `vtty_screen` cell
+/// grid, measuring parse plus SGR-apply and cell-write cost, not the
+/// counting-sink parser floor.
+fn bench_vt_screen(c: &mut Criterion) {
+    const BYTES: usize = 2 * 1024 * 1024;
+    let cases = [
+        ("sgr_nvim", sgr_nvim(BYTES)),
+        ("sgr_churn", sgr_churn(BYTES)),
+        ("truecolor_unique", truecolor_unique(BYTES)),
+        ("ansi_mixed", ansi_mixed(BYTES)),
+    ];
+    let mut group = c.benchmark_group("vt_screen");
+    group.sample_size(20);
+
+    for (case, bytes) in &cases {
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+        for (name, make_parser) in [
+            ("vtty", vtty::Parser::new as fn() -> vtty::Parser),
+            ("vtty-simd", vtty::Parser::with_simd),
+        ] {
+            group.bench_function(BenchmarkId::new(name, *case), |b| {
+                b.iter_batched(
+                    || {
+                        (
+                            make_parser(),
+                            vtty_screen::Screen::new(u32::from(COLS), u32::from(ROWS)),
+                        )
+                    },
+                    |(mut parser, mut screen)| {
+                        parser.advance(&mut screen, bytes);
+                        screen
+                    },
+                    BatchSize::LargeInput,
+                );
+            });
+        }
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_vt_input, bench_vt_screen);
 criterion_main!(benches);
