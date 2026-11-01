@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Scs::apply_shift` for the SO/SI/SS2/SS3 control-byte shifting.
 - Added `Recording` replay and helper methods (`print_char`, `control`, `csi`,
   `esc`, `osc`, …).
+- Added `OSC 9;4` progress-bar parsing to `vtty_screen` (`Progress` and
+  `Screen::progress`).
 
 ### Changed
 

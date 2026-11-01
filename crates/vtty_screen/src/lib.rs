@@ -54,6 +54,22 @@ use cell::{default_palette, default_tabs};
 use reflow::{fit_grid, reflow_rows, rows_from};
 use render::{push_sgr, render_cells, trailing_blanks};
 
+/// `OSC 9;4` progress-bar state, as used by modern terminal emulators.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Progress {
+    /// No progress bar is shown.
+    #[default]
+    Hidden,
+    /// `OSC 9;4;0` — begin, indeterminate; the terminal animates it.
+    Indeterminate,
+    /// `OSC 9;4;1;<n>` — determinate progress, percent `0..=100`.
+    Percent(u8),
+    /// `OSC 9;4;2` — completed.
+    Done,
+    /// `OSC 9;4;3` — errored.
+    Error,
+}
+
 /// A minimal cell-grid terminal screen.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Screen {
@@ -87,6 +103,8 @@ pub struct Screen {
     pub(crate) default_bg: u32,
     /// `OSC 0/1/2` window title.
     pub(crate) title: String,
+    /// `OSC 9;4` progress-bar state.
+    pub(crate) progress: Progress,
     // The alternate screen buffer (DEC 47/1046/1047/1049): the same
     // per-buffer state as the main screen, swapped in/out wholesale.
     pub(crate) alt_cells: Vec<Cell>,
@@ -142,6 +160,7 @@ impl Screen {
             default_fg: 0xffffff,
             default_bg: 0x000000,
             title: String::new(),
+            progress: Progress::default(),
             alt_cells: vec![Cell::default(); (cols * rows) as usize],
             alt_scroll_top: 0,
             alt_cursor_row: 0,
@@ -186,6 +205,7 @@ impl Screen {
         self.flags.remove(BufferFlags::ORIGIN);
         self.rgb.clear();
         self.title.clear();
+        self.progress = Progress::default();
         // Reset the alternate buffer too.
         self.alt_cells.fill(Cell::default());
         self.alt_scroll_top = 0;
@@ -203,6 +223,29 @@ impl Screen {
         self.tab_stops = default_tabs(self.cols);
         self.continuation.fill(false);
         self.alt_continuation.fill(false);
+    }
+
+    /// Handle an `OSC 9;4` progress-bar command, ignoring other `OSC 9`
+    /// sub-commands (notification, etc.).
+    fn osc_progress(&mut self, params: &[&[u8]]) {
+        if !matches!(params.get(1).copied(), Some(b"4")) {
+            return;
+        }
+        match params.get(2).copied() {
+            Some(b"0") => self.progress = Progress::Indeterminate,
+            Some(b"1") => {
+                let percent = params
+                    .get(3)
+                    .and_then(|v| core::str::from_utf8(v).ok())
+                    .and_then(|s| s.parse::<u8>().ok())
+                    .unwrap_or(0)
+                    .min(100);
+                self.progress = Progress::Percent(percent);
+            }
+            Some(b"2") => self.progress = Progress::Done,
+            Some(b"3") => self.progress = Progress::Error,
+            _ => {}
+        }
     }
 
     /// Whether the alternate screen buffer is active.
@@ -276,6 +319,13 @@ impl Screen {
     #[inline]
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    /// The `OSC 9;4` progress-bar state.
+    #[inline]
+    #[must_use]
+    pub const fn progress(&self) -> Progress {
+        self.progress
     }
 
     /// The cell at `(row, col)`, or `None` out of range.
@@ -673,6 +723,7 @@ impl Perform for Screen {
                     self.title = String::from_utf8_lossy(t).into_owned();
                 }
             }
+            Some(b"9") => self.osc_progress(params),
             _ => {}
         }
     }
@@ -1683,5 +1734,30 @@ mod tests {
         assert_eq!(s.render_line(1), "b");
         assert_eq!(s.scrollback_len(), 1);
         assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn osc_progress_bar() {
+        let mut s = Screen::new(3, 2);
+        assert_eq!(s.progress(), Progress::Hidden);
+
+        run(&mut s, b"\x1b]9;4;0\x07");
+        assert_eq!(s.progress(), Progress::Indeterminate);
+
+        run(&mut s, b"\x1b]9;4;1;40\x07");
+        assert_eq!(s.progress(), Progress::Percent(40));
+
+        run(&mut s, b"\x1b]9;4;1;150\x07");
+        assert_eq!(s.progress(), Progress::Percent(100));
+
+        run(&mut s, b"\x1b]9;4;2\x07");
+        assert_eq!(s.progress(), Progress::Done);
+
+        run(&mut s, b"\x1b]9;4;3\x07");
+        assert_eq!(s.progress(), Progress::Error);
+
+        // A non-progress OSC 9 sub-command is ignored.
+        run(&mut s, b"\x1b]9;1;hello\x07");
+        assert_eq!(s.progress(), Progress::Error);
     }
 }
