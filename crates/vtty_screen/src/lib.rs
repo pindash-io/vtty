@@ -648,9 +648,7 @@ impl Perform for Screen {
     }
 
     fn print_bytes(&mut self, s: &[u8]) {
-        for &b in s {
-            self.put_char(b as char);
-        }
+        self.put_ascii(s);
     }
 
     fn print_codepoints(&mut self, codepoints: &[u32]) {

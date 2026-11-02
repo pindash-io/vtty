@@ -531,6 +531,7 @@ fn bench_vt_input(c: &mut Criterion) {
 fn bench_vt_screen(c: &mut Criterion) {
     const BYTES: usize = 2 * 1024 * 1024;
     let cases = [
+        ("plain", plain(BYTES)),
         ("sgr_nvim", sgr_nvim(BYTES)),
         ("sgr_churn", sgr_churn(BYTES)),
         ("truecolor_unique", truecolor_unique(BYTES)),

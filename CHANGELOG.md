@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `unsafe` code incompatible with the crate's `forbid(unsafe_code)`.
 - `vtty_screen` insert/delete lines and multi-line region scrolls now shift
   `n` rows in one pass instead of `n` passes.
+- `vtty_screen` printable-ASCII runs now write cells in one bulk pass instead
+  of a width lookup and cell write per byte.
+- `vtty_screen` scrollback now reuses the oldest line's buffer instead of
+  allocating a fresh one per scrolled line.
 
 ### Fixed
 

@@ -19,6 +19,52 @@ impl Screen {
         self.put_base(c, width);
     }
 
+    /// Write a run of printable ASCII bytes as width-1 cells. `print_bytes`
+    /// only ever receives `0x20..=0x7e` (the parser bulk-dispatches printable
+    /// ASCII runs), so the per-byte width lookup and double-width branch of
+    /// [`Self::put_base`] are dead work here. This is the bulk text hot path.
+    pub(crate) fn put_ascii(&mut self, s: &[u8]) {
+        let mut col = self.cursor_col;
+        if col >= self.cols {
+            col = self.cols - 1;
+        }
+        let wrap = self.modes.contains(ScreenFlags::WRAP);
+        // The per-cell attributes are constant across the run; build the
+        // template once and only vary `ch` per byte.
+        let template = Cell {
+            ch: ' ',
+            sgr: self.sgr,
+            fg: self.fg,
+            bg: self.bg,
+            combining: ['\0'; 8],
+            combining_len: 0,
+        };
+
+        let mut i = 0;
+        while i < s.len() {
+            // The previous write ended at the last column; wrap to the next
+            // line before writing (same as `put_base`).
+            if self.flags.contains(BufferFlags::WRAP_PENDING) {
+                self.advance_line();
+                col = 0;
+            }
+            let base = self.row_offset(self.cursor_row);
+            while i < s.len() && col < self.cols {
+                self.cells[base + col as usize] = Cell {
+                    ch: s[i] as char,
+                    ..template
+                };
+                i += 1;
+                col += 1;
+            }
+            if col >= self.cols {
+                col = self.cols - 1;
+                self.flags.set(BufferFlags::WRAP_PENDING, wrap);
+            }
+        }
+        self.cursor_col = col;
+    }
+
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
     pub(crate) fn put_base(&mut self, c: char, mut width: u32) {
         if self.flags.contains(BufferFlags::WRAP_PENDING) {
