@@ -1,5 +1,8 @@
 /target
 
+# macOS
+.DS_Store
+
 # vtty_ffi C example binaries
 /examples/ffi/term_demo
 
