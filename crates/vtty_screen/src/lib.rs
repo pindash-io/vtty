@@ -1585,6 +1585,132 @@ mod tests {
     }
 
     #[test]
+    fn hvp_matches_cup() {
+        let mut s = Screen::new(5, 3);
+        run(&mut s, b"\x1b[3;2f"); // HVP: same as CUP
+        assert_eq!(s.cursor(), (2, 1));
+    }
+
+    #[test]
+    fn vt_and_ff_linefeed() {
+        let mut s = Screen::new(5, 3);
+        run(&mut s, b"a\x0b"); // VT linefeeds, keeping the column
+        assert_eq!(s.cursor(), (1, 1));
+        run(&mut s, b"\x0c"); // FF linefeeds too
+        assert_eq!(s.cursor(), (2, 1));
+    }
+
+    #[test]
+    fn ignored_csi_finals_are_noop() {
+        // The exact CSI finals the screen dispatches. Everything else in
+        // `0x40..=0x7e` (the DEC/ANSI final range) must be a no-op, so a new
+        // handler cannot slip in without updating this pin.
+        let handled = b"@ABCDEFGHJKLMPSTXdfgmr";
+        for f in 0x40..=0x7e {
+            if handled.contains(&f) {
+                continue;
+            }
+            let mut s = Screen::new(4, 3);
+            run(&mut s, &[b'\x1b', b'[', f]);
+            assert_eq!(
+                s,
+                Screen::new(4, 3),
+                "CSI {} (0x{f:02x}) must be a no-op",
+                f as char
+            );
+        }
+    }
+
+    #[test]
+    fn ignored_esc_finals_are_noop() {
+        // ESC finals the screen dispatches, and the six sequence introducers
+        // (`P` `X` `[` `]` `^` `_`) that are not finals at all.
+        let handled = b"78DEHMc";
+        let introducers = b"PX[]^_";
+        for f in 0x30..=0x7e {
+            if handled.contains(&f) || introducers.contains(&f) {
+                continue;
+            }
+            let mut s = Screen::new(4, 3);
+            run(&mut s, &[b'\x1b', f]);
+            assert_eq!(
+                s,
+                Screen::new(4, 3),
+                "ESC {} (0x{f:02x}) must be a no-op",
+                f as char
+            );
+        }
+    }
+
+    #[test]
+    fn tracked_but_unapplied_modes_are_noop() {
+        // Modes `vtty_core::TermFlags` tracks but the screen does not apply.
+        // Pinned so wiring one in (e.g. DECSCNM) is an explicit change.
+        let seqs: &[&[u8]] = &[
+            b"\x1b[?1h",
+            b"\x1b[?1l",
+            b"\x1b[?3h",
+            b"\x1b[?3l",
+            b"\x1b[?5h",
+            b"\x1b[?5l",
+            b"\x1b[?66h",
+            b"\x1b[?66l",
+            b"\x1b[?67h",
+            b"\x1b[?67l",
+            b"\x1b[?69h",
+            b"\x1b[?69l",
+            b"\x1b[?80h",
+            b"\x1b[?80l",
+        ];
+        for seq in seqs {
+            let mut s = Screen::new(4, 3);
+            run(&mut s, seq);
+            assert_eq!(s, Screen::new(4, 3), "{seq:?} must be a no-op");
+        }
+    }
+
+    #[test]
+    fn esc_with_intermediate_is_noop() {
+        // Charset designations and other intermediate ESC sequences the
+        // screen does not act on (it keeps no active charset).
+        let seqs: &[&[u8]] = &[
+            b"\x1b(0", // DEC Special Graphics designation
+            b"\x1b(B", // US-ASCII
+            b"\x1b)0", // G1 designation
+            b"\x1b*0", // G2 designation
+            b"\x1b+0", // G3 designation
+            b"\x1b#3", // DECDHL, unsupported
+            b"\x1b#7", // not DECALN
+            b"\x1b(8", // intermediate + final 8, not DECRC
+        ];
+        for seq in seqs {
+            let mut s = Screen::new(4, 3);
+            run(&mut s, seq);
+            assert_eq!(s, Screen::new(4, 3), "{seq:?} must be a no-op");
+        }
+    }
+
+    #[test]
+    fn reverse_index_scrolls_region_down() {
+        let mut s = Screen::new(3, 5);
+        run(&mut s, b"a\r\nb\r\nc\r\nd"); // rows 0..3
+        run(&mut s, b"\x1b[2;4r"); // margins rows 1..=3 (0-based)
+        run(&mut s, b"\x1b[2;1H\x1bM"); // RI at the region top scrolls it down
+        assert_eq!(s.render_line(0), "a");
+        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(2), "b");
+        assert_eq!(s.render_line(3), "c");
+    }
+
+    #[test]
+    fn osc_progress_unknown_mode_is_noop() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"\x1b]9;4;1;40\x07");
+        run(&mut s, b"\x1b]9;4;99\x07"); // unknown mode: progress unchanged
+        assert_eq!(s.progress(), Progress::Percent(40));
+    }
+
+    #[test]
     fn leading_mark_with_no_base_is_dropped() {
         let mut s = Screen::new(4, 1);
         run(&mut s, "\u{301}x".as_bytes()); // lone combining mark at column 0
