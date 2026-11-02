@@ -20,26 +20,43 @@ impl Screen {
     pub(crate) fn shift_lines(&mut self, n: u32, insert: bool) {
         // Region memmoves need logical == physical layout.
         self.materialize();
+        if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
+            return;
+        }
+
+        let width = self.cols as usize;
+        let start = self.cursor_row as usize * width;
+        let end = (self.bottom_margin as usize + 1) * width;
+        let c = self.cursor_row as usize;
+        let b = self.bottom_margin as usize;
+
+        // Content and soft-wrap flags shift one way; the vacated row goes
+        // blank. The source and destination overlap, and `copy_within` moves
+        // them in the right order.
+        let (src, dst, blank, c_src, c_dst, c_blank) = if insert {
+            (
+                start..end - width,
+                start + width,
+                start..start + width,
+                c..b,
+                c + 1,
+                c,
+            )
+        } else {
+            (
+                start + width..end,
+                start,
+                end - width..end,
+                c + 1..b + 1,
+                c,
+                b,
+            )
+        };
         for _ in 0..n {
-            if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
-                break;
-            }
-            let width = self.cols as usize;
-            let start = self.cursor_row as usize * width;
-            let end = (self.bottom_margin as usize + 1) * width;
-            let c = self.cursor_row as usize;
-            let b = self.bottom_margin as usize;
-            if insert {
-                self.cells.copy_within(start..end - width, start + width);
-                self.cells[start..start + width].fill(Cell::default());
-                self.continuation.copy_within(c..b, c + 1);
-                self.continuation[c] = false;
-            } else {
-                self.cells.copy_within(start + width..end, start);
-                self.cells[end - width..end].fill(Cell::default());
-                self.continuation.copy_within(c + 1..=b, c);
-                self.continuation[b] = false;
-            }
+            self.cells.copy_within(src.clone(), dst);
+            self.cells[blank.clone()].fill(Cell::default());
+            self.continuation.copy_within(c_src.clone(), c_dst);
+            self.continuation[c_blank] = false;
         }
     }
 
