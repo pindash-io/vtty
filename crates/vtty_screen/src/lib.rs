@@ -604,41 +604,46 @@ impl Screen {
 
     fn csi(&mut self, params: &[i32], private: bool, f: u8) {
         let n = |i: usize| params.get(i).copied().unwrap_or(1).max(1) as u32;
-        match (private, f) {
-            (false, b'A') => self.cursor_up(n(0)),      // CUU
-            (false, b'B') => self.cursor_down(n(0)),    // CUD
-            (false, b'C') => self.cursor_forward(n(0)), // CUF
-            (false, b'D') => self.cursor_back(n(0)),    // CUB
-            (false, b'E') => {
+        if private {
+            // DEC private sequences. `CSI ? r` is DECPCTERM, not a DECSTBM
+            // form; the screen does not implement it, so it is ignored.
+            match f {
+                b'h' => self.set_mode(params),   // DECSET
+                b'l' => self.reset_mode(params), // DECRST
+                _ => {}
+            }
+            return;
+        }
+        match f {
+            b'A' => self.cursor_up(n(0)),      // CUU
+            b'B' => self.cursor_down(n(0)),    // CUD
+            b'C' => self.cursor_forward(n(0)), // CUF
+            b'D' => self.cursor_back(n(0)),    // CUB
+            b'E' => {
                 // CNL
                 self.cursor_down(n(0));
                 self.cursor_col = 0;
             }
-            (false, b'F') => {
+            b'F' => {
                 // CPL
                 self.cursor_up(n(0));
                 self.cursor_col = 0;
             }
-            (false, b'G') => self.cha(n(0)), // CHA
-            (false, b'd') => self.vpa(n(0)), // VPA
-            (false, b'H') | (false, b'f') => self.cup(n(0), n(1)), // CUP / HVP
-            (false, b'J') => self.erase_in_display(params.first().copied().unwrap_or(0)), // ED
-            (false, b'K') => self.erase_in_line(params.first().copied().unwrap_or(0)), // EL
-            (false, b'L') => self.insert_lines(n(0)), // IL
-            (false, b'M') => self.delete_lines(n(0)), // DL
-            (false, b'P') => self.delete_chars(n(0)), // DCH
-            (false, b'@') => self.insert_chars(n(0)), // ICH
-            (false, b'X') => self.erase_chars(n(0)), // ECH
-            (false, b'S') => self.scroll_n(false, n(0)), // SU
-            (false, b'T') => self.scroll_n(true, n(0)), // SD
-            (false, b'm') => self.sgr(params), // SGR
-            (false, b'g') => self.tbc(params), // TBC
-            (false, b'r') => self.set_margins(params), // DECSTBM
-            // `CSI ? r` is DECPCTERM (Enter/Exit PCTerm or Scancode Mode),
-            // not a DECSTBM form. The screen does not implement it, so it is
-            // ignored.
-            (true, b'h') => self.set_mode(params),   // DECSET
-            (true, b'l') => self.reset_mode(params), // DECRST
+            b'G' => self.cha(n(0)),              // CHA
+            b'd' => self.vpa(n(0)),              // VPA
+            b'H' | b'f' => self.cup(n(0), n(1)), // CUP / HVP
+            b'J' => self.erase_in_display(params.first().copied().unwrap_or(0)), // ED
+            b'K' => self.erase_in_line(params.first().copied().unwrap_or(0)), // EL
+            b'L' => self.insert_lines(n(0)),     // IL
+            b'M' => self.delete_lines(n(0)),     // DL
+            b'P' => self.delete_chars(n(0)),     // DCH
+            b'@' => self.insert_chars(n(0)),     // ICH
+            b'X' => self.erase_chars(n(0)),      // ECH
+            b'S' => self.scroll_n(false, n(0)),  // SU
+            b'T' => self.scroll_n(true, n(0)),   // SD
+            b'm' => self.sgr(params),            // SGR
+            b'g' => self.tbc(params),            // TBC
+            b'r' => self.set_margins(params),    // DECSTBM
             _ => {}
         }
     }
@@ -693,19 +698,26 @@ impl Perform for Screen {
     }
 
     fn esc_dispatch(&mut self, intermediates: &[u8], byte: u8) {
-        match (intermediates, byte) {
-            (&[b'#'], b'8') => self.decaln(),     // DECALN
-            (&[], b'7') => self.save_cursor(),    // DECSC
-            (&[], b'8') => self.restore_cursor(), // DECRC
-            (&[], b'D') => self.linefeed(),       // IND
-            (&[], b'H') => self.hts(),            // HTS
-            (&[], b'M') => self.reverse_index(),  // RI
-            (&[], b'E') => {
-                // NEL
-                self.cursor_col = 0;
+        // DECALN is the only escape sequence the screen acts on that carries
+        // an intermediate byte; everything else uses a bare final byte.
+        if matches!(intermediates, [b'#']) && byte == b'8' {
+            self.decaln();
+            return;
+        }
+        if !intermediates.is_empty() {
+            return;
+        }
+        match byte {
+            b'7' => self.save_cursor(),    // DECSC
+            b'8' => self.restore_cursor(), // DECRC
+            b'D' => self.linefeed(),       // IND
+            b'H' => self.hts(),            // HTS
+            b'M' => self.reverse_index(),  // RI
+            b'E' => {
+                self.cursor_col = 0; // NEL
                 self.linefeed();
             }
-            (&[], b'c') => self.reset(), // RIS
+            b'c' => self.reset(), // RIS
             _ => {}
         }
     }
