@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.svg" alt="vtty" width="254" height="254" />
+<img src="assets/logo.svg" alt="vtty: 3D VT terminal mark" width="254" height="254" />
 
 # vtty
 
