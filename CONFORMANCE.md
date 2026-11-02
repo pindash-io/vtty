@@ -149,6 +149,43 @@ intentionally out of scope for a UTF-8 terminal.
 | `ESC ( A` | British (`#`→`£`) | ✅ |
 | National replacement sets (DECNRCM) | DEC MCS / ISO Latin-1 / … | ❌ N/A (UTF-8 terminal) |
 
+## Screen (`vtty_screen`)
+
+The screen is an MVP cell grid. It applies the common DEC cursor, editing,
+and scrolling functions; the rest are recognized and ignored. `CSI ? r` is
+DECPCTERM and is deliberately ignored, not treated as a DECSTBM form.
+
+**Implemented:**
+
+- Cursor addressing: `CUP`/`HVP`, `CUU`, `CUD`, `CUF`, `CUB`, `CNL`, `CPL`,
+  `CHA`, `VPA`.
+- Editing and erase: `IL`, `DL`, `ICH`, `DCH`, `ECH`, `EL`, `ED`.
+- Scrolling and motion: `SU`, `SD`, `IND`, `RI`, `NEL`, `LF`/`VT`/`FF`, `CR`,
+  `BS`, `HT`.
+- `SGR` with indexed and truecolor, `DECSTBM`, `DECOM`, `DECAWM`, `DECTCEM`,
+  `DECSC`/`DECRC`, `DECALN`, `RIS`, `HTS`, `TBC`.
+- The alternate screen (DEC 47, 1046, 1047, 1049, 1048) and scrollback with
+  resize reflow.
+
+**Recognized but not applied:**
+
+| Feature | Sequence / mode | Why |
+| --- | --- | --- |
+| IRM insert mode | `CSI 4 h/l` | tracked in `TermFlags`, not applied by `put_base` |
+| DECLRMM + DECSLRM | `CSI ?69 h/l`, `CSI Pl;Pr s` | horizontal margins out of scope |
+| DECSCNM reverse video | `CSI ?5 h/l` | a render-time swap, not applied |
+| DECCOLM 132 columns | `CSI ?3 h/l` | the host owns the width |
+| Keyboard modes | `CSI ?1/66/67 h/l` | needs a keyboard |
+| Selective erase | `CSI ?J` / `CSI ?K` | treated as plain `ED`/`EL` |
+| DECPCTERM | `CSI ? r` | not implemented, ignored |
+| Sixel / ReGIS / DECDLD / DECUDK | DCS | the renderer's job |
+| DECSCL conformance level | `CSI Ps " p` | tracked via `ConformanceLevel`, not applied |
+| DEC Special Graphics | `ESC ( 0` | the screen keeps no charset state, so line-drawing is not rendered |
+| DECSTR soft reset | `CSI ! p` | not implemented (resets state but keeps the screen and scrollback) |
+| DECSCUSR cursor style | `CSI Ps SP q` | render-level cursor style |
+| DECSLPP page size | `CSI Ps t` | the host owns the size, like DECCOLM |
+| VT400 rectangle ops | `CSI … $ x/v/z/{/} …` | DECFRA/DECCRA/DECERA/DECSERA and DECCARA/DECRARA |
+
 ## XTGETTCAP terminfo
 
 `termcap.rs` answers the capability subset real apps probe (nvim, tmux, fish):
@@ -183,3 +220,5 @@ Bounded, O(n) (see [ARCHITECTURE.md — Resource limits](ARCHITECTURE.md#resourc
 2. The remaining DEC private modes (4, 8, 34, 40, 42, 100–117) — parse-dispatched
    but not tracked as `TermFlags`; `DECSCL` is covered by `ConformanceLevel`.
 3. Reference renderers for Sixel (`DCS q`), DECDLD (`DCS {`), DECUDK (`DCS |`).
+4. `vtty_screen` gaps: IRM, DECLRMM/DECSLRM, DECSCNM, keyboard modes, and
+   selective erase. See the Screen section above.
