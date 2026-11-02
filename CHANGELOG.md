@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panicking.
 - Removed the `VTTY_EMOJI_FAST` build knob from `vtty_width`, which emitted
   `unsafe` code incompatible with the crate's `forbid(unsafe_code)`.
+- `vtty_screen` insert/delete lines and multi-line region scrolls now shift
+  `n` rows in one pass instead of `n` passes.
 
 ### Fixed
 
@@ -60,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `query-os-name` reporting `unknown` on NetBSD and OpenBSD.
 - Fixed `vtty_codec` decoding a length prefix larger than the remaining
   input, which could force a huge allocation on a malicious stream.
+- `vtty_screen` grid size and offset math now computes in `usize`, so a grid
+  near the `u32` cell limit no longer overflows.
+- Cursor motion and `Grapheme::len` now saturate, so extreme or inconsistent
+  values clamp instead of overflowing or underflowing.
 
 ## [0.1.0]
 
