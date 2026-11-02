@@ -58,12 +58,16 @@ impl Screen {
         let row = self.row_offset(self.cursor_row);
         let start = row + self.cursor_col as usize;
         let end = row + self.cols as usize;
-        if insert {
-            self.cells.copy_within(start..end - n, start + n);
-            self.cells[start..start + n].fill(Cell::default());
+
+        // Content shifts one way; the vacated `n` cells go blank. The source
+        // and destination overlap, and `copy_within` moves them in the right
+        // order.
+        let (src, dst, blank) = if insert {
+            (start..end - n, start + n, start..start + n)
         } else {
-            self.cells.copy_within(start + n..end, start);
-            self.cells[end - n..end].fill(Cell::default());
-        }
+            (start + n..end, start, end - n..end)
+        };
+        self.cells.copy_within(src, dst);
+        self.cells[blank].fill(Cell::default());
     }
 }
