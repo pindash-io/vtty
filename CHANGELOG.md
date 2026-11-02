@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   near the `u32` cell limit no longer overflows.
 - Cursor motion and `Grapheme::len` now saturate, so extreme or inconsistent
   values clamp instead of overflowing or underflowing.
+- Fixed `CSI ? r` resetting the scroll margins; it is DECPCTERM and is now
+  ignored.
 
 ## [0.1.0]
 

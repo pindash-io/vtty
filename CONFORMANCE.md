@@ -15,11 +15,12 @@ Paul Flo Williams' canonical references on <https://vt100.net/>:
 
 > **Scope note.** `vtty` is a *parser*: it decodes bytes into typed events
 > (`csi_dispatch`, `hook`/`put`/`unhook`, `osc_dispatch`, …) and hands them to
-> a `Perform` sink. It does **not** interpret cursor movement, editing,
-> scrolling, or rendering — those are the screen's job (no screen crate ships
-> yet). So "conformance" here means: the parser recognizes the byte grammar
-> exactly as DEC did, and the *types* (`TermFlags`, `Reply`, `Cap`) cover what
-> a screen needs to answer queries faithfully.
+> a `Perform` sink. The parser does **not** interpret cursor movement, editing,
+> scrolling, or rendering. `vtty_screen` ships a `Perform` sink that does — a
+> cell grid with cursor addressing, SGR, scrolling, DECSTBM, the alternate
+> screen, and scrollback. So "conformance" here means the parser recognizes
+> the byte grammar exactly as DEC did, and the *types* (`TermFlags`, `Reply`,
+> `Cap`) cover what a screen needs to answer queries faithfully.
 
 ## Parser state machine
 
@@ -47,6 +48,7 @@ Modern protocol extensions that intentionally differ from the DEC diagram:
 | `SOS`/`PM`/`APC` content | ignore | `hook` + reuse DCS passthrough | kitty `APC` `_G` graphics |
 | params stored | 16 | 32 (matches vte/rio-vt) | `sep: u16` still tracks only the first 16 colon flags |
 | param clamp | `>9999 → 9999` (DECSR: 0–16383) | `0..=65535` (16-bit) | matches vte |
+| `DEL` (`0x7f`) in ground | `print` event (`20-7F`), ignored by 94-char sets | `execute` (C0 control) | no glyph in a UTF-8 terminal; the screen ignores it either way |
 
 Both deviations are pinned by `vtty_deviation()` in the table test, so a new
 divergence cannot slip in unnoticed.
@@ -181,6 +183,3 @@ Bounded, O(n) (see [ARCHITECTURE.md — Resource limits](ARCHITECTURE.md#resourc
 2. The remaining DEC private modes (4, 8, 34, 40, 42, 100–117) — parse-dispatched
    but not tracked as `TermFlags`; `DECSCL` is covered by `ConformanceLevel`.
 3. Reference renderers for Sixel (`DCS q`), DECDLD (`DCS {`), DECUDK (`DCS |`).
-4. `vtty_screen` — the cell-grid terminal screen (cursor, SGR, scrolling,
-   DECSTBM, alt screen, scrollback with resize reflow, tab stops, combining
-   marks, ZWJ emoji families).

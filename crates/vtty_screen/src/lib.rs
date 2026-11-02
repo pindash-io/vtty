@@ -634,8 +634,10 @@ impl Screen {
             (false, b'm') => self.sgr(params), // SGR
             (false, b'g') => self.tbc(params), // TBC
             (false, b'r') => self.set_margins(params), // DECSTBM
-            (true, b'r') => self.reset_margins(), // DECSTBM restore
-            (true, b'h') => self.set_mode(params), // DECSET
+            // `CSI ? r` is DECPCTERM (Enter/Exit PCTerm or Scancode Mode),
+            // not a DECSTBM form. The screen does not implement it, so it is
+            // ignored.
+            (true, b'h') => self.set_mode(params),   // DECSET
             (true, b'l') => self.reset_mode(params), // DECRST
             _ => {}
         }
@@ -1562,13 +1564,12 @@ mod tests {
     }
 
     #[test]
-    fn decstbm_restore_resets_margins() {
+    fn csi_question_r_is_decpcterm_and_ignored() {
         let mut s = Screen::new(3, 5);
-        run(&mut s, b"\x1b[2;4r"); // margins rows 2-4
-        assert_eq!(s.cursor(), (1, 0));
-        run(&mut s, b"\x1b[?r"); // DECSTBM restore
-        run(&mut s, b"\x1b[1;1H"); // home is now row 0
-        assert_eq!(s.cursor(), (0, 0));
+        run(&mut s, b"\x1b[2;4r"); // DECSTBM: margins rows 2-4, cursor homes to row 1
+        run(&mut s, b"\x1b[3;1H"); // move the cursor to row 2
+        run(&mut s, b"\x1b[?r"); // DECPCTERM (PCTerm/Scancode mode): out of scope, ignored
+        assert_eq!(s.cursor(), (2, 0)); // cursor unchanged — margins were not reset
     }
 
     #[test]

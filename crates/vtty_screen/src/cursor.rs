@@ -133,10 +133,6 @@ impl Screen {
         self.apply_margins(top, bottom);
     }
 
-    pub(crate) fn reset_margins(&mut self) {
-        self.apply_margins(0, self.rows - 1);
-    }
-
     /// Set the scroll margins to `[top, bottom]` and home the cursor.
     pub(crate) fn apply_margins(&mut self, top: u32, bottom: u32) {
         self.top_margin = top;

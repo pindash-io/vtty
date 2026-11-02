@@ -205,9 +205,12 @@ impl Scs {
             .get(self.single_shift.unwrap_or(self.gl) as usize)
     }
 
-    /// Translate a char through the active charset.
-    pub fn map(&self, c: char) -> char {
-        self.active().map(c)
+    /// Translate a char through the active charset. An `SS2`/`SS3` single
+    /// shift is consumed here, so it affects only this one char.
+    pub fn map(&mut self, c: char) -> char {
+        let charset = self.active();
+        self.single_shift = None;
+        charset.map(c)
     }
 }
 
@@ -366,8 +369,7 @@ mod scs_tests {
         s.designate(2, Charset::Dec);
         s.single_shift = Some(2);
         assert_eq!(s.map('q'), '─');
-        s.single_shift = None;
-        assert_eq!(s.map('q'), 'q');
+        assert_eq!(s.map('q'), 'q'); // the single shift is consumed by the first map
     }
 
     #[test]
