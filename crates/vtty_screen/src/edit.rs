@@ -25,39 +25,42 @@ impl Screen {
         }
 
         let width = self.cols as usize;
-        let start = self.cursor_row as usize * width;
-        let end = (self.bottom_margin as usize + 1) * width;
         let c = self.cursor_row as usize;
         let b = self.bottom_margin as usize;
+        let n = (n as usize).min(b - c + 1);
+        if n == 0 {
+            return;
+        }
+        let start = c * width;
+        let end = (b + 1) * width;
 
-        // Content and soft-wrap flags shift one way; the vacated row goes
-        // blank. The source and destination overlap, and `copy_within` moves
-        // them in the right order.
+        // Content and soft-wrap flags shift one way by `n` rows in one pass;
+        // the vacated `n` rows go blank. The source and destination overlap,
+        // and `copy_within` moves them in the right order.
         let (src, dst, blank, c_src, c_dst, c_blank) = if insert {
             (
-                start..end - width,
-                start + width,
-                start..start + width,
-                c..b,
-                c + 1,
-                c,
+                start..end - n * width,
+                start + n * width,
+                start..start + n * width,
+                c..b + 1 - n,
+                c + n,
+                c..c + n,
             )
         } else {
             (
-                start + width..end,
+                start + n * width..end,
                 start,
-                end - width..end,
-                c + 1..b + 1,
+                end - n * width..end,
+                c + n..b + 1,
                 c,
-                b,
+                b + 1 - n..b + 1,
             )
         };
-        for _ in 0..n {
-            self.cells.copy_within(src.clone(), dst);
-            self.cells[blank.clone()].fill(Cell::default());
-            self.continuation.copy_within(c_src.clone(), c_dst);
-            self.continuation[c_blank] = false;
-        }
+
+        self.cells.copy_within(src, dst);
+        self.cells[blank].fill(Cell::default());
+        self.continuation.copy_within(c_src, c_dst);
+        self.continuation[c_blank].fill(false);
     }
 
     pub(crate) fn insert_chars(&mut self, n: u32) {
