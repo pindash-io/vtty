@@ -132,4 +132,59 @@ impl Screen {
             self.continuation[bottom] = false;
         }
     }
+
+    /// Scroll the region `n` lines in one call. Full-screen scrolls rotate
+    /// the ring `n` times, each O(cols), so a loop over [`Self::scroll`] is
+    /// already optimal there. Region scrolls memmove `n` lines in one pass
+    /// instead of `n` passes.
+    pub(crate) fn scroll_n(&mut self, down: bool, n: u32) {
+        let top = self.top_margin as usize;
+        let bottom = self.bottom_margin as usize;
+
+        if top == 0 && bottom == self.rows as usize - 1 {
+            for _ in 0..n {
+                self.scroll(down);
+            }
+            return;
+        }
+
+        // Region scroll (DECSTBM): restore the logical layout once, then
+        // shift `n` rows in one pass.
+        self.materialize();
+        let width = self.cols as usize;
+        let n = (n as usize).min(bottom - top + 1);
+        if n == 0 {
+            return;
+        }
+        let start = top * width;
+        let end = (bottom + 1) * width;
+
+        // Content and soft-wrap flags shift one way by `n` rows; the vacated
+        // `n` rows go blank. The source and destination overlap, and
+        // `copy_within` moves them in the right order.
+        let (src, dst, blank, c_src, c_dst, c_blank) = if down {
+            (
+                start..end - n * width,
+                start + n * width,
+                start..start + n * width,
+                top..bottom + 1 - n,
+                top + n,
+                top..top + n,
+            )
+        } else {
+            (
+                start + n * width..end,
+                start,
+                end - n * width..end,
+                top + n..bottom + 1,
+                top,
+                bottom + 1 - n..bottom + 1,
+            )
+        };
+
+        self.cells.copy_within(src, dst);
+        self.cells[blank].fill(Cell::default());
+        self.continuation.copy_within(c_src, c_dst);
+        self.continuation[c_blank].fill(false);
+    }
 }

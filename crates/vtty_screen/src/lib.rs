@@ -629,24 +629,14 @@ impl Screen {
             (false, b'P') => self.delete_chars(n(0)), // DCH
             (false, b'@') => self.insert_chars(n(0)), // ICH
             (false, b'X') => self.erase_chars(n(0)), // ECH
-            (false, b'S') => {
-                // SU
-                for _ in 0..n(0) {
-                    self.scroll_up();
-                }
-            }
-            (false, b'T') => {
-                // SD
-                for _ in 0..n(0) {
-                    self.scroll_down();
-                }
-            }
-            (false, b'm') => self.sgr(params),         // SGR
-            (false, b'g') => self.tbc(params),         // TBC
+            (false, b'S') => self.scroll_n(false, n(0)), // SU
+            (false, b'T') => self.scroll_n(true, n(0)), // SD
+            (false, b'm') => self.sgr(params), // SGR
+            (false, b'g') => self.tbc(params), // TBC
             (false, b'r') => self.set_margins(params), // DECSTBM
-            (true, b'r') => self.reset_margins(),      // DECSTBM restore
-            (true, b'h') => self.set_mode(params),     // DECSET
-            (true, b'l') => self.reset_mode(params),   // DECRST
+            (true, b'r') => self.reset_margins(), // DECSTBM restore
+            (true, b'h') => self.set_mode(params), // DECSET
+            (true, b'l') => self.reset_mode(params), // DECRST
             _ => {}
         }
     }
@@ -1549,6 +1539,28 @@ mod tests {
         assert_eq!(s.render_line(0), "aaa");
         assert_eq!(s.render_line(1), "bbb");
         assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn region_scroll_n_batches() {
+        let mut s = Screen::new(3, 5);
+        run(&mut s, b"\x1b[2;4r"); // margins rows 1..=3 (0-based)
+        run(&mut s, b"a\r\nb\r\nc\r\nd");
+        assert_eq!(s.render_line(1), "b");
+        assert_eq!(s.render_line(2), "c");
+        assert_eq!(s.render_line(3), "d");
+
+        // SU 2 scrolls the region up two lines in one pass.
+        run(&mut s, b"\x1b[2S");
+        assert_eq!(s.render_line(1), "d");
+        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(3), "");
+
+        // SD 2 scrolls it back down two lines in one pass.
+        run(&mut s, b"\x1b[2T");
+        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(3), "d");
     }
 
     #[test]
