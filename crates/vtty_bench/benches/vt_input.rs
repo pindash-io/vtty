@@ -1,12 +1,13 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! VT input throughput across parsers: vtty, vte, vt100, vtparse and rio-vt.
+//! VT input throughput across parsers: vtty, vte, vt100, vtparse, rio-vt
+//! and fux-vt.
 //!
 //! Every parser feeds the same byte corpora into a counting sink so the
-//! measurement is parser + dispatch cost, not grid/state mutation. vt100 is
-//! the exception: it exposes no standalone parser, so its full screen
-//! emulator (`vt100::Parser::process`) is measured as-is.
+//! measurement is parser + dispatch cost, not grid/state mutation. vt100 and
+//! fux-vt are the exceptions: they expose no standalone parser, so their full
+//! screen emulators are measured as-is.
 //!
 //! The `vtty` (scalar) and `vtty-simd` (`Parser::with_simd`) paths are both
 //! measured in one run — vtty is compiled with the `simd` feature and the
@@ -406,6 +407,17 @@ fn corpus() -> Vec<(&'static str, Vec<u8>)> {
     ]
 }
 
+/// Feeds bytes to a fux-vt parser, dropping replies, until its budget runs.
+fn feed_fux_vt(parser: &mut fux_vt::Parser, bytes: &[u8]) {
+    struct Deaf;
+    impl fux_vt::Sink for Deaf {}
+    let mut sink = Deaf;
+    let mut rest = bytes;
+    while let Ok(Some((taken, _))) = parser.process_until_stop(rest, &mut sink) {
+        rest = rest.get(taken..).unwrap_or_default();
+    }
+}
+
 fn bench_vt_input(c: &mut Criterion) {
     let cases = corpus();
     let mut group = c.benchmark_group("vt_input");
@@ -473,6 +485,23 @@ fn bench_vt_input(c: &mut Criterion) {
             |(mut parser, mut sink)| {
                 parser.advance(&mut sink, bytes);
                 sink
+            }
+        );
+
+        bench_parser!(
+            group,
+            "fux-vt",
+            case,
+            bytes,
+            fux_vt::Parser::with_options(
+                fux_vt::Size::new(ROWS, COLS).expect("non-zero size"),
+                0,
+                fux_vt::Options::new(),
+            )
+            .expect("screen fits"),
+            |mut parser| {
+                feed_fux_vt(&mut parser, bytes);
+                parser
             }
         );
 

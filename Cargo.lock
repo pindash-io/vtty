@@ -338,6 +338,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fux-vt"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "290c55168537c7f1ddfcf2a5e2c0659b36b1ae6133eba98432d5a5aba9c484ca"
+
+[[package]]
 name = "getrandom"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1158,6 +1164,7 @@ name = "vtty_bench"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "fux-vt",
  "rio-vt",
  "vt100",
  "vte",
