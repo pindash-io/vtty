@@ -5,7 +5,9 @@ edition.workspace = true
 description.workspace = true
 keywords.workspace = true
 categories.workspace = true
-rust-version.workspace = true
+# The benchmark crate is dev-only tooling; fux-vt pins its real MSRV above
+# the library's 1.89, so it does not inherit the workspace rust-version.
+rust-version = "1.95"
 license.workspace = true
 repository.workspace = true
 readme = "README.md"

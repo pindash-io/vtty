@@ -292,7 +292,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.89
 
       - name: Check (MSRV)
-        run: cargo check --workspace --all-features
+        # vtty_bench is dev-only tooling and pulls fux-vt, whose MSRV (1.95)
+        # is above the library's 1.89. The MSRV gate covers the library
+        # crates only; the bench builds on stable in the `bench` and `test`
+        # jobs.
+        run: cargo check --workspace --exclude vtty_bench --all-features
 
   security:
     runs-on: ubuntu-latest
