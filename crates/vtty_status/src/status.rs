@@ -187,7 +187,7 @@ impl ProgramStatus {
                     } else if value.len() > MAX_APP {
                         return None; // limit exceeded
                     } else {
-                        app = core::str::from_utf8(value).ok().map(CompactString::from);
+                        app = CompactString::from_utf8(value).ok();
                     }
                 }
                 b"title" => {
@@ -310,7 +310,12 @@ fn parse_progress(value: &[u8]) -> Option<u8> {
     if value.is_empty() || value.len() > 3 || !value.iter().all(u8::is_ascii_digit) {
         return None;
     }
-    let n = core::str::from_utf8(value).ok()?.parse::<u8>().ok()?;
+    // `value` is already all ASCII digits (the guard above), so it is valid
+    // UTF-8; parse the decimal directly without the `str` round-trip. The
+    // `checked_*` ops reject overflow the same way `parse::<u8>` does.
+    let n = value
+        .iter()
+        .try_fold(0_u8, |acc, &b| acc.checked_mul(10)?.checked_add(b - b'0'))?;
     (n <= 100).then_some(n)
 }
 
@@ -332,7 +337,7 @@ fn parse_id(value: &[u8]) -> Option<CompactString> {
             return None;
         }
     }
-    Some(CompactString::from(core::str::from_utf8(value).ok()?))
+    CompactString::from_utf8(value).ok()
 }
 
 /// A control-character class.
