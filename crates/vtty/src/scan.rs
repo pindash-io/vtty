@@ -59,13 +59,22 @@ const fn is_non_printable(b: u8) -> bool {
     b < 0x20 || b >= 0x7f
 }
 
+/// Below this length the SIMD scan cannot complete even one 16-byte vector
+/// chunk (`as_chunks::<16>` yields zero chunks), so it would pay
+/// `Level::new()` + `dispatch!` + `first_matching` setup and then fall
+/// through to an identical scalar tail loop — pure overhead. ANSI/CSI/OSC/DCS-
+/// dense input produces runs this short (a word between two escapes), so the
+/// guard keeps the hot path on the SWAR scanner and skips the per-scan
+/// dispatch entirely.
+const SIMD_MIN_RUN: usize = 16;
+
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
 /// `DEL` (`0x7f`) is a C0 control, not printable.
 #[inline(always)]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     #[cfg(feature = "simd")]
-    if simd {
+    if simd && bytes.len() >= SIMD_MIN_RUN {
         return crate::simd::first_non_printable(bytes);
     }
     #[cfg(not(feature = "simd"))]
@@ -99,7 +108,7 @@ const fn osc_is_stop(b: u8) -> bool {
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
     #[cfg(feature = "simd")]
-    if simd {
+    if simd && bytes.len() >= SIMD_MIN_RUN {
         return crate::simd::first_osc_boundary(bytes);
     }
     #[cfg(not(feature = "simd"))]
@@ -128,7 +137,7 @@ const fn dcs_is_stop(b: u8) -> bool {
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
     #[cfg(feature = "simd")]
-    if simd {
+    if simd && bytes.len() >= SIMD_MIN_RUN {
         return crate::simd::first_dcs_boundary(bytes);
     }
     #[cfg(not(feature = "simd"))]
