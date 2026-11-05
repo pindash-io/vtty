@@ -292,6 +292,15 @@ pub(crate) fn decode_utf8<P: Perform>(
                                                 crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
                                             buf[n..n + 4].copy_from_slice(&cps);
                                             n += 4;
+                                            // The 4-wide SIMD fill bypasses
+                                            // `push_cp` (whose flush-at-32
+                                            // guard is the invariant the next
+                                            // `push_cp` relies on), so flush
+                                            // here when the batch is full.
+                                            if n == BATCH {
+                                                p.print_codepoints(&buf[..n]);
+                                                n = 0;
+                                            }
                                             i += 12;
                                         } else {
                                             push_cp(
