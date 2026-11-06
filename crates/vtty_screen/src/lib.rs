@@ -47,6 +47,7 @@ mod cursor;
 mod edit;
 mod erase;
 mod put;
+mod rect;
 mod reflow;
 mod render;
 mod scroll;
@@ -55,7 +56,7 @@ mod sgr;
 pub use cell::{BufferFlags, Cell, ScreenFlags};
 use cell::{default_palette, default_tabs};
 use reflow::{fit_grid, reflow_rows, rows_from};
-use render::{push_sgr, render_cells, trailing_blanks};
+use render::{push_rgb_sgr, push_sgr, render_cells, trailing_blanks};
 
 /// `OSC 9;4` progress-bar state, as used by modern terminal emulators.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -88,6 +89,8 @@ pub struct Screen {
     pub(crate) sgr: SgrFlags,
     pub(crate) fg: ColorId,
     pub(crate) bg: ColorId,
+    /// DECSCA protect attribute applied to subsequently written cells.
+    pub(crate) protect: bool,
     /// Global modes: DECAWM autowrap, DECTCEM cursor, alt-screen active.
     pub(crate) modes: ScreenFlags,
     /// Per-buffer flags: autowrap-pending and DECOM origin.
@@ -120,6 +123,7 @@ pub struct Screen {
     pub(crate) alt_sgr: SgrFlags,
     pub(crate) alt_fg: ColorId,
     pub(crate) alt_bg: ColorId,
+    pub(crate) alt_protect: bool,
     pub(crate) alt_flags: BufferFlags,
     pub(crate) alt_top_margin: u32,
     pub(crate) alt_bottom_margin: u32,
@@ -154,6 +158,7 @@ impl Screen {
             sgr: SgrFlags::DEFAULT,
             fg: DEFAULT_FG_ID,
             bg: DEFAULT_BG_ID,
+            protect: false,
             modes: ScreenFlags::DEFAULT,
             flags: BufferFlags::empty(),
             top_margin: 0,
@@ -173,6 +178,7 @@ impl Screen {
             alt_sgr: SgrFlags::DEFAULT,
             alt_fg: DEFAULT_FG_ID,
             alt_bg: DEFAULT_BG_ID,
+            alt_protect: false,
             alt_flags: BufferFlags::empty(),
             alt_top_margin: 0,
             alt_bottom_margin: rows - 1,
@@ -205,6 +211,7 @@ impl Screen {
         self.saved_row = 0;
         self.saved_col = 0;
         self.modes = ScreenFlags::DEFAULT;
+        self.protect = false;
         self.flags.remove(BufferFlags::ORIGIN);
         self.rgb.clear();
         self.title.clear();
@@ -219,6 +226,7 @@ impl Screen {
         self.alt_sgr = SgrFlags::DEFAULT;
         self.alt_fg = DEFAULT_FG_ID;
         self.alt_bg = DEFAULT_BG_ID;
+        self.alt_protect = false;
         self.alt_flags = BufferFlags::empty();
         self.alt_top_margin = 0;
         self.alt_bottom_margin = self.rows - 1;
@@ -226,6 +234,21 @@ impl Screen {
         self.tab_stops = default_tabs(self.cols);
         self.continuation.fill(false);
         self.alt_continuation.fill(false);
+    }
+
+    /// DECSTR (`CSI ! p`): soft terminal reset. Resets cursor, styles,
+    /// margins, modes, and tab stops while keeping the screen contents and
+    /// scrollback.
+    pub(crate) fn soft_reset(&mut self) {
+        self.reset_cursor_style_margins();
+        self.flags.remove(BufferFlags::ORIGIN);
+        self.protect = false;
+        // DECAWM on, DECTCEM on, IRM off. `ALT_ACTIVE` is untouched: DECSTR
+        // resets modes but does not leave the alternate screen.
+        self.modes.set(ScreenFlags::WRAP, true);
+        self.modes.set(ScreenFlags::CURSOR_VISIBLE, true);
+        self.modes.set(ScreenFlags::INSERT, false);
+        self.tab_stops = default_tabs(self.cols);
     }
 
     /// Handle an `OSC 9;4` progress-bar command, ignoring other `OSC 9`
@@ -293,6 +316,7 @@ impl Screen {
         core::mem::swap(&mut self.sgr, &mut self.alt_sgr);
         core::mem::swap(&mut self.fg, &mut self.alt_fg);
         core::mem::swap(&mut self.bg, &mut self.alt_bg);
+        core::mem::swap(&mut self.protect, &mut self.alt_protect);
         core::mem::swap(&mut self.flags, &mut self.alt_flags);
         core::mem::swap(&mut self.top_margin, &mut self.alt_top_margin);
         core::mem::swap(&mut self.bottom_margin, &mut self.alt_bottom_margin);
@@ -455,31 +479,51 @@ impl Screen {
         let cells = &self.cells[self.row_range(row)];
         // Trim trailing blank cells.
         let last = cells.len() - trailing_blanks(cells);
+        let reverse = self.modes.contains(ScreenFlags::REVERSE);
         // `current` is the emitted style; `None` means "default, no SGR
-        // emitted yet". Default-styled cells add no escape sequences.
+        // emitted yet". Default-styled cells add no escape sequences (unless
+        // reverse video forces explicit colors).
         let mut current: Option<(SgrFlags, ColorId, ColorId)> = None;
+        let mut current_rgb: Option<(SgrFlags, u32, u32)> = None;
         for cell in &cells[..last] {
             if cell.is_continuation() {
                 continue;
             }
-            let is_default =
-                cell.sgr.is_empty() && cell.fg == DEFAULT_FG_ID && cell.bg == DEFAULT_BG_ID;
-            if is_default {
-                if current.is_some() {
-                    out.push_str("\x1b[0m");
-                    current = None;
+            if reverse {
+                // Reverse video swaps foreground/background. Default colors
+                // are resolved to RGB so the swap is visible (a snapshot is
+                // rendered on a non-reversed terminal).
+                let fg = self.color_rgb(cell.bg).unwrap_or(self.default_fg);
+                let bg = self.color_rgb(cell.fg).unwrap_or(self.default_bg);
+                let state = (cell.sgr, fg, bg);
+                if current_rgb != Some(state) {
+                    push_rgb_sgr(&mut out, cell.sgr, fg, bg);
+                    current_rgb = Some(state);
                 }
             } else {
-                let state = (cell.sgr, cell.fg, cell.bg);
-                if current != Some(state) {
-                    push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
-                    current = Some(state);
+                let is_default =
+                    cell.sgr.is_empty() && cell.fg == DEFAULT_FG_ID && cell.bg == DEFAULT_BG_ID;
+                if is_default {
+                    if current.is_some() {
+                        out.push_str("\x1b[0m");
+                        current = None;
+                    }
+                } else {
+                    let state = (cell.sgr, cell.fg, cell.bg);
+                    if current != Some(state) {
+                        push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
+                        current = Some(state);
+                    }
                 }
             }
             out.push(cell.ch);
             out.extend(cell.marks().iter().copied());
         }
-        if current.is_some() {
+        if reverse {
+            if current_rgb.is_some() {
+                out.push_str("\x1b[0m");
+            }
+        } else if current.is_some() {
             out.push_str("\x1b[0m");
         }
         out
@@ -610,6 +654,8 @@ impl Screen {
             match f {
                 b'h' => self.set_mode(params),   // DECSET
                 b'l' => self.reset_mode(params), // DECRST
+                b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), true), // DECSED
+                b'K' => self.erase_in_line(params.first().copied().unwrap_or(0), true), // DECSEL
                 _ => {}
             }
             return;
@@ -632,8 +678,8 @@ impl Screen {
             b'G' => self.cha(n(0)),              // CHA
             b'd' => self.vpa(n(0)),              // VPA
             b'H' | b'f' => self.cup(n(0), n(1)), // CUP / HVP
-            b'J' => self.erase_in_display(params.first().copied().unwrap_or(0)), // ED
-            b'K' => self.erase_in_line(params.first().copied().unwrap_or(0)), // EL
+            b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), false), // ED
+            b'K' => self.erase_in_line(params.first().copied().unwrap_or(0), false), // EL
             b'L' => self.insert_lines(n(0)),     // IL
             b'M' => self.delete_lines(n(0)),     // DL
             b'P' => self.delete_chars(n(0)),     // DCH
@@ -641,6 +687,8 @@ impl Screen {
             b'X' => self.erase_chars(n(0)),      // ECH
             b'S' => self.scroll_n(false, n(0)),  // SU
             b'T' => self.scroll_n(true, n(0)),   // SD
+            b'h' => self.apply_ansi_modes(params, true), // SM
+            b'l' => self.apply_ansi_modes(params, false), // RM
             b'm' => self.sgr(params),            // SGR
             b'g' => self.tbc(params),            // TBC
             b'r' => self.set_margins(params),    // DECSTBM
@@ -693,6 +741,30 @@ impl Perform for Screen {
     }
 
     fn csi_dispatch(&mut self, params: &[i32], _sep: u16, intermediates: &[u8], f: u8) {
+        // DECSTR (`CSI ! p`): soft reset. The `!` intermediate distinguishes
+        // it from the DEC private (`?`) sequences handled by `csi`.
+        if intermediates.first() == Some(&b'!') && f == b'p' {
+            self.soft_reset();
+            return;
+        }
+        // DECSCA (`CSI Ps " q`): protect attribute for subsequent cells.
+        if intermediates.first() == Some(&b'"') && f == b'q' {
+            self.decsca(params);
+            return;
+        }
+        // VT400 rectangular-area operations (`CSI … $ x/v/z/{/r/t`).
+        if intermediates.first() == Some(&b'$') {
+            match f {
+                b'x' => self.decfra(params),  // DECFRA
+                b'v' => self.deccra(params),  // DECCRA
+                b'z' => self.decera(params),  // DECERA
+                b'{' => self.decsera(params), // DECSERA
+                b'r' => self.deccara(params), // DECCARA
+                b't' => self.decrara(params), // DECRARA
+                _ => {}
+            }
+            return;
+        }
         let private = intermediates.first() == Some(&b'?');
         self.csi(params, private, f);
     }
@@ -954,6 +1026,156 @@ mod tests {
     }
 
     #[test]
+    fn decstr_preserves_content_and_homes_cursor() {
+        let mut s = Screen::new(4, 2);
+        run(&mut s, b"ab\x1b[2;3H"); // content, cursor to (1, 2)
+        run(&mut s, b"\x1b[!p");
+        assert_eq!(s.render_line(0), "ab");
+        assert_eq!(s.cursor(), (0, 0));
+    }
+
+    #[test]
+    fn decstr_resets_style() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[1;31m"); // bold red active
+        run(&mut s, b"\x1b[!p");
+        run(&mut s, b"X");
+        assert_eq!(s.render_ansi_line(0), "X"); // default, no SGR escapes
+    }
+
+    #[test]
+    fn decstr_clears_insert_mode() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"12\x1b[1G\x1b[4h"); // IRM on at column 0
+        run(&mut s, b"\x1b[!p");
+        run(&mut s, b"AB"); // replace, not shift
+        assert_eq!(s.render_line(0), "AB");
+    }
+
+    #[test]
+    fn selective_erase_in_line_skips_protected() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
+        run(&mut s, b"\x1b[?2K"); // DECSEL 2: erase whole line, keep protected
+        assert_eq!(s.render_line(0), "  c");
+        assert_eq!(s.cell(0, 2).map(|c| c.protected), Some(true));
+        assert_eq!(s.cell(0, 0).map(|c| c.ch), Some(' '));
+    }
+
+    #[test]
+    fn selective_erase_in_display_skips_protected() {
+        let mut s = Screen::new(4, 2);
+        run(&mut s, b"abcd\r\nEFGH");
+        run(&mut s, b"\x1b[1;2H\x1b[1\"qbc"); // protect "bc" on row 0
+        run(&mut s, b"\x1b[?2J"); // DECSED 2: erase display, keep protected
+        assert_eq!(s.render_line(0), " bc");
+        assert_eq!(s.render_line(1), "");
+    }
+
+    #[test]
+    fn plain_erase_ignores_protection() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
+        run(&mut s, b"\x1b[2J"); // ED 2 (non-selective) erases everything
+        assert_eq!(s.render_line(0), "");
+    }
+
+    #[test]
+    fn decsca_zero_clears_protection() {
+        let mut s = Screen::new(5, 1);
+        run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
+        run(&mut s, b"\x1b[1;4H\x1b[0\"qd"); // DECSCA 0: "d" is erasable
+        run(&mut s, b"\x1b[?2K"); // selective erase line
+        assert_eq!(s.render_line(0), "  c");
+    }
+
+    #[test]
+    fn reverse_video_swaps_default_colors() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"X\x1b[?5h"); // DECSCNM on
+        // Default fg/bg swap to explicit black-on-white.
+        assert_eq!(
+            s.render_ansi_line(0),
+            "\x1b[0;38;2;0;0;0;48;2;255;255;255mX\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn reverse_video_swaps_fg_bg() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"\x1b[31mX"); // red foreground
+        run(&mut s, b"\x1b[?5h"); // DECSCNM on
+        // Red fg becomes red bg; the default bg becomes the foreground.
+        assert_eq!(
+            s.render_ansi_line(0),
+            "\x1b[0;38;2;0;0;0;48;2;205;0;0mX\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn reverse_video_off_restores_render() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"X\x1b[?5h\x1b[?5l"); // DECSCNM on, then off
+        assert_eq!(s.render_ansi_line(0), "X");
+    }
+
+    #[test]
+    fn decfra_fills_rectangle() {
+        let mut s = Screen::new(4, 3);
+        run(&mut s, b"\x1b[65;2;3;1;2$x"); // fill cols 2-3, rows 1-2 with 'A'
+        assert_eq!(s.render_line(0), " AA");
+        assert_eq!(s.render_line(1), " AA");
+        assert_eq!(s.render_line(2), "");
+    }
+
+    #[test]
+    fn decera_erases_rectangle() {
+        let mut s = Screen::new(4, 2);
+        run(&mut s, b"abcdefgh");
+        run(&mut s, b"\x1b[2;3;1;2$z"); // erase cols 2-3, rows 1-2
+        assert_eq!(s.render_line(0), "a  d");
+        assert_eq!(s.render_line(1), "e  h");
+    }
+
+    #[test]
+    fn decsera_skips_protected() {
+        let mut s = Screen::new(3, 2);
+        run(&mut s, b"abcdef");
+        run(&mut s, b"\x1b[1;2H\x1b[1\"qb"); // protect "b"
+        run(&mut s, b"\x1b[1;3;1;2${"); // DECSERA whole screen
+        assert_eq!(s.render_line(0), " b");
+        assert_eq!(s.render_line(1), "");
+    }
+
+    #[test]
+    fn deccra_copies_rectangle() {
+        let mut s = Screen::new(4, 2);
+        run(&mut s, b"abcd");
+        // Copy row 1 cols 1-2 ("ab") to row 2 col 3.
+        run(&mut s, b"\x1b[2;1;2;1;1;3$v");
+        assert_eq!(s.render_line(0), "abcd");
+        assert_eq!(s.render_line(1), "  ab");
+    }
+
+    #[test]
+    fn deccara_applies_attrs() {
+        let mut s = Screen::new(3, 1);
+        run(&mut s, b"abc");
+        // Bold + red on cols 2-3 of row 1 (cells 'b', 'c').
+        run(&mut s, b"\x1b[1;2;1;3;1;31$r");
+        assert_eq!(s.render_ansi_line(0), "a\x1b[0;1;38;5;1mbc\x1b[0m");
+    }
+
+    #[test]
+    fn decrara_toggles_attrs() {
+        let mut s = Screen::new(2, 1);
+        run(&mut s, b"\x1b[1mab"); // "ab" bold
+        // Reverse bold on col 1 (cell 'a').
+        run(&mut s, b"\x1b[1;1;1;1;1$t");
+        assert_eq!(s.render_ansi_line(0), "a\x1b[0;1mb\x1b[0m");
+    }
+
+    #[test]
     fn insert_and_delete_lines() {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"aaa\r\nbbb\r\nccc");
@@ -993,6 +1215,44 @@ mod tests {
         assert_eq!(s.cell(0, 1).map(|c| c.ch), Some('d'));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('e'));
         assert_eq!(s.cell(0, 3).map(|c| c.ch), Some(' '));
+    }
+
+    #[test]
+    fn insert_mode_shifts_row_right() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"12");
+        run(&mut s, b"\x1b[1G\x1b[4h"); // IRM on at column 1
+        run(&mut s, b"AB");
+        assert_eq!(s.render_line(0), "AB12");
+    }
+
+    #[test]
+    fn insert_mode_reset_restores_replace() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"12\x1b[1G\x1b[4hAB");
+        assert_eq!(s.render_line(0), "AB12");
+        // Reset IRM: writing replaces instead of shifting.
+        run(&mut s, b"\x1b[1G\x1b[4lXY");
+        assert_eq!(s.render_line(0), "XY12");
+    }
+
+    #[test]
+    fn insert_mode_at_last_column_drops_tail() {
+        let mut s = Screen::new(3, 1);
+        run(&mut s, b"abc");
+        run(&mut s, b"\x1b[3G\x1b[4hX"); // IRM on at the last column
+        assert_eq!(s.render_line(0), "abX");
+        assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('X'));
+    }
+
+    #[test]
+    fn insert_mode_wide_glyph_shifts_two_cells() {
+        let mut s = Screen::new(4, 1);
+        run(&mut s, b"ab");
+        run(&mut s, b"\x1b[1G\x1b[4h"); // IRM on at column 1
+        run(&mut s, "中".as_bytes()); // width 2
+        assert_eq!(s.render_line(0), "中ab");
+        assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
     }
 
     #[test]
@@ -1605,7 +1865,7 @@ mod tests {
         // The exact CSI finals the screen dispatches. Everything else in
         // `0x40..=0x7e` (the DEC/ANSI final range) must be a no-op, so a new
         // handler cannot slip in without updating this pin.
-        let handled = b"@ABCDEFGHJKLMPSTXdfgmr";
+        let handled = b"@ABCDEFGHJKLMPSTXdfghlmr";
         for f in 0x40..=0x7e {
             if handled.contains(&f) {
                 continue;
@@ -1651,8 +1911,6 @@ mod tests {
             b"\x1b[?1l",
             b"\x1b[?3h",
             b"\x1b[?3l",
-            b"\x1b[?5h",
-            b"\x1b[?5l",
             b"\x1b[?66h",
             b"\x1b[?66l",
             b"\x1b[?67h",

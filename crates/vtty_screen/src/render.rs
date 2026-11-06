@@ -12,6 +12,14 @@ use crate::cell::Cell;
 
 /// Emit an SGR sequence (`ESC [ 0 ; … m`) for a cell's attributes.
 pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId, palette: &[u32]) {
+    push_sgr_flags(out, sgr);
+    push_ansi_color(out, 3, fg, palette);
+    push_ansi_color(out, 4, bg, palette);
+    out.push('m');
+}
+
+/// Emit `ESC [ 0` and the attribute flag codes for `sgr`.
+fn push_sgr_flags(out: &mut String, sgr: SgrFlags) {
     out.push_str("\x1b[0");
     for (_, code) in [
         (SgrFlags::BOLD, ";1"),
@@ -29,8 +37,17 @@ pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId
     {
         out.push_str(code);
     }
-    push_ansi_color(out, 3, fg, palette);
-    push_ansi_color(out, 4, bg, palette);
+}
+
+/// Emit an SGR sequence with explicit truecolor foreground/background
+/// (already resolved to packed `0xRRGGBB`). Used by reverse video, where
+/// the default colors must swap as real RGB rather than sentinel ids.
+pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
+    push_sgr_flags(out, sgr);
+    let [r, g, b] = vtty_core::u32_to_rgb(fg);
+    let _ = write!(out, ";38;2;{r};{g};{b}");
+    let [r, g, b] = vtty_core::u32_to_rgb(bg);
+    let _ = write!(out, ";48;2;{r};{g};{b}");
     out.push('m');
 }
 

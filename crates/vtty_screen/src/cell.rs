@@ -26,6 +26,10 @@ bitflags::bitflags! {
         const CURSOR_VISIBLE = 1 << 1;
         /// The alternate screen buffer is active (DEC 47/1046/1047/1049).
         const ALT_ACTIVE = 1 << 2;
+        /// IRM (`CSI 4 h/l`) — insert mode; new glyphs shift the row right.
+        const INSERT = 1 << 3;
+        /// DECSCNM (`CSI ?5 h/l`) — reverse video; render swaps fg/bg.
+        const REVERSE = 1 << 4;
     }
 }
 
@@ -50,6 +54,9 @@ pub struct Cell {
     pub fg: ColorId,
     /// Background color.
     pub bg: ColorId,
+    /// DECSCA protect attribute: selective erase (DECSED/DECSEL) skips
+    /// protected cells.
+    pub protected: bool,
     /// Trailing zero-width or ZWJ-joined glyphs (combining marks, variation
     /// selectors, skin tones, emoji family members), inline up to eight.
     pub combining: [char; 8],
@@ -64,6 +71,7 @@ impl Default for Cell {
             sgr: SgrFlags::DEFAULT,
             fg: DEFAULT_FG_ID,
             bg: DEFAULT_BG_ID,
+            protected: false,
             combining: ['\0'; 8],
             combining_len: 0,
         }

@@ -123,23 +123,8 @@ impl Screen {
             return;
         }
 
-        // Region scroll (DECSTBM): restore the logical layout, then memmove.
-        self.materialize();
-        let start = top * width;
-        let end = (bottom + 1) * width;
-        if down {
-            self.cells.copy_within(start..end - width, start + width);
-            self.cells[start..start + width].fill(Cell::default());
-            self.continuation.copy_within(top..bottom, top + 1);
-            self.continuation[top] = false;
-        } else {
-            self.cells.copy_within(start + width..end, start);
-            self.cells[end - width..end].fill(Cell::default());
-            // Shift the soft-wrap flags up with the rows; the new blank
-            // bottom row starts a fresh logical line.
-            self.continuation.copy_within(top + 1..=bottom, top);
-            self.continuation[bottom] = false;
-        }
+        // Region scroll (DECSTBM): `scroll_n` shifts the region in one pass.
+        self.scroll_n(down, 1);
     }
 
     /// Scroll the region `n` lines in one call. Full-screen scrolls rotate

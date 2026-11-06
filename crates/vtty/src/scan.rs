@@ -66,6 +66,7 @@ const fn is_non_printable(b: u8) -> bool {
 /// dense input produces runs this short (a word between two escapes), so the
 /// guard keeps the hot path on the SWAR scanner and skips the per-scan
 /// dispatch entirely.
+#[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground

@@ -7,54 +7,68 @@ use crate::Screen;
 use crate::cell::Cell;
 
 impl Screen {
-    pub(crate) fn erase_in_display(&mut self, mode: i32) {
+    pub(crate) fn erase_in_display(&mut self, mode: i32, selective: bool) {
         match mode {
             0 => {
                 // Cursor to end.
-                self.erase_from_cursor_to_end();
+                self.erase_from_cursor_to_end(selective);
             }
             1 => {
                 // Start to cursor.
                 let (r, c) = (self.cursor_row, self.cursor_col);
-                self.erase_region(0, 0, r, c);
+                self.erase_region(0, 0, r, c, selective);
             }
             _ => {
                 // 2 (and 3, scrollback — same in the MVP): whole screen.
-                self.cells.fill(Cell::default());
+                if selective {
+                    self.erase_region(0, 0, self.rows - 1, self.cols - 1, true);
+                } else {
+                    self.cells.fill(Cell::default());
+                }
             }
         }
     }
 
     /// Erase columns `[c0, c1)` of row `row` (0-based, `c1` exclusive).
+    /// Selective erase skips protected cells.
     #[inline]
-    pub(crate) fn erase_row_range(&mut self, row: u32, c0: u32, c1: u32) {
+    pub(crate) fn erase_row_range(&mut self, row: u32, c0: u32, c1: u32, selective: bool) {
         let base = self.row_offset(row);
-        self.cells[base + c0 as usize..base + c1 as usize].fill(Cell::default());
-    }
-
-    pub(crate) fn erase_from_cursor_to_end(&mut self) {
-        self.erase_to_line_end();
-        for r in self.cursor_row + 1..self.rows {
-            self.erase_row_range(r, 0, self.cols);
+        let range = &mut self.cells[base + c0 as usize..base + c1 as usize];
+        if selective {
+            for cell in range {
+                if !cell.protected {
+                    *cell = Cell::default();
+                }
+            }
+        } else {
+            range.fill(Cell::default());
         }
     }
 
-    pub(crate) fn erase_to_line_end(&mut self) {
-        self.erase_row_range(self.cursor_row, self.cursor_col, self.cols);
+    pub(crate) fn erase_from_cursor_to_end(&mut self, selective: bool) {
+        self.erase_to_line_end(selective);
+        for r in self.cursor_row + 1..self.rows {
+            self.erase_row_range(r, 0, self.cols, selective);
+        }
     }
 
-    pub(crate) fn erase_region(&mut self, r0: u32, c0: u32, r1: u32, c1: u32) {
+    pub(crate) fn erase_to_line_end(&mut self, selective: bool) {
+        self.erase_row_range(self.cursor_row, self.cursor_col, self.cols, selective);
+    }
+
+    pub(crate) fn erase_region(&mut self, r0: u32, c0: u32, r1: u32, c1: u32, selective: bool) {
         for r in r0..=r1 {
             let end = if r == r1 { c1 + 1 } else { self.cols };
-            self.erase_row_range(r, c0, end);
+            self.erase_row_range(r, c0, end, selective);
         }
     }
 
-    pub(crate) fn erase_in_line(&mut self, mode: i32) {
+    pub(crate) fn erase_in_line(&mut self, mode: i32, selective: bool) {
         match mode {
-            0 => self.erase_to_line_end(),
-            1 => self.erase_row_range(self.cursor_row, 0, self.cursor_col + 1),
-            _ => self.erase_row_range(self.cursor_row, 0, self.cols),
+            0 => self.erase_to_line_end(selective),
+            1 => self.erase_row_range(self.cursor_row, 0, self.cursor_col + 1, selective),
+            _ => self.erase_row_range(self.cursor_row, 0, self.cols, selective),
         }
     }
 

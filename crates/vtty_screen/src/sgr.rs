@@ -3,88 +3,103 @@
 
 //! sgr commands for [`Screen`](crate::Screen).
 
+use alloc::vec::Vec;
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
 use crate::Screen;
 use crate::cell::{BufferFlags, Cell, ScreenFlags};
 
-impl Screen {
-    pub(crate) fn sgr(&mut self, params: &[i32]) {
-        if params.is_empty() {
-            self.sgr = SgrFlags::DEFAULT;
-            self.fg = DEFAULT_FG_ID;
-            self.bg = DEFAULT_BG_ID;
-            return;
-        }
-        let mut i = 0;
-        while i < params.len() {
-            let code = params[i];
-            match code {
-                0 => {
-                    self.sgr = SgrFlags::DEFAULT;
-                    self.fg = DEFAULT_FG_ID;
-                    self.bg = DEFAULT_BG_ID;
-                }
-                30..=37 => self.fg = ColorId((code - 30) as u16),
-                90..=97 => self.fg = ColorId((code - 90 + 8) as u16),
-                40..=47 => self.bg = ColorId((code - 40) as u16),
-                100..=107 => self.bg = ColorId((code - 100 + 8) as u16),
-                39 => self.fg = DEFAULT_FG_ID,
-                49 => self.bg = DEFAULT_BG_ID,
-                38 | 48 => {
-                    let is_fg = code == 38;
-                    match params.get(i + 1).copied() {
-                        Some(5) => {
-                            if let Some(&n) = params.get(i + 2) {
-                                self.set_color(is_fg, ColorId::from(n));
-                                i += 2;
+/// Parse an SGR parameter list into `(sgr, fg, bg)` in place. Truecolor specs
+/// are appended to `rgb` and referenced by id, so the same sequence applies
+/// to one cell (the current style) or many (DECCARA/DECRARA).
+pub(crate) fn apply_sgr_to(
+    params: &[i32],
+    sgr: &mut SgrFlags,
+    fg: &mut ColorId,
+    bg: &mut ColorId,
+    rgb: &mut Vec<u32>,
+) {
+    if params.is_empty() {
+        *sgr = SgrFlags::DEFAULT;
+        *fg = DEFAULT_FG_ID;
+        *bg = DEFAULT_BG_ID;
+        return;
+    }
+    let mut i = 0;
+    while i < params.len() {
+        let code = params[i];
+        match code {
+            0 => {
+                *sgr = SgrFlags::DEFAULT;
+                *fg = DEFAULT_FG_ID;
+                *bg = DEFAULT_BG_ID;
+            }
+            30..=37 => *fg = ColorId((code - 30) as u16),
+            90..=97 => *fg = ColorId((code - 90 + 8) as u16),
+            40..=47 => *bg = ColorId((code - 40) as u16),
+            100..=107 => *bg = ColorId((code - 100 + 8) as u16),
+            39 => *fg = DEFAULT_FG_ID,
+            49 => *bg = DEFAULT_BG_ID,
+            38 | 48 => {
+                let is_fg = code == 38;
+                match params.get(i + 1).copied() {
+                    Some(5) => {
+                        if let Some(&n) = params.get(i + 2) {
+                            let id = ColorId::from(n);
+                            if is_fg {
+                                *fg = id;
+                            } else {
+                                *bg = id;
                             }
+                            i += 2;
                         }
-                        Some(2) => {
-                            // Skip an empty colorspace (`38:2::r:g:b` → -1).
-                            let mut j = i + 2;
-                            if params.get(j) == Some(&-1) {
-                                j += 1;
-                            }
-                            if j + 2 < params.len() {
-                                let rgb = vtty_core::rgb(params[j], params[j + 1], params[j + 2]);
-                                let id = self.push_rgb(rgb);
-                                self.set_color(is_fg, id);
-                                i = j + 2;
-                            }
+                    }
+                    Some(2) => {
+                        // Skip an empty colorspace (`38:2::r:g:b` → -1).
+                        let mut j = i + 2;
+                        if params.get(j) == Some(&-1) {
+                            j += 1;
                         }
-                        _ => {}
+                        if j + 2 < params.len() {
+                            let rgb_value = vtty_core::rgb(params[j], params[j + 1], params[j + 2]);
+                            let id = ColorId(258 + rgb.len() as u16);
+                            rgb.push(rgb_value);
+                            if is_fg {
+                                *fg = id;
+                            } else {
+                                *bg = id;
+                            }
+                            i = j + 2;
+                        }
                     }
-                }
-                58 => {
-                    // Underline color: skipped in the MVP.
-                }
-                _ => {
-                    let flags = SgrFlags::from(code);
-                    if flags.contains(SgrFlags::RESET) {
-                        self.sgr.remove(flags.difference(SgrFlags::RESET));
-                    } else if !flags.is_empty() {
-                        self.sgr.insert(flags);
-                    }
+                    _ => {}
                 }
             }
-            i += 1;
+            58 => {
+                // Underline color: skipped in the MVP.
+            }
+            _ => {
+                let flags = SgrFlags::from(code);
+                if flags.contains(SgrFlags::RESET) {
+                    sgr.remove(flags.difference(SgrFlags::RESET));
+                } else if !flags.is_empty() {
+                    sgr.insert(flags);
+                }
+            }
         }
+        i += 1;
     }
+}
 
-    pub(crate) fn push_rgb(&mut self, rgb: u32) -> ColorId {
-        let id = ColorId(258 + self.rgb.len() as u16);
-        self.rgb.push(rgb);
-        id
-    }
-
-    /// Assign a resolved color to the foreground (`is_fg`) or background.
-    pub(crate) fn set_color(&mut self, is_fg: bool, id: ColorId) {
-        if is_fg {
-            self.fg = id;
-        } else {
-            self.bg = id;
-        }
+impl Screen {
+    pub(crate) fn sgr(&mut self, params: &[i32]) {
+        apply_sgr_to(
+            params,
+            &mut self.sgr,
+            &mut self.fg,
+            &mut self.bg,
+            &mut self.rgb,
+        );
     }
 
     pub(crate) fn save_cursor(&mut self) {
@@ -119,8 +134,9 @@ impl Screen {
     pub(crate) fn apply_modes(&mut self, params: &[i32], set: bool) {
         for &p in params {
             match p {
-                6 => self.flags.set(BufferFlags::ORIGIN, set), // DECOM
-                7 => self.modes.set(ScreenFlags::WRAP, set),   // DECAWM
+                5 => self.modes.set(ScreenFlags::REVERSE, set), // DECSCNM
+                6 => self.flags.set(BufferFlags::ORIGIN, set),  // DECOM
+                7 => self.modes.set(ScreenFlags::WRAP, set),    // DECAWM
                 25 => self.modes.set(ScreenFlags::CURSOR_VISIBLE, set), // DECTCEM
                 47 | 1046 | 1047 | 1049 => {
                     if set {
@@ -139,5 +155,22 @@ impl Screen {
                 _ => {}
             }
         }
+    }
+
+    /// Apply ANSI modes (`CSI h` / `CSI l`, no `?`): currently IRM insert
+    /// mode (4) only.
+    pub(crate) fn apply_ansi_modes(&mut self, params: &[i32], set: bool) {
+        for &p in params {
+            if p == 4 {
+                self.modes.set(ScreenFlags::INSERT, set); // IRM
+            }
+        }
+    }
+
+    /// DECSCA (`CSI Ps " q`): protect attribute for subsequently written
+    /// cells. `1` marks them protected (DECSED/DECSEL skip them); `0`/`2`
+    /// (or an absent parameter) leave them erasable.
+    pub(crate) fn decsca(&mut self, params: &[i32]) {
+        self.protect = params.first().copied().unwrap_or(0) == 1;
     }
 }

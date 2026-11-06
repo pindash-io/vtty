@@ -9,6 +9,20 @@ use crate::Screen;
 use crate::cell::{BufferFlags, CONTINUATION, Cell, ScreenFlags};
 
 impl Screen {
+    /// A base cell carrying the current SGR/colors for glyph `ch`, with no
+    /// combining marks yet.
+    pub(crate) fn base_cell(&self, ch: char) -> Cell {
+        Cell {
+            ch,
+            sgr: self.sgr,
+            fg: self.fg,
+            bg: self.bg,
+            protected: self.protect,
+            combining: ['\0'; 8],
+            combining_len: 0,
+        }
+    }
+
     /// Write one glyph, handling double-width cells and autowrap.
     pub(crate) fn put_char(&mut self, c: char) {
         let width = cell_width(c).unwrap_or(1) as u32;
@@ -24,6 +38,14 @@ impl Screen {
     /// ASCII runs), so the per-byte width lookup and double-width branch of
     /// [`Self::put_base`] are dead work here. This is the bulk text hot path.
     pub(crate) fn put_ascii(&mut self, s: &[u8]) {
+        // Insert mode writes one cell at a time so each glyph shifts the row
+        // right; the bulk path below is the non-insert fast path.
+        if self.modes.contains(ScreenFlags::INSERT) {
+            for &b in s {
+                self.put_base(b as char, 1);
+            }
+            return;
+        }
         let mut col = self.cursor_col;
         if col >= self.cols {
             col = self.cols - 1;
@@ -31,14 +53,7 @@ impl Screen {
         let wrap = self.modes.contains(ScreenFlags::WRAP);
         // The per-cell attributes are constant across the run; build the
         // template once and only vary `ch` per byte.
-        let template = Cell {
-            ch: ' ',
-            sgr: self.sgr,
-            fg: self.fg,
-            bg: self.bg,
-            combining: ['\0'; 8],
-            combining_len: 0,
-        };
+        let template = self.base_cell(' ');
 
         let mut i = 0;
         while i < s.len() {
@@ -81,14 +96,10 @@ impl Screen {
                 width = 1;
             }
         }
-        let cell = Cell {
-            ch: c,
-            sgr: self.sgr,
-            fg: self.fg,
-            bg: self.bg,
-            combining: ['\0'; 8],
-            combining_len: 0,
-        };
+        if self.modes.contains(ScreenFlags::INSERT) {
+            self.insert_shift(width);
+        }
+        let cell = self.base_cell(c);
         let idx = self.row_offset(self.cursor_row) + self.cursor_col as usize;
         self.cells[idx] = cell;
         self.cursor_col += width;
@@ -105,6 +116,19 @@ impl Screen {
                 self.modes.contains(ScreenFlags::WRAP),
             );
         }
+    }
+
+    /// Shift the rest of the current row right by `width` cells (IRM insert
+    /// mode); cells shifted past the last column are dropped.
+    fn insert_shift(&mut self, width: u32) {
+        let cols = self.cols as usize;
+        let col = self.cursor_col as usize;
+        let shift = (width as usize).min(cols - col);
+        if shift == 0 {
+            return;
+        }
+        let start = self.row_offset(self.cursor_row);
+        self.cells[start..start + cols].copy_within(col..cols - shift, col + shift);
     }
 
     /// Write a grapheme cluster as one cell: the first glyph is the base, the

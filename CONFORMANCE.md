@@ -159,11 +159,16 @@ DECPCTERM and is deliberately ignored, not treated as a DECSTBM form.
 
 - Cursor addressing: `CUP`/`HVP`, `CUU`, `CUD`, `CUF`, `CUB`, `CNL`, `CPL`,
   `CHA`, `VPA`.
-- Editing and erase: `IL`, `DL`, `ICH`, `DCH`, `ECH`, `EL`, `ED`.
+- Editing and erase: `IL`, `DL`, `ICH`, `DCH`, `ECH`, `EL`, `ED`, and
+  selective erase (`DECSCA` protect attribute + `DECSED`/`DECSEL`).
 - Scrolling and motion: `SU`, `SD`, `IND`, `RI`, `NEL`, `LF`/`VT`/`FF`, `CR`,
   `BS`, `HT`.
 - `SGR` with indexed and truecolor, `DECSTBM`, `DECOM`, `DECAWM`, `DECTCEM`,
-  `DECSC`/`DECRC`, `DECALN`, `RIS`, `HTS`, `TBC`.
+  `DECSC`/`DECRC`, `DECALN`, `RIS`, `HTS`, `TBC`, IRM insert mode
+  (`CSI 4 h/l`), `DECSTR` soft reset (`CSI ! p`), and DECSCNM reverse video
+  (`CSI ?5 h/l`, applied at render).
+- VT400 rectangle ops: `DECFRA`, `DECCRA`, `DECERA`, `DECSERA`, `DECCARA`,
+  and `DECRARA` (all `CSI … $ …`).
 - The alternate screen (DEC 47, 1046, 1047, 1049, 1048) and scrollback with
   resize reflow.
 
@@ -171,20 +176,15 @@ DECPCTERM and is deliberately ignored, not treated as a DECSTBM form.
 
 | Feature | Sequence / mode | Why |
 | --- | --- | --- |
-| IRM insert mode | `CSI 4 h/l` | tracked in `TermFlags`, not applied by `put_base` |
 | DECLRMM + DECSLRM | `CSI ?69 h/l`, `CSI Pl;Pr s` | horizontal margins out of scope |
-| DECSCNM reverse video | `CSI ?5 h/l` | a render-time swap, not applied |
 | DECCOLM 132 columns | `CSI ?3 h/l` | the host owns the width |
 | Keyboard modes | `CSI ?1/66/67 h/l` | needs a keyboard |
-| Selective erase | `CSI ?J` / `CSI ?K` | treated as plain `ED`/`EL` |
 | DECPCTERM | `CSI ? r` | not implemented, ignored |
 | Sixel / ReGIS / DECDLD / DECUDK | DCS | the renderer's job |
 | DECSCL conformance level | `CSI Ps " p` | tracked via `ConformanceLevel`, not applied |
 | DEC Special Graphics | `ESC ( 0` | the screen keeps no charset state, so line-drawing is not rendered |
-| DECSTR soft reset | `CSI ! p` | not implemented (resets state but keeps the screen and scrollback) |
 | DECSCUSR cursor style | `CSI Ps SP q` | render-level cursor style |
 | DECSLPP page size | `CSI Ps t` | the host owns the size, like DECCOLM |
-| VT400 rectangle ops | `CSI … $ x/v/z/{/} …` | DECFRA/DECCRA/DECERA/DECSERA and DECCARA/DECRARA |
 
 ## XTGETTCAP terminfo
 
@@ -220,5 +220,5 @@ Bounded, O(n) (see [ARCHITECTURE.md — Resource limits](ARCHITECTURE.md#resourc
 2. The remaining DEC private modes (4, 8, 34, 40, 42, 100–117) — parse-dispatched
    but not tracked as `TermFlags`; `DECSCL` is covered by `ConformanceLevel`.
 3. Reference renderers for Sixel (`DCS q`), DECDLD (`DCS {`), DECUDK (`DCS |`).
-4. `vtty_screen` gaps: IRM, DECLRMM/DECSLRM, DECSCNM, keyboard modes, and
-   selective erase. See the Screen section above.
+4. `vtty_screen` gaps: DECLRMM/DECSLRM (horizontal margins) and keyboard
+   modes. See the Screen section above.

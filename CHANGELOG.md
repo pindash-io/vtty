@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `esc`, `osc`, …).
 - Added `OSC 9;4` progress-bar parsing to `vtty_screen` (`Progress` and
   `Screen::progress`).
+- Added IRM insert mode (`CSI 4 h/l`) to `vtty_screen`: glyphs written in
+  insert mode shift the rest of the row right instead of overwriting.
+- Added `DECSTR` soft reset (`CSI ! p`) to `vtty_screen`: resets cursor,
+  styles, margins, modes, and tab stops without clearing the screen.
+- Added selective erase to `vtty_screen`: `DECSCA` protect attribute
+  (`CSI Ps " q`) plus `DECSED` (`CSI ? Ps J`) and `DECSEL` (`CSI ? Ps K`),
+  which erase only non-protected cells.
+- Added DECSCNM reverse video (`CSI ?5 h/l`) to `vtty_screen`: `render_ansi`
+  swaps foreground and background (default colors resolved to explicit RGB).
+- Added VT400 rectangle operations to `vtty_screen`: `DECFRA`, `DECCRA`,
+  `DECERA`, `DECSERA`, `DECCARA`, and `DECRARA` (all `CSI … $ …`).
 
 ### Changed
 
