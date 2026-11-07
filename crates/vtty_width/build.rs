@@ -9,14 +9,8 @@
 //! benchmark/reference table only.
 //!
 //! Env knobs:
-//! - `VTTY_EMOJI_COMPRESSION` (default 0.0): 0 = flat direct index,
+//! - `VTTY_EMOJI_COMPRESSION` (default 5.0): 0 = flat direct index,
 //!   >= 10 = smallest table.
-//!
-//! The flat table is a single indexed load (vs. 4 dependent loads at the
-//! previous 5.0 default) and measures ~9% faster on the non-ASCII hot path
-//! under the LTO benchmark build on Apple Silicon, at +2.3 MB of rodata. Set
-//! `VTTY_EMOJI_COMPRESSION=5` to recover the size-optimized table for
-//! size-constrained targets.
 #![expect(
     clippy::cast_possible_truncation,
     reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
@@ -68,7 +62,7 @@ fn main() {
     let compression = env::var("VTTY_EMOJI_COMPRESSION")
         .ok()
         .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(0.0);
+        .unwrap_or(5.0);
 
     // ── Compute the per-codepoint value ───────────────────────────────
     let emoji = CodePointSetData::new::<Emoji>();
