@@ -323,6 +323,7 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
         return None;
     }
     match params {
+        [] => Some(SgrEffect::Reset),
         [code @ (38 | 48 | 58), 2, r, g, b] => {
             Some(extended_effect(*code, ColorSpec::rgb(*r, *g, *b)))
         }
