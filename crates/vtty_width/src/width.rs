@@ -475,7 +475,7 @@ pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {
 /// emoji lookahead). Callers that already hold the codepoint use this to
 /// avoid a second `Properties` lookup when detecting DFA-simple runs.
 #[must_use]
-pub fn width_and_standalone(c: char, next: Option<char>) -> (Option<usize>, bool) {
+pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool) {
     if c.is_ascii() {
         return (
             if c.is_ascii_control() { None } else { Some(1) },
@@ -487,8 +487,9 @@ pub fn width_and_standalone(c: char, next: Option<char>) -> (Option<usize>, bool
     let standalone = matches!(w, Some(1) | Some(2))
         && (if is_emoji_starter_from(p, c) {
             // Emoji starter: standalone iff the next char does not continue
-            // it (VS16/VS15/ZWJ/modifier/RI/tag).
-            match next {
+            // it (VS16/VS15/ZWJ/modifier/RI/tag). Decoded lazily — only the
+            // emoji path needs the lookahead.
+            match next.and_then(char::from_u32) {
                 None => true,
                 Some(c2) => {
                     let p2 = Properties::get(c2);
