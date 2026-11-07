@@ -6,7 +6,7 @@
 
 use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
-use crate::properties::{Gcb, Properties, emoji_category};
+use crate::properties::{Gcb, Properties, cjk_fast_width, emoji_category};
 
 /// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
 /// A variation selector or ZWJ — the zero-width marks that MODIFY a base's
@@ -128,6 +128,11 @@ pub fn is_keycap_base(c: char) -> bool {
 /// continuation).
 #[inline]
 pub fn is_zwj_target(c: char) -> bool {
+    // ASCII and the CJK/kana/fullwidth blocks are never emoji targets: skip
+    // the property lookup on the append-path hot loop.
+    if c.is_ascii() || cjk_fast_width(c).is_some() {
+        return false;
+    }
     matches!(
         emoji_category(c),
         EmojiSegmentationCategory::Emoji

@@ -229,8 +229,10 @@ mod tests {
             assert_eq!(p.gcb(), Gcb::Other, "gcb mismatch U+{cp:04X}");
             assert!(
                 !crate::emoji::is_emoji_starter_from(p, c),
-                "emoji mismatch U+{cp:04X}"
+                "emoji starter U+{cp:04X}"
             );
+            assert!(!p.is_emoji(), "emoji U+{cp:04X}");
+            assert!(!p.is_emoji_modifier(), "emoji modifier U+{cp:04X}");
         }
     }
 
