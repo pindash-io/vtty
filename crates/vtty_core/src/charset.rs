@@ -103,6 +103,7 @@ impl Charsets {
     }
 
     /// Read slot `g`; panics for an out-of-range slot (`g > 3`).
+    #[inline]
     pub const fn get(self, g: usize) -> Charset {
         assert!(g < 4, "charset slot must be 0..=3");
         self.0[g]
