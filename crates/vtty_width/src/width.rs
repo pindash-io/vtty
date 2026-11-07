@@ -490,19 +490,40 @@ pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool)
         return (Some(w), true);
     }
     let p = Properties::get(c);
+    let next_info = next.and_then(|cp| {
+        if cp < 0x80 {
+            None // ASCII never continues an emoji sequence
+        } else {
+            let c2 = char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER);
+            Some((cp, Properties::get(c2)))
+        }
+    });
+    width_and_standalone_with(c, p, next_info)
+}
+
+/// [`width_and_standalone`] for a non-ASCII, non-CJK char with an
+/// already-looked-up [`Properties`]. `next` carries the lookahead codepoint
+/// AND its [`Properties`], so a codepoint loop can compute the lookahead once
+/// and reuse it as the next iteration's current char (the emoji-lookahead
+/// double lookup).
+#[must_use]
+#[inline]
+pub fn width_and_standalone_with(
+    c: char,
+    p: Properties,
+    next: Option<(u32, Properties)>,
+) -> (Option<usize>, bool) {
     let w = cell_width_from(p, c);
     let standalone = matches!(w, Some(1) | Some(2))
         && (if is_emoji_starter_from(p, c) {
             // Emoji starter: standalone iff the next char does not continue
-            // it (VS16/VS15/ZWJ/modifier/RI/tag). Decoded lazily — only the
-            // emoji path needs the lookahead.
-            match next.and_then(char::from_u32) {
+            // it (VS16/VS15/ZWJ/modifier/RI/tag).
+            match next {
                 None => true,
-                // ASCII never continues an emoji sequence (no VS/ZWJ/modifier/
-                // RI/Extend in the ASCII range) — skip the property lookup.
-                Some(c2) if c2.is_ascii() => true,
-                Some(c2) => {
-                    let p2 = Properties::get(c2);
+                Some((cp2, _)) if cp2 < 0x80 => true,
+                Some((cp2, p2)) => {
+                    let c2 =
+                        char::from_u32(cp2).unwrap_or(char::REPLACEMENT_CHARACTER);
                     !fresh_emoji_continues_from(p, c, p2, c2, p2.gcb())
                 }
             }

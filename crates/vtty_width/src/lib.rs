@@ -61,13 +61,13 @@ pub use emoji::{
     Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray,
 };
 pub use properties::{
-    Gcb, Properties, cell_width, composes_precomposed, first_non_ascii, first_non_printable_ascii,
-    is_zero_width, vs_width,
+    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed,
+    first_non_ascii, first_non_printable_ascii, is_zero_width, vs_width,
 };
 pub use width::{
     cell_advance, cell_col_byte_widths, cell_col_char_ceil_from_widths,
     cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum, cell_widths,
-    cell_widths_from_codepoints, width_and_standalone,
+    cell_widths_from_codepoints, width_and_standalone, width_and_standalone_with,
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
