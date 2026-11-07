@@ -410,8 +410,9 @@ pub fn vs_width(selector: char) -> usize {
 /// width 2, a standalone base (GCB Other), and NOT an emoji starter, so the
 /// composite table lookup is pure overhead on the streaming hot path. Derived
 /// from the baked table (verified by `cjk_fast_width_matches_table`).
-#[inline]
-pub(crate) fn cjk_fast_width(c: char) -> Option<usize> {
+#[inline(always)]
+#[doc(hidden)]
+pub fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
     // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
     // non-ASCII hot path (one range check).
