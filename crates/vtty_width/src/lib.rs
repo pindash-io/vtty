@@ -206,6 +206,34 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "baked")]
+    #[test]
+    fn cjk_fast_width_matches_table() {
+        // Every codepoint the CJK fast path classifies must be width 2, a
+        // standalone base (GCB Other), and NOT an emoji starter — the same
+        // answer the baked composite table gives. Guards the hard-coded
+        // ranges against Unicode table regeneration drift.
+        for cp in 0x80_u32..=0x10_FFFF {
+            let Some(c) = char::from_u32(cp) else {
+                continue;
+            };
+            let Some(fast) = crate::properties::cjk_fast_width(c) else {
+                continue;
+            };
+            let p = Properties::get(c);
+            assert_eq!(
+                crate::properties::cell_width_from(p, c),
+                Some(fast),
+                "width mismatch U+{cp:04X}"
+            );
+            assert_eq!(p.gcb(), Gcb::Other, "gcb mismatch U+{cp:04X}");
+            assert!(
+                !crate::emoji::is_emoji_starter_from(p, c),
+                "emoji mismatch U+{cp:04X}"
+            );
+        }
+    }
+
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn composes_precomposed_scopes_to_diacritics() {

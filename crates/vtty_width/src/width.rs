@@ -9,7 +9,8 @@ use crate::emoji::{
     Run, Selector, finalize_lead, fresh_emoji_continues_from, is_emoji_starter_from, run_continues,
 };
 use crate::properties::{
-    Gcb, Properties, category_from, cell_width_from, first_non_printable_ascii,
+    Gcb, Properties, category_from, cell_width_from, cjk_fast_width,
+    first_non_printable_ascii,
 };
 
 /// Number of leading printable-ASCII bytes that are NOT keycap bases
@@ -475,12 +476,18 @@ pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {
 /// emoji lookahead). Callers that already hold the codepoint use this to
 /// avoid a second `Properties` lookup when detecting DFA-simple runs.
 #[must_use]
+#[inline]
 pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool) {
     if c.is_ascii() {
         return (
             if c.is_ascii_control() { None } else { Some(1) },
             !c.is_ascii_control(),
         );
+    }
+    // CJK/kana/fullwidth blocks are always width-2 standalone bases: skip the
+    // composite lookup AND the emoji lookahead (the dominant hot path).
+    if let Some(w) = cjk_fast_width(c) {
+        return (Some(w), true);
     }
     let p = Properties::get(c);
     let w = cell_width_from(p, c);
@@ -491,6 +498,9 @@ pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool)
             // emoji path needs the lookahead.
             match next.and_then(char::from_u32) {
                 None => true,
+                // ASCII never continues an emoji sequence (no VS/ZWJ/modifier/
+                // RI/Extend in the ASCII range) — skip the property lookup.
+                Some(c2) if c2.is_ascii() => true,
                 Some(c2) => {
                     let p2 = Properties::get(c2);
                     !fresh_emoji_continues_from(p, c, p2, c2, p2.gcb())

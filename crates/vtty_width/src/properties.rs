@@ -406,6 +406,51 @@ pub fn vs_width(selector: char) -> usize {
     }
 }
 
+/// The common CJK/kana/fullwidth blocks: every char in these ranges is
+/// width 2, a standalone base (GCB Other), and NOT an emoji starter, so the
+/// composite table lookup is pure overhead on the streaming hot path. Derived
+/// from the baked table (verified by `cjk_fast_width_matches_table`).
+#[inline]
+pub(crate) fn cjk_fast_width(c: char) -> Option<usize> {
+    let cp = c as u32;
+    // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
+    // non-ASCII hot path (one range check).
+    if (0x329A..=0xA48C).contains(&cp) {
+        return Some(2);
+    }
+    // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs,
+    // and the CJK extensions beyond the BMP.
+    if matches!(
+        cp,
+        0x2E9B..=0x2EF3
+            | 0x2F00..=0x2FD5
+            | 0x2FF0..=0x3029
+            | 0x3041..=0x3096
+            | 0x309B..=0x30FF
+            | 0x3105..=0x312F
+            | 0x3131..=0x3163
+            | 0x3165..=0x318E
+            | 0x3190..=0x31E5
+            | 0x31EF..=0x321E
+            | 0x3220..=0x3247
+            | 0x3250..=0x3296
+            | 0xA490..=0xA4C6
+            | 0xF900..=0xFAFF
+            | 0xFE30..=0xFE52
+            | 0xFF01..=0xFF60
+            | 0x17000..=0x18CD5
+            | 0x18D80..=0x18DF2
+            | 0x1B000..=0x1B122
+            | 0x1B170..=0x1B2FB
+            | 0x1D300..=0x1D356
+            | 0x20000..=0x2FFFD
+            | 0x30000..=0x3FFFD
+    ) {
+        return Some(2);
+    }
+    None
+}
+
 /// Display cell width of a char: `None` (control), `Some(0)` (combining),
 /// `Some(1)`/`Some(2)` (printable). Resolves ASCII, terminal overrides
 /// (skin tones, halfwidth katakana, tags), the baked composite width, then
@@ -417,6 +462,9 @@ pub fn cell_width(c: char) -> Option<usize> {
     // ASCII fast path: printable = 1 cell, control = no width.
     if c.is_ascii() {
         return if c.is_ascii_control() { None } else { Some(1) };
+    }
+    if let Some(w) = cjk_fast_width(c) {
+        return Some(w);
     }
     cell_width_from(Properties::get(c), c)
 }
