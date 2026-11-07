@@ -333,6 +333,31 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     }
 }
 
+/// The common two-effect SGR form — one attribute code followed by one
+/// extended color (`1;38;2;r;g;b`, `4;48;5;n`) — avoiding the effects
+/// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
+/// for anything else; the caller falls back to [`parse_effects`].
+#[inline]
+pub fn two_effects(
+    params: &[i32],
+    sep: u16,
+) -> Option<(SgrEffect, SgrEffect)> {
+    if sep != 0 {
+        return None;
+    }
+    match params {
+        [attr, code @ (38 | 48 | 58), 2, r, g, b] => Some((
+            single_code(*attr)?,
+            extended_effect(*code, ColorSpec::rgb(*r, *g, *b)),
+        )),
+        [attr, code @ (38 | 48 | 58), 5, n] => Some((
+            single_code(*attr)?,
+            extended_effect(*code, ColorSpec::indexed(*n)),
+        )),
+        _ => None,
+    }
+}
+
 /// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
 /// underline), shared by the single-effect fast path and `parse_effects`.
 #[inline]
