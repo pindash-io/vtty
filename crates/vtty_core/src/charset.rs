@@ -212,6 +212,16 @@ impl Scs {
         self.single_shift = None;
         charset.map(c)
     }
+
+    /// Translate a char through the LOCKED charset only — the bulk path where
+    /// the caller has already verified `single_shift` is `None` (so `active()`
+    /// would just read `gl`). Skips the `Option` unwrap and the `single_shift`
+    /// write of [`Self::map`].
+    #[inline]
+    pub fn map_locked(&self, c: char) -> char {
+        let charset = self.charsets.get(self.gl as usize);
+        charset.map(c)
+    }
 }
 
 impl Default for Scs {
