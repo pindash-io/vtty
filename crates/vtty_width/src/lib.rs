@@ -67,6 +67,7 @@ pub use properties::{
 pub use width::{
     cell_advance, cell_col_byte_widths, cell_col_char_ceil_from_widths,
     cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum, cell_widths,
+    cell_widths_from_codepoints, width_and_standalone,
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
@@ -176,6 +177,33 @@ mod tests {
         assert_eq!(cell_widths(" \u{301}"), vec![1, 0]);
         assert_eq!(cell_widths(" \u{00B4}"), vec![1, 1]);
         assert_eq!(cell_widths(" \u{60}"), vec![1, 1]);
+    }
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn cell_widths_from_codepoints_matches_str() {
+        // The codepoint path (SIMD parser handoff) must agree exactly with
+        // the `&str` path across ASCII, CJK, emoji, ZWJ, VS16, keycap, and
+        // combining-mark runs.
+        let samples = [
+            "plain ascii",
+            "中ab👍🏽x",
+            "⚠\u{FE0F}x",
+            "👨\u{200D}👩\u{200D}👧x",
+            "1\u{FE0F}\u{20E3}",
+            "e\u{301} \u{301}",
+            "🇮🇳🇺",
+            "🐻\u{200D}❄\u{FE0F}",
+            "瘀ｶﾞ",
+            "\u{1100}\u{1161}\u{11A8}",
+        ];
+        for text in samples {
+            let cps: Vec<u32> = text.chars().map(u32::from).collect();
+            assert_eq!(
+                cell_widths_from_codepoints(&cps),
+                cell_widths(text),
+                "mismatch for {text:?}"
+            );
+        }
     }
 
     #[cfg(any(feature = "baked", feature = "icu"))]

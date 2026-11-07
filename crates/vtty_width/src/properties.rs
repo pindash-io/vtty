@@ -20,6 +20,8 @@ impl Properties {
     const REGIONAL_INDICATOR: u16 = 1 << 4;
     const EXTENDED_PICTOGRAPHIC: u16 = 1 << 7;
     const AMBIGUOUS: u16 = 1 << 8;
+    const GCB_SHIFT: u16 = 9;
+    const GCB_MASK: u16 = 0b1111;
     const WIDTH_SHIFT: u16 = 5;
     const WIDTH_MASK: u16 = 0b11;
 
@@ -93,6 +95,12 @@ impl Properties {
         self.0 & Self::AMBIGUOUS != 0
     }
 
+    /// The grapheme cluster break symbol (UAX #29, folded — see [`Gcb`]).
+    #[inline]
+    pub const fn gcb(self) -> Gcb {
+        Gcb::from_u8(((self.0 >> Self::GCB_SHIFT) & Self::GCB_MASK) as u8)
+    }
+
     /// Build the composite from ICU4X runtime data (feature `icu`) — the
     /// runtime counterpart of the baked [`Properties::get`].
     #[cfg(feature = "icu")]
@@ -135,6 +143,7 @@ impl Properties {
             b |= Self::AMBIGUOUS;
         }
         b |= (crate::icu::width_icu(ch) as u16) << Self::WIDTH_SHIFT;
+        b |= (crate::icu::gcb_icu(ch) as u16) << Self::GCB_SHIFT;
         Self(b)
     }
 }
@@ -143,7 +152,13 @@ impl Properties {
 /// ICU4X) properties — the input to `parley_emoji`'s UTS #51 DFA.
 #[inline]
 pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
-    let p = Properties::get(c);
+    category_from(Properties::get(c), c)
+}
+
+/// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
+/// also need the width can do one table lookup instead of two.
+#[inline]
+pub(crate) fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
     EmojiSegmentationCategory::from_codepoint(
         c as u32,
         p.is_emoji(),
@@ -202,7 +217,7 @@ impl Gcb {
     pub fn get(c: char) -> Self {
         #[cfg(feature = "baked")]
         {
-            Self::from_u8(crate::baked::gcb_get(c as u32))
+            Properties::get(c).gcb()
         }
         #[cfg(all(not(feature = "baked"), feature = "icu"))]
         {
@@ -221,7 +236,6 @@ impl Gcb {
         matches!(self, Self::Control | Self::CR | Self::LF)
     }
 
-    #[cfg(feature = "baked")]
     #[inline]
     const fn from_u8(v: u8) -> Self {
         match v {
@@ -404,7 +418,13 @@ pub fn cell_width(c: char) -> Option<usize> {
     if c.is_ascii() {
         return if c.is_ascii_control() { None } else { Some(1) };
     }
+    cell_width_from(Properties::get(c), c)
+}
 
+/// [`cell_width`] for a non-ASCII char from an already-looked-up
+/// [`Properties`] — the single-lookup path for the `Widths` iterator.
+#[inline]
+pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
     // Terminal width overrides — where the Unicode tables disagree with the
     // terminal cell grid:
     match c {
@@ -421,7 +441,6 @@ pub fn cell_width(c: char) -> Option<usize> {
         _ => {}
     }
 
-    let p = Properties::get(c);
     let w = p.width() as usize;
     // Emoji_Presentation: a width-1 emoji-presentation char becomes 2 cells.
     // Text-default emoji like ❤ U+2764 (Emoji=Yes, Emoji_Presentation=No)

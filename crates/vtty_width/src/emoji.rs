@@ -6,7 +6,7 @@
 
 use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
-use crate::properties::{Gcb, Properties, cell_width, emoji_category};
+use crate::properties::{Gcb, Properties, emoji_category};
 
 /// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
 /// A variation selector or ZWJ — the zero-width marks that MODIFY a base's
@@ -157,7 +157,7 @@ fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
 
 /// Whether a category can START an emoji sequence (a real base glyph).
 #[inline]
-fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
+pub(crate) fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
     use EmojiSegmentationCategory as C;
     matches!(
         cat,
@@ -168,6 +168,53 @@ fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
             | C::TagBase
             | C::RegionalIndicator
     )
+}
+
+/// Whether `c` (with packed `p`) can START an emoji sequence — the direct
+/// packed-property form of `is_emoji_starter(category_from(p, c))`, avoiding
+/// the parley `from_codepoint` classification on the hot path.
+#[inline]
+pub(crate) fn is_emoji_starter_from(p: Properties, c: char) -> bool {
+    p.is_regional_indicator()
+        || p.is_modifier_base()
+        || p.is_emoji_presentation()
+        || (p.is_emoji() && !p.is_emoji_modifier())
+        || matches!(c as u32, 0x30..=0x39 | 0x23 | 0x2A | 0x1F3F4)
+}
+
+/// Whether `c` (with packed `p`) is an emoji continuation — the direct form
+/// of `is_continuation(category_from(p, c))`.
+#[inline]
+pub(crate) fn is_continuation_from(p: Properties, c: char) -> bool {
+    p.is_emoji_modifier()
+        || matches!(
+            c as u32,
+            0x200D | 0x20E3 | 0xFE0E | 0xFE0F
+                | 0xE0030..=0xE0039
+                | 0xE0061..=0xE007A
+                | 0xE007F
+        )
+}
+
+/// The standalone-emoji lookahead, from packed properties (no category
+/// classification): does `c2` continue a fresh emoji run led by `c`?
+#[inline]
+pub(crate) fn fresh_emoji_continues_from(
+    p: Properties,
+    c: char,
+    p2: Properties,
+    c2: char,
+    gcb2: Gcb,
+) -> bool {
+    if matches!(c as u32, 0x30..=0x39 | 0x23 | 0x2A) {
+        // KeycapBase lead: only VS15/VS16/U+20E3 continue.
+        matches!(c2 as u32, 0xFE0E | 0xFE0F | 0x20E3)
+    } else if p.is_regional_indicator() {
+        p2.is_regional_indicator()
+    } else {
+        is_continuation_from(p2, c2)
+            || (matches!(gcb2, Gcb::Extend | Gcb::SpacingMark) && !is_halfwidth_sound_mark(c2))
+    }
 }
 
 /// The terminal cell width of a run's leading char (1 or 2), from the
@@ -196,6 +243,7 @@ pub(crate) struct Run {
     lead_w1: usize,
     lead_ep: bool,
     lead_cat: EmojiSegmentationCategory,
+    lead_gcb: Gcb,
     len: usize,
     prev_zwj: bool,
     ri_count: u8,
@@ -204,18 +252,25 @@ pub(crate) struct Run {
 
 impl Run {
     /// Start a new run with lead `c` (already classified as `cat`).
-    pub(crate) fn start(c: char, cat: EmojiSegmentationCategory) -> Self {
+    pub(crate) fn start(
+        c: char,
+        cat: EmojiSegmentationCategory,
+        lead_w1: usize,
+        lead_ep: bool,
+        lead_gcb: Gcb,
+    ) -> Self {
         let mut dfa = EmojiDFA::new();
         dfa.step_record(cat);
         Self {
             dfa,
             lead: c,
-            lead_w1: cell_width(c).unwrap_or(0),
+            lead_w1,
             // `presentation_style` uses this only for the basic case (lead +
             // combining marks); a text-default ❤ must stay 1 cell. VS16/ZWJ
             // sequences are decided by the DFA, independent of this flag.
-            lead_ep: Properties::get(c).is_emoji_presentation(),
+            lead_ep,
             lead_cat: cat,
+            lead_gcb,
             len: 1,
             prev_zwj: cat == EmojiSegmentationCategory::Zwj,
             ri_count: u8::from(cat == EmojiSegmentationCategory::RegionalIndicator),
@@ -248,7 +303,7 @@ impl Run {
 /// combining-mark exception (`w₁ = 0` non-selector attaches to any emoji
 /// base).
 #[inline]
-pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) -> bool {
+pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory, gcb: Gcb) -> bool {
     if !is_emoji_starter(r.lead_cat) {
         return false;
     }
@@ -266,8 +321,7 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory) ->
             is_continuation(cat)
                 || (r.prev_zwj && is_zwj_target(c))
                 || (cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1)
-                || (matches!(Gcb::get(c), Gcb::Extend | Gcb::SpacingMark)
-                    && !is_halfwidth_sound_mark(c))
+                || (matches!(gcb, Gcb::Extend | Gcb::SpacingMark) && !is_halfwidth_sound_mark(c))
         }
     }
 }
@@ -288,7 +342,7 @@ pub(crate) fn finalize_lead(
     } else {
         r.lead_w1
     };
-    let gcb = Gcb::get(r.lead);
+    let gcb = r.lead_gcb;
     let w = if lead_w == 0 {
         let sel = Selector::from_char(r.lead);
         // A selector, control, or format char is invisible even when lone;
