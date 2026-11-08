@@ -376,9 +376,12 @@ impl Parser {
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         // Fast CUP (`CSI r;c H` / `f`, the cursor-motion repaint shape):
         // parse the two 1-based params directly, skipping the per-byte param
-        // dispatch and the trailing-param push.
+        // dispatch and the trailing-param push. The extended-color SGR prefix
+        // (`38;`/`48;`) is the dominant non-CUP shape — bail immediately (a
+        // CUP row 38/48 is rare and falls back to the general path).
         if let Some(&first) = seq.first()
             && first.is_ascii_digit()
+            && !(matches!(first, b'3' | b'4') && seq.get(1) == Some(&b'8'))
         {
             let mut i = 0;
             let mut row = 0_i32;
