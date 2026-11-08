@@ -74,20 +74,31 @@ const SIMD_MIN_RUN: usize = 16;
 /// `DEL` (`0x7f`) is a C0 control, not printable.
 #[inline(always)]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
+    // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
+    // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
+    // 8-byte SWAR word is overkill.
+    match bytes {
+        [b, ..] if is_non_printable(*b) => return 0,
+        [_, b, ..] if is_non_printable(*b) => return 1,
+        _ => {}
+    }
+    // One SWAR word over the first 8 bytes catches the short-run pattern
+    // (a word followed by ESC or CR/LF) without paying the SIMD dispatch
+    // below. Long printable runs fall through — the word scan is ~9 ops
+    // against a 32 KiB run, so the overlap with the SIMD pass is negligible.
+    if let Some(&word) = bytes.as_chunks::<8>().0.first() {
+        let stop = non_printable_mask(u64::from_le_bytes(word));
+        if stop != 0 {
+            return (stop.trailing_zeros() / 8) as usize;
+        }
+    }
+
     #[cfg(feature = "simd")]
     if simd && bytes.len() >= SIMD_MIN_RUN {
         return crate::simd::first_non_printable(bytes);
     }
     #[cfg(not(feature = "simd"))]
     let _ = simd;
-
-    // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) has 0- and 1-byte
-    // printable runs, where a full 8-byte SWAR word is overkill.
-    match bytes {
-        [b, ..] if is_non_printable(*b) => return 0,
-        [_, b, ..] if is_non_printable(*b) => return 1,
-        _ => {}
-    }
 
     first_where(bytes, non_printable_mask, is_non_printable)
 }
