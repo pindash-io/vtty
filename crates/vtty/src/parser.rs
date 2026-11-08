@@ -366,11 +366,14 @@ impl Parser {
     /// Parse a `ESC [` CSI sequence from `seq` (the bytes after `ESC [`),
     /// dispatching inline. Returns the number of bytes consumed, or `None`
     /// to bail to the state machine (an intermediate, a private marker after
-    /// params, C0/DEL, or a high bit). Clears the sequence state up front
-    /// either way.
+    /// params, C0/DEL, or a high bit).
+    ///
+    /// The sequence state is already empty on entry (ground-state invariant:
+    /// any prior sequence cleared it on dispatch, and the caller clears on
+    /// bail), so there is no up-front clear — the success path's
+    /// `dispatch_csi` and the bail path's caller both reset it.
     #[inline(always)]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
-        self.clear_seq_state();
         let mut f = 0_usize;
         while f < seq.len() {
             if self.param_byte(seq[f]) {
