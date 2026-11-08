@@ -222,7 +222,7 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
 }
 
 /// Decode four consecutive 3-byte code points (12 bytes) into `[u32; 4]` via
-/// the runtime-dispatched SIMD level (used by the non-transcode scalar loop).
+/// the runtime-dispatched SIMD level (used by the scalar mixed loop).
 #[cfg(not(feature = "simd-transcode"))]
 #[inline(always)]
 pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {

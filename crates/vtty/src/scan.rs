@@ -20,21 +20,30 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
-/// Whether an ESC byte (`0x1b`) appears in the first `limit` bytes — the
-/// mixed-UTF-8 probe before every multi-byte decode. SWAR over 8-byte words:
-/// `[u8]::contains(&0x1b)`'s SIMD memchr pays alignment + dispatch setup on a
-/// 32-byte window, which is pure overhead when the answer decides between a
-/// cheap scalar decode and the SIMD transcode.
+/// Index of the first ESC byte (`0x1b`) in the first `limit` bytes, or the
+/// scan length when none — the mixed-UTF-8 probe before every multi-byte
+/// decode. SWAR over 8-byte words: `[u8]::contains(&0x1b)`'s SIMD memchr pays
+/// alignment + dispatch setup on a 32-byte window, which is pure overhead
+/// when the answer decides between a cheap scalar decode and the SIMD
+/// transcode (and the position bounds the scalar window).
+#[cfg(feature = "simd")]
 #[inline(always)]
-pub(crate) fn esc_within(bytes: &[u8], limit: usize) -> bool {
+pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
     let n = bytes.len().min(limit);
     let (chunks, tail) = bytes[..n].as_chunks::<8>();
-    for chunk in chunks {
-        if swar_byte_eq(u64::from_le_bytes(*chunk), 0x1b) != 0 {
-            return true;
+    for (i, chunk) in chunks.iter().enumerate() {
+        let stop = swar_byte_eq(u64::from_le_bytes(*chunk), 0x1b);
+        if stop != 0 {
+            return i * 8 + (stop.trailing_zeros() / 8) as usize;
         }
     }
-    tail.iter().any(|&b| b == 0x1b)
+    let base = chunks.len() * 8;
+    for (j, &b) in tail.iter().enumerate() {
+        if b == 0x1b {
+            return base + j;
+        }
+    }
+    n
 }
 
 /// SWAR scan: index of the first byte whose `stop_mask(word)` bit is set
