@@ -750,7 +750,36 @@ impl Parser {
         };
         let m = n.min(MAX_OSC_PARAMS);
         let mut params = [&[][..]; MAX_OSC_PARAMS];
-        for (k, dst) in params.iter_mut().enumerate().take(m) {
+        // The common 1-3 param shapes (title/clipboard/iTerm2) unrolled; the
+        // longer tail falls back to the loop.
+        if m >= 1 {
+            let s0 = base + self.osc_starts[0] as usize;
+            let e0 = if 1 < n {
+                base + self.osc_starts[1] as usize
+            } else {
+                last_end
+            };
+            params[0] = &src[s0..e0];
+        }
+        if m >= 2 {
+            let s1 = base + self.osc_starts[1] as usize + shift;
+            let e1 = if 2 < n {
+                base + self.osc_starts[2] as usize + shift
+            } else {
+                last_end
+            };
+            params[1] = &src[s1..e1];
+        }
+        if m >= 3 {
+            let s2 = base + self.osc_starts[2] as usize + 2 * shift;
+            let e2 = if 3 < n {
+                base + self.osc_starts[3] as usize + 2 * shift
+            } else {
+                last_end
+            };
+            params[2] = &src[s2..e2];
+        }
+        for (k, dst) in params.iter_mut().enumerate().skip(3).take(m.saturating_sub(3)) {
             let start = base + self.osc_starts[k] as usize + k * shift;
             let end = if k + 1 < n {
                 base + self.osc_starts[k + 1] as usize + k * shift
