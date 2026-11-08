@@ -863,12 +863,14 @@ impl Parser {
                 self.param_digit(b);
                 true
             }
-            b':' => {
-                self.param_colon();
-                true
-            }
+            // `;` before `:` — semicolon-separated params dominate real
+            // streams (SGR churn, cursor motion), so it wins the branch.
             b';' => {
                 self.param_semicolon();
+                true
+            }
+            b':' => {
+                self.param_colon();
                 true
             }
             _ => false,
