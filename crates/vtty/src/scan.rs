@@ -189,6 +189,39 @@ mod tests {
     use super::{first_dcs_boundary, first_non_printable, first_osc_boundary};
     use alloc::vec::Vec;
 
+    /// Scalar reference for the bounded ESC probe.
+    fn reference_esc(bytes: &[u8], limit: usize) -> usize {
+        let n = bytes.len().min(limit);
+        bytes[..n].iter().position(|&b| b == 0x1b).unwrap_or(n)
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn first_esc_bounded_matches_scalar() {
+        use super::first_esc_bounded;
+        // Every ESC position in a 40-byte buffer, plus the no-ESC and
+        // limit-capped cases.
+        for esc_pos in 0..40 {
+            let mut bytes = [b'x'; 40];
+            bytes[esc_pos] = 0x1b;
+            for limit in [1, 7, 8, 9, 16, 32, 40, 64] {
+                assert_eq!(
+                    first_esc_bounded(&bytes, limit),
+                    reference_esc(&bytes, limit),
+                    "esc at {esc_pos} limit {limit}"
+                );
+            }
+        }
+        // No ESC: returns the scan length (capped at limit).
+        assert_eq!(first_esc_bounded(&[b'x'; 100], 32), 32);
+        assert_eq!(first_esc_bounded(&[b'x'; 10], 32), 10);
+        assert_eq!(first_esc_bounded(&[], 32), 0);
+        // ESC past the limit is not seen.
+        let mut bytes = [b'x'; 40];
+        bytes[20] = 0x1b;
+        assert_eq!(first_esc_bounded(&bytes, 16), 16);
+    }
+
     #[test]
     fn first_non_printable_matches_scalar() {
         for pos in 0..16 {

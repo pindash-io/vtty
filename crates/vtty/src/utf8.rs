@@ -394,6 +394,51 @@ pub(crate) fn decode_utf8<P: Perform>(
 mod tests {
     use super::*;
 
+    #[cfg(feature = "simd")]
+    #[test]
+    fn decode_utf8_batches_short_mixed_window() {
+        struct Sink {
+            cps: Vec<u32>,
+            calls: usize,
+            bytes: Vec<u8>,
+            execs: Vec<u8>,
+        }
+        impl Perform for Sink {
+            fn print_codepoints(&mut self, cps: &[u32]) {
+                self.cps.extend_from_slice(cps);
+                self.calls += 1;
+            }
+            fn print_bytes(&mut self, s: &[u8]) {
+                self.bytes.extend_from_slice(s);
+            }
+            fn execute(&mut self, b: u8) {
+                self.execs.push(b);
+            }
+        }
+
+        // A short mixed window decodes into ONE print_codepoints run
+        // (ASCII + CJK + emoji together), not per-boundary callbacks.
+        let input = "日本語 🚀 ".as_bytes();
+        let mut sink = Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let consumed = decode_utf8(&mut sink, input, input.len(), 0, true);
+        assert_eq!(consumed, input.len());
+        assert_eq!(sink.calls, 1, "one batched print_codepoints");
+        let expected: Vec<u32> = "日本語 🚀 ".chars().map(|c| c as u32).collect();
+        assert_eq!(sink.cps, expected);
+        assert!(sink.execs.is_empty());
+        assert!(sink.bytes.is_empty());
+
+        // An ESC within the probe window bounds the decode: it stops before
+        // the ESC (consumed == the mixed prefix), leaving the ESC for the
+        // state machine.
+        let mut input = "日本語 🚀 ".as_bytes().to_vec();
+        input.extend_from_slice(b"\x1b[31m");
+        let mut sink = Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let consumed = decode_utf8(&mut sink, &input, input.len(), 0, true);
+        assert_eq!(consumed, "日本語 🚀 ".len());
+        assert_eq!(sink.cps, expected);
+    }
+
     #[test]
     fn utf8_lead_lengths_and_bits() {
         assert_eq!(utf8_lead(0x00), (1, 0x00));
