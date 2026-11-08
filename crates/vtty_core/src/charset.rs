@@ -206,6 +206,14 @@ impl Scs {
             .get(self.single_shift.unwrap_or(self.gl) as usize)
     }
 
+    /// The LOCKED charset (the GL slot, ignoring any SS2/SS3 single shift) —
+    /// the bulk path where the caller has already verified `single_shift` is
+    /// `None`.
+    #[inline]
+    pub fn locked(&self) -> Charset {
+        self.charsets.get(self.gl as usize)
+    }
+
     /// Translate a char through the active charset. An `SS2`/`SS3` single
     /// shift is consumed here, so it affects only this one char.
     pub fn map(&mut self, c: char) -> char {
