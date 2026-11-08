@@ -416,7 +416,7 @@ pub fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
     // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
     // non-ASCII hot path (one range check).
-    if (0x329A..=0xA48C).contains(&cp) {
+    if cp.wrapping_sub(0x329A) < (0xA48C - 0x329A + 1) {
         return Some(2);
     }
     // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs,
