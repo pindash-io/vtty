@@ -374,6 +374,39 @@ impl Parser {
     /// `dispatch_csi` and the bail path's caller both reset it.
     #[inline(always)]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
+        // Fast CUP (`CSI r;c H` / `f`, the cursor-motion repaint shape):
+        // parse the two 1-based params directly, skipping the per-byte param
+        // dispatch and the trailing-param push.
+        if let Some(&first) = seq.first()
+            && first.is_ascii_digit()
+        {
+            let mut i = 0;
+            let mut row = 0_i32;
+            while i < seq.len() && seq[i].is_ascii_digit() {
+                row =
+                    (row * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
+                i += 1;
+            }
+            if seq.get(i) == Some(&b';') {
+                i += 1;
+                let mut col = 0_i32;
+                while i < seq.len() && seq[i].is_ascii_digit() {
+                    col = (col * 10 + (seq[i] - b'0') as i32)
+                        .min(MAX_PARAM_VALUE);
+                    i += 1;
+                }
+                if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
+                    self.params[0] = row;
+                    self.params[1] = col;
+                    self.params_len = 2;
+                    let ints =
+                        &self.intermediates[..self.intermediates_len];
+                    p.csi_dispatch(&self.params[..2], 0, ints, seq[i]);
+                    self.clear_seq_state();
+                    return Some(i + 1);
+                }
+            }
+        }
         let mut f = 0_usize;
         while f < seq.len() {
             if self.param_byte(seq[f]) {
