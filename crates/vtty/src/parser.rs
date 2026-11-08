@@ -823,13 +823,13 @@ impl Parser {
     }
 
     /// Accumulate a decimal digit into the current parameter (16-bit clamp).
+    ///
+    /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry — every writer
+    /// either zeroes it or caps it via `min` — so `param * 10 + digit` can
+    /// never overflow i32, and plain arithmetic replaces the saturating ops.
     #[inline(always)]
     fn param_digit(&mut self, b: u8) {
-        self.param = self
-            .param
-            .saturating_mul(10)
-            .saturating_add((b - b'0') as i32)
-            .min(MAX_PARAM_VALUE);
+        self.param = (self.param * 10 + (b - b'0') as i32).min(MAX_PARAM_VALUE);
         self.param_empty = false;
     }
 
