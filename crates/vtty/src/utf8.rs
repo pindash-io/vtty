@@ -156,8 +156,8 @@ pub(crate) fn decode_utf8<P: Perform>(
         // A lone char before the next ESC (truecolor SGR) is cheaper on the
         // scalar path: probe for a nearby ESC before paying for SIMD setup.
         const PROBE: usize = 32;
-        let probe_end = valid.min(pos + PROBE);
-        let short = bytes[pos..probe_end].contains(&0x1b) || valid - pos < PROBE;
+        let short =
+            crate::scan::esc_within(&bytes[pos..], PROBE) || valid - pos < PROBE;
         if !short {
             const CHUNK: usize = 4096;
             let mut end = (pos + CHUNK).min(valid);

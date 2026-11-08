@@ -20,6 +20,23 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
+/// Whether an ESC byte (`0x1b`) appears in the first `limit` bytes — the
+/// mixed-UTF-8 probe before every multi-byte decode. SWAR over 8-byte words:
+/// `[u8]::contains(&0x1b)`'s SIMD memchr pays alignment + dispatch setup on a
+/// 32-byte window, which is pure overhead when the answer decides between a
+/// cheap scalar decode and the SIMD transcode.
+#[inline(always)]
+pub(crate) fn esc_within(bytes: &[u8], limit: usize) -> bool {
+    let n = bytes.len().min(limit);
+    let (chunks, tail) = bytes[..n].as_chunks::<8>();
+    for chunk in chunks {
+        if swar_byte_eq(u64::from_le_bytes(*chunk), 0x1b) != 0 {
+            return true;
+        }
+    }
+    tail.iter().any(|&b| b == 0x1b)
+}
+
 /// SWAR scan: index of the first byte whose `stop_mask(word)` bit is set
 /// (one bit per byte, LSB = first byte), or `bytes.len()`. `is_stop` is the
 /// scalar predicate for the <8-byte tail.
