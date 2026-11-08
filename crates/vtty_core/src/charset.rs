@@ -162,6 +162,9 @@ pub struct Scs {
     pub gl: u8,
     /// `SS2`/`SS3` single shift for the NEXT printable char only.
     pub single_shift: Option<u8>,
+    /// `single_shift.is_none() && locked() == Ascii` — cached so the bulk
+    /// ASCII path reads one flag instead of the `Option` + the slot lookup.
+    pub ascii_fast: bool,
 }
 
 impl Scs {
@@ -171,17 +174,25 @@ impl Scs {
             charsets: Charsets::ascii(),
             gl: 0,
             single_shift: None,
+            ascii_fast: true,
         }
     }
 
     /// Designate slot `g` to `charset` (delegates to [`Charsets::designate`]).
     pub fn designate(&mut self, g: usize, charset: Charset) {
+        let g = g.min(3);
         self.charsets.designate(g, charset);
+        if g == self.gl as usize {
+            self.ascii_fast =
+                self.single_shift.is_none() && charset == Charset::Ascii;
+        }
     }
 
     /// Set the GL locking-shift slot (LS0..=LS3).
     pub fn shift(&mut self, g: u8) {
         self.gl = g.min(3);
+        self.ascii_fast = self.single_shift.is_none()
+            && self.charsets.get(self.gl as usize) == Charset::Ascii;
     }
 
     /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
@@ -193,8 +204,14 @@ impl Scs {
         match byte {
             0x0E => self.shift(1),
             0x0F => self.shift(0),
-            0x8E => self.single_shift = Some(2),
-            0x8F => self.single_shift = Some(3),
+            0x8E => {
+                self.single_shift = Some(2);
+                self.ascii_fast = false;
+            }
+            0x8F => {
+                self.single_shift = Some(3);
+                self.ascii_fast = false;
+            }
             _ => {}
         }
     }
@@ -219,6 +236,8 @@ impl Scs {
     pub fn map(&mut self, c: char) -> char {
         let charset = self.active();
         self.single_shift = None;
+        self.ascii_fast =
+            self.charsets.get(self.gl as usize) == Charset::Ascii;
         charset.map(c)
     }
 
