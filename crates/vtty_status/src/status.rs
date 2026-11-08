@@ -219,7 +219,10 @@ impl ProgramStatus {
 
     /// Parses a report from an OSC dispatch's params (`params[0] == "7501"`).
     pub fn from_osc_params(params: &[&[u8]]) -> Option<Self> {
-        if params.first().is_none_or(|p| *p != OSC_NUM) {
+        let first = params.first()?;
+        // The OSC number's first byte filters the common 0/1/52/1337 shapes
+        // before the full 4-byte compare.
+        if first.first() != Some(&b'7') || *first != OSC_NUM {
             return None;
         }
         Self::parse(params.get(1)?)
