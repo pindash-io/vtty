@@ -10,11 +10,11 @@ use alloc::vec::Vec;
 
 use smallvec::SmallVec;
 
-use vtty_core::{Event, Perform, Recording};
+use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
 
 use crate::scan::{first_dcs_boundary, first_non_printable, first_osc_boundary};
 use crate::table::{Action, ParseState, transition};
-use crate::utf8::{decode_utf8, trailing_partial};
+use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
 
 /// Maximum buffered OSC payload. A hostile program can otherwise stream a
 /// gigabyte into `ESC ] … ST` and OOM the parser; xterm.js caps OSC/DCS at
@@ -66,21 +66,39 @@ pub struct Parser {
     /// param so params 17+ are dropped (vte/rio-vt convention).
     osc_starts: [u32; MAX_OSC_PARAMS + 1],
     osc_num_starts: usize,
-    /// True while the current OSC payload is still entirely within the current
-    /// `advance` input slice (no copy into `osc` yet); `osc_base` is its start
-    /// index in that slice. The copy is deferred until the string spans an
-    /// `advance` call or is terminated by a cold control byte.
-    osc_deferring: bool,
-    osc_base: usize,
-    /// Partially-decoded UTF-8 code point (u32) split across `advance` calls.
-    partial: u32,
-    /// Continuation bytes still needed to complete `partial` (0 = none).
-    partial_need: u8,
+    /// Where the current OSC payload lives: deferred in the `advance` input
+    /// slice (no copy into `osc` yet) or accumulated.
+    osc_buffer: OscBuffer,
+    /// A UTF-8 code point split across `advance` calls (lead + already-arrived
+    /// continuation bytes held until the rest arrive).
+    partial: PartialUtf8,
     /// Runtime SIMD toggle: when `true`, the printable-run scan and UTF-8
     /// validation use SIMD. Only present (and only settable, via
     /// [`Parser::with_simd`]) when the `simd` feature is compiled in.
     #[cfg(feature = "simd")]
     simd: bool,
+    /// Test-only: route the escape-sequence states through the transition
+    /// table (skipping the inline hot-path handlers) so tests can
+    /// differential the table against the optimized paths.
+    #[cfg(test)]
+    cold: bool,
+}
+
+/// Where the current OSC payload lives: still entirely within the current
+/// `advance` input slice (deferred, no copy) or accumulated into `osc`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum OscBuffer {
+    Deferred { base: usize },
+    #[default]
+    Accumulated,
+}
+
+impl OscBuffer {
+    /// Whether the payload is deferred (still in the input slice).
+    #[inline]
+    fn is_deferred(&self) -> bool {
+        matches!(self, Self::Deferred { .. })
+    }
 }
 
 impl Parser {
@@ -98,12 +116,12 @@ impl Parser {
         osc_overflow: false,
         osc_starts: [0; MAX_OSC_PARAMS + 1],
         osc_num_starts: 0,
-        osc_deferring: false,
-        osc_base: 0,
-        partial: 0,
-        partial_need: 0,
+        osc_buffer: OscBuffer::Accumulated,
+        partial: PartialUtf8::new(),
         #[cfg(feature = "simd")]
         simd: false,
+        #[cfg(test)]
+        cold: false,
     };
 
     /// An empty parser in the ground state (no allocation).
@@ -135,6 +153,20 @@ impl Parser {
         false
     }
 
+    /// Whether the inline hot-path handlers are disabled (test-only cold
+    /// mode). Always `false` outside `cfg(test)`.
+    #[cfg(test)]
+    #[inline]
+    const fn force_cold(&self) -> bool {
+        self.cold
+    }
+
+    #[cfg(not(test))]
+    #[inline]
+    const fn force_cold(&self) -> bool {
+        false
+    }
+
     /// Parse bytes, collecting every dispatch into a `Vec<Event>` — the
     /// convenience enum API; [`Self::advance`] + [`Perform`] is the
     /// zero-allocation hot path. Unbounded `Vec`, so tests/tooling only.
@@ -160,32 +192,27 @@ impl Parser {
 
         // Complete a partially-decoded UTF-8 code point carried over from the
         // previous call (accumulate continuation bytes into the u32).
-        if self.partial_need > 0 {
-            // `completed` separates a fully-consumed partial (emit one char)
-            // from an aborted one (emit U+FFFD once, no second char).
-            let mut completed = false;
-            while self.partial_need > 0 && i < bytes.len() {
-                let b = bytes[i];
-                if (0x80..0xc0).contains(&b) {
-                    self.partial = (self.partial << 6) | (b & 0x3f) as u32;
-                    self.partial_need -= 1;
-                    i += 1;
-                    completed = self.partial_need == 0;
-                } else {
-                    // Not a continuation byte — abort the partial, leave the
-                    // byte for the main loop.
-                    self.partial_need = 0;
+        if self.partial.pending() {
+            // A consumed continuation byte either completes the code point
+            // (emit it) or leaves more to arrive. A non-continuation byte
+            // aborts the partial (emit U+FFFD once) and is left for the main
+            // loop.
+            while i < bytes.len() {
+                if !self.partial.feed(bytes[i]) {
                     p.print(char::REPLACEMENT_CHARACTER);
                     break;
                 }
-            }
-            if completed {
-                // Test the numeric code point first: the control ranges never
-                // need a `char`, so convert only on the print path.
-                if matches!(self.partial, 0x00..=0x1f | 0x7f | 0x80..=0x9f) {
-                    p.execute(self.partial as u8);
-                } else {
-                    p.print(char::from_u32(self.partial).unwrap_or(char::REPLACEMENT_CHARACTER));
+                i += 1;
+                if !self.partial.pending() {
+                    // Test the numeric code point first: the control ranges
+                    // never need a `char`, so convert only on the print path.
+                    let cp = self.partial.codepoint();
+                    if matches!(cp, 0x00..=0x1f | 0x7f | 0x80..=0x9f) {
+                        p.execute(cp as u8);
+                    } else {
+                        p.print(char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER));
+                    }
+                    break;
                 }
             }
         }
@@ -193,9 +220,8 @@ impl Parser {
         // Detect a trailing partial code point once here, handing the partial-
         // free prefix length to the ground loop (avoids re-scanning per entry).
         let valid_end = match trailing_partial(bytes) {
-            Some((v, cp, need)) => {
-                self.partial = cp;
-                self.partial_need = need;
+            Some((v, partial)) => {
+                self.partial = partial;
                 v
             }
             None => bytes.len(),
@@ -206,8 +232,12 @@ impl Parser {
                 ParseState::Ground => i = self.advance_ground(p, bytes, i, valid_end),
                 ParseState::OscString => i = self.advance_osc_run(p, bytes, i),
                 ParseState::DcsPassthrough => i = self.advance_dcs_run(p, bytes, i),
-                ParseState::Escape => i = self.advance_escape_byte(p, bytes, i),
-                ParseState::DcsEntry => i = self.advance_dcs_entry_byte(p, bytes, i),
+                ParseState::Escape if !self.force_cold() => {
+                    i = self.advance_escape_byte(p, bytes, i);
+                }
+                ParseState::DcsEntry if !self.force_cold() => {
+                    i = self.advance_dcs_entry_byte(p, bytes, i);
+                }
                 ParseState::CsiParam | ParseState::DcsParam => {
                     i = self.advance_param_run(p, bytes, i);
                 }
@@ -217,7 +247,7 @@ impl Parser {
 
         // An OSC payload that reached the end of this input chunk without a
         // terminator is flushed into `osc` so the next `advance` continues it.
-        if self.state == ParseState::OscString && self.osc_deferring {
+        if self.state == ParseState::OscString && self.osc_buffer.is_deferred() {
             self.osc_flush(bytes, bytes.len());
         }
     }
@@ -240,10 +270,10 @@ impl Parser {
     /// at end-of-stream. Call once after the final [`Self::advance`].
     #[inline]
     pub fn flush<P: Perform>(&mut self, p: &mut P) {
-        if self.partial_need == 0 {
+        if !self.partial.pending() {
             return;
         }
-        self.partial_need = 0;
+        self.partial.clear();
         p.print(char::REPLACEMENT_CHARACTER);
     }
 
@@ -266,7 +296,7 @@ impl Parser {
         let valid = if i <= valid_end {
             valid_end - i
         } else {
-            self.partial_need = 0;
+            self.partial.clear();
             run.len()
         };
         let mut pos = 0;
@@ -306,7 +336,7 @@ impl Parser {
             // intermediate, a private marker after params, C0/DEL, or
             // high-bit — bails to the state machine, which enforces the
             // CsiIntermediate/CsiParam → CsiIgnore transitions.
-            if b == 0x1b && run.get(pos + 1) == Some(&b'[') {
+            if !self.force_cold() && b == 0x1b && run.get(pos + 1) == Some(&b'[') {
                 // Keep scanning in this pass on success: CSI-dense input
                 // (SGR churn, cursor motion) pays a re-entry + a fresh
                 // `first_non_printable` scan per sequence otherwise.
@@ -494,10 +524,12 @@ impl Parser {
         // CSI final-byte fast path: `0x40..=0x7e` from CsiEntry/CsiParam/
         // CsiIntermediate always dispatches (CSI_DISPATCH → Ground). Skip the
         // transition() table lookup for the one dispatch byte per sequence.
-        if matches!(
-            state,
-            ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
-        ) && (0x40..=0x7e).contains(&b)
+        if !self.force_cold()
+            && matches!(
+                state,
+                ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
+            )
+            && (0x40..=0x7e).contains(&b)
         {
             // Same trailing-empty sentinel as the bulk/apply CSI paths.
             self.dispatch_csi(p, b);
@@ -551,8 +583,7 @@ impl Parser {
                 self.osc.clear();
                 self.osc_overflow = false;
                 self.osc_num_starts = 1;
-                self.osc_deferring = true;
-                self.osc_base = i + 1;
+                self.osc_buffer = OscBuffer::Deferred { base: i + 1 };
                 self.state = ParseState::OscString;
                 i + 1
             }
@@ -613,7 +644,7 @@ impl Parser {
         let run = &bytes[i..];
         let n = first_osc_boundary(run, self.simd_enabled());
         if n > 0 {
-            if !self.osc_deferring {
+            if !self.osc_buffer.is_deferred() {
                 self.osc_extend(&run[..n]);
             }
             return i + n;
@@ -635,8 +666,8 @@ impl Parser {
             0x3b => {
                 // The offset is `;`-free: subtract the separators already seen
                 // so deferred (input) and accumulated (`osc`) modes agree.
-                let offset = if self.osc_deferring {
-                    (i - self.osc_base - (self.osc_num_starts - 1)) as u32
+                let offset = if let OscBuffer::Deferred { base } = self.osc_buffer {
+                    (i - base - (self.osc_num_starts - 1)) as u32
                 } else {
                     self.osc.len() as u32
                 };
@@ -644,7 +675,7 @@ impl Parser {
                 i + 1
             }
             _ => {
-                if self.osc_deferring {
+                if self.osc_buffer.is_deferred() {
                     self.osc_flush(bytes, i);
                 }
                 self.advance_non_ground(p, bytes, i)
@@ -726,14 +757,12 @@ impl Parser {
     /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
-        let deferring = self.osc_deferring;
         let n = self.osc_num_starts;
         // The cap applies to the `;`-free payload bytes. In deferred mode the
         // input still holds the `n - 1` `;` separators, so subtract them.
-        let payload_len = if deferring {
-            end_pos - self.osc_base - (n - 1)
-        } else {
-            self.osc.len()
+        let payload_len = match self.osc_buffer {
+            OscBuffer::Deferred { base } => end_pos - base - (n - 1),
+            OscBuffer::Accumulated => self.osc.len(),
         };
         if self.osc_overflow() || payload_len > MAX_OSC_PAYLOAD {
             self.osc_reset();
@@ -743,10 +772,9 @@ impl Parser {
         // cases: the input holds the `;` separators, so each `;`-free
         // boundary offset shifts by `k` and the source is `bytes` rather
         // than `osc`.
-        let (src, base, shift, last_end) = if deferring {
-            (bytes, self.osc_base, 1, end_pos)
-        } else {
-            (&self.osc[..], 0, 0, self.osc.len())
+        let (src, base, shift, last_end) = match self.osc_buffer {
+            OscBuffer::Deferred { base } => (bytes, base, 1, end_pos),
+            OscBuffer::Accumulated => (&self.osc[..], 0, 0, self.osc.len()),
         };
         let m = n.min(MAX_OSC_PARAMS);
         let mut params = [&[][..]; MAX_OSC_PARAMS];
@@ -800,7 +828,7 @@ impl Parser {
         self.osc.clear();
         self.osc_overflow = false;
         self.osc_num_starts = 0;
-        self.osc_deferring = false;
+        self.osc_buffer = OscBuffer::Accumulated;
     }
 
     /// Flush a deferred OSC payload into `osc` (the string spans `advance`
@@ -808,11 +836,15 @@ impl Parser {
     /// valid — they become `osc`-relative instead of input-relative.
     #[inline]
     fn osc_flush(&mut self, bytes: &[u8], end_pos: usize) {
+        let base = match self.osc_buffer {
+            OscBuffer::Deferred { base } => base,
+            OscBuffer::Accumulated => return, // nothing deferred to flush
+        };
         // Bulk-copy the `;`-free segments instead of pushing byte-by-byte.
-        for part in bytes[self.osc_base..end_pos].split(|&b| b == 0x3b) {
+        for part in bytes[base..end_pos].split(|&b| b == 0x3b) {
             self.osc_extend(part);
         }
-        self.osc_deferring = false;
+        self.osc_buffer = OscBuffer::Accumulated;
     }
 
     #[inline(always)]
@@ -904,9 +936,7 @@ impl Parser {
     #[inline(always)]
     fn param_colon(&mut self) {
         self.push_param(if self.param_empty { -1 } else { self.param });
-        if self.params_len < 16 {
-            self.sep |= 1 << (self.params_len - 1);
-        }
+        set_param_colon_sep(&mut self.sep, self.params_len - 1);
         self.param = 0;
         self.param_empty = true;
     }
@@ -998,6 +1028,55 @@ mod tests {
     use crate::table::{Action, ParseState};
     use alloc::vec;
     use alloc::vec::Vec;
+    use smallvec::SmallVec;
+
+    /// Canonical wire bytes of an event stream (concatenated `write_bytes`).
+    fn events_bytes(events: &[Event]) -> Vec<u8> {
+        let mut out = SmallVec::<u8, 64>::new();
+        for event in events {
+            event.write_bytes(&mut out);
+        }
+        out.to_vec()
+    }
+
+    /// The inline hot-path handlers (`advance_escape_byte`, the bulk CSI scan,
+    /// and the CSI final-byte shortcut) re-implement `transition()` table
+    /// entries. A parser with `cold = true` routes those states through the
+    /// table instead; both must produce identical events.
+    #[test]
+    fn hot_and_cold_paths_agree() {
+        let corpus: &[&[u8]] = &[
+            b"\x1b[31m",
+            b"\x1b[38;2;255;0;128m",
+            b"\x1b[38:2::255;0;128m",
+            b"\x1b[?25l",
+            b"\x1b[?1049h",
+            b"\x1b[2;4r",
+            b"\x1b[1 2m",
+            b"\x1b[1;31;44m",
+            b"\x1b[H\x1b[2J",
+            b"\x1bP1;2qpayload\x1b\\",
+            b"\x1b_Gkitty\x1b\\",
+            b"\x1b#8",
+            b"\x1b7\x1b8",
+            b"\x1b(0",
+            b"\x1bD\x1bM\x1bE",
+            b"text\x1b[31mred\x1b[0mmore",
+            b"\x9b31m",
+            b"\x1b]title\x07",
+        ];
+        for input in corpus {
+            let hot = Parser::new().parse_events(input);
+            let mut cold_parser = Parser::new();
+            cold_parser.cold = true;
+            let cold = cold_parser.parse_events(input);
+            assert_eq!(
+                events_bytes(&hot),
+                events_bytes(&cold),
+                "hot/cold divergence for {input:?}\nhot:  {hot:?}\ncold: {cold:?}"
+            );
+        }
+    }
 
     /// DEC's "anywhere" invariant for 8-bit C1 controls
     /// (<https://vt100.net/emu/dec_ansi_parser>): introducers re-enter their
