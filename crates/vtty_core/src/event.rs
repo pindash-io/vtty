@@ -152,10 +152,29 @@ fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
 
 /// Append numeric params, `;`- or `:`-joined (`sep` bit `i` = param `i`
 /// followed by a colon).
+/// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
+/// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
+/// Only the first 16 parameters are tracked; later ones read as `false`.
+#[inline]
+pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
+    i < 16 && (sep & (1 << i)) != 0
+}
+
+/// Mark parameter `i` (0-based) as colon-followed in a `sep` bitfield.
+/// Parameters past the 16th are not tracked.
+#[inline]
+pub const fn set_param_colon_sep(sep: &mut u16, i: usize) {
+    if i < 16 {
+        *sep |= 1 << i;
+    }
+}
+
 fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u16) {
     for (i, p) in params.iter().enumerate() {
         if i > 0 {
-            let colon = i - 1 < 16 && sep & (1 << (i - 1)) != 0;
+            // The separator before param `i` is "param `i - 1` followed by
+            // colon" — bit `i - 1` of the bitfield.
+            let colon = param_colon_sep(sep, i - 1);
             out.push(if colon { b':' } else { b';' });
         }
         out.extend_from_slice_copy(p.to_string().as_bytes());

@@ -71,23 +71,48 @@ impl Screen {
         self.shift_chars(n, false);
     }
 
-    /// Insert (`insert = true`) or delete (`false`) blank cells at the cursor
-    /// on the current line.
+    /// Insert (`insert = true`) or delete (`false`) cells at the cursor on
+    /// the current line, treating a double-width glyph (lead + continuation)
+    /// as an atomic unit so edits never split or orphan one.
     pub(crate) fn shift_chars(&mut self, n: u32, insert: bool) {
-        let n = n.min(self.cols - self.cursor_col) as usize;
+        let cols = self.cols as usize;
         let row = self.row_offset(self.cursor_row);
-        let start = row + self.cursor_col as usize;
-        let end = row + self.cols as usize;
+        let mut start = self.cursor_col as usize;
+        // A cursor on a continuation cell acts on the glyph's lead.
+        if start > 0 && self.cells[row + start].is_continuation() {
+            start -= 1;
+        }
+        let end = row + cols;
 
-        // Content shifts one way; the vacated `n` cells go blank. The source
-        // and destination overlap, and `copy_within` moves them in the right
-        // order.
-        let (src, dst, blank) = if insert {
-            (start..end - n, start + n, start..start + n)
-        } else {
-            (start + n..end, start, end - n..end)
-        };
-        self.cells.copy_within(src, dst);
-        self.cells[blank].fill(Cell::default());
+        if insert {
+            let n = (n as usize).min(cols - start);
+            if n == 0 {
+                return;
+            }
+            self.cells.copy_within(row + start..end - n, row + start + n);
+            self.cells[row + start..row + start + n].fill(Cell::default());
+            return;
+        }
+
+        // Delete `n` logical glyphs (a double-width glyph is one glyph, two
+        // cells), then shift the tail left by the deleted cell count.
+        let mut del = 0_usize;
+        let mut glyphs = 0_usize;
+        let mut col = start;
+        while col < cols && glyphs < n as usize {
+            // `start` is never a continuation (it was adjusted to the lead),
+            // and each iteration advances past a whole glyph, so `col` always
+            // lands on a lead or a plain cell — never mid-pair.
+            let wide = col + 1 < cols && self.cells[row + col + 1].is_continuation();
+            let width = if wide { 2 } else { 1 };
+            del += width;
+            glyphs += 1;
+            col += width;
+        }
+        if del == 0 {
+            return;
+        }
+        self.cells.copy_within(row + start + del..end, row + start);
+        self.cells[end - del..end].fill(Cell::default());
     }
 }

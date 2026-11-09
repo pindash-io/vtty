@@ -75,6 +75,21 @@ impl Screen {
         (top <= bottom && left <= right).then_some((top, left, bottom, right))
     }
 
+    /// Extend a rectangle's column edges for row `r` to whole-glyph
+    /// boundaries, so a fill/erase never splits a double-width glyph.
+    fn glyph_edges(&self, r: u32, c0: u32, c1: u32) -> (u32, u32) {
+        let base = self.row_offset(r);
+        let mut c0 = c0;
+        let mut c1 = c1;
+        if c0 > 0 && self.cells[base + c0 as usize].is_continuation() {
+            c0 -= 1;
+        }
+        if c1 + 1 < self.cols && self.cells[base + c1 as usize + 1].is_continuation() {
+            c1 += 1;
+        }
+        (c0, c1)
+    }
+
     /// DECFRA (`CSI Pc;Pl;Pr;Pt;Pb $ x`): fill a rectangle with `ch`.
     pub(crate) fn decfra(&mut self, params: &[i32]) {
         let Some((r0, c0, r1, c1)) = self.rect(
@@ -92,6 +107,7 @@ impl Screen {
             .unwrap_or(' ');
         let cell = self.base_cell(ch);
         for r in r0..=r1 {
+            let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
             self.cells[base + c0 as usize..=base + c1 as usize].fill(cell);
         }
@@ -108,6 +124,7 @@ impl Screen {
             return;
         };
         for r in r0..=r1 {
+            let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
             self.cells[base + c0 as usize..=base + c1 as usize].fill(Cell::default());
         }
@@ -124,6 +141,7 @@ impl Screen {
             return;
         };
         for r in r0..=r1 {
+            let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
             for cell in &mut self.cells[base + c0 as usize..=base + c1 as usize] {
                 if !cell.protected {

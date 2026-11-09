@@ -217,18 +217,18 @@ mod tests {
             let Some(c) = char::from_u32(cp) else {
                 continue;
             };
-            let Some(fast) = crate::properties::cjk_fast_width(c) else {
+            let Some(fast) = cjk_fast_width(c) else {
                 continue;
             };
             let p = Properties::get(c);
             assert_eq!(
-                crate::properties::cell_width_from(p, c),
+                properties::cell_width_from(p, c),
                 Some(fast),
                 "width mismatch U+{cp:04X}"
             );
             assert_eq!(p.gcb(), Gcb::Other, "gcb mismatch U+{cp:04X}");
             assert!(
-                !crate::emoji::is_emoji_starter_from(p, c),
+                !emoji::is_emoji_starter_from(p, c),
                 "emoji starter U+{cp:04X}"
             );
             assert!(!p.is_emoji(), "emoji U+{cp:04X}");

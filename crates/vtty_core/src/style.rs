@@ -274,6 +274,8 @@ use alloc::string::ToString;
 
 use smallvec::SmallVec;
 
+use crate::event::param_colon_sep;
+
 /// Parse an SGR sequence into its effects, appending to `out` (which the
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
 /// ([`ColorSpec`]) so each consumer interns them against its own palette.
@@ -288,7 +290,7 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
             // `4:0..5` is the colon-separated underline style; plain `4` is
             // single underline.
             4 => {
-                let style = if colon_sep(sep, i) {
+                let style = if param_colon_sep(sep, i) {
                     iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
                 } else {
                     None
@@ -406,9 +408,9 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
 #[inline]
 pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
     let len = params.len();
-    let colon = colon_sep(sep, i);
+    let colon = param_colon_sep(sep, i);
     // A colon after the `g` slot (i + 4) marks the colorspace form.
-    let cs = colon && colon_sep(sep, i + 4);
+    let cs = colon && param_colon_sep(sep, i + 4);
     match *params.get(i + 1)? {
         5 if len > i + 2 => {
             // Indexed colors clamp to the 256-color table (xterm).
@@ -431,12 +433,6 @@ pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, 
         }
         _ => None,
     }
-}
-
-/// Whether parameter `i` was followed by a colon (bit `i` of `sep`).
-#[inline]
-fn colon_sep(sep: u16, i: usize) -> bool {
-    i < 16 && (sep & (1 << i)) != 0
 }
 
 /// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the

@@ -370,6 +370,78 @@ impl Screen {
         col < self.cols && self.tab_stops[col as usize]
     }
 
+    /// Assert the screen's structural invariants: cursor, saved cursor and
+    /// margins in bounds, ring-buffer offsets valid, `WRAP_PENDING` consistent
+    /// with the cursor column, and every per-buffer vector sized to the grid.
+    /// Tests and fuzzing call this after each mutation to catch drift in the
+    /// implicit state machines (autowrap, origin, alt-screen). Panics on the
+    /// first violation; production code never calls it.
+    pub fn check_invariants(&self) {
+        assert!(self.cursor_row < self.rows, "cursor_row {} out of bounds", self.cursor_row);
+        assert!(self.cursor_col < self.cols, "cursor_col {} out of bounds", self.cursor_col);
+        assert!(self.saved_row < self.rows, "saved_row {} out of bounds", self.saved_row);
+        assert!(self.saved_col < self.cols, "saved_col {} out of bounds", self.saved_col);
+        assert!(
+            self.top_margin <= self.bottom_margin,
+            "margins inverted: top {} bottom {}",
+            self.top_margin,
+            self.bottom_margin
+        );
+        assert!(self.bottom_margin < self.rows, "bottom_margin {} out of bounds", self.bottom_margin);
+        assert!(self.scroll_top < self.rows, "scroll_top {} out of bounds", self.scroll_top);
+        assert!(
+            !self.flags.contains(BufferFlags::WRAP_PENDING) || self.cursor_col == self.cols - 1,
+            "WRAP_PENDING with cursor_col {} (cols {})",
+            self.cursor_col,
+            self.cols
+        );
+        assert_eq!(self.continuation.len(), self.rows as usize, "continuation length");
+        assert_eq!(self.cells.len(), (self.cols as usize) * (self.rows as usize), "cells length");
+        assert_eq!(self.tab_stops.len(), self.cols as usize, "tab_stops length");
+
+        assert!(self.alt_cursor_row < self.rows, "alt_cursor_row {} out of bounds", self.alt_cursor_row);
+        assert!(self.alt_cursor_col < self.cols, "alt_cursor_col {} out of bounds", self.alt_cursor_col);
+        assert!(self.alt_saved_row < self.rows, "alt_saved_row {} out of bounds", self.alt_saved_row);
+        assert!(self.alt_saved_col < self.cols, "alt_saved_col {} out of bounds", self.alt_saved_col);
+        assert!(
+            self.alt_top_margin <= self.alt_bottom_margin,
+            "alt margins inverted: top {} bottom {}",
+            self.alt_top_margin,
+            self.alt_bottom_margin
+        );
+        assert!(self.alt_bottom_margin < self.rows, "alt_bottom_margin {} out of bounds", self.alt_bottom_margin);
+        assert!(self.alt_scroll_top < self.rows, "alt_scroll_top {} out of bounds", self.alt_scroll_top);
+        assert!(
+            !self.alt_flags.contains(BufferFlags::WRAP_PENDING) || self.alt_cursor_col == self.cols - 1,
+            "alt WRAP_PENDING with alt_cursor_col {} (cols {})",
+            self.alt_cursor_col,
+            self.cols
+        );
+        assert_eq!(self.alt_continuation.len(), self.rows as usize, "alt_continuation length");
+        assert_eq!(self.alt_cells.len(), (self.cols as usize) * (self.rows as usize), "alt_cells length");
+
+        self.check_cell_continuations(&self.cells);
+        self.check_cell_continuations(&self.alt_cells);
+    }
+
+    /// Assert that no continuation cell is orphaned: every double-width
+    /// continuation immediately follows a non-continuation lead cell. (The
+    /// lead's single-char width can be 1 for a grapheme cluster whose total
+    /// width is 2, so it is not checked here.)
+    fn check_cell_continuations(&self, cells: &[Cell]) {
+        for row in 0..self.rows as usize {
+            let base = row * self.cols as usize;
+            for col in 0..self.cols as usize {
+                if cells[base + col].is_continuation() {
+                    assert!(
+                        col > 0 && !cells[base + col - 1].is_continuation(),
+                        "orphan continuation at ({row}, {col})"
+                    );
+                }
+            }
+        }
+    }
+
     /// Resolve a [`ColorId`] to packed `0xRRGGBB`. The default fg/bg ids use
     /// the configured default colors; the 16 ANSI colors use the configured
     /// palette; `16..=255` use the xterm table; truecolor ids (`>= 258`) look

@@ -190,6 +190,7 @@ mod tests {
     use alloc::vec::Vec;
 
     /// Scalar reference for the bounded ESC probe.
+    #[cfg(feature = "simd")]
     fn reference_esc(bytes: &[u8], limit: usize) -> usize {
         let n = bytes.len().min(limit);
         bytes[..n].iter().position(|&b| b == 0x1b).unwrap_or(n)

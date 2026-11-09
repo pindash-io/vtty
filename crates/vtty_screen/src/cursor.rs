@@ -124,8 +124,16 @@ impl Screen {
     }
 
     pub(crate) fn set_margins(&mut self, params: &[i32]) {
-        let top = params.first().copied().unwrap_or(1).max(1) as u32 - 1;
-        let bottom = params.get(1).copied().unwrap_or(self.rows as i32) as u32 - 1;
+        // DECSTBM: 0 (or negative) means the default — row 1 for the top, the
+        // last row for the bottom. Non-positive values must not reach the
+        // `- 1` below (a `0` param would underflow).
+        let top = params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
+        let bottom = params
+            .get(1)
+            .copied()
+            .filter(|&p| p > 0)
+            .unwrap_or(self.rows as i32) as u32
+            - 1;
         // DECSTBM requires top < bottom; otherwise the sequence is ignored.
         if top >= bottom || bottom >= self.rows {
             return;
@@ -135,6 +143,7 @@ impl Screen {
 
     /// Set the scroll margins to `[top, bottom]` and home the cursor.
     pub(crate) fn apply_margins(&mut self, top: u32, bottom: u32) {
+        self.clear_wrap();
         self.top_margin = top;
         self.bottom_margin = bottom;
         self.cursor_row = self.top_margin;

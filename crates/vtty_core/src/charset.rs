@@ -102,11 +102,11 @@ impl Charsets {
         self.0[g.min(3)] = charset;
     }
 
-    /// Read slot `g`; panics for an out-of-range slot (`g > 3`).
+    /// Read slot `g`; an out-of-range slot clamps to G3 (the last slot),
+    /// mirroring [`Self::designate`].
     #[inline]
     pub const fn get(self, g: usize) -> Charset {
-        assert!(g < 4, "charset slot must be 0..=3");
-        self.0[g]
+        self.0[if g < 4 { g } else { 3 }]
     }
 
     /// The G0 set (the default, and `SI` `0x0F` target).
@@ -341,9 +341,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "charset slot must be 0..=3")]
-    fn charsets_get_out_of_range_panics() {
-        Charsets::ascii().get(4);
+    fn charsets_get_out_of_range_clamps_to_g3() {
+        let mut sets = Charsets::ascii();
+        sets.designate(3, Charset::British);
+        assert_eq!(sets.get(3), Charset::British);
+        assert_eq!(sets.get(4), Charset::British);
+        assert_eq!(sets.get(usize::MAX), Charset::British);
     }
 
     #[test]

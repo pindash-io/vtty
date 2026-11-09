@@ -167,10 +167,9 @@ fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
 #[derive(Debug)]
 #[must_use]
 pub struct Graphemes<'a> {
-    iter: core::str::CharIndices<'a>,
     text: &'a str,
-    /// Remaining all-ASCII bytes to yield as one-byte clusters (fast path).
-    ascii: usize,
+    /// Byte offset of the next unread char.
+    pos: usize,
     /// Byte offset of the current cluster's first byte.
     cluster_start: usize,
     /// The GCB of the char preceding the current position, if any.
@@ -178,28 +177,29 @@ pub struct Graphemes<'a> {
     gb11: Gb11,
     /// Consecutive regional indicators in the current cluster.
     ri: u32,
+    /// Printable-ASCII bytes detached from a run, awaiting emission as
+    /// one-byte clusters (all but the run's last byte, which stays held).
+    ascii: usize,
+    /// Byte offset of the first of those pending ASCII bytes.
+    ascii_start: usize,
     finished: bool,
 }
 
 /// Segment `text` into extended grapheme clusters (UAX #29, rule-based).
 ///
 /// Uses `vtty_width`'s baked GCB property; no runtime data loading or
-/// allocation on this path. Pure ASCII takes a per-byte fast path.
+/// allocation on this path. Printable-ASCII runs take a per-byte fast path,
+/// including inside otherwise non-ASCII strings.
 pub fn graphemes(text: &str) -> Graphemes<'_> {
-    let bytes = text.as_bytes();
-    let printable = vtty_width::first_non_printable_ascii(bytes) == bytes.len();
     Graphemes {
-        iter: if printable {
-            "".char_indices()
-        } else {
-            text.char_indices()
-        },
         text,
-        ascii: if printable { bytes.len() } else { 0 },
+        pos: 0,
         cluster_start: 0,
         left: None,
         gb11: Gb11::None,
         ri: 0,
+        ascii: 0,
+        ascii_start: 0,
         finished: text.is_empty(),
     }
 }
@@ -213,6 +213,33 @@ impl Graphemes<'_> {
         self.gb11 = step_gb11(Gb11::None, gcb);
         self.ri = u32::from(gcb == Gcb::RegionalIndicator);
     }
+
+    /// Emit the next pending printable-ASCII byte as a one-byte cluster.
+    fn next_ascii(&mut self) -> Option<Grapheme> {
+        let start = self.ascii_start;
+        self.ascii_start += 1;
+        self.ascii -= 1;
+        Some(Grapheme::new(start, start + 1))
+    }
+
+    /// Set up a detected printable-ASCII run starting at `self.pos`: hold the
+    /// last byte as the open cluster (so a following combining mark can still
+    /// attach), and queue the preceding bytes for emission. Returns the
+    /// number of queued bytes (`run - 1`).
+    fn start_ascii_run(&mut self, run: usize) -> usize {
+        let first = self.pos;
+        let last = first + run - 1;
+        self.pos = last + 1;
+        self.cluster_start = last;
+        self.left = Some(Gcb::Other);
+        self.gb11 = Gb11::None;
+        self.ri = 0;
+        if run > 1 {
+            self.ascii = run - 1;
+            self.ascii_start = first;
+        }
+        run - 1
+    }
 }
 
 impl Iterator for Graphemes<'_> {
@@ -222,23 +249,42 @@ impl Iterator for Graphemes<'_> {
         if self.finished {
             return None;
         }
-        // All-ASCII fast path: every byte is its own cluster.
+        // Drain printable-ASCII bytes detached from a run (all but the run's
+        // last byte, which stays held as the open cluster).
         if self.ascii > 0 {
-            let start = self.cluster_start;
-            self.ascii -= 1;
-            self.cluster_start += 1;
-            if self.ascii == 0 {
-                self.finished = true;
-            }
-            return Some(Grapheme::new(start, start + 1));
+            return self.next_ascii();
         }
+
+        // Detect a printable-ASCII run. Each byte is its own cluster (`Other`
+        // never joins with a following ASCII byte) unless the preceding char
+        // is `Prepend` (GB9b). The run's LAST byte is held as the open cluster
+        // so a following combining mark can still attach to it (GB9/GB9a).
+        if self.left != Some(Gcb::Prepend) {
+            let run = vtty_width::first_non_printable_ascii(&self.text.as_bytes()[self.pos..]);
+            if run > 0 {
+                // A complete open cluster precedes the run: emit it before the
+                // ASCII bytes are drained.
+                if self.left.is_some() {
+                    let cluster = Grapheme::new(self.cluster_start, self.pos);
+                    self.start_ascii_run(run);
+                    return Some(cluster);
+                }
+                // No open cluster (start of input): set up the run and drain
+                // its first byte, or fall through when it is a single byte.
+                if self.start_ascii_run(run) > 0 {
+                    return self.next_ascii();
+                }
+            }
+        }
+
         loop {
-            let Some((idx, ch)) = self.iter.next() else {
-                // GB2: ÷ eot — emit the final cluster.
+            let Some(ch) = self.text.get(self.pos..).and_then(|s| s.chars().next()) else {
+                // GB2: ÷ eot — emit the final open cluster.
                 self.finished = true;
                 return Some(Grapheme::new(self.cluster_start, self.text.len()));
             };
-
+            let idx = self.pos;
+            self.pos += ch.len_utf8();
             let gcb = Gcb::get(ch);
 
             match self.left {

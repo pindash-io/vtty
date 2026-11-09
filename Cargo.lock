@@ -1157,6 +1157,7 @@ dependencies = [
  "vtparse",
  "vtty",
  "vtty_codec",
+ "vtty_screen",
 ]
 
 [[package]]

@@ -50,6 +50,10 @@ impl Screen {
         if col >= self.cols {
             col = self.cols - 1;
         }
+        // A cursor on a double-width continuation acts on the glyph's lead.
+        if col > 0 && self.cells[self.row_offset(self.cursor_row) + col as usize].is_continuation() {
+            col -= 1;
+        }
         let wrap = self.modes.contains(ScreenFlags::WRAP);
         // The per-cell attributes are constant across the run; build the
         // template once and only vary `ch` per byte.
@@ -65,12 +69,17 @@ impl Screen {
             }
             let base = self.row_offset(self.cursor_row);
             while i < s.len() && col < self.cols {
-                self.cells[base + col as usize] = Cell {
+                let idx = base + col as usize;
+                self.cells[idx] = Cell {
                     ch: s[i] as char,
                     ..template
                 };
                 i += 1;
                 col += 1;
+                // Overwriting a wide glyph's lead orphans its continuation.
+                if col < self.cols && self.cells[idx + 1].is_continuation() {
+                    self.cells[idx + 1] = Cell::default();
+                }
             }
             if col >= self.cols {
                 col = self.cols - 1;
@@ -82,6 +91,20 @@ impl Screen {
 
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
     pub(crate) fn put_base(&mut self, c: char, mut width: u32) {
+        // A double-width glyph needs two cells; a one-column grid can't hold
+        // it, so clamp to the grid width (otherwise the `cells[idx + 1]`
+        // continuation write goes out of bounds).
+        if width > self.cols {
+            width = self.cols;
+        }
+        // A cursor on a double-width continuation acts on the glyph's lead,
+        // so a write replaces/shifts the whole glyph, never half of it.
+        if self.cursor_col > 0 {
+            let idx = self.row_offset(self.cursor_row) + self.cursor_col as usize;
+            if self.cells[idx].is_continuation() {
+                self.cursor_col -= 1;
+            }
+        }
         if self.flags.contains(BufferFlags::WRAP_PENDING) {
             self.advance_line();
         }
@@ -99,8 +122,10 @@ impl Screen {
         if self.modes.contains(ScreenFlags::INSERT) {
             self.insert_shift(width);
         }
+        let row_start = self.row_offset(self.cursor_row);
+        let idx = row_start + self.cursor_col as usize;
+        let row_end = row_start + self.cols as usize;
         let cell = self.base_cell(c);
-        let idx = self.row_offset(self.cursor_row) + self.cursor_col as usize;
         self.cells[idx] = cell;
         self.cursor_col += width;
         if width == 2 {
@@ -108,6 +133,10 @@ impl Screen {
                 ch: CONTINUATION,
                 ..cell
             };
+        } else if idx + 1 < row_end && self.cells[idx + 1].is_continuation() {
+            // Overwrote a double-width glyph's lead: clear the now-orphaned
+            // continuation cell.
+            self.cells[idx + 1] = Cell::default();
         }
         if self.cursor_col >= self.cols {
             self.cursor_col = self.cols - 1;

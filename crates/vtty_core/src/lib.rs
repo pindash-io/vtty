@@ -60,7 +60,7 @@ pub use color::{
     rgba_to_u32, u32_to_rgb, u32_to_rgba,
 };
 pub use conformance::ConformanceLevel;
-pub use event::{Event, Recording};
+pub use event::{Event, Recording, param_colon_sep, set_param_colon_sep};
 pub use keyboard::KittyFlags;
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};

@@ -52,10 +52,63 @@ const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     }
 }
 
+/// A partially-decoded UTF-8 code point carried across `advance` calls.
+///
+/// Multi-byte code points are decoded incrementally: a lead byte (plus any
+/// already-arrived continuation bytes) at the end of one chunk is held here
+/// until the remaining continuation bytes arrive in a later chunk.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PartialUtf8 {
+    /// The code point bits accumulated so far.
+    cp: u32,
+    /// Continuation bytes still needed to complete it (`0` = none pending).
+    need: u8,
+}
+
+impl PartialUtf8 {
+    /// An empty (idle) partial.
+    pub(crate) const fn new() -> Self {
+        Self { cp: 0, need: 0 }
+    }
+
+    /// Whether a code point is mid-decode.
+    pub(crate) const fn pending(self) -> bool {
+        self.need > 0
+    }
+
+    /// The accumulated code point (valid once [`Self::pending`] is `false`
+    /// after a [`Self::feed`] that consumed a continuation byte).
+    pub(crate) const fn codepoint(self) -> u32 {
+        self.cp
+    }
+
+    /// Feed one byte into the pending sequence. Returns `true` when the byte
+    /// was consumed as a continuation (the sequence is then complete iff
+    /// [`Self::pending`] is now `false`). Returns `false` when the byte was
+    /// not a continuation — the partial is cleared and the caller must emit
+    /// `U+FFFD` and reprocess the byte.
+    #[inline(always)]
+    pub(crate) fn feed(&mut self, b: u8) -> bool {
+        if (0x80..0xc0).contains(&b) {
+            self.cp = (self.cp << 6) | (b & 0x3f) as u32;
+            self.need -= 1;
+            true
+        } else {
+            self.need = 0;
+            false
+        }
+    }
+
+    /// Clear the pending partial, discarding any accumulated bits.
+    pub(crate) fn clear(&mut self) {
+        self.need = 0;
+    }
+}
+
 /// If `s` ends with a partial UTF-8 sequence, return
-/// `(valid_prefix_len, partial_codepoint, remaining_continuation_bytes)`;
-/// the partial (u32) is carried to the next `advance` call.
-pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
+/// `(valid_prefix_len, partial)`; the partial is carried to the next
+/// `advance` call.
+pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     let len = s.len();
     if len == 0 {
         return None;
@@ -67,7 +120,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     if (0xc2..=0xf4).contains(&last) {
         // A lead byte at the very end.
         let (expected, cp) = utf8_lead(last);
-        return Some((len - 1, cp, (expected - 1) as u8));
+        return Some((len - 1, PartialUtf8 { cp, need: (expected - 1) as u8 }));
     }
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
     // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
@@ -106,7 +159,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, u32, u8)> {
     for &b in &s[lead_idx + 1..] {
         cp = (cp << 6) | (b & 0x3f) as u32;
     }
-    Some((lead_idx, cp, (expected - have) as u8))
+    Some((lead_idx, PartialUtf8 { cp, need: (expected - have) as u8 }))
 }
 
 /// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
@@ -394,7 +447,7 @@ pub(crate) fn decode_utf8<P: Perform>(
 mod tests {
     use super::*;
 
-    #[cfg(feature = "simd")]
+    #[cfg(feature = "simd-transcode")]
     #[test]
     fn decode_utf8_batches_short_mixed_window() {
         struct Sink {
@@ -489,7 +542,7 @@ mod tests {
         assert_eq!(trailing_partial(b""), None);
         assert_eq!(trailing_partial(b"abc"), None);
         // A lead byte at the very end is a partial.
-        assert_eq!(trailing_partial(b"ab\xe4"), Some((2, 0x04, 2)));
+        assert_eq!(trailing_partial(b"ab\xe4"), Some((2, PartialUtf8 { cp: 0x04, need: 2 })));
         // Invalid and overlong bytes are not partials.
         assert_eq!(trailing_partial(b"a\xff"), None);
         assert_eq!(trailing_partial(b"a\xc0"), None);
@@ -498,9 +551,9 @@ mod tests {
         assert_eq!(trailing_partial(b"\x80\x80"), None);
         assert_eq!(trailing_partial(b"\x80\x80\x80\x80"), None);
         // A truncated 3-byte sequence carries its code point forward.
-        assert_eq!(trailing_partial(b"\xe4\xb8"), Some((0, 0x138, 1)));
+        assert_eq!(trailing_partial(b"\xe4\xb8"), Some((0, PartialUtf8 { cp: 0x138, need: 1 })));
         // A truncated 4-byte sequence (the first three bytes of U+1F600).
-        assert_eq!(trailing_partial(b"\xf0\x9f\x98"), Some((0, 0x7d8, 1)));
+        assert_eq!(trailing_partial(b"\xf0\x9f\x98"), Some((0, PartialUtf8 { cp: 0x7d8, need: 1 })));
         // A complete sequence is not a partial.
         assert_eq!(trailing_partial(b"\xe4\xb8\x80"), None);
         // Out-of-range second bytes are invalid, not partial.
