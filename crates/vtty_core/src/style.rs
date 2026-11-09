@@ -375,7 +375,10 @@ fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
 #[inline]
 pub fn single_code(code: i32) -> Option<SgrEffect> {
     match code {
-        0 => Some(SgrEffect::Reset),
+        // `-2` is the parser's `;`-separated empty sentinel; in SGR an empty
+        // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is NOT a
+        // reset — it is ignored by the callers.
+        0 | -2 => Some(SgrEffect::Reset),
         4 => Some(SgrEffect::Underline(UnderlineStyle::Single)),
         21 => Some(SgrEffect::Underline(UnderlineStyle::Double)),
         30..=37 => Some(SgrEffect::Fg(ColorSpec::Ansi((code - 30) as u16))),

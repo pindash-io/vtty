@@ -28,7 +28,8 @@ macro_rules! flat_params {
 }
 
 /// Run vtty (scalar path) and normalize to the vte-family convention:
-/// - the `-1` empty-colon sentinel becomes 0 (vte uses 0 for an empty param);
+/// - the `-1` empty-colon and `-2` empty-semicolon sentinels become 0
+///   (vte uses 0 for an empty param);
 /// - a param-less CSI/DCS dispatches `[]` in vtty but `[0]` in vte/rio-vt.
 pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
     let mut p = vtty::Parser::new();
@@ -39,7 +40,7 @@ pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
             _ => continue,
         };
         for p in params.iter_mut() {
-            if *p == -1 {
+            if *p == -1 || *p == -2 {
                 *p = 0;
             }
         }

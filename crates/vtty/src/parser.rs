@@ -941,10 +941,14 @@ impl Parser {
         self.param_empty = true;
     }
 
-    /// End a parameter on a `;` separator.
+    /// End a parameter on a `;` separator. An empty one becomes the `-2`
+    /// sentinel — distinct from the `-1` trailing/colon empty — so `CSI ; Pr
+    /// s` (DECSLRM set-right margin) stays distinguishable from `CSI 0;Pr s`,
+    /// and SGR can tell a leading empty (`;1m` = reset) from a trailing empty
+    /// (`48;2;r;g;b;m` = ignore).
     #[inline(always)]
     fn param_semicolon(&mut self) {
-        self.push_param(self.param);
+        self.push_param(if self.param_empty { -2 } else { self.param });
         self.param = 0;
         self.param_empty = true;
     }
