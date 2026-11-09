@@ -513,19 +513,21 @@ impl Screen {
     }
 
     /// Render one row to plain text, trimming trailing spaces and skipping
-    /// double-width continuation cells.
+    /// double-width continuation cells. `None` for an out-of-range row.
     #[must_use]
-    pub fn render_line(&self, row: u32) -> String {
+    pub fn render_line(&self, row: u32) -> Option<String> {
         if row >= self.rows {
-            return String::new();
+            return None;
         }
-        render_cells(&self.cells[self.row_range(row)])
+        Some(render_cells(&self.cells[self.row_range(row)]))
     }
 
     /// Render every row to text, one `String` per row.
     #[must_use]
     pub fn lines(&self) -> Vec<String> {
-        (0..self.rows).map(|r| self.render_line(r)).collect()
+        (0..self.rows)
+            .map(|r| self.render_line(r).unwrap_or_default())
+            .collect()
     }
 
     /// Render every row to ANSI-styled text (for snapshots/tests): each row
@@ -894,8 +896,8 @@ mod tests {
         let mut s = Screen::new(10, 3);
         run(&mut s, b"hi");
         assert_eq!(s.cursor(), (0, 2));
-        assert_eq!(s.render_line(0), "hi");
-        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("hi"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
     }
 
     #[test]
@@ -906,15 +908,15 @@ mod tests {
         run(&mut s, b"d");
         // `d` wraps to the next line.
         assert_eq!(s.cursor(), (1, 1));
-        assert_eq!(s.render_line(0), "abc");
-        assert_eq!(s.render_line(1), "d");
+        assert_eq!(s.render_line(0).as_deref(), Some("abc"));
+        assert_eq!(s.render_line(1).as_deref(), Some("d"));
     }
 
     #[test]
     fn double_width_glyph() {
         let mut s = Screen::new(5, 2);
         run(&mut s, "a中b".as_bytes());
-        assert_eq!(s.render_line(0), "a中b");
+        assert_eq!(s.render_line(0).as_deref(), Some("a中b"));
         assert_eq!(s.cell(0, 2).map(Cell::is_continuation), Some(true));
     }
 
@@ -922,7 +924,7 @@ mod tests {
     fn combining_mark_attaches() {
         let mut s = Screen::new(4, 1);
         run(&mut s, "e\u{301}x".as_bytes());
-        assert_eq!(s.render_line(0), "e\u{301}x");
+        assert_eq!(s.render_line(0).as_deref(), Some("e\u{301}x"));
         assert_eq!(s.cell(0, 0).map(|c| c.marks()), Some(&['\u{301}'][..]));
     }
 
@@ -930,7 +932,7 @@ mod tests {
     fn skin_tone_attaches_to_wide() {
         let mut s = Screen::new(4, 1);
         run(&mut s, "👋\u{1F3FF}".as_bytes());
-        assert_eq!(s.render_line(0), "👋\u{1F3FF}");
+        assert_eq!(s.render_line(0).as_deref(), Some("👋\u{1F3FF}"));
         assert_eq!(s.cell(0, 0).map(|c| c.marks()), Some(&['\u{1F3FF}'][..]));
         assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
     }
@@ -940,7 +942,7 @@ mod tests {
         let mut s = Screen::new(8, 1);
         run(&mut s, "👨\u{200D}👩\u{200D}👧x".as_bytes());
         // The whole family occupies two cells (one glyph); `x` lands after.
-        assert_eq!(s.render_line(0), "👨\u{200D}👩\u{200D}👧x");
+        assert_eq!(s.render_line(0).as_deref(), Some("👨\u{200D}👩\u{200D}👧x"));
         assert_eq!(s.cell(0, 0).map(|c| c.ch), Some('👨'));
         assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('x'));
@@ -1071,11 +1073,11 @@ mod tests {
         // CR before each LF so each line starts at column 0.
         run(&mut s, b"a\r\nb\r\nc\r\nd");
         // Rows above and below the region are untouched.
-        assert_eq!(s.render_line(0), "");
-        assert_eq!(s.render_line(4), "");
-        assert_eq!(s.render_line(1), "b");
-        assert_eq!(s.render_line(2), "c");
-        assert_eq!(s.render_line(3), "d");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
+        assert_eq!(s.render_line(4).as_deref(), Some(""));
+        assert_eq!(s.render_line(1).as_deref(), Some("b"));
+        assert_eq!(s.render_line(2).as_deref(), Some("c"));
+        assert_eq!(s.render_line(3).as_deref(), Some("d"));
     }
 
     #[test]
@@ -1092,8 +1094,8 @@ mod tests {
     fn decaln_fills_e() {
         let mut s = Screen::new(3, 2);
         run(&mut s, b"abc\x1b#8");
-        assert_eq!(s.render_line(0), "EEE");
-        assert_eq!(s.render_line(1), "EEE");
+        assert_eq!(s.render_line(0).as_deref(), Some("EEE"));
+        assert_eq!(s.render_line(1).as_deref(), Some("EEE"));
         assert_eq!(s.cursor(), (0, 0));
     }
 
@@ -1102,7 +1104,7 @@ mod tests {
         let mut s = Screen::new(4, 2);
         run(&mut s, b"ab\x1b[2;3H"); // content, cursor to (1, 2)
         run(&mut s, b"\x1b[!p");
-        assert_eq!(s.render_line(0), "ab");
+        assert_eq!(s.render_line(0).as_deref(), Some("ab"));
         assert_eq!(s.cursor(), (0, 0));
     }
 
@@ -1121,7 +1123,7 @@ mod tests {
         run(&mut s, b"12\x1b[1G\x1b[4h"); // IRM on at column 0
         run(&mut s, b"\x1b[!p");
         run(&mut s, b"AB"); // replace, not shift
-        assert_eq!(s.render_line(0), "AB");
+        assert_eq!(s.render_line(0).as_deref(), Some("AB"));
     }
 
     #[test]
@@ -1129,7 +1131,7 @@ mod tests {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
         run(&mut s, b"\x1b[?2K"); // DECSEL 2: erase whole line, keep protected
-        assert_eq!(s.render_line(0), "  c");
+        assert_eq!(s.render_line(0).as_deref(), Some("  c"));
         assert_eq!(s.cell(0, 2).map(|c| c.protected), Some(true));
         assert_eq!(s.cell(0, 0).map(|c| c.ch), Some(' '));
     }
@@ -1140,8 +1142,8 @@ mod tests {
         run(&mut s, b"abcd\r\nEFGH");
         run(&mut s, b"\x1b[1;2H\x1b[1\"qbc"); // protect "bc" on row 0
         run(&mut s, b"\x1b[?2J"); // DECSED 2: erase display, keep protected
-        assert_eq!(s.render_line(0), " bc");
-        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(" bc"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
     }
 
     #[test]
@@ -1149,7 +1151,7 @@ mod tests {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
         run(&mut s, b"\x1b[2J"); // ED 2 (non-selective) erases everything
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
     }
 
     #[test]
@@ -1158,7 +1160,7 @@ mod tests {
         run(&mut s, b"abcde\x1b[1;3H\x1b[1\"qc"); // protect "c"
         run(&mut s, b"\x1b[1;4H\x1b[0\"qd"); // DECSCA 0: "d" is erasable
         run(&mut s, b"\x1b[?2K"); // selective erase line
-        assert_eq!(s.render_line(0), "  c");
+        assert_eq!(s.render_line(0).as_deref(), Some("  c"));
     }
 
     #[test]
@@ -1195,9 +1197,9 @@ mod tests {
     fn decfra_fills_rectangle() {
         let mut s = Screen::new(4, 3);
         run(&mut s, b"\x1b[65;2;3;1;2$x"); // fill cols 2-3, rows 1-2 with 'A'
-        assert_eq!(s.render_line(0), " AA");
-        assert_eq!(s.render_line(1), " AA");
-        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(" AA"));
+        assert_eq!(s.render_line(1).as_deref(), Some(" AA"));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
     }
 
     #[test]
@@ -1205,8 +1207,8 @@ mod tests {
         let mut s = Screen::new(4, 2);
         run(&mut s, b"abcdefgh");
         run(&mut s, b"\x1b[2;3;1;2$z"); // erase cols 2-3, rows 1-2
-        assert_eq!(s.render_line(0), "a  d");
-        assert_eq!(s.render_line(1), "e  h");
+        assert_eq!(s.render_line(0).as_deref(), Some("a  d"));
+        assert_eq!(s.render_line(1).as_deref(), Some("e  h"));
     }
 
     #[test]
@@ -1215,8 +1217,8 @@ mod tests {
         run(&mut s, b"abcdef");
         run(&mut s, b"\x1b[1;2H\x1b[1\"qb"); // protect "b"
         run(&mut s, b"\x1b[1;3;1;2${"); // DECSERA whole screen
-        assert_eq!(s.render_line(0), " b");
-        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(" b"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
     }
 
     #[test]
@@ -1225,8 +1227,8 @@ mod tests {
         run(&mut s, b"abcd");
         // Copy row 1 cols 1-2 ("ab") to row 2 col 3.
         run(&mut s, b"\x1b[2;1;2;1;1;3$v");
-        assert_eq!(s.render_line(0), "abcd");
-        assert_eq!(s.render_line(1), "  ab");
+        assert_eq!(s.render_line(0).as_deref(), Some("abcd"));
+        assert_eq!(s.render_line(1).as_deref(), Some("  ab"));
     }
 
     #[test]
@@ -1252,9 +1254,9 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"aaa\r\nbbb\r\nccc");
         run(&mut s, b"\x1b[2;1H\x1b[L"); // insert line at row 2 (1-based)
-        assert_eq!(s.render_line(0), "aaa");
-        assert_eq!(s.render_line(1), "");
-        assert_eq!(s.render_line(2), "bbb");
+        assert_eq!(s.render_line(0).as_deref(), Some("aaa"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
+        assert_eq!(s.render_line(2).as_deref(), Some("bbb"));
     }
 
     #[test]
@@ -1262,9 +1264,9 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"aaa\r\nbbb\r\nccc");
         run(&mut s, b"\x1b[1;1H\x1b[M"); // DL at row 1 (1-based)
-        assert_eq!(s.render_line(0), "bbb");
-        assert_eq!(s.render_line(1), "ccc");
-        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("bbb"));
+        assert_eq!(s.render_line(1).as_deref(), Some("ccc"));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
     }
 
     #[test]
@@ -1272,7 +1274,7 @@ mod tests {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde");
         run(&mut s, b"\x1b[1;2H\x1b[2@"); // ICH 2 at column 2 (1-based)
-        assert_eq!(s.render_line(0), "a  bc");
+        assert_eq!(s.render_line(0).as_deref(), Some("a  bc"));
         assert_eq!(s.cell(0, 1).map(|c| c.ch), Some(' '));
         assert_eq!(s.cell(0, 3).map(|c| c.ch), Some('b'));
         assert_eq!(s.cell(0, 4).map(|c| c.ch), Some('c'));
@@ -1283,7 +1285,7 @@ mod tests {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde");
         run(&mut s, b"\x1b[1;2H\x1b[2P"); // DCH 2 at column 2 (1-based)
-        assert_eq!(s.render_line(0), "ade");
+        assert_eq!(s.render_line(0).as_deref(), Some("ade"));
         assert_eq!(s.cell(0, 1).map(|c| c.ch), Some('d'));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('e'));
         assert_eq!(s.cell(0, 3).map(|c| c.ch), Some(' '));
@@ -1295,17 +1297,17 @@ mod tests {
         run(&mut s, b"12");
         run(&mut s, b"\x1b[1G\x1b[4h"); // IRM on at column 1
         run(&mut s, b"AB");
-        assert_eq!(s.render_line(0), "AB12");
+        assert_eq!(s.render_line(0).as_deref(), Some("AB12"));
     }
 
     #[test]
     fn insert_mode_reset_restores_replace() {
         let mut s = Screen::new(4, 1);
         run(&mut s, b"12\x1b[1G\x1b[4hAB");
-        assert_eq!(s.render_line(0), "AB12");
+        assert_eq!(s.render_line(0).as_deref(), Some("AB12"));
         // Reset IRM: writing replaces instead of shifting.
         run(&mut s, b"\x1b[1G\x1b[4lXY");
-        assert_eq!(s.render_line(0), "XY12");
+        assert_eq!(s.render_line(0).as_deref(), Some("XY12"));
     }
 
     #[test]
@@ -1313,7 +1315,7 @@ mod tests {
         let mut s = Screen::new(3, 1);
         run(&mut s, b"abc");
         run(&mut s, b"\x1b[3G\x1b[4hX"); // IRM on at the last column
-        assert_eq!(s.render_line(0), "abX");
+        assert_eq!(s.render_line(0).as_deref(), Some("abX"));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('X'));
     }
 
@@ -1323,7 +1325,7 @@ mod tests {
         run(&mut s, b"ab");
         run(&mut s, b"\x1b[1G\x1b[4h"); // IRM on at column 1
         run(&mut s, "中".as_bytes()); // width 2
-        assert_eq!(s.render_line(0), "中ab");
+        assert_eq!(s.render_line(0).as_deref(), Some("中ab"));
         assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
     }
 
@@ -1345,9 +1347,9 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"abc\r\ndef\r\nghi");
         run(&mut s, b"\x1b[2;2H\x1b[J"); // ED 0 at row 2 col 2 (1-based)
-        assert_eq!(s.render_line(0), "abc");
-        assert_eq!(s.render_line(1), "d");
-        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("abc"));
+        assert_eq!(s.render_line(1).as_deref(), Some("d"));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
     }
 
     #[test]
@@ -1355,9 +1357,9 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"abc\r\ndef\r\nghi");
         run(&mut s, b"\x1b[2;2H\x1b[1J"); // ED 1
-        assert_eq!(s.render_line(0), "");
-        assert_eq!(s.render_line(1), "  f");
-        assert_eq!(s.render_line(2), "ghi");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
+        assert_eq!(s.render_line(1).as_deref(), Some("  f"));
+        assert_eq!(s.render_line(2).as_deref(), Some("ghi"));
     }
 
     #[test]
@@ -1373,7 +1375,7 @@ mod tests {
     fn erase_in_line_to_end() {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde\x1b[1;3H\x1b[K"); // EL 0 at column 3 (1-based)
-        assert_eq!(s.render_line(0), "ab");
+        assert_eq!(s.render_line(0).as_deref(), Some("ab"));
         assert_eq!(s.cursor(), (0, 2));
     }
 
@@ -1381,7 +1383,7 @@ mod tests {
     fn erase_in_line_start_to_cursor() {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde\x1b[1;3H\x1b[1K"); // EL 1
-        assert_eq!(s.render_line(0), "   de");
+        assert_eq!(s.render_line(0).as_deref(), Some("   de"));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some(' '));
         assert_eq!(s.cell(0, 3).map(|c| c.ch), Some('d'));
     }
@@ -1390,7 +1392,7 @@ mod tests {
     fn erase_in_line_whole_line() {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde\x1b[1;3H\x1b[2K"); // EL 2
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
         assert_eq!(s.cursor(), (0, 2));
     }
 
@@ -1399,14 +1401,14 @@ mod tests {
         let mut s = Screen::new(5, 1);
         run(&mut s, b"abcde");
         run(&mut s, b"\x1b[1;2H\x1b[3X"); // ECH 3 at column 2 (1-based)
-        assert_eq!(s.render_line(0), "a   e");
+        assert_eq!(s.render_line(0).as_deref(), Some("a   e"));
         assert_eq!(s.cell(0, 1).map(|c| c.ch), Some(' '));
         assert_eq!(s.cell(0, 3).map(|c| c.ch), Some(' '));
         assert_eq!(s.cell(0, 4).map(|c| c.ch), Some('e'));
 
         // Oversized count clamps to the line end instead of overflowing.
         run(&mut s, b"\x1b[1;2H\x1b[99X");
-        assert_eq!(s.render_line(0), "a");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
     }
 
     #[test]
@@ -1420,20 +1422,20 @@ mod tests {
     fn alternate_screen_1049() {
         let mut s = Screen::new(5, 2);
         run(&mut s, b"main");
-        assert_eq!(s.render_line(0), "main");
+        assert_eq!(s.render_line(0).as_deref(), Some("main"));
         let main_cursor = s.cursor();
 
         // Enter the alt screen: blank it and save the main cursor.
         run(&mut s, b"\x1b[?1049h");
         assert!(s.is_alt_screen());
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
         run(&mut s, b"alt");
-        assert_eq!(s.render_line(0), "alt");
+        assert_eq!(s.render_line(0).as_deref(), Some("alt"));
 
         // Leave: main content and cursor are restored.
         run(&mut s, b"\x1b[?1049l");
         assert!(!s.is_alt_screen());
-        assert_eq!(s.render_line(0), "main");
+        assert_eq!(s.render_line(0).as_deref(), Some("main"));
         assert_eq!(s.cursor(), main_cursor);
     }
 
@@ -1444,13 +1446,13 @@ mod tests {
         run(&mut s, b"\x1b[?47h");
         assert!(s.is_alt_screen());
         // 47 does not clear, but the alt buffer starts blank.
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
         run(&mut s, b"alt");
         run(&mut s, b"\x1b[?47l");
-        assert_eq!(s.render_line(0), "main");
+        assert_eq!(s.render_line(0).as_deref(), Some("main"));
         // Re-enter: the alt content persists (no clear).
         run(&mut s, b"\x1b[?47h");
-        assert_eq!(s.render_line(0), "alt");
+        assert_eq!(s.render_line(0).as_deref(), Some("alt"));
         run(&mut s, b"\x1b[?47l");
     }
 
@@ -1459,8 +1461,8 @@ mod tests {
         let mut s = Screen::new(3, 2);
         run(&mut s, b"a\r\nb\r\nc\r\nd");
         assert_eq!(s.scrollback_len(), 2);
-        assert_eq!(s.render_line(0), "c");
-        assert_eq!(s.render_line(1), "d");
+        assert_eq!(s.render_line(0).as_deref(), Some("c"));
+        assert_eq!(s.render_line(1).as_deref(), Some("d"));
         assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
         assert_eq!(s.scrollback_text(1).as_deref(), Some("b"));
     }
@@ -1481,7 +1483,7 @@ mod tests {
         s.set_max_scrollback(0);
         run(&mut s, b"a\r\nb");
         assert_eq!(s.scrollback_len(), 0);
-        assert_eq!(s.render_line(0), "b");
+        assert_eq!(s.render_line(0).as_deref(), Some("b"));
     }
 
     #[test]
@@ -1568,11 +1570,11 @@ mod tests {
         let mut s = Screen::new(20, 40);
         run(&mut s, b"a\r\nb\r\nc\r\nd");
         s.resize(20, 24);
-        assert_eq!(s.render_line(0), "a");
-        assert_eq!(s.render_line(1), "b");
-        assert_eq!(s.render_line(2), "c");
-        assert_eq!(s.render_line(3), "d");
-        assert_eq!(s.render_line(4), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
+        assert_eq!(s.render_line(1).as_deref(), Some("b"));
+        assert_eq!(s.render_line(2).as_deref(), Some("c"));
+        assert_eq!(s.render_line(3).as_deref(), Some("d"));
+        assert_eq!(s.render_line(4).as_deref(), Some(""));
     }
 
     #[test]
@@ -1582,14 +1584,14 @@ mod tests {
         // otherwise re-wrap into `ceil(old/new)` rows).
         let mut s = Screen::new(20, 4);
         run(&mut s, b"a\r\n\r\nb");
-        assert_eq!(s.render_line(0), "a");
-        assert_eq!(s.render_line(1), "");
-        assert_eq!(s.render_line(2), "b");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
+        assert_eq!(s.render_line(2).as_deref(), Some("b"));
         s.resize(10, 4);
-        assert_eq!(s.render_line(0), "a");
-        assert_eq!(s.render_line(1), "");
-        assert_eq!(s.render_line(2), "b");
-        assert_eq!(s.render_line(3), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
+        assert_eq!(s.render_line(2).as_deref(), Some("b"));
+        assert_eq!(s.render_line(3).as_deref(), Some(""));
     }
 
     #[test]
@@ -1599,10 +1601,10 @@ mod tests {
         let mut s = Screen::new(6, 2);
         run(&mut s, b"hello world");
         assert_eq!(s.cell(0, 5).map(|c| c.ch), Some(' '));
-        assert_eq!(s.render_line(1), "world");
+        assert_eq!(s.render_line(1).as_deref(), Some("world"));
         s.resize(11, 2);
-        assert_eq!(s.render_line(0), "hello world");
-        assert_eq!(s.render_line(1), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("hello world"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
     }
 
     #[test]
@@ -1617,8 +1619,8 @@ mod tests {
         assert_eq!(s.scrollback_len(), 2);
         assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaaa"));
         assert_eq!(s.scrollback_text(1).as_deref(), Some("bbbbb"));
-        assert_eq!(s.render_line(0), "ccccc");
-        assert_eq!(s.render_line(1), "ddddd");
+        assert_eq!(s.render_line(0).as_deref(), Some("ccccc"));
+        assert_eq!(s.render_line(1).as_deref(), Some("ddddd"));
     }
 
     #[test]
@@ -1628,8 +1630,8 @@ mod tests {
         // first half into scrollback.
         run(&mut s, b"helloworld\r\nxy");
         assert_eq!(s.scrollback_text(0).as_deref(), Some("hello"));
-        assert_eq!(s.render_line(0), "world");
-        assert_eq!(s.render_line(1), "xy");
+        assert_eq!(s.render_line(0).as_deref(), Some("world"));
+        assert_eq!(s.render_line(1).as_deref(), Some("xy"));
         // Widening re-joins the soft-wrapped history into the active screen.
         s.resize(10, 2);
         assert_eq!(s.scrollback_len(), 0);
@@ -1647,9 +1649,9 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"aaa\r\nbbb\r\nccc");
         run(&mut s, b"\x1b[1;1H\x1bM"); // RI at the top row
-        assert_eq!(s.render_line(0), "");
-        assert_eq!(s.render_line(1), "aaa");
-        assert_eq!(s.render_line(2), "bbb");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
+        assert_eq!(s.render_line(1).as_deref(), Some("aaa"));
+        assert_eq!(s.render_line(2).as_deref(), Some("bbb"));
         assert_eq!(s.cursor(), (0, 0));
     }
 
@@ -1818,7 +1820,7 @@ mod tests {
         let s = Screen::new(3, 2);
         assert_eq!(s.cell(2, 0), None);
         assert_eq!(s.cell(0, 3), None);
-        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(2), None, "out-of-range row is None");
     }
 
     #[test]
@@ -1851,7 +1853,7 @@ mod tests {
         let mut s = Screen::new(3, 2);
         run(&mut s, b"abc");
         s.resize(3, 2);
-        assert_eq!(s.render_line(0), "abc");
+        assert_eq!(s.render_line(0).as_deref(), Some("abc"));
     }
 
     #[test]
@@ -1876,13 +1878,13 @@ mod tests {
         let mut s = Screen::new(3, 3);
         run(&mut s, b"aaa\r\nbbb\r\nccc");
         run(&mut s, b"\x1b[1;1H\x1b[T"); // SD: scroll down
-        assert_eq!(s.render_line(0), "");
-        assert_eq!(s.render_line(1), "aaa");
-        assert_eq!(s.render_line(2), "bbb");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
+        assert_eq!(s.render_line(1).as_deref(), Some("aaa"));
+        assert_eq!(s.render_line(2).as_deref(), Some("bbb"));
         run(&mut s, b"\x1b[1;1H\x1b[S"); // SU: scroll up
-        assert_eq!(s.render_line(0), "aaa");
-        assert_eq!(s.render_line(1), "bbb");
-        assert_eq!(s.render_line(2), "");
+        assert_eq!(s.render_line(0).as_deref(), Some("aaa"));
+        assert_eq!(s.render_line(1).as_deref(), Some("bbb"));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
     }
 
     #[test]
@@ -1890,21 +1892,21 @@ mod tests {
         let mut s = Screen::new(3, 5);
         run(&mut s, b"\x1b[2;4r"); // margins rows 1..=3 (0-based)
         run(&mut s, b"a\r\nb\r\nc\r\nd");
-        assert_eq!(s.render_line(1), "b");
-        assert_eq!(s.render_line(2), "c");
-        assert_eq!(s.render_line(3), "d");
+        assert_eq!(s.render_line(1).as_deref(), Some("b"));
+        assert_eq!(s.render_line(2).as_deref(), Some("c"));
+        assert_eq!(s.render_line(3).as_deref(), Some("d"));
 
         // SU 2 scrolls the region up two lines in one pass.
         run(&mut s, b"\x1b[2S");
-        assert_eq!(s.render_line(1), "d");
-        assert_eq!(s.render_line(2), "");
-        assert_eq!(s.render_line(3), "");
+        assert_eq!(s.render_line(1).as_deref(), Some("d"));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
+        assert_eq!(s.render_line(3).as_deref(), Some(""));
 
         // SD 2 scrolls it back down two lines in one pass.
         run(&mut s, b"\x1b[2T");
-        assert_eq!(s.render_line(1), "");
-        assert_eq!(s.render_line(2), "");
-        assert_eq!(s.render_line(3), "d");
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
+        assert_eq!(s.render_line(2).as_deref(), Some(""));
+        assert_eq!(s.render_line(3).as_deref(), Some("d"));
     }
 
     #[test]
@@ -2026,10 +2028,10 @@ mod tests {
         run(&mut s, b"a\r\nb\r\nc\r\nd"); // rows 0..3
         run(&mut s, b"\x1b[2;4r"); // margins rows 1..=3 (0-based)
         run(&mut s, b"\x1b[2;1H\x1bM"); // RI at the region top scrolls it down
-        assert_eq!(s.render_line(0), "a");
-        assert_eq!(s.render_line(1), "");
-        assert_eq!(s.render_line(2), "b");
-        assert_eq!(s.render_line(3), "c");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
+        assert_eq!(s.render_line(1).as_deref(), Some(""));
+        assert_eq!(s.render_line(2).as_deref(), Some("b"));
+        assert_eq!(s.render_line(3).as_deref(), Some("c"));
     }
 
     #[test]
@@ -2044,7 +2046,7 @@ mod tests {
     fn leading_mark_with_no_base_is_dropped() {
         let mut s = Screen::new(4, 1);
         run(&mut s, "\u{301}x".as_bytes()); // lone combining mark at column 0
-        assert_eq!(s.render_line(0), "x");
+        assert_eq!(s.render_line(0).as_deref(), Some("x"));
     }
 
     #[test]
@@ -2054,7 +2056,7 @@ mod tests {
         run(&mut s, b"\x00"); // unhandled C0 execute (NUL)
         run(&mut s, b"\x1b]52;x\x07"); // unhandled OSC (52)
         run(&mut s, b"\x1b6"); // unhandled ESC final
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
     }
 
     #[test]
@@ -2063,14 +2065,14 @@ mod tests {
         let mut p = Parser::new();
         p.advance(&mut s, &[0xe4]);
         p.advance(&mut s, &[0xb8, 0xad]); // 中
-        assert_eq!(s.render_line(0), "中");
+        assert_eq!(s.render_line(0).as_deref(), Some("中"));
     }
 
     #[test]
     fn invalid_utf8_prints_replacement_char() {
         let mut s = Screen::new(4, 1);
         run(&mut s, b"\xffx"); // invalid lead byte -> U+FFFD
-        assert_eq!(s.render_line(0), "\u{FFFD}x");
+        assert_eq!(s.render_line(0).as_deref(), Some("\u{FFFD}x"));
     }
 
     #[test]
@@ -2100,7 +2102,7 @@ mod tests {
         let mut s = Screen::new(4, 1);
         s.put_char('a');
         s.put_char('\u{301}'); // width 0 -> attach to 'a'
-        assert_eq!(s.render_line(0), "a\u{301}");
+        assert_eq!(s.render_line(0).as_deref(), Some("a\u{301}"));
     }
 
     #[test]
@@ -2131,7 +2133,7 @@ mod tests {
     fn put_cluster_empty_is_noop() {
         let mut s = Screen::new(4, 1);
         s.put_cluster("");
-        assert_eq!(s.render_line(0), "");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
     }
 
     #[test]
@@ -2140,7 +2142,7 @@ mod tests {
         run(&mut s, b"\x1b[?7l"); // DECAWM off
         run(&mut s, b"ab");
         run(&mut s, "中".as_bytes()); // width 2 at the last column -> width 1
-        assert_eq!(s.render_line(0), "ab中");
+        assert_eq!(s.render_line(0).as_deref(), Some("ab中"));
     }
 
     #[test]
@@ -2148,8 +2150,8 @@ mod tests {
         let mut s = Screen::new(3, 2);
         run(&mut s, b"ab"); // cursor at the last column
         run(&mut s, "中".as_bytes()); // width 2 -> wraps to the next row
-        assert_eq!(s.render_line(0), "ab");
-        assert_eq!(s.render_line(1), "中");
+        assert_eq!(s.render_line(0).as_deref(), Some("ab"));
+        assert_eq!(s.render_line(1).as_deref(), Some("中"));
     }
 
     #[test]
@@ -2158,13 +2160,13 @@ mod tests {
         let mut s = Screen::new(3, 1);
         run(&mut s, "中".as_bytes());
         s.resize(1, 1);
-        assert_eq!(s.render_line(0), "中");
+        assert_eq!(s.render_line(0).as_deref(), Some("中"));
         // Width 2: a wide glyph after a single cell wraps to the next row.
         let mut s = Screen::new(4, 1);
         run(&mut s, "a中".as_bytes());
         s.resize(2, 2);
-        assert_eq!(s.render_line(0), "a");
-        assert_eq!(s.render_line(1), "中");
+        assert_eq!(s.render_line(0).as_deref(), Some("a"));
+        assert_eq!(s.render_line(1).as_deref(), Some("中"));
     }
 
     #[test]
@@ -2173,17 +2175,17 @@ mod tests {
         // DECSTBM region scroll must materialize the ring first.
         let mut s = Screen::new(3, 3);
         run(&mut s, b"a\r\nb\r\nc\r\nd");
-        assert_eq!(s.render_line(0), "b");
-        assert_eq!(s.render_line(1), "c");
-        assert_eq!(s.render_line(2), "d");
+        assert_eq!(s.render_line(0).as_deref(), Some("b"));
+        assert_eq!(s.render_line(1).as_deref(), Some("c"));
+        assert_eq!(s.render_line(2).as_deref(), Some("d"));
         assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
 
         // Region rows 1-2 (1-based) = 0..=1 (0-based).
         run(&mut s, b"\x1b[1;2r");
         run(&mut s, b"e\r\nf\r\ng");
-        assert_eq!(s.render_line(0), "f");
-        assert_eq!(s.render_line(1), "g");
-        assert_eq!(s.render_line(2), "d");
+        assert_eq!(s.render_line(0).as_deref(), Some("f"));
+        assert_eq!(s.render_line(1).as_deref(), Some("g"));
+        assert_eq!(s.render_line(2).as_deref(), Some("d"));
         // Region scrolls still discard, so only `a` remains in scrollback.
         assert_eq!(s.scrollback_len(), 1);
         assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
@@ -2194,13 +2196,13 @@ mod tests {
         // Reflow must materialize the ring before reading rows in order.
         let mut s = Screen::new(4, 2);
         run(&mut s, b"aaaa\r\nbbbb\r\ncccc");
-        assert_eq!(s.render_line(0), "bbbb");
-        assert_eq!(s.render_line(1), "cccc");
+        assert_eq!(s.render_line(0).as_deref(), Some("bbbb"));
+        assert_eq!(s.render_line(1).as_deref(), Some("cccc"));
         assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaa"));
 
         s.resize(8, 2);
-        assert_eq!(s.render_line(0), "bbbb");
-        assert_eq!(s.render_line(1), "cccc");
+        assert_eq!(s.render_line(0).as_deref(), Some("bbbb"));
+        assert_eq!(s.render_line(1).as_deref(), Some("cccc"));
         assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaa"));
     }
 
@@ -2209,12 +2211,12 @@ mod tests {
         // RI at the top margin rotates the ring back down and blanks row 0.
         let mut s = Screen::new(3, 2);
         run(&mut s, b"a\r\nb\r\nc");
-        assert_eq!(s.render_line(0), "b");
-        assert_eq!(s.render_line(1), "c");
+        assert_eq!(s.render_line(0).as_deref(), Some("b"));
+        assert_eq!(s.render_line(1).as_deref(), Some("c"));
 
         run(&mut s, b"\x1b[H\x1bM");
-        assert_eq!(s.render_line(0), "");
-        assert_eq!(s.render_line(1), "b");
+        assert_eq!(s.render_line(0).as_deref(), Some(""));
+        assert_eq!(s.render_line(1).as_deref(), Some("b"));
         assert_eq!(s.scrollback_len(), 1);
         assert_eq!(s.scrollback_text(0).as_deref(), Some("a"));
     }

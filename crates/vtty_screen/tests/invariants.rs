@@ -166,28 +166,28 @@ fn wide_glyph_editing_keeps_cells_consistent() {
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;1H\x1b[P"); // DCH 1 on the lead
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "x");
+    assert_eq!(screen.render_line(0).as_deref(), Some("x"));
 
     screen = Screen::new(4, 1);
     parser = Parser::new();
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;2H\x1b[P"); // DCH 1 on the continuation
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "x");
+    assert_eq!(screen.render_line(0).as_deref(), Some("x"));
 
     screen = Screen::new(4, 1);
     parser = Parser::new();
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;1H\x1b[@"); // ICH 1 before the glyph
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), " 中x");
+    assert_eq!(screen.render_line(0).as_deref(), Some(" 中x"));
 
     screen = Screen::new(4, 1);
     parser = Parser::new();
     parser.advance(&mut screen, "中".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;1Ha"); // overwrite the lead
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "a");
+    assert_eq!(screen.render_line(0).as_deref(), Some("a"));
 }
 
 /// A cursor positioned on a double-width continuation acts on the glyph's
@@ -200,7 +200,7 @@ fn cursor_on_continuation_acts_on_lead() {
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;2H\x1b[K"); // EL on the continuation
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "");
+    assert_eq!(screen.render_line(0).as_deref(), Some(""));
 
     // IRM insert on the continuation inserts before the glyph.
     screen = Screen::new(4, 1);
@@ -208,7 +208,7 @@ fn cursor_on_continuation_acts_on_lead() {
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;2H\x1b[4ha"); // IRM on + write
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "a中x");
+    assert_eq!(screen.render_line(0).as_deref(), Some("a中x"));
 
     // Replace-mode write on the continuation overwrites the whole glyph.
     screen = Screen::new(4, 1);
@@ -216,5 +216,5 @@ fn cursor_on_continuation_acts_on_lead() {
     parser.advance(&mut screen, "中x".as_bytes());
     parser.advance(&mut screen, b"\x1b[1;2Ha"); // write on the continuation
     screen.check_invariants();
-    assert_eq!(screen.render_line(0), "a x");
+    assert_eq!(screen.render_line(0).as_deref(), Some("a x"));
 }
