@@ -452,6 +452,23 @@ pub fn cjk_fast_width(c: char) -> Option<usize> {
     None
 }
 
+/// The Private Use Areas: EAW "Ambiguous", never emoji/combining, a
+/// standalone base (GCB Other) — one range check + the CJK-ambiguous width
+/// instead of the composite table lookup (the tofu-fallback corpus). Derived
+/// from the baked table (verified by `pua_fast_width_matches_table`).
+#[inline(always)]
+#[doc(hidden)]
+pub fn pua_fast_width(c: char) -> Option<usize> {
+    let cp = c as u32;
+    if cp.wrapping_sub(0xE000) < (0xF8FF - 0xE000 + 1)
+        || cp.wrapping_sub(0xF0000) < (0xFFFFD - 0xF0000 + 1)
+        || cp.wrapping_sub(0x100000) < (0x10FFFD - 0x100000 + 1)
+    {
+        return Some(if crate::cjk_width() { 2 } else { 1 });
+    }
+    None
+}
+
 /// Display cell width of a char: `None` (control), `Some(0)` (combining),
 /// `Some(1)`/`Some(2)` (printable). Resolves ASCII, terminal overrides
 /// (skin tones, halfwidth katakana, tags), the baked composite width, then
@@ -465,6 +482,9 @@ pub fn cell_width(c: char) -> Option<usize> {
         return if c.is_ascii_control() { None } else { Some(1) };
     }
     if let Some(w) = cjk_fast_width(c) {
+        return Some(w);
+    }
+    if let Some(w) = pua_fast_width(c) {
         return Some(w);
     }
     cell_width_from(Properties::get(c), c)
