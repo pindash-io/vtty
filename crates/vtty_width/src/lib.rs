@@ -48,6 +48,7 @@ pub mod emoji;
 mod icu;
 pub mod properties;
 pub mod width;
+pub mod write_order;
 
 /// Re-export the `parley_emoji` DFA + categories so callers don't depend
 /// on `parley_emoji` directly.
@@ -61,14 +62,17 @@ pub use emoji::{
     Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray,
 };
 pub use properties::{
-    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed,
-    first_non_ascii, first_non_printable_ascii, is_zero_width, pua_fast_width,
-    vs_width,
+    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed, first_non_ascii,
+    first_non_printable_ascii, is_zero_width, pua_fast_width, vs_width,
 };
 pub use width::{
-    cell_advance, cell_col_byte_widths, cell_col_char_ceil_from_widths,
-    cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum, cell_widths,
-    cell_widths_from_codepoints, width_and_standalone, width_and_standalone_with,
+    cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths, cell_col_byte_widths,
+    cell_col_char_ceil_from_widths, cell_col_char_end_from_widths, cell_col_char_from_widths,
+    cell_width_sum, cell_widths, cell_widths_from_codepoints, grapheme_end_from_widths,
+    grapheme_tail_end_from_widths, width_and_standalone, width_and_standalone_with,
+};
+pub use write_order::{
+    EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths, wrap_width,
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
@@ -700,6 +704,41 @@ fn cell_col_boundaries_past_end() {
     assert_eq!(cell_col_byte_widths("中ab", 99), 5);
 }
 
+#[test]
+fn col_byte_walkers_floor_and_ceil() {
+    // "中ab" → widths [2, 1, 1]; 中 is 3 UTF-8 bytes.
+    let text = "中ab";
+    let w = [2, 1, 1];
+    // Floor: a column inside a wide glyph maps to its leading byte.
+    assert_eq!(cell_col_byte_from_widths(text, &w, 0), 0);
+    assert_eq!(cell_col_byte_from_widths(text, &w, 1), 0);
+    assert_eq!(cell_col_byte_from_widths(text, &w, 2), 3);
+    assert_eq!(cell_col_byte_from_widths(text, &w, 3), 4);
+    assert_eq!(cell_col_byte_from_widths(text, &w, 99), text.len());
+    // Ceil: a column on a wide glyph's SECOND cell returns the byte AFTER
+    // the wide char, so a straddling boundary drops it whole.
+    assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 0), 0);
+    assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 1), 3);
+    assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 2), 3);
+    assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 3), 4);
+    assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 99), text.len());
+}
+
+#[test]
+fn grapheme_end_and_tail_end_walkers() {
+    // "⚠\u{FE0F}x" → widths [2, 0, 1]; ⚠ and VS16 are 3 UTF-8 bytes each.
+    let text = "⚠\u{FE0F}x";
+    let w = [2, 0, 1];
+    // Cluster end from the base byte spans the base PLUS its zero-width
+    // continuation (the VS16), stopping at the next width>0 char.
+    assert_eq!(grapheme_end_from_widths(text, &w, 0), 6);
+    assert_eq!(grapheme_end_from_widths(text, &w, 6), 7);
+    // Tail end from a byte already PAST the base extends only over the
+    // trailing zero-width marks.
+    assert_eq!(grapheme_tail_end_from_widths(text, &w, 3), 6);
+    assert_eq!(grapheme_tail_end_from_widths(text, &w, 6), 6);
+}
+
 #[cfg(all(not(feature = "baked"), feature = "icu"))]
 #[test]
 fn from_icu_resolves_properties() {
@@ -709,4 +748,3 @@ fn from_icu_resolves_properties() {
     assert_eq!(emoji.width(), 2);
     assert!(!Properties::from_icu('a').is_emoji());
 }
-

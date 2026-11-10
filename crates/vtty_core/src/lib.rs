@@ -61,7 +61,10 @@ pub use color::{
 };
 pub use conformance::ConformanceLevel;
 pub use event::{Event, Recording, param_colon_sep, set_param_colon_sep};
-pub use keyboard::KittyFlags;
+pub use keyboard::{
+    Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers,
+    encode_key, legacy_ctrl,
+};
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
 pub use perform::Perform;

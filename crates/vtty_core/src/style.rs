@@ -161,6 +161,25 @@ impl From<u8> for UnderlineStyle {
     }
 }
 
+impl UnderlineStyle {
+    /// Decode a STORED underline-style code (0 = off, 1..=5 = a style) into a
+    /// style, treating any out-of-range code as [`Self::None`]. The
+    /// stored-field counterpart of the SGR sub-parameter decoder ([`From`]):
+    /// a stored field holds only 0..=5 in practice, so an unknown code is the
+    /// "no underline" fallback, not the SGR "plain `4` = single" default.
+    #[inline]
+    pub const fn from_stored(v: u8) -> Self {
+        match v {
+            1 => Self::Single,
+            2 => Self::Double,
+            3 => Self::Curly,
+            4 => Self::Dotted,
+            5 => Self::Dashed,
+            _ => Self::None,
+        }
+    }
+}
+
 // ── Cursor style (DECSCUSR) ────────────────────────────────────────────
 
 /// DECSCUSR cursor shape (`CSI Ps SP q`).
@@ -212,6 +231,34 @@ impl CursorStyle {
             1 => Self::Bar,
             2 => Self::Underline,
             _ => Self::None,
+        }
+    }
+
+    /// Encode a cursor shape + blink flag into its DECSCUSR code — the
+    /// inverse of [`Self::from_decscusr`]. The odd codes (1/3/5) blink, the
+    /// even codes (2/4/6) are steady, and 0 is the default (steady block).
+    #[inline]
+    pub const fn to_decscusr(self, blink: bool) -> u8 {
+        match (self, blink) {
+            (Self::Block, true) => 1,
+            (Self::Block, false) => 2,
+            (Self::Underline, true) => 3,
+            (Self::Underline, false) => 4,
+            (Self::Bar, true) => 5,
+            (Self::Bar, false) => 6,
+            _ => 0,
+        }
+    }
+
+    /// The DECSCUSR blink flag implied by a cursor-shape parameter: odd codes
+    /// (1/3/5) blink, even codes (2/4/6) are steady, 0 is the default (steady),
+    /// and unsupported codes (≥7) leave the blink state unchanged (`None`).
+    #[inline]
+    pub const fn decscusr_blink(param: i32) -> Option<bool> {
+        match param {
+            1 | 3 | 5 => Some(true),
+            0 | 2 | 4 | 6 => Some(false),
+            _ => None,
         }
     }
 }
@@ -340,10 +387,7 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
 /// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
 /// for anything else; the caller falls back to [`parse_effects`].
 #[inline]
-pub fn two_effects(
-    params: &[i32],
-    sep: u16,
-) -> Option<(SgrEffect, SgrEffect)> {
+pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
@@ -560,6 +604,24 @@ mod tests {
     }
 
     #[test]
+    fn cursor_style_decscusr_round_trip_and_blink() {
+        // For the explicit shape+blink codes (1..=6), decode then encode is
+        // the identity. Code 0 is the "default" (a steady block, re-encoded
+        // as 2) so it is excluded from the round trip.
+        for code in 1..=6 {
+            let blink = CursorStyle::decscusr_blink(code).unwrap();
+            let shape = CursorStyle::from_decscusr(code);
+            assert_eq!(shape.to_decscusr(blink), code as u8);
+        }
+        // Odd codes blink, even codes are steady, unsupported → None.
+        assert_eq!(CursorStyle::decscusr_blink(1), Some(true));
+        assert_eq!(CursorStyle::decscusr_blink(4), Some(false));
+        assert_eq!(CursorStyle::decscusr_blink(7), None);
+        // An unknown shape encodes to the default 0.
+        assert_eq!(CursorStyle::None.to_decscusr(false), 0);
+    }
+
+    #[test]
     fn cursor_style_parse() {
         assert_eq!(CursorStyle::parse("block"), CursorStyle::Block);
         assert_eq!(CursorStyle::parse("BAR"), CursorStyle::Bar);
@@ -580,6 +642,22 @@ mod tests {
         assert_eq!(UnderlineStyle::from(5), UnderlineStyle::Dashed);
         // Unknown sub-params default to single (plain `4`).
         assert_eq!(UnderlineStyle::from(9), UnderlineStyle::Single);
+    }
+
+    #[test]
+    fn underline_style_from_stored_differs_from_wire() {
+        // The stored-field decoder treats an out-of-range code as None (the
+        // stored field is never corrupt in practice), unlike the wire decoder
+        // which defaults an unknown sub-param to Single.
+        assert_eq!(UnderlineStyle::from_stored(9), UnderlineStyle::None);
+        // The valid codes agree.
+        for v in 0..=5 {
+            assert_eq!(
+                UnderlineStyle::from_stored(v),
+                UnderlineStyle::from(v),
+                "code {v}"
+            );
+        }
     }
 
     #[test]

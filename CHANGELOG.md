@@ -35,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   swaps foreground and background (default colors resolved to explicit RGB).
 - Added VT400 rectangle operations to `vtty_screen`: `DECFRA`, `DECCRA`,
   `DECERA`, `DECSERA`, `DECCARA`, and `DECRARA` (all `CSI … $ …`).
+- Added the Layer-3 write-order width model to `vtty_width`
+  (`write_order::SplitBoundaries`, `EmojiTrace`, `split_widths`,
+  `classify_cell`, `wrap_width`, `splice_offset`) — the pure `(text, B, F)`
+  width derivation the terminal screens share.
+- Added byte↔cell walkers to `vtty_width`: `cell_col_byte_from_widths`,
+  `cell_col_byte_ceil_from_widths`, `grapheme_end_from_widths`,
+  `grapheme_tail_end_from_widths`.
+- Added the winit-free keyboard model and encoders to `vtty_core::keyboard`
+  (`Key`, `Modifiers`, `KeySpec`, `KeyEncoding`, `KeyEventKind`,
+  `KeyLocation`, `KeyModes`, `encode_key`, `legacy_ctrl`).
+- Added `CursorStyle::to_decscusr` + `CursorStyle::decscusr_blink` (the
+  DECSCUSR encode side) and `UnderlineStyle::from_stored`.
 
 ### Changed
 

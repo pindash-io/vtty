@@ -9,8 +9,7 @@ use crate::emoji::{
     Run, Selector, finalize_lead, fresh_emoji_continues_from, is_emoji_starter_from, run_continues,
 };
 use crate::properties::{
-    Gcb, Properties, category_from, cell_width_from, cjk_fast_width,
-    first_non_printable_ascii,
+    Gcb, Properties, category_from, cell_width_from, cjk_fast_width, first_non_printable_ascii,
 };
 
 /// Number of leading printable-ASCII bytes that are NOT keycap bases
@@ -522,8 +521,7 @@ pub fn width_and_standalone_with(
                 None => true,
                 Some((cp2, _)) if cp2 < 0x80 => true,
                 Some((cp2, p2)) => {
-                    let c2 =
-                        char::from_u32(cp2).unwrap_or(char::REPLACEMENT_CHARACTER);
+                    let c2 = char::from_u32(cp2).unwrap_or(char::REPLACEMENT_CHARACTER);
                     !fresh_emoji_continues_from(p, c, p2, c2, p2.gcb())
                 }
             }
@@ -641,4 +639,92 @@ pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
         cell += w;
     }
     text.len()
+}
+
+/// The byte offset (into `text`) of the glyph that STARTS at (or contains)
+/// 0-based cell column `cell_col`, walking already-computed per-char `widths`.
+/// A column on a wide glyph's SECOND cell maps to its leading byte (floor).
+/// Clamped to `text.len()` past the last cell. The precomputed-widths variant
+/// of [`cell_col_byte_widths`], for callers that already hold the width vector.
+#[must_use]
+#[inline]
+pub fn cell_col_byte_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
+    cell_col_byte_from_widths_impl(text, widths, cell_col, false)
+}
+
+/// The byte offset (into `text`) of the glyph AT or past 0-based cell column
+/// `cell_col` — the CEIL boundary. A column on a wide glyph's SECOND cell
+/// returns the byte AFTER that wide char, so a boundary straddling a wide
+/// glyph drops it whole.
+#[must_use]
+#[inline]
+pub fn cell_col_byte_ceil_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
+    cell_col_byte_from_widths_impl(text, widths, cell_col, true)
+}
+
+#[inline]
+fn cell_col_byte_from_widths_impl(
+    text: &str,
+    widths: &[usize],
+    cell_col: usize,
+    ceil: bool,
+) -> usize {
+    let mut cell = 0_usize;
+    for ((i, c), &w) in text.char_indices().zip(widths) {
+        if w > 0 && cell_col < cell + w {
+            return if ceil && cell_col > cell {
+                i + c.len_utf8()
+            } else {
+                i
+            };
+        }
+        cell += w;
+    }
+    text.len()
+}
+
+/// The byte offset (into `text`) just past the grapheme cluster containing
+/// `byte` (the base char PLUS its zero-width continuations), walking
+/// precomputed per-char `widths`. The first char at `byte` always starts the
+/// cluster; every following width>0 char is a NEW cluster. Never crosses `\n`.
+#[must_use]
+#[inline]
+pub fn grapheme_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {
+    let mut end = byte;
+    for ((i, c), &w) in text.char_indices().zip(widths) {
+        if i < byte {
+            continue;
+        }
+        if c == '\n' {
+            break;
+        }
+        if w > 0 && i > byte {
+            break;
+        }
+        end = i + c.len_utf8();
+    }
+    end
+}
+
+/// The byte offset (into `text`) just past the trailing zero-width marks
+/// (VS16/VS15/ZWJ/combining) that begin at `byte`, walking precomputed
+/// per-char `widths`. Stops at the first width>0 char or a newline.
+#[must_use]
+#[inline]
+pub fn grapheme_tail_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {
+    let mut end = byte;
+    for ((i, c), &w) in text.char_indices().zip(widths) {
+        if i < byte {
+            continue;
+        }
+        if c == '\n' {
+            break;
+        }
+        if w == 0 {
+            end = i + c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    end
 }

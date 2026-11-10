@@ -8,11 +8,13 @@ relies on.
 - `vtty` — the parser facade: re-exports `vtty_core` plus feature-gated wire
   protocols.
 - `vtty_core` — the irreducible core: the `Perform`/`Event`/`Recording`
-  contract, terminal model types, and the byte-cursor `State` sink. Shared
-  with `vtty_codec`.
+  contract, terminal model types, the byte-cursor `State` sink, and the
+  winit-free keyboard model + encoders. Shared with `vtty_codec`.
 - `vtty_codec` — `no_std` binary `Encode`/`Decode` codec (generic + `vtty_core`
   impls).
-- `vtty_width` — display cell width + emoji sequences (ICU4X/parley).
+- `vtty_width` — the three-layer display cell-width model: per-char width
+  (Layer 1), the emoji DFA (Layer 2), and the write-order derived width
+  (`write_order`, Layer 3), plus the byte↔cell walkers.
 - `vtty_grapheme` — UAX #29 grapheme cluster segmentation.
 - `vtty_status` — `OSC 7501` Program Status Protocol.
 - `vtty_screen` — a minimal cell-grid terminal screen (`Screen` `Perform` sink).
