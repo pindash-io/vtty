@@ -12,7 +12,9 @@ use smallvec::SmallVec;
 
 use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
 
-use crate::scan::{first_dcs_boundary, first_non_printable, first_osc_boundary};
+use crate::scan::{
+    first_dcs_boundary, first_non_printable, first_non_printable_word, first_osc_boundary,
+};
 use crate::table::{Action, ParseState, transition};
 use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
 
@@ -309,7 +311,7 @@ impl Parser {
                 // Printable ASCII is valid UTF-8 by construction (the SIMD
                 // classifier already rejected control/high-bit bytes), so no
                 // `from_utf8` re-validation is needed here.
-                let end = pos + n;
+                let mut end = pos + n;
                 // Fused print+LF fast path: the printable run is followed by
                 // a bare `\n` (raw LF) or `\r\n` (OPOST) — dispatch ONE fused
                 // call instead of `print_bytes` + one/two `execute`s. The
@@ -321,8 +323,36 @@ impl Parser {
                     continue;
                 }
                 if end + 1 < valid && run[end] == b'\r' && run[end + 1] == b'\n' {
-                    p.print_crlf_line(&run[pos..end]);
-                    pos = end + 2;
+                    // CRLF storm: `printable\r\n` repeats (a scrolling log or
+                    // `tail -f`). Stay in a tight loop, SWAR-scanning one
+                    // 8-byte word per line, and dispatch `print_crlf_line`
+                    // without re-entering the general ground loop's per-line
+                    // 1/2-byte fast paths and bare-LF probe.
+                    loop {
+                        p.print_crlf_line(&run[pos..end]);
+                        pos = end + 2;
+                        if pos >= valid {
+                            break;
+                        }
+                        let Some(n) = first_non_printable_word(&run[pos..valid]) else {
+                            break; // run longer than one word (or no full word)
+                        };
+                        if n == 0 {
+                            break; // non-printable at `pos`: general path
+                        }
+                        let next_end = pos + n;
+                        if next_end + 1 >= valid
+                            || run[next_end] != b'\r'
+                            || run[next_end + 1] != b'\n'
+                        {
+                            // Not a CRLF line: dispatch the bytes and fall
+                            // back to the general loop.
+                            p.print_bytes(&run[pos..next_end]);
+                            pos = next_end;
+                            break;
+                        }
+                        end = next_end;
+                    }
                     continue;
                 }
                 p.print_bytes(&run[pos..end]);

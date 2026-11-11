@@ -95,6 +95,16 @@ const fn is_non_printable(b: u8) -> bool {
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
+/// SWAR scan of the first 8-byte word: `Some(index)` of the first
+/// non-printable byte when the buffer holds a full word and one is found,
+/// `None` otherwise (shorter than a word, or the word is all printable).
+#[inline(always)]
+pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
+    let &word = bytes.as_chunks::<8>().0.first()?;
+    let stop = non_printable_mask(u64::from_le_bytes(word));
+    (stop != 0).then(|| (stop.trailing_zeros() / 8) as usize)
+}
+
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
 /// `DEL` (`0x7f`) is a C0 control, not printable.
@@ -112,11 +122,8 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // (a word followed by ESC or CR/LF) without paying the SIMD dispatch
     // below. Long printable runs fall through — the word scan is ~9 ops
     // against a 32 KiB run, so the overlap with the SIMD pass is negligible.
-    if let Some(&word) = bytes.as_chunks::<8>().0.first() {
-        let stop = non_printable_mask(u64::from_le_bytes(word));
-        if stop != 0 {
-            return (stop.trailing_zeros() / 8) as usize;
-        }
+    if let Some(n) = first_non_printable_word(bytes) {
+        return n;
     }
 
     #[cfg(feature = "simd")]

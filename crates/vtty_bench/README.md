@@ -26,7 +26,7 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | fux-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | plain | 11.18 GiB/s | **25.52 GiB/s** | 2.55 GiB/s | 942 MiB/s | 3.33 GiB/s | 1.69 GiB/s | 183 MiB/s |
-| scroll_storm | 2.52 GiB/s | 2.52 GiB/s | **2.56 GiB/s** | 970 MiB/s | 2.21 GiB/s | 490 MiB/s | 129 MiB/s |
+| scroll_storm | **2.79 GiB/s** | **2.79 GiB/s** | 2.56 GiB/s | 973 MiB/s | 2.22 GiB/s | 498 MiB/s | 129 MiB/s |
 | utf8_mixed | 1.18 GiB/s | **2.25 GiB/s** | 1.53 GiB/s | 535 MiB/s | 2.02 GiB/s | 412 MiB/s | 254 MiB/s |
 | ansi_mixed | 1.59 GiB/s | **1.60 GiB/s** | 559 MiB/s | 375 MiB/s | 734 MiB/s | 529 MiB/s | 319 MiB/s |
 | ansi_two_styles | 1.50 GiB/s | **1.52 GiB/s** | 665 MiB/s | 409 MiB/s | 670 MiB/s | 391 MiB/s | 273 MiB/s |
