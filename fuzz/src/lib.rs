@@ -80,18 +80,19 @@ pub fn run_vtty_simd(bytes: &[u8]) -> Vec<Event> {
 /// Normalize vtty's representation to the vte-family convention:
 /// - bulk `PrintBytes` runs expand to per-byte `Print`;
 /// - the colon-separator `sep` bitfield zeroes (vte can't express it);
-/// - the `-1` empty-colon sentinel becomes 0;
+/// - the `-1` empty-colon and `-2` empty-semicolon sentinels become 0
+///   (vte uses 0 for an empty param);
 /// - a param-less CSI/DCS dispatches `[]` in vtty but `[0]` in vte.
 fn run_vtty_parser(mut p: vtty::Parser, bytes: &[u8]) -> Vec<Event> {
     let events = p.parse_events(bytes);
     let mut out = Vec::with_capacity(events.len());
     for mut e in events {
-        // Params first: normalize the empty-colon sentinel and the empty
+        // Params first: normalize the empty sentinels and the empty
         // param list.
         match &mut e {
             Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => {
                 for p in params.iter_mut() {
-                    if *p == -1 {
+                    if *p == -1 || *p == -2 {
                         *p = 0;
                     }
                 }
@@ -500,6 +501,10 @@ mod tests {
             run_vtty(b"\x1b[38:2::255:0:0m"),
             run_vte(b"\x1b[38:2::255:0:0m")
         );
+
+        // Empty params before `;` use the -2 sentinel; normalize to 0.
+        assert_eq!(run_vtty(b"\x1b[;m"), run_vte(b"\x1b[;m"));
+        assert_eq!(run_vtty(b"\x1b[;;m"), run_vte(b"\x1b[;;m"));
     }
 
     #[test]
