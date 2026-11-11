@@ -4,6 +4,7 @@
 //! sgr commands for [`Screen`](crate::Screen).
 
 use alloc::vec::Vec;
+
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
 use crate::Screen;
@@ -102,7 +103,7 @@ impl Screen {
         );
     }
 
-    pub(crate) fn save_cursor(&mut self) {
+    pub(crate) const fn save_cursor(&mut self) {
         self.saved_row = self.cursor_row;
         self.saved_col = self.cursor_col;
     }

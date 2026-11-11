@@ -11,13 +11,14 @@
 )]
 
 use libfuzzer_sys::fuzz_target;
+
 use vtty_fuzz::{has_known_divergence, run_vte, run_vtty};
 
 /// xorshift64 PRNG, deterministic per fuzzer input.
 struct Rng(u64);
 
 impl Rng {
-    fn next(&mut self) -> u64 {
+    const fn next(&mut self) -> u64 {
         let mut x = self.0;
         x ^= x << 13;
         x ^= x >> 7;

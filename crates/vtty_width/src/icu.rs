@@ -65,7 +65,7 @@ pub fn width_icu(cp: char) -> usize {
 /// unicode-width's curated zero-width format/spacing marks that the raw
 /// Unicode properties (GC / `Default_Ignorable` / `Grapheme_Extend`) don't
 /// express.
-fn is_curated_zero_width(cp: u32) -> bool {
+const fn is_curated_zero_width(cp: u32) -> bool {
     matches!(
         cp,
         0x0605

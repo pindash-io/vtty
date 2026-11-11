@@ -13,6 +13,7 @@
 )]
 
 use smallvec::SmallVec;
+
 use vtty::Event;
 
 /// Flatten a params object (vte/rio-vt's nested sub-param iterator) into the

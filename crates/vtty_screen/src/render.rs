@@ -69,7 +69,7 @@ pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: 
 }
 
 /// Number of trailing blank cells in `cells`.
-pub(crate) fn trailing_blanks(cells: &[Cell]) -> usize {
+pub(crate) const fn trailing_blanks(cells: &[Cell]) -> usize {
     let mut n = 0;
     while n < cells.len() && cells[cells.len() - 1 - n].is_blank() {
         n += 1;

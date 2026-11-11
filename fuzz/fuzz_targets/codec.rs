@@ -6,6 +6,7 @@
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
+
 use vtty::{Event, Parser, State};
 use vtty_codec::{Encode, decode_from_slice, encode_to_vec};
 

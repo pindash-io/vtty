@@ -88,7 +88,9 @@ pub struct Parser {
 /// `advance` input slice (deferred, no copy) or accumulated into `osc`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum OscBuffer {
-    Deferred { base: usize },
+    Deferred {
+        base: usize,
+    },
     #[default]
     Accumulated,
 }
@@ -96,7 +98,7 @@ enum OscBuffer {
 impl OscBuffer {
     /// Whether the payload is deferred (still in the input slice).
     #[inline]
-    fn is_deferred(&self) -> bool {
+    const fn is_deferred(&self) -> bool {
         matches!(self, Self::Deferred { .. })
     }
 }
@@ -416,24 +418,21 @@ impl Parser {
             let mut i = 0;
             let mut row = 0_i32;
             while i < seq.len() && seq[i].is_ascii_digit() {
-                row =
-                    (row * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
+                row = (row * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
                 i += 1;
             }
             if seq.get(i) == Some(&b';') {
                 i += 1;
                 let mut col = 0_i32;
                 while i < seq.len() && seq[i].is_ascii_digit() {
-                    col = (col * 10 + (seq[i] - b'0') as i32)
-                        .min(MAX_PARAM_VALUE);
+                    col = (col * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
                     i += 1;
                 }
                 if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
                     self.params[0] = row;
                     self.params[1] = col;
                     self.params_len = 2;
-                    let ints =
-                        &self.intermediates[..self.intermediates_len];
+                    let ints = &self.intermediates[..self.intermediates_len];
                     p.csi_dispatch(&self.params[..2], 0, ints, seq[i]);
                     self.clear_seq_state();
                     return Some(i + 1);
@@ -475,7 +474,7 @@ impl Parser {
     /// `ST` `0x9c` is a no-op; other C1 controls execute and return to ground
     /// (<https://vt100.net/emu/dec_ansi_parser>).
     #[inline]
-    fn c1_transition(b: u8) -> (Action, ParseState) {
+    const fn c1_transition(b: u8) -> (Action, ParseState) {
         match b {
             0x90 => (Action::NONE, ParseState::DcsEntry), // DCS
             0x98 => (Action::NONE, ParseState::SosPmApcString), // SOS
@@ -723,7 +722,7 @@ impl Parser {
     /// into `osc`, so consecutive ranges merge at their boundary. Params past
     /// the 16th are dropped.
     #[inline]
-    fn osc_param_boundary(&mut self, offset: u32) {
+    const fn osc_param_boundary(&mut self, offset: u32) {
         if self.osc_num_starts > MAX_OSC_PARAMS {
             return;
         }
@@ -807,7 +806,12 @@ impl Parser {
             };
             params[2] = &src[s2..e2];
         }
-        for (k, dst) in params.iter_mut().enumerate().skip(3).take(m.saturating_sub(3)) {
+        for (k, dst) in params
+            .iter_mut()
+            .enumerate()
+            .skip(3)
+            .take(m.saturating_sub(3))
+        {
             let start = base + self.osc_starts[k] as usize + k * shift;
             let end = if k + 1 < n {
                 base + self.osc_starts[k + 1] as usize + k * shift
@@ -892,7 +896,7 @@ impl Parser {
         }
     }
 
-    fn clear_seq_state(&mut self) {
+    const fn clear_seq_state(&mut self) {
         self.params_len = 0;
         self.sep = 0;
         self.param = 0;
@@ -911,7 +915,7 @@ impl Parser {
     /// Push a CSI/DCS parameter, capping at [`MAX_PARAM_COUNT`]. Past the
     /// cap, params are dropped; vte and rio-vt both use 32.
     #[inline]
-    fn push_param(&mut self, value: i32) {
+    const fn push_param(&mut self, value: i32) {
         if self.params_len >= MAX_PARAM_COUNT {
             return;
         }
@@ -934,7 +938,7 @@ impl Parser {
     /// `-1` sentinel so SGR colon forms like `38:2::r:g:b` survive) and mark
     /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
     #[inline(always)]
-    fn param_colon(&mut self) {
+    const fn param_colon(&mut self) {
         self.push_param(if self.param_empty { -1 } else { self.param });
         set_param_colon_sep(&mut self.sep, self.params_len - 1);
         self.param = 0;
@@ -947,7 +951,7 @@ impl Parser {
     /// and SGR can tell a leading empty (`;1m` = reset) from a trailing empty
     /// (`48;2;r;g;b;m` = ignore).
     #[inline(always)]
-    fn param_semicolon(&mut self) {
+    const fn param_semicolon(&mut self) {
         self.push_param(if self.param_empty { -2 } else { self.param });
         self.param = 0;
         self.param_empty = true;
@@ -980,7 +984,7 @@ impl Parser {
     /// stays empty; a trailing empty becomes the `-1` sentinel for CSI (so SGR
     /// can ignore it) but the raw value for DCS.
     #[inline]
-    fn push_trailing_param(&mut self, sentinel: bool) {
+    const fn push_trailing_param(&mut self, sentinel: bool) {
         if !self.param_empty || self.params_len != 0 {
             self.push_param(if sentinel && self.param_empty {
                 -1

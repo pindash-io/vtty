@@ -7,6 +7,7 @@
 //! Reference: <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>.
 
 use alloc::string::ToString;
+
 use compact_str::{CompactString, format_compact};
 
 bitflags::bitflags! {
@@ -190,7 +191,7 @@ pub enum Key {
     /// Backspace (kitty fallback code 127; the legacy byte depends on the
     /// backarrow mode).
     Backspace,
-    /// Tab (kitty fallback code 9; Shift+Tab is the BackTab sequence in
+    /// Tab (kitty fallback code 9; Shift+Tab is the `BackTab` sequence in
     /// legacy).
     Tab,
     /// A functional/named key.
@@ -210,7 +211,7 @@ pub enum Key {
     },
     /// A modifier/lock key reported under kitty `report_all_keys`; `legacy`
     /// carries the legacy bytes for the one such key that has them
-    /// (ContextMenu), `None` for the keys legacy drops.
+    /// (`ContextMenu`), `None` for the keys legacy drops.
     Modifier {
         /// kitty keycode.
         kitty: u32,
@@ -222,7 +223,7 @@ pub enum Key {
 impl Key {
     /// The [`KeySpec`] a legacy encoder should use, or `None` for character
     /// keys, keypad SS3 keys, and modifiers.
-    fn legacy_spec(&self) -> Option<&KeySpec> {
+    const fn legacy_spec(&self) -> Option<&KeySpec> {
         match self {
             Self::Named(spec) => Some(spec),
             Self::Keypad { spec, .. } => spec.as_ref(),
@@ -425,9 +426,12 @@ fn encode_kitty_text(
 
     // report_text (flag 16): `;<codepoints>`.
     if embed_text {
-        for (i, c) in text.unwrap().chars().enumerate() {
-            b.push(if i == 0 { ';' } else { ':' });
-            let _ = write!(b, "{}", c as u32);
+        // `embed_text` is true only when `text` is `Some` and non-empty.
+        if let Some(text) = text {
+            for (i, c) in text.chars().enumerate() {
+                b.push(if i == 0 { ';' } else { ':' });
+                let _ = write!(b, "{}", c as u32);
+            }
         }
     }
 

@@ -12,6 +12,7 @@
 //! coalesced differently when a chunk boundary splits it.
 
 use smallvec::SmallVec;
+
 use vtty::{Event, Parser};
 
 /// The corpus: plain text, multi-byte UTF-8, malformed UTF-8, C0/C1 controls,

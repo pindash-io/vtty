@@ -62,14 +62,14 @@ const SEQ_ST: &[u8] = b"\x1b\\";
 macro_rules! named_bytes {
     ($ty:ident, $($variant:ident => $name:literal),+ $(,)?) => {
         impl $ty {
-            fn parse(value: &[u8]) -> Option<Self> {
+            const fn parse(value: &[u8]) -> Option<Self> {
                 Some(match value {
                     $($name => Self::$variant),+,
                     _ => return None,
                 })
             }
 
-            fn as_bytes(self) -> &'static [u8] {
+            const fn as_bytes(self) -> &'static [u8] {
                 match self {
                     $(Self::$variant => $name),+
                 }

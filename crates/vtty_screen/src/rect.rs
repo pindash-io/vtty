@@ -4,6 +4,7 @@
 //! VT400 rectangular-area operations for [`Screen`](crate::Screen).
 
 use alloc::vec::Vec;
+
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
 use crate::Screen;

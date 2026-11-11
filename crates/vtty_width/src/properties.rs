@@ -158,7 +158,7 @@ pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
 /// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
 /// also need the width can do one table lookup instead of two.
 #[inline]
-pub(crate) fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
+pub(crate) const fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
     EmojiSegmentationCategory::from_codepoint(
         c as u32,
         p.is_emoji(),
@@ -398,7 +398,7 @@ pub fn composes_precomposed(base: char, mark: char) -> bool {
 /// selector arms — the single source of truth for which selector means which
 /// presentation.
 #[inline]
-pub fn vs_width(selector: char) -> usize {
+pub const fn vs_width(selector: char) -> usize {
     match selector {
         '\u{FE0F}' => 2,
         '\u{FE0E}' => 1,
@@ -412,7 +412,7 @@ pub fn vs_width(selector: char) -> usize {
 /// from the baked table (verified by `cjk_fast_width_matches_table`).
 #[inline(always)]
 #[doc(hidden)]
-pub fn cjk_fast_width(c: char) -> Option<usize> {
+pub const fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
     // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
     // non-ASCII hot path (one range check).

@@ -190,7 +190,7 @@ pub struct Graphemes<'a> {
 /// Uses `vtty_width`'s baked GCB property; no runtime data loading or
 /// allocation on this path. Printable-ASCII runs take a per-byte fast path,
 /// including inside otherwise non-ASCII strings.
-pub fn graphemes(text: &str) -> Graphemes<'_> {
+pub const fn graphemes(text: &str) -> Graphemes<'_> {
     Graphemes {
         text,
         pos: 0,
@@ -215,7 +215,7 @@ impl Graphemes<'_> {
     }
 
     /// Emit the next pending printable-ASCII byte as a one-byte cluster.
-    fn next_ascii(&mut self) -> Option<Grapheme> {
+    const fn next_ascii(&mut self) -> Option<Grapheme> {
         let start = self.ascii_start;
         self.ascii_start += 1;
         self.ascii -= 1;
@@ -226,7 +226,7 @@ impl Graphemes<'_> {
     /// last byte as the open cluster (so a following combining mark can still
     /// attach), and queue the preceding bytes for emission. Returns the
     /// number of queued bytes (`run - 1`).
-    fn start_ascii_run(&mut self, run: usize) -> usize {
+    const fn start_ascii_run(&mut self, run: usize) -> usize {
         let first = self.pos;
         let last = first + run - 1;
         self.pos = last + 1;
@@ -324,7 +324,7 @@ pub struct ClusterWidths<'a> {
 
 /// Per-cluster display cell width: [`vtty_width::cell_width_sum`] of each
 /// grapheme cluster in `text`.
-pub fn cluster_widths(text: &str) -> ClusterWidths<'_> {
+pub const fn cluster_widths(text: &str) -> ClusterWidths<'_> {
     ClusterWidths {
         graphemes: graphemes(text),
         text,

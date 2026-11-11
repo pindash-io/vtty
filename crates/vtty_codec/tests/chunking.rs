@@ -17,7 +17,11 @@ where
     let bytes = encode_to_vec(value).expect("encode");
 
     // Whole-slice reference decode.
-    assert_eq!(&decode_from_slice::<T>(&bytes).expect("decode"), value);
+    assert_eq!(
+        &decode_from_slice::<T>(&bytes).expect("decode"),
+        value,
+        "whole-slice decode",
+    );
 
     // Byte-at-a-time feeding.
     {
@@ -53,11 +57,11 @@ where
 fn primitives() {
     assert_chunking(&true);
     assert_chunking(&false);
-    assert_chunking(&0u8);
-    assert_chunking(&255u8);
-    assert_chunking(&300u16);
-    assert_chunking(&65535u16);
-    assert_chunking(&1_000_000u32);
+    assert_chunking(&0_u8);
+    assert_chunking(&255_u8);
+    assert_chunking(&300_u16);
+    assert_chunking(&65535_u16);
+    assert_chunking(&1_000_000_u32);
     assert_chunking(&u64::MAX);
 }
 
@@ -67,15 +71,11 @@ fn length_prefixed() {
     assert_chunking(&"hello".to_string());
     assert_chunking(&"中🚀".to_string());
     assert_chunking(&Vec::<u8>::new());
-    assert_chunking(&vec![1u8, 2, 3]);
+    assert_chunking(&vec![1_u8, 2, 3]);
     // Long enough to exercise the "length prefix promises more bytes" path
     // (the decoder must wait rather than error).
-    assert_chunking(&(0..200u32).map(|i| i as u8).collect::<Vec<u8>>());
-    assert_chunking(&vec![
-        "a".to_string(),
-        "bb".to_string(),
-        "中".to_string(),
-    ]);
+    assert_chunking(&(0_u8..200_u8).collect::<Vec<u8>>());
+    assert_chunking(&vec!["a".to_string(), "bb".to_string(), "中".to_string()]);
 }
 
 #[test]

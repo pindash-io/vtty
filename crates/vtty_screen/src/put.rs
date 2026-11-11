@@ -11,7 +11,7 @@ use crate::cell::{BufferFlags, CONTINUATION, Cell, ScreenFlags};
 impl Screen {
     /// A base cell carrying the current SGR/colors for glyph `ch`, with no
     /// combining marks yet.
-    pub(crate) fn base_cell(&self, ch: char) -> Cell {
+    pub(crate) const fn base_cell(&self, ch: char) -> Cell {
         Cell {
             ch,
             sgr: self.sgr,
@@ -51,7 +51,8 @@ impl Screen {
             col = self.cols - 1;
         }
         // A cursor on a double-width continuation acts on the glyph's lead.
-        if col > 0 && self.cells[self.row_offset(self.cursor_row) + col as usize].is_continuation() {
+        if col > 0 && self.cells[self.row_offset(self.cursor_row) + col as usize].is_continuation()
+        {
             col -= 1;
         }
         let wrap = self.modes.contains(ScreenFlags::WRAP);

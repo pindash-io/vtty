@@ -149,7 +149,7 @@ struct Widths<S> {
 }
 
 impl<S: Source> Widths<S> {
-    fn new(src: S) -> Self {
+    const fn new(src: S) -> Self {
         Self {
             src,
             pos: 0,

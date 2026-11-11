@@ -100,7 +100,7 @@ impl PartialUtf8 {
     }
 
     /// Clear the pending partial, discarding any accumulated bits.
-    pub(crate) fn clear(&mut self) {
+    pub(crate) const fn clear(&mut self) {
         self.need = 0;
     }
 }
@@ -120,7 +120,13 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     if (0xc2..=0xf4).contains(&last) {
         // A lead byte at the very end.
         let (expected, cp) = utf8_lead(last);
-        return Some((len - 1, PartialUtf8 { cp, need: (expected - 1) as u8 }));
+        return Some((
+            len - 1,
+            PartialUtf8 {
+                cp,
+                need: (expected - 1) as u8,
+            },
+        ));
     }
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
     // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
@@ -159,7 +165,13 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     for &b in &s[lead_idx + 1..] {
         cp = (cp << 6) | (b & 0x3f) as u32;
     }
-    Some((lead_idx, PartialUtf8 { cp, need: (expected - have) as u8 }))
+    Some((
+        lead_idx,
+        PartialUtf8 {
+            cp,
+            need: (expected - have) as u8,
+        },
+    ))
 }
 
 /// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
@@ -213,10 +225,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 if end + 1 < s.len() && s[end] == b'\n' {
                     p.print_line(&s[i..end]);
                     i = end + 1;
-                } else if end + 2 < s.len()
-                    && s[end] == b'\r'
-                    && s[end + 1] == b'\n'
-                {
+                } else if end + 2 < s.len() && s[end] == b'\r' && s[end + 1] == b'\n' {
                     p.print_crlf_line(&s[i..end]);
                     i = end + 2;
                 } else {
@@ -247,8 +256,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             && (0xe0..=0xef).contains(&s[i + 9])
                             && n + 4 <= BATCH
                         {
-                            let cps =
-                                crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
+                            let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
                             buf[n..n + 4].copy_from_slice(&cps);
                             n += 4;
                             // The 4-wide SIMD fill bypasses `push_cp` (whose
@@ -260,12 +268,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             }
                             i += 12;
                         } else {
-                            push_cp(
-                                p,
-                                &mut buf,
-                                &mut n,
-                                decode_utf8_n::<3>(&s[i..]),
-                            );
+                            push_cp(p, &mut buf, &mut n, decode_utf8_n::<3>(&s[i..]));
                             i += 3;
                         }
                     } else {
@@ -308,8 +311,7 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     let mut buf = [0_u32; BATCH];
     let mut i = 0;
     while i < s.len() {
-        let (count, consumed) =
-            crate::simd::decode_block_dispatch(&s[i..], &mut buf);
+        let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
         // Fast path: when the block has no controls, dispatch the whole run
         // with one `print_codepoints` call instead of the per-code-point
         // split scan.
@@ -373,11 +375,7 @@ pub(crate) fn decode_utf8<P: Perform>(
         // the probe bound; long windows cap at the next ESC / 4096 / a char
         // boundary and decode via SIMD transcode.
         let end = if short {
-            if esc < remaining {
-                pos + esc
-            } else {
-                valid
-            }
+            if esc < remaining { pos + esc } else { valid }
         } else {
             const CHUNK: usize = 4096;
             let mut end = (pos + CHUNK).min(valid);
@@ -472,7 +470,12 @@ mod tests {
         // A short mixed window decodes into ONE print_codepoints run
         // (ASCII + CJK + emoji together), not per-boundary callbacks.
         let input = "日本語 🚀 ".as_bytes();
-        let mut sink = Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let mut sink = Sink {
+            cps: vec![],
+            calls: 0,
+            bytes: vec![],
+            execs: vec![],
+        };
         let consumed = decode_utf8(&mut sink, input, input.len(), 0, true);
         assert_eq!(consumed, input.len());
         assert_eq!(sink.calls, 1, "one batched print_codepoints");
@@ -486,7 +489,12 @@ mod tests {
         // state machine.
         let mut input = "日本語 🚀 ".as_bytes().to_vec();
         input.extend_from_slice(b"\x1b[31m");
-        let mut sink = Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let mut sink = Sink {
+            cps: vec![],
+            calls: 0,
+            bytes: vec![],
+            execs: vec![],
+        };
         let consumed = decode_utf8(&mut sink, &input, input.len(), 0, true);
         assert_eq!(consumed, "日本語 🚀 ".len());
         assert_eq!(sink.cps, expected);
@@ -542,7 +550,10 @@ mod tests {
         assert_eq!(trailing_partial(b""), None);
         assert_eq!(trailing_partial(b"abc"), None);
         // A lead byte at the very end is a partial.
-        assert_eq!(trailing_partial(b"ab\xe4"), Some((2, PartialUtf8 { cp: 0x04, need: 2 })));
+        assert_eq!(
+            trailing_partial(b"ab\xe4"),
+            Some((2, PartialUtf8 { cp: 0x04, need: 2 }))
+        );
         // Invalid and overlong bytes are not partials.
         assert_eq!(trailing_partial(b"a\xff"), None);
         assert_eq!(trailing_partial(b"a\xc0"), None);
@@ -551,9 +562,15 @@ mod tests {
         assert_eq!(trailing_partial(b"\x80\x80"), None);
         assert_eq!(trailing_partial(b"\x80\x80\x80\x80"), None);
         // A truncated 3-byte sequence carries its code point forward.
-        assert_eq!(trailing_partial(b"\xe4\xb8"), Some((0, PartialUtf8 { cp: 0x138, need: 1 })));
+        assert_eq!(
+            trailing_partial(b"\xe4\xb8"),
+            Some((0, PartialUtf8 { cp: 0x138, need: 1 }))
+        );
         // A truncated 4-byte sequence (the first three bytes of U+1F600).
-        assert_eq!(trailing_partial(b"\xf0\x9f\x98"), Some((0, PartialUtf8 { cp: 0x7d8, need: 1 })));
+        assert_eq!(
+            trailing_partial(b"\xf0\x9f\x98"),
+            Some((0, PartialUtf8 { cp: 0x7d8, need: 1 }))
+        );
         // A complete sequence is not a partial.
         assert_eq!(trailing_partial(b"\xe4\xb8\x80"), None);
         // Out-of-range second bytes are invalid, not partial.

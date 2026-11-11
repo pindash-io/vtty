@@ -162,17 +162,17 @@ impl<'a> VecWriter<'a> {
     }
 
     /// The number of bytes written so far.
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.buf.len()
     }
 
     /// Whether nothing has been written.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
 
     /// The encoded bytes written so far.
-    pub fn as_slice(&self) -> &[u8] {
+    pub const fn as_slice(&self) -> &[u8] {
         self.buf.as_slice()
     }
 }

@@ -7,6 +7,11 @@
 //! insert/replace, scroll margins, alt-screen swap, and the ring buffer — by
 //! driving them with a deterministic byte generator.
 
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "byte generator maps modulo results into fixed-size byte ranges"
+)]
+
 use vtty::Parser;
 use vtty_screen::Screen;
 
@@ -33,36 +38,36 @@ fn random_chunk(rng: &mut Rng) -> Vec<u8> {
     let mut buf = Vec::with_capacity(len);
     for _ in 0..len {
         buf.push(match rng.next() % 30 {
-            0 => 0x1b,                                // ESC
-            1 => b'[',                                // CSI introducer
-            2 => b']',                                // OSC introducer
-            3 => b'P',                                // DCS introducer / DCH
-            4 => b';',                                // param separator
-            5 => b':',                                // sub-param separator
-            6 => b'0' + (rng.next() % 10) as u8,      // digit
-            7 => b'?',                                // private marker
-            8 => b'h',                                // SM / DECSET
-            9 => b'l',                                // RM / DECRST
-            10 => b'm',                               // SGR final
-            11 => b'J',                               // ED
-            12 => b'K',                               // EL
-            13 => b'r',                               // DECSTBM
-            14 => b'L',                               // IL
-            15 => b'M',                               // DL
-            16 => b'@',                               // ICH
-            17 => b'X',                               // ECH
-            18 => b'S',                               // SU
-            19 => b'T',                               // SD
-            20 => b'7',                               // DECSC
-            21 => b'8',                               // DECRC
-            22 => b'x',                               // DECFRA
-            23 => b'z',                               // DECERA
-            24 => 0x20 + (rng.next() % 0x5f) as u8,   // printable ASCII
-            25 => 0xc2 + (rng.next() % 0x1e) as u8,   // 2-byte UTF-8 lead
-            26 => 0xe0 + (rng.next() % 0x10) as u8,   // 3-byte lead (CJK)
-            27 => 0xf0 + (rng.next() % 0x05) as u8,   // 4-byte lead (emoji)
-            28 => 0x80 + (rng.next() % 0x40) as u8,   // continuation byte
-            _ => rng.next() as u8,                    // anything (C0/high)
+            0 => 0x1b,                              // ESC
+            1 => b'[',                              // CSI introducer
+            2 => b']',                              // OSC introducer
+            3 => b'P',                              // DCS introducer / DCH
+            4 => b';',                              // param separator
+            5 => b':',                              // sub-param separator
+            6 => b'0' + (rng.next() % 10) as u8,    // digit
+            7 => b'?',                              // private marker
+            8 => b'h',                              // SM / DECSET
+            9 => b'l',                              // RM / DECRST
+            10 => b'm',                             // SGR final
+            11 => b'J',                             // ED
+            12 => b'K',                             // EL
+            13 => b'r',                             // DECSTBM
+            14 => b'L',                             // IL
+            15 => b'M',                             // DL
+            16 => b'@',                             // ICH
+            17 => b'X',                             // ECH
+            18 => b'S',                             // SU
+            19 => b'T',                             // SD
+            20 => b'7',                             // DECSC
+            21 => b'8',                             // DECRC
+            22 => b'x',                             // DECFRA
+            23 => b'z',                             // DECERA
+            24 => 0x20 + (rng.next() % 0x5f) as u8, // printable ASCII
+            25 => 0xc2 + (rng.next() % 0x1e) as u8, // 2-byte UTF-8 lead
+            26 => 0xe0 + (rng.next() % 0x10) as u8, // 3-byte lead (CJK)
+            27 => 0xf0 + (rng.next() % 0x05) as u8, // 4-byte lead (emoji)
+            28 => 0x80 + (rng.next() % 0x40) as u8, // continuation byte
+            _ => rng.next() as u8,                  // anything (C0/high)
         });
     }
     buf
@@ -79,28 +84,28 @@ fn screen_invariants_hold_under_vt_input() {
     // DCS, DECALN, and soft reset.
     let curated: &[&[u8]] = &[
         b"hello world\r\n",
-        "\u{1b}[?1049h".as_bytes(),      // enter alt screen (clear)
+        "\u{1b}[?1049h".as_bytes(), // enter alt screen (clear)
         "alt screen 中中".as_bytes(),
-        "\u{1b}[?1049l".as_bytes(),      // leave alt screen
-        "\u{1b}[2;4r".as_bytes(),        // DECSTBM margins
-        "\u{1b}[?6h".as_bytes(),         // DECOM origin mode
-        "\u{1b}[1;1H".as_bytes(),        // CUP (origin-relative)
-        "\u{1b}[?6l".as_bytes(),         // DECOM off
-        "\u{1b}[4h".as_bytes(),          // IRM insert mode
-        "中中中中中".as_bytes(),          // wide glyphs in insert mode
-        "\u{1b}[4l".as_bytes(),          // IRM off
-        "\u{1b}[2J".as_bytes(),          // ED whole screen
-        "\u{1b}[3;1H\u{1b}[L\u{1b}[M".as_bytes(), // IL then DL
-        "\u{1b}[1;2H\u{1b}[2@\u{1b}[2P".as_bytes(), // ICH then DCH
-        "\u{1b}]0;title\u{7}".as_bytes(), // OSC title (BEL)
+        "\u{1b}[?1049l".as_bytes(),                   // leave alt screen
+        "\u{1b}[2;4r".as_bytes(),                     // DECSTBM margins
+        "\u{1b}[?6h".as_bytes(),                      // DECOM origin mode
+        "\u{1b}[1;1H".as_bytes(),                     // CUP (origin-relative)
+        "\u{1b}[?6l".as_bytes(),                      // DECOM off
+        "\u{1b}[4h".as_bytes(),                       // IRM insert mode
+        "中中中中中".as_bytes(),                      // wide glyphs in insert mode
+        "\u{1b}[4l".as_bytes(),                       // IRM off
+        "\u{1b}[2J".as_bytes(),                       // ED whole screen
+        "\u{1b}[3;1H\u{1b}[L\u{1b}[M".as_bytes(),     // IL then DL
+        "\u{1b}[1;2H\u{1b}[2@\u{1b}[2P".as_bytes(),   // ICH then DCH
+        "\u{1b}]0;title\u{7}".as_bytes(),             // OSC title (BEL)
         "\u{1b}]52;;QUJDREVGR0g=\u{1b}\\".as_bytes(), // OSC clipboard (ST)
-        "\u{1b}P1;2qpayload\u{1b}\\".as_bytes(), // DCS passthrough
-        "\u{1b}#8".as_bytes(),          // DECALN
-        "\u{1b}[!p".as_bytes(),         // DECSTR soft reset
-        "\u{1b}c".as_bytes(),           // RIS full reset
-        "👨\u{200d}👩\u{200d}👧".as_bytes(), // ZWJ emoji family
-        "e\u{301} x".as_bytes(),        // combining mark
-        "\t\r\n\x08".as_bytes(),        // HT CR LF BS
+        "\u{1b}P1;2qpayload\u{1b}\\".as_bytes(),      // DCS passthrough
+        "\u{1b}#8".as_bytes(),                        // DECALN
+        "\u{1b}[!p".as_bytes(),                       // DECSTR soft reset
+        "\u{1b}c".as_bytes(),                         // RIS full reset
+        "👨\u{200d}👩\u{200d}👧".as_bytes(),          // ZWJ emoji family
+        "e\u{301} x".as_bytes(),                      // combining mark
+        "\t\r\n\x08".as_bytes(),                      // HT CR LF BS
     ];
     for seq in curated {
         parser.advance(&mut screen, seq);

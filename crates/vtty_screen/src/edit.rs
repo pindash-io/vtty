@@ -89,7 +89,8 @@ impl Screen {
             if n == 0 {
                 return;
             }
-            self.cells.copy_within(row + start..end - n, row + start + n);
+            self.cells
+                .copy_within(row + start..end - n, row + start + n);
             self.cells[row + start..row + start + n].fill(Cell::default());
             return;
         }

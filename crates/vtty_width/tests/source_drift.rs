@@ -25,7 +25,7 @@ fn every_bmp_char_matches_between_sources() {
         let Some(c) = char::from_u32(cp) else {
             continue;
         };
-        let mut buf = [0u8; 4];
+        let mut buf = [0_u8; 4];
         assert_sources_agree(c.encode_utf8(&mut buf));
     }
 }

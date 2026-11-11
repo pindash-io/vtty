@@ -283,7 +283,7 @@ pub enum ColorSpec {
 impl ColorSpec {
     /// Pack a truecolor triplet into an RGB color (`0x00RRGGBB`).
     #[inline]
-    pub fn rgb(r: i32, g: i32, b: i32) -> Self {
+    pub const fn rgb(r: i32, g: i32, b: i32) -> Self {
         Self::Rgb(crate::rgb(r, g, b))
     }
 
@@ -407,7 +407,7 @@ pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
 /// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
 /// underline), shared by the single-effect fast path and `parse_effects`.
 #[inline]
-fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
+const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
     match code {
         38 => SgrEffect::Fg(spec),
         48 => SgrEffect::Bg(spec),
@@ -497,7 +497,7 @@ pub struct Sgr {
 
 impl Sgr {
     /// Build an SGR sequence from raw CSI dispatch parts.
-    pub fn new(params: SmallVec<i32, 8>, sep: u16) -> Self {
+    pub const fn new(params: SmallVec<i32, 8>, sep: u16) -> Self {
         Self { params, sep }
     }
 
@@ -609,9 +609,11 @@ mod tests {
         // the identity. Code 0 is the "default" (a steady block, re-encoded
         // as 2) so it is excluded from the round trip.
         for code in 1..=6 {
-            let blink = CursorStyle::decscusr_blink(code).unwrap();
             let shape = CursorStyle::from_decscusr(code);
-            assert_eq!(shape.to_decscusr(blink), code as u8);
+            assert_eq!(
+                CursorStyle::decscusr_blink(code).map(|blink| shape.to_decscusr(blink)),
+                Some(code as u8),
+            );
         }
         // Odd codes blink, even codes are steady, unsupported → None.
         assert_eq!(CursorStyle::decscusr_blink(1), Some(true));

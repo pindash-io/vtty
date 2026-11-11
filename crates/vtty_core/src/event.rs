@@ -208,12 +208,12 @@ impl Recording {
     }
 
     /// Whether no events were recorded.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
 
     /// The number of recorded events.
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.events.len()
     }
 

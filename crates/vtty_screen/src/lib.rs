@@ -307,7 +307,7 @@ impl Screen {
         self.swap_buffers();
     }
 
-    fn swap_buffers(&mut self) {
+    const fn swap_buffers(&mut self) {
         core::mem::swap(&mut self.cells, &mut self.alt_cells);
         core::mem::swap(&mut self.cursor_row, &mut self.alt_cursor_row);
         core::mem::swap(&mut self.cursor_col, &mut self.alt_cursor_col);
@@ -377,48 +377,113 @@ impl Screen {
     /// implicit state machines (autowrap, origin, alt-screen). Panics on the
     /// first violation; production code never calls it.
     pub fn check_invariants(&self) {
-        assert!(self.cursor_row < self.rows, "cursor_row {} out of bounds", self.cursor_row);
-        assert!(self.cursor_col < self.cols, "cursor_col {} out of bounds", self.cursor_col);
-        assert!(self.saved_row < self.rows, "saved_row {} out of bounds", self.saved_row);
-        assert!(self.saved_col < self.cols, "saved_col {} out of bounds", self.saved_col);
+        assert!(
+            self.cursor_row < self.rows,
+            "cursor_row {} out of bounds",
+            self.cursor_row
+        );
+        assert!(
+            self.cursor_col < self.cols,
+            "cursor_col {} out of bounds",
+            self.cursor_col
+        );
+        assert!(
+            self.saved_row < self.rows,
+            "saved_row {} out of bounds",
+            self.saved_row
+        );
+        assert!(
+            self.saved_col < self.cols,
+            "saved_col {} out of bounds",
+            self.saved_col
+        );
         assert!(
             self.top_margin <= self.bottom_margin,
             "margins inverted: top {} bottom {}",
             self.top_margin,
             self.bottom_margin
         );
-        assert!(self.bottom_margin < self.rows, "bottom_margin {} out of bounds", self.bottom_margin);
-        assert!(self.scroll_top < self.rows, "scroll_top {} out of bounds", self.scroll_top);
+        assert!(
+            self.bottom_margin < self.rows,
+            "bottom_margin {} out of bounds",
+            self.bottom_margin
+        );
+        assert!(
+            self.scroll_top < self.rows,
+            "scroll_top {} out of bounds",
+            self.scroll_top
+        );
         assert!(
             !self.flags.contains(BufferFlags::WRAP_PENDING) || self.cursor_col == self.cols - 1,
             "WRAP_PENDING with cursor_col {} (cols {})",
             self.cursor_col,
             self.cols
         );
-        assert_eq!(self.continuation.len(), self.rows as usize, "continuation length");
-        assert_eq!(self.cells.len(), (self.cols as usize) * (self.rows as usize), "cells length");
+        assert_eq!(
+            self.continuation.len(),
+            self.rows as usize,
+            "continuation length"
+        );
+        assert_eq!(
+            self.cells.len(),
+            (self.cols as usize) * (self.rows as usize),
+            "cells length"
+        );
         assert_eq!(self.tab_stops.len(), self.cols as usize, "tab_stops length");
 
-        assert!(self.alt_cursor_row < self.rows, "alt_cursor_row {} out of bounds", self.alt_cursor_row);
-        assert!(self.alt_cursor_col < self.cols, "alt_cursor_col {} out of bounds", self.alt_cursor_col);
-        assert!(self.alt_saved_row < self.rows, "alt_saved_row {} out of bounds", self.alt_saved_row);
-        assert!(self.alt_saved_col < self.cols, "alt_saved_col {} out of bounds", self.alt_saved_col);
+        assert!(
+            self.alt_cursor_row < self.rows,
+            "alt_cursor_row {} out of bounds",
+            self.alt_cursor_row
+        );
+        assert!(
+            self.alt_cursor_col < self.cols,
+            "alt_cursor_col {} out of bounds",
+            self.alt_cursor_col
+        );
+        assert!(
+            self.alt_saved_row < self.rows,
+            "alt_saved_row {} out of bounds",
+            self.alt_saved_row
+        );
+        assert!(
+            self.alt_saved_col < self.cols,
+            "alt_saved_col {} out of bounds",
+            self.alt_saved_col
+        );
         assert!(
             self.alt_top_margin <= self.alt_bottom_margin,
             "alt margins inverted: top {} bottom {}",
             self.alt_top_margin,
             self.alt_bottom_margin
         );
-        assert!(self.alt_bottom_margin < self.rows, "alt_bottom_margin {} out of bounds", self.alt_bottom_margin);
-        assert!(self.alt_scroll_top < self.rows, "alt_scroll_top {} out of bounds", self.alt_scroll_top);
         assert!(
-            !self.alt_flags.contains(BufferFlags::WRAP_PENDING) || self.alt_cursor_col == self.cols - 1,
+            self.alt_bottom_margin < self.rows,
+            "alt_bottom_margin {} out of bounds",
+            self.alt_bottom_margin
+        );
+        assert!(
+            self.alt_scroll_top < self.rows,
+            "alt_scroll_top {} out of bounds",
+            self.alt_scroll_top
+        );
+        assert!(
+            !self.alt_flags.contains(BufferFlags::WRAP_PENDING)
+                || self.alt_cursor_col == self.cols - 1,
             "alt WRAP_PENDING with alt_cursor_col {} (cols {})",
             self.alt_cursor_col,
             self.cols
         );
-        assert_eq!(self.alt_continuation.len(), self.rows as usize, "alt_continuation length");
-        assert_eq!(self.alt_cells.len(), (self.cols as usize) * (self.rows as usize), "alt_cells length");
+        assert_eq!(
+            self.alt_continuation.len(),
+            self.rows as usize,
+            "alt_continuation length"
+        );
+        assert_eq!(
+            self.alt_cells.len(),
+            (self.cols as usize) * (self.rows as usize),
+            "alt_cells length"
+        );
 
         self.check_cell_continuations(&self.cells);
         self.check_cell_continuations(&self.alt_cells);
@@ -457,12 +522,12 @@ impl Screen {
     }
 
     /// Set the 16 ANSI colors (the theme's palette).
-    pub fn set_palette(&mut self, palette: [u32; 16]) {
+    pub const fn set_palette(&mut self, palette: [u32; 16]) {
         self.palette = palette;
     }
 
     /// Set the default foreground and background colors.
-    pub fn set_default_colors(&mut self, fg: u32, bg: u32) {
+    pub const fn set_default_colors(&mut self, fg: u32, bg: u32) {
         self.default_fg = fg;
         self.default_bg = bg;
     }
@@ -470,14 +535,14 @@ impl Screen {
     /// The physical flat offset of logical `row`'s first cell, accounting for
     /// the ring-buffer scroll offset.
     #[inline]
-    pub(crate) fn row_offset(&self, row: u32) -> usize {
+    pub(crate) const fn row_offset(&self, row: u32) -> usize {
         let phys = (self.scroll_top as usize + row as usize) % self.rows as usize;
         phys * self.cols as usize
     }
 
     /// The physical row index of logical `row`.
     #[inline]
-    pub(crate) fn phys_row(&self, row: u32) -> usize {
+    pub(crate) const fn phys_row(&self, row: u32) -> usize {
         (self.scroll_top as usize + row as usize) % self.rows as usize
     }
 
@@ -507,7 +572,7 @@ impl Screen {
     }
 
     /// The cell index range of `row`.
-    fn row_range(&self, row: u32) -> Range<usize> {
+    const fn row_range(&self, row: u32) -> Range<usize> {
         let start = self.row_offset(row);
         start..start + self.cols as usize
     }

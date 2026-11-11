@@ -14,7 +14,7 @@ impl Screen {
 
     /// The row boundary for cursor movement: the scroll-region edge in origin
     /// mode, otherwise the screen edge (`down` = bottom).
-    pub(crate) fn row_bound(&self, down: bool) -> u32 {
+    pub(crate) const fn row_bound(&self, down: bool) -> u32 {
         if self.flags.contains(BufferFlags::ORIGIN) {
             if down {
                 self.bottom_margin

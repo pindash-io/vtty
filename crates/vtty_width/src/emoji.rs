@@ -28,7 +28,7 @@ pub enum Selector {
 impl Selector {
     /// Classify a zero-width mark; [`Self::None`] for combining marks.
     #[inline]
-    pub fn from_char(c: char) -> Self {
+    pub const fn from_char(c: char) -> Self {
         match c {
             '\u{FE0F}' => Self::Vs16,
             '\u{FE0E}' => Self::Vs15,
@@ -146,13 +146,13 @@ pub fn is_zwj_target(c: char) -> bool {
 /// render them as independent halfwidth cells (see [`crate::cell_width`]) —
 /// the emoji DFA must NOT treat them as zero-width continuations.
 #[inline]
-pub fn is_halfwidth_sound_mark(c: char) -> bool {
+pub const fn is_halfwidth_sound_mark(c: char) -> bool {
     matches!(c, '\u{FF9E}' | '\u{FF9F}')
 }
 
 /// A category that continues the current emoji run (zero cursor cells).
 #[inline]
-fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
+const fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
     use EmojiSegmentationCategory as C;
     matches!(
         cat,
@@ -162,7 +162,7 @@ fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
 
 /// Whether a category can START an emoji sequence (a real base glyph).
 #[inline]
-pub(crate) fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
+pub(crate) const fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
     use EmojiSegmentationCategory as C;
     matches!(
         cat,
@@ -179,7 +179,7 @@ pub(crate) fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
 /// packed-property form of `is_emoji_starter(category_from(p, c))`, avoiding
 /// the parley `from_codepoint` classification on the hot path.
 #[inline]
-pub(crate) fn is_emoji_starter_from(p: Properties, c: char) -> bool {
+pub(crate) const fn is_emoji_starter_from(p: Properties, c: char) -> bool {
     p.is_regional_indicator()
         || p.is_modifier_base()
         || p.is_emoji_presentation()
@@ -190,7 +190,7 @@ pub(crate) fn is_emoji_starter_from(p: Properties, c: char) -> bool {
 /// Whether `c` (with packed `p`) is an emoji continuation — the direct form
 /// of `is_continuation(category_from(p, c))`.
 #[inline]
-pub(crate) fn is_continuation_from(p: Properties, c: char) -> bool {
+pub(crate) const fn is_continuation_from(p: Properties, c: char) -> bool {
     p.is_emoji_modifier()
         || matches!(
             c as u32,
@@ -204,7 +204,7 @@ pub(crate) fn is_continuation_from(p: Properties, c: char) -> bool {
 /// The standalone-emoji lookahead, from packed properties (no category
 /// classification): does `c2` continue a fresh emoji run led by `c`?
 #[inline]
-pub(crate) fn fresh_emoji_continues_from(
+pub(crate) const fn fresh_emoji_continues_from(
     p: Properties,
     c: char,
     p2: Properties,
@@ -297,7 +297,7 @@ impl Run {
     }
 
     /// The number of chars in this run (lead + continuations).
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) const fn len(&self) -> usize {
         self.len
     }
 }

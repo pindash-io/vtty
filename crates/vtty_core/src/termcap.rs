@@ -159,7 +159,7 @@ macro_rules! caps {
             /// Parse a query name into a capability (canonical key + value),
             /// accepting the long/short terminfo aliases. Unknown names map to
             /// [`CapValue::None`].
-            pub fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
+            pub const fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
                 match query {
                     $(Self::$name $( $(| Self::$alias)+ )* => (Self::$name, CapValue::$value),)+
                     _ => (Self::NONE, CapValue::None),

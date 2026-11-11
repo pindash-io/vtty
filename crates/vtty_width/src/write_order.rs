@@ -9,6 +9,11 @@
 //!
 //! Spec: §3.2/§3.3 of `docs/width-model-spec.md`.
 
+#![allow(
+    clippy::doc_markdown,
+    reason = "module documents LaTeX math formulas, not Rust identifiers"
+)]
+
 /// `split(B, a, b)` — the relative byte offsets (inside `text`) where the
 /// emoji DFA restarts: markers that fall strictly inside and split a ZWJ from
 /// a following non-zero-width char. `fb` is the per-byte write-order flag
@@ -144,7 +149,7 @@ pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<us
         return Some(t);
     }
     if t >= end {
-        return Some((t as isize + diff).max(0) as usize);
+        return Some((t.cast_signed() + diff).max(0) as usize);
     }
     None
 }
@@ -336,7 +341,7 @@ impl EmojiTrace {
                 continue;
             };
             // A pure insert clears the shifted copy of the flag at `pos`.
-            let flags = if old_len == 0 && diff > 0 && na == (pos as isize + diff) as usize {
+            let flags = if old_len == 0 && diff > 0 && na == (pos.cast_signed() + diff) as usize {
                 flags & !saved
             } else {
                 flags
@@ -451,7 +456,7 @@ mod tests {
         let text = "❤\u{200D}";
         let mut w = crate::cell_widths(text);
         assert_eq!(w, vec![2, 0]);
-        override_flush_width(text, &[3usize], 0, &mut w);
+        override_flush_width(text, &[3_usize], 0, &mut w);
         assert_eq!(w, vec![1, 0]);
     }
 

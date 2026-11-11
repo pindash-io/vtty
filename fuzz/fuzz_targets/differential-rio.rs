@@ -6,6 +6,7 @@
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
 
 use libfuzzer_sys::fuzz_target;
+
 use vtty_fuzz::{
     Event, has_intermediate_overflow, has_known_divergence, has_rio_utf8_simd_divergence, run_vtty,
 };

@@ -247,7 +247,7 @@ mod tests {
         // Every codepoint the PUA fast path classifies must match the baked
         // composite table (width 1, or 2 under CJK-ambiguous mode), be a
         // standalone base (GCB Other), and NOT an emoji starter.
-        let cjk = crate::cjk_width();
+        let cjk = cjk_width();
         for cp in 0xE000_u32..=0x10_FFFD {
             let Some(c) = char::from_u32(cp) else {
                 continue;
