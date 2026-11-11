@@ -564,6 +564,14 @@ impl Parser {
         let (action, next) = transition(state, b);
         self.apply(p, action, b);
         self.state = next;
+        // Returning to ground ends the sequence: clear any collected
+        // params/intermediates so a later bulk-CSI fast path (which assumes
+        // a clean ground state) cannot inherit a stale, ignored sequence's
+        // state. Dispatch actions already clear via dispatch_csi/esc/hook,
+        // so this only matters for ignored/aborted sequences.
+        if next == ParseState::Ground {
+            self.clear_seq_state();
+        }
         i + 1
     }
 
@@ -1245,6 +1253,30 @@ mod tests {
     fn csi_with_middle_intermediate_is_ignored() {
         // A middle intermediate pushes the CSI into ignore mode (DEC CsiIgnore).
         assert!(Parser::new().parse_events(b"\x1b[1 2m").is_empty());
+    }
+
+    #[test]
+    fn ignored_csi_clears_state_before_next_sequence() {
+        // `? ) 5 h` collects `?`+`)`, then the digit pushes it into CsiIgnore
+        // (no dispatch). The ignored sequence must not leak its collected
+        // intermediates into the NEXT CSI's dispatch (fuzz regression).
+        let events = Parser::new().parse_events(b"\x1b[?)5h\x1b[1;1H");
+        assert_eq!(events.len(), 1, "{events:?}");
+        let Event::CsiDispatch {
+            params,
+            sep,
+            intermediates,
+            final_byte,
+        } = &events[0]
+        else {
+            unreachable!("length asserted as 1 above");
+        };
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0], 1);
+        assert_eq!(params[1], 1);
+        assert_eq!(*sep, 0);
+        assert!(intermediates.is_empty(), "{intermediates:?}");
+        assert_eq!(*final_byte, b'H');
     }
 
     #[test]

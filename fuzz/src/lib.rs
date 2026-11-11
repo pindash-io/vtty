@@ -505,6 +505,15 @@ mod tests {
         // Empty params before `;` use the -2 sentinel; normalize to 0.
         assert_eq!(run_vtty(b"\x1b[;m"), run_vte(b"\x1b[;m"));
         assert_eq!(run_vtty(b"\x1b[;;m"), run_vte(b"\x1b[;;m"));
+
+        // An ignored CSI (middle intermediate) must not leak its collected
+        // intermediates into the next sequence's dispatch.
+        let data: &[u8] = &[
+            27, 40, 66, 27, 41, 48, 27, 35, 56, 27, 91, 63, 49, 104, 27, 177, 177, 177, 177, 177,
+            122, 177, 177, 177, 177, 62, 27, 91, 50, 59, 181, 72, 27, 91, 63, 50, 53, 108, 27, 91,
+            63, 41, 53, 104, 27, 91, 49, 59, 49, 72, 27, 91, 74, 27, 91, 75,
+        ];
+        assert_eq!(run_vtty(data), run_vte(data));
     }
 
     #[test]
