@@ -1,18 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! UAX #29 extended grapheme cluster segmentation for the terminal grid,
-//! with per-cluster display cell widths from [`vtty_width`].
-//!
-//! `vtty_width` answers "what is the display width of this text" per *char*
-//! and merges emoji sequences; `vtty_grapheme` answers "where do the
-//! clusters start and end". A grapheme cluster is the unit the grid,
-//! selection, and editing operate on: one cluster ≈ one (or two) cells.
-//!
-//! The boundaries implement the classic UAX #29 grapheme rules (GB1–GB13)
-//! over `vtty_width`'s baked [`Gcb`] property, with `Extended_Pictographic`
-//! folded in as [`Gcb::ExtPict`] — one property lookup per char, no
-//! `icu_segmenter` dependency.
+//! UAX #29 extended grapheme cluster segmentation, with per-cluster cell
+//! widths from [`vtty_width`]. Implements the GB1–GB13 rules over the baked
+//! [`Gcb`] property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`]).
 //!
 //! ## Example
 //!
@@ -347,10 +338,8 @@ pub fn cluster_count(text: &str) -> usize {
     graphemes(text).count()
 }
 
-/// The total display cell width of `text`, summed per grapheme cluster.
-///
-/// Equivalent to [`vtty_width::cell_width_sum`] when the cluster boundaries
-/// and the emoji width model agree (they do for UAX #29 vs UTS #51 sequences).
+/// The total display cell width of `text` (`Σ` per cluster); equals
+/// [`vtty_width::cell_width_sum`].
 #[must_use]
 pub fn cluster_width_sum(text: &str) -> usize {
     // Printable-ASCII fast path: every byte is one cell, so the total is the
