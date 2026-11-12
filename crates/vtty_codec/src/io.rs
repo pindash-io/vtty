@@ -71,21 +71,25 @@ pub struct SliceWriter<'a> {
 
 impl<'a> SliceWriter<'a> {
     /// Wraps `buf`, starting at offset `0`.
+    #[inline]
     pub const fn new(buf: &'a mut [u8]) -> Self {
         Self { buf, pos: 0 }
     }
 
     /// The number of bytes written so far.
+    #[inline]
     pub const fn position(&self) -> usize {
         self.pos
     }
 
     /// The number of bytes that can still be written.
+    #[inline]
     pub const fn remaining(&self) -> usize {
         self.buf.len() - self.pos
     }
 
     /// The written prefix of the buffer.
+    #[inline]
     pub fn into_written(self) -> &'a mut [u8] {
         &mut self.buf[..self.pos]
     }
@@ -131,6 +135,7 @@ impl<'a> SliceReader<'a> {
     }
 
     /// Whether all bytes have been consumed.
+    #[inline]
     pub const fn is_empty(&self) -> bool {
         self.pos == self.buf.len()
     }
@@ -162,6 +167,7 @@ impl<'a> VecWriter<'a> {
     }
 
     /// The number of bytes written so far.
+    #[inline]
     pub const fn len(&self) -> usize {
         self.buf.len()
     }
@@ -172,6 +178,7 @@ impl<'a> VecWriter<'a> {
     }
 
     /// The encoded bytes written so far.
+    #[inline]
     pub const fn as_slice(&self) -> &[u8] {
         self.buf.as_slice()
     }

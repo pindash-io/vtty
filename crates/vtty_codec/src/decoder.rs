@@ -44,6 +44,7 @@ impl<T> fmt::Debug for Decoder<T> {
 
 impl<T> Decoder<T> {
     /// An empty decoder.
+    #[inline]
     pub const fn new() -> Self {
         Self {
             buf: Vec::new(),
@@ -63,6 +64,7 @@ impl<T: Decode> Decoder<T> {
     ///
     /// `Ok(None)` means more bytes are needed; truncation is not an error.
     /// `Err` is returned only for an invalid encoding.
+    #[must_use]
     pub fn advance(&mut self, chunk: &[u8]) -> Result<Option<T>, DecodeError> {
         self.buf.extend_from_slice(chunk);
         let mut reader = SliceReader::new(&self.buf);
@@ -77,6 +79,7 @@ impl<T: Decode> Decoder<T> {
     }
 
     /// Decodes the final buffered value, erroring on a truncated stream.
+    #[must_use]
     pub fn finish(self) -> Result<T, DecodeError> {
         let mut reader = SliceReader::new(&self.buf);
         let value = T::decode(&mut reader)?;
