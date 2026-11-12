@@ -129,6 +129,7 @@ impl Parser {
     };
 
     /// An empty parser in the ground state (no allocation).
+    #[inline]
     pub const fn new() -> Self {
         Self::DEFAULT
     }
@@ -137,6 +138,7 @@ impl Parser {
     /// No allocation.
     #[cfg(feature = "simd")]
     #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+    #[inline]
     pub const fn with_simd() -> Self {
         let mut p = Self::DEFAULT;
         p.simd = true;
