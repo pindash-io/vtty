@@ -342,9 +342,8 @@ pub fn cluster_count(text: &str) -> usize {
 /// [`vtty_width::cell_width_sum`].
 #[must_use]
 pub fn cluster_width_sum(text: &str) -> usize {
-    // Printable-ASCII fast path: every byte is one cell, so the total is the
-    // byte length. Controls are zero-width and take the general path.
-    if vtty_width::first_non_printable_ascii(text.as_bytes()) == text.len() {
+    // Printable-ASCII fast path: every byte is one cell.
+    if vtty_width::is_printable_ascii(text.as_bytes()) {
         return text.len();
     }
     cluster_widths(text).sum()

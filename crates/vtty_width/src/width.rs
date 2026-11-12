@@ -9,7 +9,7 @@ use crate::emoji::{
     Run, Selector, finalize_lead, fresh_emoji_continues_from, is_emoji_starter_from, run_continues,
 };
 use crate::properties::{
-    Gcb, Properties, category_from, cell_width_from, cjk_fast_width, first_non_printable_ascii,
+    Gcb, Properties, category_from, cell_width_from, cjk_fast_width, is_printable_ascii,
 };
 
 /// Number of leading printable-ASCII bytes that are NOT keycap bases
@@ -531,10 +531,8 @@ pub fn width_and_standalone_with(
 /// Total cell width of `text` in one allocation-free pass (`Σ w₂`).
 #[must_use]
 pub fn cell_width_sum(text: &str) -> usize {
-    // Printable-ASCII fast path: every byte is one cell, so the total is the
-    // byte length — no per-char work (the streaming `Widths` sums 1 per byte).
-    // Controls are zero-width, so they take the general path.
-    if first_non_printable_ascii(text.as_bytes()) == text.len() {
+    // Printable-ASCII fast path: every byte is one cell.
+    if is_printable_ascii(text.as_bytes()) {
         return text.len();
     }
     Widths::new(Bytes(text.as_bytes())).sum()
@@ -606,7 +604,7 @@ pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
 #[must_use]
 pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
     // Printable-ASCII fast path: one cell per byte, no width table needed.
-    if first_non_printable_ascii(text.as_bytes()) == text.len() {
+    if is_printable_ascii(text.as_bytes()) {
         return cell_col.min(text.len());
     }
     let mut cell = 0_usize;

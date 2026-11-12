@@ -63,7 +63,7 @@ pub use emoji::{
 };
 pub use properties::{
     Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed, first_non_ascii,
-    first_non_printable_ascii, is_zero_width, pua_fast_width, vs_width,
+    first_non_printable_ascii, is_printable_ascii, is_zero_width, pua_fast_width, vs_width,
 };
 pub use width::{
     cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths, cell_col_byte_widths,

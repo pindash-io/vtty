@@ -274,9 +274,7 @@ pub fn first_non_ascii(bytes: &[u8]) -> usize {
 }
 
 /// Index of the first byte that is NOT printable ASCII (`0x20..=0x7e`), or
-/// `bytes.len()` when the whole slice is printable ASCII. This is the
-/// all-ASCII fast-path predicate for grapheme clustering: printable ASCII is
-/// the only input where every byte is its own cluster.
+/// `bytes.len()` when the whole slice is printable ASCII.
 #[inline(always)]
 pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
     #[cfg(feature = "simd")]
@@ -290,6 +288,12 @@ pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
             .position(|&b| !(0x20..=0x7e).contains(&b))
             .unwrap_or(bytes.len())
     }
+}
+
+/// Whether every byte is printable ASCII (`0x20..=0x7e`).
+#[inline]
+pub fn is_printable_ascii(bytes: &[u8]) -> bool {
+    first_non_printable_ascii(bytes) == bytes.len()
 }
 
 #[cfg(feature = "simd")]
