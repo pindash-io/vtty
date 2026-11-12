@@ -1,13 +1,10 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! DEC/ANSI terminal mode flags: ANSI `CSI Ps h/l` (SM/RM) and DEC private
-//! `CSI ? Pm h/l` (DECSET/DECRST), plus `CSI ? Ps $ p` (DECRQM) reporting.
-//!
-//! DEC private-mode numbers follow the [DECronomicon private-modes
-//! table](https://vt100.net/emu/dec_private_modes.html); the xterm/kitty
-//! extensions (mouse, alternate screen, synchronized output) follow [xterm's
-//! ctlseqs](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
+//! Terminal mode flags: ANSI `CSI Ps h/l` (SM/RM) and DEC private `CSI ? Pm
+//! h/l` (DECSET/DECRST), plus `CSI ? Ps $ p` (DECRQM). Private-mode numbers
+//! follow the [DECronomicon table](https://vt100.net/emu/dec_private_modes.html)
+//! and [xterm's ctlseqs](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
 
 bitflags::bitflags! {
     /// Settable terminal modes tracked by a screen, as a single flag set.
@@ -167,10 +164,8 @@ impl TermFlags {
         IN_BAND_RESIZE => 2048,              // DEC 2048
     }
 
-    /// Map an ANSI (`CSI Pm h/l`) or DEC private (`CSI ? Pm h/l`) mode number
-    /// to its flag. `private` selects the DEC private table; the ANSI table
-    /// covers IRM (`4`) and LNM (`20`). This is the one code→flag entry point
-    /// for DECSET/DECRST.
+    /// Map an ANSI or DEC private mode number to its flag; `private` selects
+    /// the table (ANSI covers IRM 4 and LNM 20).
     #[inline]
     pub const fn from_mode_code(code: i32, private: bool) -> Self {
         if private {
@@ -183,9 +178,8 @@ impl TermFlags {
         }
     }
 
-    /// Look up a tracked mode by its numeric code regardless of the ANSI/DEC
-    /// private split — used by DECRQM/XTSAVE/XTRESTORE, which query/save/
-    /// restore a mode rather than set a specific ANSI or private form.
+    /// Look up a mode by code regardless of the ANSI/DEC split
+    /// (DECRQM/XTSAVE/XTRESTORE).
     #[inline]
     pub const fn from_any_mode_code(code: i32) -> Self {
         let ansi = Self::from_mode_code(code, false);
@@ -196,9 +190,8 @@ impl TermFlags {
     }
 }
 
-/// Mouse-tracking + mouse-protocol modes. Entering the alternate screen
-/// resets these so a pager (`less`/`man`) starts clean and text selection
-/// works; mouse-first apps (nvim/herdr) re-enable them right after `?1049h`.
+/// Mouse-tracking + protocol modes; reset on alt-screen entry so pagers
+/// start clean.
 pub const MOUSE_MASK: TermFlags = TermFlags::MOUSE_X10
     .union(TermFlags::MOUSE_NORMAL)
     .union(TermFlags::MOUSE_BUTTON)

@@ -8,12 +8,8 @@ use core::ops::Range;
 
 use crate::perform::Perform;
 
-/// Minimal byte-cursor state (the O(bytes) floor).
-///
-/// The fields are public so an embedder can drive the state directly, but the
-/// invariant is `line_start <= cursor <= text.len()`. [`Self::cursor_col`]
-/// and [`Self::cursor_row`] clamp, so they stay total even when the fields
-/// are set inconsistently.
+/// Minimal byte-cursor state; the invariant is `line_start <= cursor <=
+/// text.len()` (the row/col accessors clamp).
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct State {
     /// Accumulated text (lines joined by `\n`).

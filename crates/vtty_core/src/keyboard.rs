@@ -28,10 +28,8 @@ bitflags::bitflags! {
     }
 }
 
-/// Keyboard input encoding mode — how key events are serialized to the PTY.
-///
-/// The host selects one of these based on the terminal's DEC flags (DECCKM,
-/// xterm modifyOtherKeys, kitty keyboard protocol).
+/// How key events serialize to the PTY; the host picks one from the DEC flags
+/// (DECCKM, modifyOtherKeys, kitty).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum KeyEncoding {
     /// Legacy: arrows = CSI A/B/C/D, Ctrl = control chars, Alt = ESC prefix.
