@@ -8,28 +8,30 @@
 
 bitflags::bitflags! {
     /// SGR attribute state: bold/faint/italic/underline/strikethrough/
-    /// overline/inverse/invisible/blink.
+    /// overline/inverse/invisible/blink. The nine stored attributes occupy
+    /// bits 0..8 in SGR-code order; [`Self::BLINK_RAPID`] and [`Self::RESET`]
+    /// are parse-only marks above them.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SgrFlags: u16 {
-        /// SGR 4 underline.
-        const UNDERLINE = 1 << 0;
-        /// SGR 9 strikethrough.
-        const STRIKETHROUGH = 1 << 1;
-        /// SGR 53 overline.
-        const OVERLINE = 1 << 2;
         /// SGR 1 bold.
-        const BOLD = 1 << 3;
-        /// SGR 3 italic.
-        const ITALIC = 1 << 4;
+        const BOLD = 1 << 0;
         /// SGR 2 faint.
-        const FAINT = 1 << 5;
-        /// SGR 7 inverse video.
-        const INVERSE = 1 << 6;
-        /// SGR 8 invisible.
-        const INVISIBLE = 1 << 7;
+        const FAINT = 1 << 1;
+        /// SGR 3 italic.
+        const ITALIC = 1 << 2;
+        /// SGR 4 underline.
+        const UNDERLINE = 1 << 3;
         /// SGR 5 slow blink.
-        const BLINK = 1 << 8;
-        /// SGR 6 rapid blink.
+        const BLINK = 1 << 4;
+        /// SGR 7 inverse video.
+        const INVERSE = 1 << 5;
+        /// SGR 8 invisible.
+        const INVISIBLE = 1 << 6;
+        /// SGR 9 strikethrough.
+        const STRIKETHROUGH = 1 << 7;
+        /// SGR 53 overline.
+        const OVERLINE = 1 << 8;
+        /// SGR 6 rapid blink (parse-only; screens store it as [`Self::BLINK`]).
         const BLINK_RAPID = 1 << 9;
         /// Parse-time mark: an SGR "reset" code clears the carried flags
         /// rather than setting them (stripped before the flags reach state).
@@ -43,10 +45,24 @@ impl SgrFlags {
 
     /// The decoration subset carried on a span/cell ([`StyleFlags`]).
     #[inline]
-    pub const fn decorations(self) -> StyleFlags {
-        // `as u8` drops the high bits (including the RESET mark), then
-        // `from_bits_truncate` keeps the five decoration bits.
-        StyleFlags::from_bits_truncate(self.bits() as u8)
+    pub fn decorations(self) -> StyleFlags {
+        let mut d = StyleFlags::empty();
+        if self.contains(Self::BOLD) {
+            d.insert(StyleFlags::BOLD);
+        }
+        if self.contains(Self::ITALIC) {
+            d.insert(StyleFlags::ITALIC);
+        }
+        if self.contains(Self::UNDERLINE) {
+            d.insert(StyleFlags::UNDERLINE);
+        }
+        if self.contains(Self::STRIKETHROUGH) {
+            d.insert(StyleFlags::STRIKETHROUGH);
+        }
+        if self.contains(Self::OVERLINE) {
+            d.insert(StyleFlags::OVERLINE);
+        }
+        d
     }
 }
 
@@ -80,49 +96,23 @@ impl From<i32> for SgrFlags {
 }
 
 bitflags::bitflags! {
-    /// The five SGR decorations a screen stores per span/cell (underline /
-    /// strikethrough / overline / bold / italic). The bit layout is the low
-    /// five bits of [`SgrFlags`], so [`SgrFlags::decorations`] extracts them
-    /// with one truncating cast.
+    /// The five SGR decorations a screen stores per span/cell (bold /
+    /// italic / underline / strikethrough / overline), bits ordered by SGR
+    /// code.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct StyleFlags: u8 {
-        /// SGR 4 underline.
-        const UNDERLINE = 1 << 0;
-        /// SGR 9 strikethrough.
-        const STRIKETHROUGH = 1 << 1;
-        /// SGR 53 overline.
-        const OVERLINE = 1 << 2;
         /// SGR 1 bold.
-        const BOLD = 1 << 3;
+        const BOLD = 1 << 0;
         /// SGR 3 italic.
-        const ITALIC = 1 << 4;
+        const ITALIC = 1 << 1;
+        /// SGR 4 underline.
+        const UNDERLINE = 1 << 2;
+        /// SGR 9 strikethrough.
+        const STRIKETHROUGH = 1 << 3;
+        /// SGR 53 overline.
+        const OVERLINE = 1 << 4;
     }
 }
-
-/// Compile-time guard: `StyleFlags` is the low five bits of [`SgrFlags`], so
-/// [`SgrFlags::decorations`] can extract it with a single truncating cast.
-const _: () = {
-    assert!(
-        StyleFlags::UNDERLINE.bits() == SgrFlags::UNDERLINE.bits() as u8,
-        "StyleFlags::UNDERLINE must mirror SgrFlags::UNDERLINE"
-    );
-    assert!(
-        StyleFlags::STRIKETHROUGH.bits() == SgrFlags::STRIKETHROUGH.bits() as u8,
-        "StyleFlags::STRIKETHROUGH must mirror SgrFlags::STRIKETHROUGH"
-    );
-    assert!(
-        StyleFlags::OVERLINE.bits() == SgrFlags::OVERLINE.bits() as u8,
-        "StyleFlags::OVERLINE must mirror SgrFlags::OVERLINE"
-    );
-    assert!(
-        StyleFlags::BOLD.bits() == SgrFlags::BOLD.bits() as u8,
-        "StyleFlags::BOLD must mirror SgrFlags::BOLD"
-    );
-    assert!(
-        StyleFlags::ITALIC.bits() == SgrFlags::ITALIC.bits() as u8,
-        "StyleFlags::ITALIC must mirror SgrFlags::ITALIC"
-    );
-};
 
 /// SGR underline style (`4:0..5` / SGR 21).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
@@ -179,8 +169,6 @@ impl UnderlineStyle {
         }
     }
 }
-
-// ── Cursor style (DECSCUSR) ────────────────────────────────────────────
 
 /// DECSCUSR cursor shape (`CSI Ps SP q`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -263,8 +251,6 @@ impl CursorStyle {
     }
 }
 
-// ── Parsed SGR effects ──────────────────────────────────────────────
-
 /// An unresolved SGR color (before palette interning).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ColorSpec {
@@ -314,8 +300,6 @@ pub enum SgrEffect {
     /// 59 — clear the underline color.
     ClearUnderlineColor,
 }
-
-// ── SGR parameter decoding ───────────────────────────────────────────
 
 use alloc::string::ToString;
 
@@ -567,27 +551,44 @@ mod tests {
             StyleFlags::BOLD | StyleFlags::ITALIC | StyleFlags::UNDERLINE
         );
 
-        // BLINK lives in bit 8 and must not leak into the u8 decoration subset.
+        // BLINK is not a decoration and must not leak into the subset.
         assert_eq!((SgrFlags::BLINK).decorations(), StyleFlags::empty());
     }
 
     #[test]
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "decoration bits fit u8 by definition"
-    )]
-    fn style_flag_bits_mirror_sgr() {
+    fn decorations_map_each_flag_independently() {
+        // The five decorations map to StyleFlags regardless of SgrFlags bit
+        // positions (they are no longer a low-bit mirror).
         assert_eq!(
-            StyleFlags::UNDERLINE.bits(),
-            SgrFlags::UNDERLINE.bits() as u8
+            SgrFlags::BOLD.decorations(),
+            StyleFlags::BOLD
         );
         assert_eq!(
-            StyleFlags::STRIKETHROUGH.bits(),
-            SgrFlags::STRIKETHROUGH.bits() as u8
+            SgrFlags::ITALIC.decorations(),
+            StyleFlags::ITALIC
         );
-        assert_eq!(StyleFlags::OVERLINE.bits(), SgrFlags::OVERLINE.bits() as u8);
-        assert_eq!(StyleFlags::BOLD.bits(), SgrFlags::BOLD.bits() as u8);
-        assert_eq!(StyleFlags::ITALIC.bits(), SgrFlags::ITALIC.bits() as u8);
+        assert_eq!(
+            SgrFlags::UNDERLINE.decorations(),
+            StyleFlags::UNDERLINE
+        );
+        assert_eq!(
+            SgrFlags::STRIKETHROUGH.decorations(),
+            StyleFlags::STRIKETHROUGH
+        );
+        assert_eq!(
+            SgrFlags::OVERLINE.decorations(),
+            StyleFlags::OVERLINE
+        );
+        // Non-decoration flags map to empty.
+        for f in [
+            SgrFlags::FAINT,
+            SgrFlags::BLINK,
+            SgrFlags::BLINK_RAPID,
+            SgrFlags::INVERSE,
+            SgrFlags::INVISIBLE,
+        ] {
+            assert_eq!(f.decorations(), StyleFlags::empty());
+        }
     }
 
     #[test]
