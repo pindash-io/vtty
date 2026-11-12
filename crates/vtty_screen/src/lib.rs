@@ -143,6 +143,7 @@ pub struct Screen {
 
 impl Screen {
     /// A blank screen of `cols × rows`. Zero dimensions clamp to 1.
+    #[inline]
     pub fn new(cols: u32, rows: u32) -> Self {
         let cols = cols.max(1);
         let rows = rows.max(1);
@@ -349,8 +350,8 @@ impl Screen {
     }
 
     /// The `OSC 9;4` progress-bar state.
-    #[inline]
     #[must_use]
+    #[inline]
     pub const fn progress(&self) -> Progress {
         self.progress
     }
@@ -511,6 +512,7 @@ impl Screen {
     /// the configured default colors; the 16 ANSI colors use the configured
     /// palette; `16..=255` use the xterm table; truecolor ids (`>= 258`) look
     /// up the screen's dynamic palette.
+    #[must_use]
     pub fn color_rgb(&self, id: ColorId) -> Option<u32> {
         match id.0 {
             256 => Some(self.default_fg),
@@ -669,6 +671,7 @@ impl Screen {
     }
 
     /// The number of scrollback lines (oldest first).
+    #[must_use]
     #[inline]
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
@@ -752,11 +755,13 @@ impl Screen {
     }
 
     /// The raw cells of scrollback line `i` (`0` = oldest), or `None`.
+    #[inline]
     pub fn scrollback_line(&self, i: usize) -> Option<&[Cell]> {
         self.scrollback.get(i).map(|(row, _)| row.as_slice())
     }
 
     /// Render scrollback line `i` to text, or `None` out of range.
+    #[must_use]
     pub fn scrollback_text(&self, i: usize) -> Option<String> {
         self.scrollback.get(i).map(|(row, _)| render_cells(row))
     }
