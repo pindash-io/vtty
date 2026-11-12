@@ -62,6 +62,8 @@ const SEQ_ST: &[u8] = b"\x1b\\";
 macro_rules! named_bytes {
     ($ty:ident, $($variant:ident => $name:literal),+ $(,)?) => {
         impl $ty {
+            #[must_use]
+            #[inline]
             const fn parse(value: &[u8]) -> Option<Self> {
                 Some(match value {
                     $($name => Self::$variant),+,
@@ -69,6 +71,7 @@ macro_rules! named_bytes {
                 })
             }
 
+            #[inline]
             const fn as_bytes(self) -> &'static [u8] {
                 match self {
                     $(Self::$variant => $name),+
@@ -161,6 +164,7 @@ impl ProgramStatus {
     /// Returns `None` when invalid: missing/invalid `state`, malformed `id`,
     /// a limit exceeded, bad base64, or control chars in a decoded
     /// `msg`/`title`.
+    #[must_use]
     pub fn parse(payload: &[u8]) -> Option<Self> {
         if payload.len() > MAX_SEQUENCE {
             return None;
@@ -218,6 +222,7 @@ impl ProgramStatus {
     }
 
     /// Parses a report from an OSC dispatch's params (`params[0] == "7501"`).
+    #[must_use]
     pub fn from_osc_params(params: &[&[u8]]) -> Option<Self> {
         let first = params.first()?;
         // The OSC number's first byte filters the common 0/1/52/1337 shapes
