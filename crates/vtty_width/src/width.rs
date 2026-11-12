@@ -470,10 +470,8 @@ pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {
 }
 
 /// The single-lookup print-handoff path: returns `(cell_width(c), standalone)`
-/// from one [`Properties`] lookup. `standalone` is true when `c`'s DFA width
-/// equals its single-char width given the next char `next` (the standalone-
-/// emoji lookahead). Callers that already hold the codepoint use this to
-/// avoid a second `Properties` lookup when detecting DFA-simple runs.
+/// from one [`Properties`] lookup, using `next` for the standalone-emoji
+/// lookahead.
 #[must_use]
 #[inline]
 pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool) {
@@ -500,11 +498,8 @@ pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool)
     width_and_standalone_with(c, p, next_info)
 }
 
-/// [`width_and_standalone`] for a non-ASCII, non-CJK char with an
-/// already-looked-up [`Properties`]. `next` carries the lookahead codepoint
-/// AND its [`Properties`], so a codepoint loop can compute the lookahead once
-/// and reuse it as the next iteration's current char (the emoji-lookahead
-/// double lookup).
+/// [`width_and_standalone`] for an already-looked-up [`Properties`]; `next`
+/// carries the lookahead codepoint + its properties.
 #[must_use]
 #[inline]
 pub fn width_and_standalone_with(
@@ -533,10 +528,7 @@ pub fn width_and_standalone_with(
     (w, standalone)
 }
 
-/// The total cell width of `text` in one allocation-free pass — the
-/// streaming counterpart of `cell_widths(text).iter().sum()`.
-///
-/// Spec: `Σ w₂` in `docs/width-model-spec.md`.
+/// Total cell width of `text` in one allocation-free pass (`Σ w₂`).
 #[must_use]
 pub fn cell_width_sum(text: &str) -> usize {
     // Printable-ASCII fast path: every byte is one cell, so the total is the
@@ -548,11 +540,7 @@ pub fn cell_width_sum(text: &str) -> usize {
     Widths::new(Bytes(text.as_bytes())).sum()
 }
 
-/// Snap a font glyph advance to the terminal cell grid: wide glyphs
-/// (`advance > 1.5` cells) occupy two cells, non-zero glyphs exactly one,
-/// and zero-width glyphs (combining marks) none. The renderer and the screen
-/// crates share this so glyph positions and cell backgrounds stay on the same
-/// grid even when a proportional fallback font advances at a fractional cell.
+/// Snap a glyph advance to the cell grid: `>1.5` cells = 2, `>0` = 1, else 0.
 #[inline]
 pub const fn cell_advance(advance: f32, cell_w: f32) -> f32 {
     if advance > cell_w * 1.5 {
@@ -564,10 +552,8 @@ pub const fn cell_advance(advance: f32, cell_w: f32) -> f32 {
     }
 }
 
-/// The char INDEX (into `widths`) of the glyph that STARTS at (or contains)
-/// 0-based cell column `col`, stepping over zero-width continuations.
-/// Returns `widths.len()` past the last cell. The FLOOR boundary: a column on
-/// a wide glyph's second cell maps back to that glyph's lead char.
+/// Char index of the glyph starting at (or containing) `col` (floor).
+/// `widths.len()` past the last cell.
 #[inline]
 #[must_use]
 pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
@@ -581,9 +567,8 @@ pub fn cell_col_char_from_widths(widths: &[usize], col: usize) -> usize {
     widths.len()
 }
 
-/// The char INDEX (into `widths`) of the first glyph AT or past 0-based cell
-/// column `col` (the CEIL boundary) — a zero-width char sitting exactly at
-/// the boundary IS included. Returns `widths.len()` past the last cell.
+/// Char index of the first glyph at or past `col` (ceil). `widths.len()`
+/// past the last cell.
 #[inline]
 #[must_use]
 pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
@@ -597,9 +582,8 @@ pub fn cell_col_char_ceil_from_widths(widths: &[usize], col: usize) -> usize {
     widths.len()
 }
 
-/// The char INDEX (into `widths`) ONE PAST the glyph that ENDS at 0-based
-/// cell column `col`, including its trailing zero-width continuations.
-/// Returns `widths.len()` past the last cell.
+/// Char index one past the glyph ending at `col`, including trailing
+/// zero-width continuations. `widths.len()` past the last cell.
 #[inline]
 #[must_use]
 pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
@@ -617,11 +601,8 @@ pub fn cell_col_char_end_from_widths(widths: &[usize], col: usize) -> usize {
     widths.len()
 }
 
-/// Byte offset (into `text`) of the char that STARTS at the given 0-based
-/// CELL column, stepping over wide chars by their [`cell_widths`] widths —
-/// including VS16 and ZWJ emoji merged to a single 2-cell unit. Zero-width
-/// continuations (the VS16/ZWJ components) are skipped. Clamped to `text.len()`
-/// when the column is past the last cell.
+/// Byte offset of the char starting at cell column `cell_col` (floor; a wide
+/// char's second cell maps to its lead). Clamped to `text.len()`.
 #[must_use]
 pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
     // Printable-ASCII fast path: one cell per byte, no width table needed.
@@ -641,21 +622,16 @@ pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
     text.len()
 }
 
-/// The byte offset (into `text`) of the glyph that STARTS at (or contains)
-/// 0-based cell column `cell_col`, walking already-computed per-char `widths`.
-/// A column on a wide glyph's SECOND cell maps to its leading byte (floor).
-/// Clamped to `text.len()` past the last cell. The precomputed-widths variant
-/// of [`cell_col_byte_widths`], for callers that already hold the width vector.
+/// Byte offset of the glyph starting at (or containing) `cell_col`, walking
+/// precomputed `widths` (floor). Clamped to `text.len()`.
 #[must_use]
 #[inline]
 pub fn cell_col_byte_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
     cell_col_byte_from_widths_impl(text, widths, cell_col, false)
 }
 
-/// The byte offset (into `text`) of the glyph AT or past 0-based cell column
-/// `cell_col` — the CEIL boundary. A column on a wide glyph's SECOND cell
-/// returns the byte AFTER that wide char, so a boundary straddling a wide
-/// glyph drops it whole.
+/// Byte offset of the glyph at or past `cell_col` (ceil); a wide char's
+/// second cell returns the byte after it.
 #[must_use]
 #[inline]
 pub fn cell_col_byte_ceil_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
@@ -684,9 +660,7 @@ fn cell_col_byte_from_widths_impl(
 }
 
 /// The byte offset (into `text`) just past the grapheme cluster containing
-/// `byte` (the base char PLUS its zero-width continuations), walking
-/// precomputed per-char `widths`. The first char at `byte` always starts the
-/// cluster; every following width>0 char is a NEW cluster. Never crosses `\n`.
+/// `byte` (base + trailing zero-width marks). Never crosses `\n`.
 #[must_use]
 #[inline]
 pub fn grapheme_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {
