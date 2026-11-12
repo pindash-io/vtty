@@ -2,18 +2,9 @@
 
 <!-- cargo-rdme start -->
 
-UAX #29 extended grapheme cluster segmentation for the terminal grid,
-with per-cluster display cell widths from [`vtty_width`](https://docs.rs/vtty_width/latest/vtty_width/).
-
-`vtty_width` answers "what is the display width of this text" per *char*
-and merges emoji sequences; `vtty_grapheme` answers "where do the
-clusters start and end". A grapheme cluster is the unit the grid,
-selection, and editing operate on: one cluster ≈ one (or two) cells.
-
-The boundaries implement the classic UAX #29 grapheme rules (GB1–GB13)
-over `vtty_width`'s baked [`Gcb`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html) property, with `Extended_Pictographic`
-folded in as [`Gcb::ExtPict`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html#variant.ExtPict) — one property lookup per char, no
-`icu_segmenter` dependency.
+UAX #29 extended grapheme cluster segmentation, with per-cluster cell
+widths from [`vtty_width`](https://docs.rs/vtty_width/latest/vtty_width/). Implements the GB1–GB13 rules over the baked
+[`Gcb`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html) property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html#variant.ExtPict)).
 
 ## Example
 
