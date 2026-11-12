@@ -64,7 +64,7 @@ fn main() {
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(5.0);
 
-    // ── Compute the per-codepoint value ───────────────────────────────
+    // Compute the per-codepoint value
     let emoji = CodePointSetData::new::<Emoji>();
     let presentation = CodePointSetData::new::<EmojiPresentation>();
     let modifier = CodePointSetData::new::<EmojiModifier>();
@@ -158,7 +158,7 @@ fn main() {
         *slot = b;
     }
 
-    // ── Pack + generate (parley_data's pipeline) ──────────────────────
+    // Pack + generate (parley_data's pipeline)
     let (info, best) = packtab::pack_table(&data, Some(0), compression);
     let code = packtab::generate(
         &info,

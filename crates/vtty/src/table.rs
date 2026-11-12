@@ -45,7 +45,7 @@ pub(crate) enum ParseState {
     SosPmApcString = 13,
 }
 
-// ── Actions (bitmask — a byte can trigger several) ─────────────────────
+// Actions (bitmask — a byte can trigger several)
 
 bitflags::bitflags! {
     /// Parser actions a byte can trigger (a byte can trigger several).

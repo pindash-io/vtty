@@ -100,8 +100,6 @@ pub const DEFAULT_FG_ID: ColorId = ColorId(256);
 /// Reserved palette index for the default background (SGR 49).
 pub const DEFAULT_BG_ID: ColorId = ColorId(257);
 
-// ── RGB packing / unpacking ──────────────────────────────────────────
-
 /// Pack three 0..255 channels into RGB8 (`0x00RRGGBB`).
 #[inline]
 pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
@@ -173,8 +171,6 @@ pub const fn blend_faint(a: u32, b: u32) -> u32 {
     )
 }
 
-// ── xterm 256-color table ────────────────────────────────────────────
-
 /// Resolve an xterm 256-color index (`0..=255`) to packed `0xRRGGBB`: the 16
 /// ANSI colors, the 6×6×6 color cube (`16..=231`), and the grayscale ramp
 /// (`232..=255`).
@@ -221,8 +217,6 @@ pub const fn indexed_rgb(n: u8) -> u32 {
 const fn cube_level(v: u8) -> u8 {
     if v == 0 { 0 } else { 55 + v * 40 }
 }
-
-// ── OSC color parsing ─────────────────────────────────────────────────
 
 /// Decode an `RRGGBB` hex string (with or without a leading `#`) into three
 /// 8-bit channels.
@@ -275,8 +269,6 @@ fn scale_channel(part: &str) -> Option<u8> {
     let v = u32::from_str_radix(part, 16).ok()?;
     Some((v * 255 / ((1 << (4 * len)) - 1)) as u8)
 }
-
-// ── OSC color replies ─────────────────────────────────────────────────
 
 /// Format an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
 /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm

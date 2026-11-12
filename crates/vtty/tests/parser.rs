@@ -494,7 +494,7 @@ fn csi_params_capped_at_32() {
     assert_eq!(c.csi[0].2, 'm');
 }
 
-// ── 8-bit C1 handling (DEC "anywhere" transitions) ──────────────────────
+// 8-bit C1 handling (DEC "anywhere" transitions)
 
 #[test]
 fn c1_csi_introducer_starts_sequence() {

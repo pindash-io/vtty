@@ -225,7 +225,7 @@ pub struct EmojiTrace {
 }
 
 impl EmojiTrace {
-    // ── Per-byte fresh-base trace (`fb`) record/clear ──
+    // Per-byte fresh-base trace (`fb`) record/clear
     //
     // `fb[k]` is a bitmask: bit 0 = fresh base (the DFA restarts there), bit
     // 1 = re-open boundary (print-time only, consumed by a continuation).
