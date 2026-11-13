@@ -17,16 +17,18 @@ publish = false
 # vtty is compiled with the `simd-transcode` feature so both the scalar
 # (`Parser::new`) and full SIMD (`Parser::with_simd`) paths are available.
 vtty = { workspace = true, features = ["simd-transcode"] }
+
+[dev-dependencies]
+# The comparison parsers are only exercised by the `[[bench]]` target, so they
+# are dev-dependencies (not `dependencies`) — `cargo::unused_dependencies`.
 vtty_screen = { workspace = true }
 
+criterion.workspace = true
+fux-vt = "0.15.0"
 rio-vt.workspace = true
 vt100.workspace = true
 vte.workspace = true
 vtparse.workspace = true
-fux-vt = "0.15.0"
-
-[dev-dependencies]
-criterion.workspace = true
 
 [[bench]]
 name = "vt_input"
