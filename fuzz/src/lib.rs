@@ -268,10 +268,7 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
     }
     // A truncated sequence at the very end of the buffer also reaches
     // simdutf's TooShort error path.
-    if pending > 0 {
-        return true;
-    }
-    false
+    pending > 0
 }
 
 /// Some parsers cap escape-sequence intermediates at more than vtty's two
