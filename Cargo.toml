@@ -14,12 +14,12 @@ rust-version = "1.89"
 
 [workspace.dependencies]
 vtty = { path = "crates/vtty", default-features = false }
-vtty_core = { path = "crates/vtty_core", default-features = false }
-vtty_status = { path = "crates/vtty_status" }
-vtty_codec = { path = "crates/vtty_codec" }
-vtty_width = { path = "crates/vtty_width" }
-vtty_grapheme = { path = "crates/vtty_grapheme" }
-vtty_screen = { path = "crates/vtty_screen" }
+vtty_core = { path = "crates/core", default-features = false }
+vtty_status = { path = "crates/status" }
+vtty_codec = { path = "crates/codec" }
+vtty_width = { path = "crates/width" }
+vtty_grapheme = { path = "crates/grapheme" }
+vtty_screen = { path = "crates/screen" }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.2.0", default-features = false }

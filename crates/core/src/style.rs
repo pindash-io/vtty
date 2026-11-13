@@ -559,26 +559,14 @@ mod tests {
     fn decorations_map_each_flag_independently() {
         // The five decorations map to StyleFlags regardless of SgrFlags bit
         // positions (they are no longer a low-bit mirror).
-        assert_eq!(
-            SgrFlags::BOLD.decorations(),
-            StyleFlags::BOLD
-        );
-        assert_eq!(
-            SgrFlags::ITALIC.decorations(),
-            StyleFlags::ITALIC
-        );
-        assert_eq!(
-            SgrFlags::UNDERLINE.decorations(),
-            StyleFlags::UNDERLINE
-        );
+        assert_eq!(SgrFlags::BOLD.decorations(), StyleFlags::BOLD);
+        assert_eq!(SgrFlags::ITALIC.decorations(), StyleFlags::ITALIC);
+        assert_eq!(SgrFlags::UNDERLINE.decorations(), StyleFlags::UNDERLINE);
         assert_eq!(
             SgrFlags::STRIKETHROUGH.decorations(),
             StyleFlags::STRIKETHROUGH
         );
-        assert_eq!(
-            SgrFlags::OVERLINE.decorations(),
-            StyleFlags::OVERLINE
-        );
+        assert_eq!(SgrFlags::OVERLINE.decorations(), StyleFlags::OVERLINE);
         // Non-decoration flags map to empty.
         for f in [
             SgrFlags::FAINT,

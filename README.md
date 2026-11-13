@@ -20,14 +20,14 @@
 | crate | purpose |
 | --- | --- |
 | [`vtty`](crates/vtty) | the parser (re-exports `vtty_core`) |
-| [`vtty_core`](crates/vtty_core) | terminal model types + `Perform` |
-| [`vtty_codec`](crates/vtty_codec) | `no_std` binary `Encode`/`Decode` codec for `vtty_core` |
-| [`vtty_width`](crates/vtty_width) | display cell width + emoji sequences |
-| [`vtty_grapheme`](crates/vtty_grapheme) | UAX #29 grapheme cluster segmentation |
-| [`vtty_status`](crates/vtty_status) | `OSC 7501` Program Status Protocol |
-| [`vtty_screen`](crates/vtty_screen) | cell-grid terminal screen |
-| [`vtty_ffi`](crates/vtty_ffi) | raw C ABI |
-| [`vtty_bench`](crates/vtty_bench) | throughput benchmarks |
+| [`vtty_core`](crates/core) | terminal model types + `Perform` |
+| [`vtty_codec`](crates/codec) | `no_std` binary `Encode`/`Decode` codec for `vtty_core` |
+| [`vtty_width`](crates/width) | display cell width + emoji sequences |
+| [`vtty_grapheme`](crates/grapheme) | UAX #29 grapheme cluster segmentation |
+| [`vtty_status`](crates/status) | `OSC 7501` Program Status Protocol |
+| [`vtty_screen`](crates/screen) | cell-grid terminal screen |
+| [`vtty_ffi`](crates/ffi) | raw C ABI |
+| [`vtty_bench`](crates/bench) | throughput benchmarks |
 
 ## Features
 
@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Benchmarks
 
 Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt` — see
-[`crates/vtty_bench`](crates/vtty_bench) for the full table.
+[`crates/bench`](crates/bench) for the full table.
 
 ## Testing
 

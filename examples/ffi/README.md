@@ -10,7 +10,7 @@ examples/ffi/
 └── term_demo.c   # the C demo
 ```
 
-The ABI header `vtty_ffi.h` lives in `crates/vtty_ffi/`.
+The ABI header `vtty_ffi.h` lives in `crates/ffi/`.
 
 ## Build & run
 

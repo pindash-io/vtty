@@ -87,7 +87,7 @@ call), just not reflected in a flag — the full catalog is at
 
 ## Query / Reply protocols
 
-`Reply` (`crates/vtty_core/src/reply.rs`) formats the answers a screen emits.
+`Reply` (`crates/core/src/reply.rs`) formats the answers a screen emits.
 
 | Query | Request | Response | Status |
 | --- | --- | --- | --- |
