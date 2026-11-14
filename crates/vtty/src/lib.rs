@@ -120,3 +120,22 @@ const _: () = {
     const fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<Parser>();
 };
+
+/// Parser, [`Perform`], and model types. Free functions stay explicit.
+pub mod prelude {
+    #[cfg(feature = "reply")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "reply")))]
+    pub use crate::Reply;
+    #[cfg(feature = "termcap")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
+    pub use crate::{Cap, CapValue};
+    pub use crate::{
+        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle, DEFAULT_BG_ID,
+        DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec,
+        KittyFlags, Modifiers, MouseButton, MouseTracking, Parser, Perform, Recording, Scs, Sgr,
+        SgrEffect, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
+    };
+    #[cfg(feature = "status")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
+    pub use crate::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
+}
