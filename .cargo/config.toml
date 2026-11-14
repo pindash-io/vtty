@@ -1,0 +1,4 @@
+# Supply-chain hardening: hold back newly-published dependency versions so a
+# malicious release has time to be caught before it is resolved.
+[registry]
+global-min-publish-age = "3 days"
