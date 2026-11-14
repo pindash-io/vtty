@@ -93,9 +93,10 @@ unsafe fn with_state<T>(state: *const VtState, default: T, f: impl FnOnce(&VtSta
 /// `state` must be null or a live [`vt_new`] pointer valid for the call.
 #[inline]
 unsafe fn with_state_mut(state: *mut VtState, f: impl FnOnce(&mut VtState)) {
-    if let Some(s) = unsafe { state_mut(state) } {
-        f(s);
-    }
+    let Some(s) = (unsafe { state_mut(state) }) else {
+        return;
+    };
+    f(s);
 }
 
 /// The ABI version as `(major << 16) | (minor << 8) | patch` — a compile-time

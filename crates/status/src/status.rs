@@ -275,12 +275,11 @@ pub trait PerformProgramStatus: Perform {
     /// params were a valid `OSC 7501` report (and [`Self::program_status`] was
     /// called).
     fn route_osc_7501(&mut self, params: &[&[u8]]) -> bool {
-        if let Some(status) = ProgramStatus::from_osc_params(params) {
-            self.program_status(status);
-            true
-        } else {
-            false
-        }
+        let Some(status) = ProgramStatus::from_osc_params(params) else {
+            return false;
+        };
+        self.program_status(status);
+        true
     }
 }
 

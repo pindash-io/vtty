@@ -77,12 +77,13 @@ impl Screen {
         // At capacity, recycle the oldest line's `Vec<Cell>` allocation
         // instead of freeing it and allocating a fresh one for the incoming
         // line. `len >= max_scrollback >= 1`, so the queue is non-empty; the
-        // `if let` keeps the panic-free guarantee the crate promises.
-        if let Some(mut oldest) = self.scrollback.pop_front() {
-            oldest.0.copy_from_slice(&self.cells[start..start + width]);
-            oldest.1 = cont;
-            self.scrollback.push_back(oldest);
-        }
+        // `let-else` keeps the panic-free guarantee the crate promises.
+        let Some(mut oldest) = self.scrollback.pop_front() else {
+            return;
+        };
+        oldest.0.copy_from_slice(&self.cells[start..start + width]);
+        oldest.1 = cont;
+        self.scrollback.push_back(oldest);
     }
 
     pub(crate) fn scroll_down(&mut self) {
