@@ -178,6 +178,24 @@ impl TermFlags {
         }
     }
 
+    /// The ANSI/DEC mode number and `?` form for this flag — the inverse of
+    /// [`Self::from_mode_code`]. `None` for [`Self::NONE`] and untracked
+    /// flags.
+    #[inline]
+    pub const fn mode_code(self) -> Option<(i32, bool)> {
+        Some(match self {
+            Self::INSERT => (4, false),
+            Self::LINEFEED => (20, false),
+            _ => {
+                let code = self.private_param();
+                if code == 0 {
+                    return None;
+                }
+                (code, true)
+            }
+        })
+    }
+
     /// Look up a mode by code regardless of the ANSI/DEC split
     /// (DECRQM/XTSAVE/XTRESTORE).
     #[inline]
