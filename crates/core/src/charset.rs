@@ -93,6 +93,16 @@ impl Charset {
     }
 }
 
+impl From<u8> for Charset {
+    fn from(byte: u8) -> Self {
+        match byte {
+            b'0' => Self::Dec,
+            b'A' => Self::British,
+            _ => Self::Ascii,
+        }
+    }
+}
+
 /// The four ISO 2022 designated character sets (G0, G1, G2, G3), selected by
 /// the `ESC ( / ) / * / +` designation sequences and the `SO`/`SI`/`SS2`/`SS3` shift
 /// controls. A terminal carries these as one unit: DECSC/DECRC save and
