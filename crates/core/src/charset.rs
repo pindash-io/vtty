@@ -63,6 +63,16 @@ pub enum Charset {
 }
 
 impl Charset {
+    /// The designation byte (`ESC ( F`): `B` ASCII, `0` DEC, `A` British.
+    #[inline]
+    pub const fn to_u8(self) -> u8 {
+        match self {
+            Self::Ascii => b'B',
+            Self::Dec => b'0',
+            Self::British => b'A',
+        }
+    }
+
     /// Translate a char through the designated charset.
     #[inline]
     pub const fn map(self, c: char) -> char {
