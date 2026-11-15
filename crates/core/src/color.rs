@@ -270,24 +270,29 @@ fn scale_channel(part: &str) -> Option<u8> {
     Some((v * 255 / ((1 << (4 * len)) - 1)) as u8)
 }
 
+/// Format a bare xterm `rgb:RRRR/GGGG/BBBB` spec from a 0xRRGGBB value
+/// (8-bit channels repeated to 4 hex digits), without the OSC wrapper.
+#[inline]
+#[must_use]
+pub fn rgb_spec(rgb: u32) -> CompactString {
+    let [r, g, b] = u32_to_rgb(rgb);
+    format_compact!("rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}")
+}
+
 /// Format an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
 /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
 /// convention).
 #[inline]
 #[must_use]
 pub fn format_osc_color_reply(code: u16, rgb: u32) -> CompactString {
-    let [r, g, b] = u32_to_rgb(rgb);
-    // Direct `{:02x}` hex (each channel doubled to 4 digits) — no intermediate
-    // `const_hex::encode` heap strings; `format_compact!` writes inline.
-    format_compact!("\x1b]{code};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\")
+    format_compact!("\x1b]{code};{}\x1b\\", rgb_spec(rgb))
 }
 
 /// Format an `OSC 4` palette-entry reply `ESC]4;N;rgb:RRRR/GGGG/BBBB ESC\`.
 #[inline]
 #[must_use]
 pub fn format_osc_palette_reply(index: usize, rgb: u32) -> CompactString {
-    let [r, g, b] = u32_to_rgb(rgb);
-    format_compact!("\x1b]4;{index};rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\")
+    format_compact!("\x1b]4;{index};{}\x1b\\", rgb_spec(rgb))
 }
 
 /// Format the full `OSC 11` background reply as a fixed 25-byte buffer:
