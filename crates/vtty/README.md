@@ -36,7 +36,7 @@ let mut parser = Parser::new();
 parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 ```
 
-With the `simd` feature enabled, [`Parser::with_simd`] opts into SIMD
+With the `simd` feature enabled, `Parser::with_simd` opts into SIMD
 scanning and UTF-8 validation.
 
 Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
@@ -74,6 +74,8 @@ assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
   `default-features = false`) — `reply` (DECRQSS/DECRQM/XTGETTCAP),
   `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (`OSC 7501`
   `ProgramStatus`).
+- **`perf-inline`** (on by default) — `#[inline(always)]` on the parser
+  hot path; opt out for smaller code at some throughput cost.
 
 ## Test
 

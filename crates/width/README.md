@@ -28,6 +28,8 @@ assert_eq!(cell_advance(16.0, 10.0), 20.0); // 1.6 cells snaps to 2 cells
 ## Features
 
 `simd` + `baked` (default) | `icu` (runtime ICU4X lookups).
+`perf-inline` (default) — `#[inline(always)]` on the width hot paths; opt
+out for smaller code.
 
 ## Credits
 
