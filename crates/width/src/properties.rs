@@ -108,8 +108,8 @@ impl Properties {
         use icu_properties::CodePointSetData;
         use icu_properties::CodePointSetDataBorrowed;
         use icu_properties::props::{
-            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation, ExtendedPictographic,
-            RegionalIndicator,
+            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation,
+            ExtendedPictographic, RegionalIndicator,
         };
         thread_local! {
             static EMOJI: CodePointSetDataBorrowed<'static> =
@@ -158,7 +158,10 @@ pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
 /// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
 /// also need the width can do one table lookup instead of two.
 #[inline]
-pub(crate) const fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
+pub(crate) const fn category_from(
+    p: Properties,
+    c: char,
+) -> EmojiSegmentationCategory {
     EmojiSegmentationCategory::from_codepoint(
         c as u32,
         p.is_emoji(),
@@ -261,7 +264,7 @@ impl Gcb {
 /// Index of the first byte >= 0x80 (non-ASCII), or `bytes.len()` when the
 /// whole slice is ASCII. With the `simd` feature this is a 16-byte-at-a-time
 /// vectorized scan; otherwise a scalar fallback.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub fn first_non_ascii(bytes: &[u8]) -> usize {
     #[cfg(feature = "simd")]
     {
@@ -275,7 +278,7 @@ pub fn first_non_ascii(bytes: &[u8]) -> usize {
 
 /// Index of the first byte that is NOT printable ASCII (`0x20..=0x7e`), or
 /// `bytes.len()` when the whole slice is printable ASCII.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
     #[cfg(feature = "simd")]
     {
@@ -304,13 +307,13 @@ mod simd {
 
     static LEVEL: OnceLock<Level> = OnceLock::new();
 
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) fn first_non_ascii(bytes: &[u8]) -> usize {
         let level = *LEVEL.get_or_init(Level::new);
         dispatch!(level, simd => scan(simd, bytes))
     }
 
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) fn first_non_printable_ascii(bytes: &[u8]) -> usize {
         let level = *LEVEL.get_or_init(Level::new);
         dispatch!(level, simd => scan_printable(simd, bytes))
@@ -318,7 +321,7 @@ mod simd {
 
     /// Shared SIMD scan: 16-byte chunks via `stop_mask(simd, v) -> u64`, then
     /// a scalar `is_stop` tail. Returns the first stop index, or `bytes.len()`.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn scan_first<S: Simd>(
         simd: S,
         bytes: &[u8],
@@ -341,7 +344,7 @@ mod simd {
     }
 
     /// Non-ASCII ⇔ b >= 0x80 (the high bit is set).
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
         scan_first(
             simd,
@@ -355,7 +358,7 @@ mod simd {
     }
 
     /// Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn scan_printable<S: Simd>(simd: S, bytes: &[u8]) -> usize {
         scan_first(
             simd,
@@ -414,12 +417,15 @@ pub const fn vs_width(selector: char) -> usize {
 /// width 2, a standalone base (GCB Other), and NOT an emoji starter, so the
 /// composite table lookup is pure overhead on the streaming hot path. Derived
 /// from the baked table (verified by `cjk_fast_width_matches_table`).
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 #[doc(hidden)]
 pub const fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
     // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
     // non-ASCII hot path (one range check).
+    // OK because `wrapping_sub` turns `cp < 0x329A` into a huge value (it
+    // wraps), so the single `<` tests the whole inclusive `0x329A..=0xA48C`
+    // range without a lower-bound branch.
     if cp.wrapping_sub(0x329A) < (0xA48C - 0x329A + 1) {
         return Some(2);
     }
@@ -460,10 +466,12 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
 /// standalone base (GCB Other) — one range check + the CJK-ambiguous width
 /// instead of the composite table lookup (the tofu-fallback corpus). Derived
 /// from the baked table (verified by `pua_fast_width_matches_table`).
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 #[doc(hidden)]
 pub fn pua_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
+    // OK because each `wrapping_sub` range check wraps below its lower bound,
+    // so one `<` covers the inclusive range (see `cjk_fast_width`).
     if cp.wrapping_sub(0xE000) < (0xF8FF - 0xE000 + 1)
         || cp.wrapping_sub(0xF0000) < (0xFFFFD - 0xF0000 + 1)
         || cp.wrapping_sub(0x100000) < (0x10FFFD - 0x100000 + 1)

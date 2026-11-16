@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `perf-inline` cargo feature to `vtty` and `vtty_width` (on by
+  default) that gates the `#[inline(always)]` annotations on the parser and
+  width hot paths; disable it for smaller code at some throughput cost.
 - Added `vtty_screen`, a cell-grid terminal screen crate (`Screen` `Perform`
   sink with scrolling, SGR, reflow, and rendering).
 - Added ISO 2022 `Scs` (Select Character Set) state to `vtty_core`, unifying
@@ -102,3 +105,6 @@ Initial release: the `vtty` DEC VT500 parser, the `vtty_core` terminal model,
 `vtty_width` display-width/emoji segmentation, `vtty_grapheme` UAX #29
 segmentation, `vtty_status` OSC 7501, `vtty_codec` binary codec, and `vtty_ffi`
 C ABI.
+
+[Unreleased]: https://github.com/pindash-io/vtty/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pindash-io/vtty/releases/tag/v0.1.0

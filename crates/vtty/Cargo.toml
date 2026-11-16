@@ -14,7 +14,7 @@ readme = "README.md"
 all-features = true
 
 [features]
-default = ["reply", "termcap", "status"]
+default = ["reply", "termcap", "status", "perf-inline"]
 # DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
 reply = ["vtty_core/reply"]
 # XTGETTCAP terminfo capability table (`Cap`/`CapValue`); implies `reply`.
@@ -25,6 +25,9 @@ status = ["dep:vtty_status"]
 simd = ["dep:fearless_simd", "fearless_simd/std", "dep:simdutf8"]
 # SIMD UTF-8→UTF-32 transcode (compile-time lookup tables). Implies `simd`.
 simd-transcode = ["simd"]
+# More aggressive inline annotations on the parser hot path. Default-on; opt
+# out for smaller code at some throughput cost.
+perf-inline = []
 
 [dependencies]
 vtty_core = { path = "../core", default-features = false }

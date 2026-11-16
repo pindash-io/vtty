@@ -20,7 +20,9 @@ impl Screen {
     pub(crate) fn shift_lines(&mut self, n: u32, insert: bool) {
         // Region memmoves need logical == physical layout.
         self.materialize();
-        if self.cursor_row < self.top_margin || self.cursor_row > self.bottom_margin {
+        if self.cursor_row < self.top_margin
+            || self.cursor_row > self.bottom_margin
+        {
             return;
         }
 
@@ -89,8 +91,7 @@ impl Screen {
             if n == 0 {
                 return;
             }
-            self.cells
-                .copy_within(row + start..end - n, row + start + n);
+            self.cells.copy_within(row + start..end - n, row + start + n);
             self.cells[row + start..row + start + n].fill(Cell::default());
             return;
         }
@@ -104,7 +105,8 @@ impl Screen {
             // `start` is never a continuation (it was adjusted to the lead),
             // and each iteration advances past a whole glyph, so `col` always
             // lands on a lead or a plain cell — never mid-pair.
-            let wide = col + 1 < cols && self.cells[row + col + 1].is_continuation();
+            let wide =
+                col + 1 < cols && self.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             del += width;
             glyphs += 1;

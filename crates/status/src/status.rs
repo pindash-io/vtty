@@ -179,14 +179,18 @@ impl ProgramStatus {
 
         // Malformed pairs are skipped (`split_pair` → `None`); a hard error in
         // a recognized field (`?`/`return None`) discards the whole report.
-        for (key, value) in payload.split(|&b| b == b':').filter_map(split_pair) {
+        for (key, value) in
+            payload.split(|&b| b == b':').filter_map(split_pair)
+        {
             match key {
                 b"state" => state = StatusState::parse(value),
                 b"id" => id = Some(parse_id(value)?),
                 b"kind" => kind = StatusKind::parse(value),
                 b"progress" => progress = parse_progress(value),
                 b"app" => {
-                    if value.is_empty() || !value.iter().all(|&b| is_ident_byte(b)) {
+                    if value.is_empty()
+                        || !value.iter().all(|&b| is_ident_byte(b))
+                    {
                         app = None; // outside the character set: treated as absent
                     } else if value.len() > MAX_APP {
                         return None; // limit exceeded
@@ -195,10 +199,18 @@ impl ProgramStatus {
                     }
                 }
                 b"title" => {
-                    title = Some(parse_text(value, MAX_TITLE_ENCODED, MAX_TITLE_DECODED)?);
+                    title = Some(parse_text(
+                        value,
+                        MAX_TITLE_ENCODED,
+                        MAX_TITLE_DECODED,
+                    )?);
                 }
                 b"msg" => {
-                    msg = Some(parse_text(value, MAX_MSG_ENCODED, MAX_MSG_DECODED)?);
+                    msg = Some(parse_text(
+                        value,
+                        MAX_MSG_ENCODED,
+                        MAX_MSG_DECODED,
+                    )?);
                 }
                 _ => {} // unknown key
             }
@@ -207,18 +219,11 @@ impl ProgramStatus {
         let state = state?;
         // `kind` only applies to blocked; `progress` only to working/blocked.
         let kind = kind.filter(|_| state == StatusState::Blocked);
-        let progress =
-            progress.filter(|_| matches!(state, StatusState::Working | StatusState::Blocked));
+        let progress = progress.filter(|_| {
+            matches!(state, StatusState::Working | StatusState::Blocked)
+        });
 
-        Some(Self {
-            state,
-            id,
-            kind,
-            progress,
-            app,
-            title,
-            msg,
-        })
+        Some(Self { state, id, kind, progress, app, title, msg })
     }
 
     /// Parses a report from an OSC dispatch's params (`params[0] == "7501"`).
@@ -247,13 +252,21 @@ impl ProgramStatus {
         out.extend_from_slice(OSC_NUM);
         out.push(b';'); // OSC parameter separator
         push_field(out, b"state", self.state.as_bytes());
-        push_opt_field(out, b"id", self.id.as_ref().map(CompactString::as_bytes));
+        push_opt_field(
+            out,
+            b"id",
+            self.id.as_ref().map(CompactString::as_bytes),
+        );
         push_opt_field(out, b"kind", self.kind.map(StatusKind::as_bytes));
         if let Some(progress) = self.progress {
             let mut buf = [0_u8; 3];
             push_field(out, b"progress", write_decimal(progress, &mut buf));
         }
-        push_opt_field(out, b"app", self.app.as_ref().map(CompactString::as_bytes));
+        push_opt_field(
+            out,
+            b"app",
+            self.app.as_ref().map(CompactString::as_bytes),
+        );
         if let Some(title) = &self.title {
             push_field(out, b"title", B64.encode(title.as_bytes()).as_bytes());
         }
@@ -285,7 +298,8 @@ pub trait PerformProgramStatus: Perform {
 
 /// A byte allowed in a `value` (`[A-Za-z0-9_.,+/=-]`).
 const fn is_value_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b',' | b'+' | b'/' | b'=' | b'-')
+    b.is_ascii_alphanumeric()
+        || matches!(b, b'_' | b'.' | b',' | b'+' | b'/' | b'=' | b'-')
 }
 
 /// A byte allowed in an `app` or `id` segment (`[A-Za-z0-9_.+-]`).
@@ -314,15 +328,18 @@ fn split_pair(pair: &[u8]) -> Option<(&[u8], &[u8])> {
 
 /// Parses a decimal `progress` value in `0..=100`.
 fn parse_progress(value: &[u8]) -> Option<u8> {
-    if value.is_empty() || value.len() > 3 || !value.iter().all(u8::is_ascii_digit) {
+    if value.is_empty()
+        || value.len() > 3
+        || !value.iter().all(u8::is_ascii_digit)
+    {
         return None;
     }
     // `value` is already all ASCII digits (the guard above), so it is valid
     // UTF-8; parse the decimal directly without the `str` round-trip. The
     // `checked_*` ops reject overflow the same way `parse::<u8>` does.
-    let n = value
-        .iter()
-        .try_fold(0_u8, |acc, &b| acc.checked_mul(10)?.checked_add(b - b'0'))?;
+    let n = value.iter().try_fold(0_u8, |acc, &b| {
+        acc.checked_mul(10)?.checked_add(b - b'0')
+    })?;
     (n <= 100).then_some(n)
 }
 
@@ -372,7 +389,11 @@ impl Control {
 
 /// Decodes a base64 `title`/`msg` value, enforcing the encoded/decoded limits
 /// and rejecting control characters.
-fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<CompactString> {
+fn parse_text(
+    value: &[u8],
+    max_encoded: usize,
+    max_decoded: usize,
+) -> Option<CompactString> {
     if value.len() > max_encoded {
         return None;
     }
@@ -391,7 +412,8 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Co
 /// Standard base64; decoding accepts optional padding (per the protocol).
 const B64: GeneralPurpose = GeneralPurpose::new(
     &base64::alphabet::STANDARD,
-    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
+    GeneralPurposeConfig::new()
+        .with_decode_padding_mode(DecodePaddingMode::Indifferent),
 );
 
 /// Appends `:key=value` to `out`.
@@ -522,7 +544,10 @@ mod tests {
             Some((&b"state"[..], &b"idle"[..]))
         );
         // `=` in the value (base64 padding) stays in the value.
-        assert_eq!(split_pair(b"msg=Zm9v="), Some((&b"msg"[..], &b"Zm9v="[..])));
+        assert_eq!(
+            split_pair(b"msg=Zm9v="),
+            Some((&b"msg"[..], &b"Zm9v="[..]))
+        );
     }
 
     #[test]

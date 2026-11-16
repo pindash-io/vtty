@@ -310,7 +310,11 @@ use crate::event::param_colon_sep;
 /// Parse an SGR sequence into its effects, appending to `out` (which the
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
 /// ([`ColorSpec`]) so each consumer interns them against its own palette.
-pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
+pub fn parse_effects(
+    params: &[i32],
+    sep: u16,
+    out: &mut SmallVec<SgrEffect, 8>,
+) {
     if params.is_empty() {
         out.push(SgrEffect::Reset);
         return;
@@ -360,7 +364,9 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
         [code @ (38 | 48 | 58), 2, r, g, b] => {
             Some(extended_effect(*code, ColorSpec::rgb(*r, *g, *b)))
         }
-        [code @ (38 | 48 | 58), 5, n] => Some(extended_effect(*code, ColorSpec::indexed(*n))),
+        [code @ (38 | 48 | 58), 5, n] => {
+            Some(extended_effect(*code, ColorSpec::indexed(*n)))
+        }
         [code] => single_code(*code),
         _ => None,
     }
@@ -371,7 +377,10 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
 /// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
 /// for anything else; the caller falls back to [`parse_effects`].
 #[inline]
-pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
+pub fn two_effects(
+    params: &[i32],
+    sep: u16,
+) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
@@ -414,8 +423,12 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
         40..=47 => Some(SgrEffect::Bg(ColorSpec::Ansi((code - 40) as u16))),
         49 => Some(SgrEffect::Bg(ColorSpec::Default)),
         59 => Some(SgrEffect::ClearUnderlineColor),
-        90..=97 => Some(SgrEffect::Fg(ColorSpec::Ansi((code - 90 + 8) as u16))),
-        100..=107 => Some(SgrEffect::Bg(ColorSpec::Ansi((code - 100 + 8) as u16))),
+        90..=97 => {
+            Some(SgrEffect::Fg(ColorSpec::Ansi((code - 90 + 8) as u16)))
+        }
+        100..=107 => {
+            Some(SgrEffect::Bg(ColorSpec::Ansi((code - 100 + 8) as u16)))
+        }
         _ => {
             let mut flags = SgrFlags::from(code);
             if flags.is_empty() {
@@ -437,7 +450,11 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
-pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
+pub fn parse_extended(
+    params: &[i32],
+    sep: u16,
+    i: usize,
+) -> Option<(ColorSpec, usize)> {
     let len = params.len();
     let colon = param_colon_sep(sep, i);
     // A colon after the `g` slot (i + 4) marks the colorspace form.
@@ -600,7 +617,8 @@ mod tests {
         for code in 1..=6 {
             let shape = CursorStyle::from_decscusr(code);
             assert_eq!(
-                CursorStyle::decscusr_blink(code).map(|blink| shape.to_decscusr(blink)),
+                CursorStyle::decscusr_blink(code)
+                    .map(|blink| shape.to_decscusr(blink)),
                 Some(code as u8),
             );
         }
@@ -672,7 +690,10 @@ mod tests {
     fn sgr_parse_effects_extended_rgb() {
         let mut out = SmallVec::new();
         parse_effects(&[38, 2, 255, 0, 128], 0, &mut out);
-        assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]);
+        assert_eq!(
+            out.as_ref(),
+            &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]
+        );
     }
 
     #[test]
@@ -702,7 +723,10 @@ mod tests {
             single_effect(&[48, 5, 196], 0),
             Some(SgrEffect::Bg(ColorSpec::indexed(196)))
         );
-        assert_eq!(single_effect(&[1], 0), Some(SgrEffect::Set(SgrFlags::BOLD)));
+        assert_eq!(
+            single_effect(&[1], 0),
+            Some(SgrEffect::Set(SgrFlags::BOLD))
+        );
         // Colon-separated forms fall back to `parse_effects`.
         assert_eq!(single_effect(&[4, 2], 0b01), None);
         assert_eq!(single_effect(&[1, 2], 0), None);

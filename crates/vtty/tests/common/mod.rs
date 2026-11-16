@@ -37,7 +37,8 @@ pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
     let mut events = p.parse_events(bytes);
     for e in &mut events {
         let params: &mut SmallVec<i32, 6> = match e {
-            Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => params,
+            Event::CsiDispatch { params, .. }
+            | Event::DcsHook { params, .. } => params,
             _ => continue,
         };
         for p in params.iter_mut() {
@@ -64,7 +65,13 @@ impl vte::Perform for VteRec {
     fn execute(&mut self, b: u8) {
         self.acts.push(Event::Execute(b));
     }
-    fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
+    fn csi_dispatch(
+        &mut self,
+        params: &vte::Params,
+        int: &[u8],
+        _ignore: bool,
+        f: char,
+    ) {
         self.acts.push(Event::CsiDispatch {
             params: flat_params!(params),
             sep: 0,
@@ -78,7 +85,13 @@ impl vte::Perform for VteRec {
             byte: b,
         });
     }
-    fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
+    fn hook(
+        &mut self,
+        params: &vte::Params,
+        int: &[u8],
+        _ignore: bool,
+        f: char,
+    ) {
         self.acts.push(Event::DcsHook {
             params: flat_params!(params),
             intermediates: int.iter().copied().collect(),
@@ -121,11 +134,9 @@ impl rio_vt::performer::parser::Perform for RioRec {
         self.acts.extend(s.chars().map(Event::Print));
     }
     fn print_codepoints(&mut self, codepoints: &[u32]) {
-        self.acts.extend(
-            codepoints
-                .iter()
-                .map(|&cp| Event::Print(char::from_u32(cp).unwrap_or('\u{FFFD}'))),
-        );
+        self.acts.extend(codepoints.iter().map(|&cp| {
+            Event::Print(char::from_u32(cp).unwrap_or('\u{FFFD}'))
+        }));
     }
     fn execute(&mut self, b: u8) {
         self.acts.push(Event::Execute(b));

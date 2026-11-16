@@ -84,7 +84,9 @@ bitflags::bitflags! {
 const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
     match state {
         ParseState::Escape => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::Escape),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::Escape)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::EscapeIntermediate),
@@ -93,12 +95,14 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             }
             0x50 => (Action::NONE, ParseState::DcsEntry), // 'P' → DCS
             0x58 | 0x5e | 0x5f => (Action::NONE, ParseState::SosPmApcString), // 'X' '^' '_' → SOS/PM/APC
-            0x5b => (Action::NONE, ParseState::CsiEntry),                     // '[' → CSI
-            0x5d => (Action::OSC_START, ParseState::OscString),               // ']' → OSC
+            0x5b => (Action::NONE, ParseState::CsiEntry), // '[' → CSI
+            0x5d => (Action::OSC_START, ParseState::OscString), // ']' → OSC
             _ => (Action::NONE, ParseState::Escape),
         },
         ParseState::EscapeIntermediate => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::EscapeIntermediate),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::EscapeIntermediate)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::EscapeIntermediate),
@@ -106,7 +110,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::EscapeIntermediate),
         },
         ParseState::CsiEntry => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiEntry),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::CsiEntry)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -116,7 +122,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::CsiEntry),
         },
         ParseState::CsiParam => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiParam),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::CsiParam)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -126,7 +134,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::CsiParam),
         },
         ParseState::CsiIntermediate => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiIntermediate),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::CsiIntermediate)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -135,7 +145,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::CsiIntermediate),
         },
         ParseState::CsiIgnore => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiIgnore),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::EXECUTE, ParseState::CsiIgnore)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x3f => (Action::NONE, ParseState::CsiIgnore),
@@ -143,15 +155,21 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::CsiIgnore),
         },
         ParseState::OscString => match b {
-            0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::OscString),
+            0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::OscString)
+            }
             0x07 => (Action::OSC_END, ParseState::Ground),
-            0x18 | 0x1a => (Action::OSC_END.union(Action::EXECUTE), ParseState::Ground),
+            0x18 | 0x1a => {
+                (Action::OSC_END.union(Action::EXECUTE), ParseState::Ground)
+            }
             0x1b => (Action::OSC_END, ParseState::Escape),
             0x9c => (Action::OSC_END, ParseState::Ground),
             _ => (Action::OSC_PUT, ParseState::OscString),
         },
         ParseState::DcsEntry => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsEntry),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::DcsEntry)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -161,7 +179,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::DcsEntry),
         },
         ParseState::DcsParam => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsParam),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::DcsParam)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -171,7 +191,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::DcsParam),
         },
         ParseState::DcsIntermediate => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsIntermediate),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::DcsIntermediate)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -180,14 +202,20 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::DcsIntermediate),
         },
         ParseState::DcsPassthrough => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x7e => (Action::PUT, ParseState::DcsPassthrough),
-            0x18 | 0x1a => (Action::UNHOOK.union(Action::EXECUTE), ParseState::Ground),
+            0x00..=0x17 | 0x19 | 0x1c..=0x7e => {
+                (Action::PUT, ParseState::DcsPassthrough)
+            }
+            0x18 | 0x1a => {
+                (Action::UNHOOK.union(Action::EXECUTE), ParseState::Ground)
+            }
             0x1b => (Action::UNHOOK, ParseState::Escape),
             0x9c => (Action::UNHOOK, ParseState::Ground),
             _ => (Action::NONE, ParseState::DcsPassthrough),
         },
         ParseState::DcsIgnore => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsIgnore),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::DcsIgnore)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             0x20..=0x7f => (Action::NONE, ParseState::DcsIgnore),
@@ -195,7 +223,9 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             _ => (Action::NONE, ParseState::DcsIgnore),
         },
         ParseState::SosPmApcString => match b {
-            0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::SosPmApcString),
+            0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                (Action::NONE, ParseState::SosPmApcString)
+            }
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
             // SOS/PM/APC: the first content byte is the "action" (e.g. `G`
@@ -250,7 +280,7 @@ const fn build_table() -> [(Action, ParseState); 14 * 256] {
 
 /// Runtime transition: one indexed load into [`TABLE`], no per-byte match or
 /// unpacking.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn transition(state: ParseState, b: u8) -> (Action, ParseState) {
     TABLE[(state as usize) << 8 | b as usize]
 }
@@ -273,15 +303,22 @@ mod tests {
         match state {
             // escape
             ParseState::Escape => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::Escape),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::EXECUTE, ParseState::Escape)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::EscapeIntermediate),
-                0x30..=0x4f | 0x51..=0x57 | 0x59 | 0x5a | 0x5c | 0x60..=0x7e => {
-                    (Action::ESC_DISPATCH, ParseState::Ground)
-                }
+                0x30..=0x4f
+                | 0x51..=0x57
+                | 0x59
+                | 0x5a
+                | 0x5c
+                | 0x60..=0x7e => (Action::ESC_DISPATCH, ParseState::Ground),
                 0x50 => (Action::NONE, ParseState::DcsEntry),
-                0x58 | 0x5e | 0x5f => (Action::NONE, ParseState::SosPmApcString),
+                0x58 | 0x5e | 0x5f => {
+                    (Action::NONE, ParseState::SosPmApcString)
+                }
                 0x5b => (Action::NONE, ParseState::CsiEntry),
                 0x5d => (Action::OSC_START, ParseState::OscString),
                 _ => (Action::NONE, ParseState::Escape),
@@ -299,7 +336,9 @@ mod tests {
             },
             // csi entry
             ParseState::CsiEntry => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiEntry),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::EXECUTE, ParseState::CsiEntry)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -310,7 +349,9 @@ mod tests {
             },
             // csi param
             ParseState::CsiParam => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiParam),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::EXECUTE, ParseState::CsiParam)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -321,7 +362,9 @@ mod tests {
             },
             // csi intermediate
             ParseState::CsiIntermediate => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiIntermediate),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::EXECUTE, ParseState::CsiIntermediate)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::CsiIntermediate),
@@ -331,7 +374,9 @@ mod tests {
             },
             // csi ignore
             ParseState::CsiIgnore => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::EXECUTE, ParseState::CsiIgnore),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::EXECUTE, ParseState::CsiIgnore)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x3f => (Action::NONE, ParseState::CsiIgnore),
@@ -344,13 +389,18 @@ mod tests {
                     (Action::NONE, ParseState::OscString)
                 }
                 0x07 => (Action::OSC_END, ParseState::Ground),
-                0x18 | 0x1a => (Action::OSC_END.union(Action::EXECUTE), ParseState::Ground),
+                0x18 | 0x1a => (
+                    Action::OSC_END.union(Action::EXECUTE),
+                    ParseState::Ground,
+                ),
                 0x1b => (Action::OSC_END, ParseState::Escape),
                 _ => (Action::OSC_PUT, ParseState::OscString),
             },
             // dcs entry
             ParseState::DcsEntry => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsEntry),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::NONE, ParseState::DcsEntry)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -361,7 +411,9 @@ mod tests {
             },
             // dcs param
             ParseState::DcsParam => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsParam),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::NONE, ParseState::DcsParam)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -372,7 +424,9 @@ mod tests {
             },
             // dcs intermediate
             ParseState::DcsIntermediate => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsIntermediate),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::NONE, ParseState::DcsIntermediate)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x2f => (Action::NONE, ParseState::DcsIntermediate),
@@ -382,14 +436,20 @@ mod tests {
             },
             // dcs passthrough
             ParseState::DcsPassthrough => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x7e => (Action::PUT, ParseState::DcsPassthrough),
-                0x18 | 0x1a => (Action::UNHOOK.union(Action::EXECUTE), ParseState::Ground),
+                0x00..=0x17 | 0x19 | 0x1c..=0x7e => {
+                    (Action::PUT, ParseState::DcsPassthrough)
+                }
+                0x18 | 0x1a => {
+                    (Action::UNHOOK.union(Action::EXECUTE), ParseState::Ground)
+                }
                 0x1b => (Action::UNHOOK, ParseState::Escape),
                 _ => (Action::NONE, ParseState::DcsPassthrough),
             },
             // dcs ignore
             ParseState::DcsIgnore => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::DcsIgnore),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::NONE, ParseState::DcsIgnore)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 0x20..=0x7f => (Action::NONE, ParseState::DcsIgnore),
@@ -397,7 +457,9 @@ mod tests {
             },
             // sos/pm/apc string
             ParseState::SosPmApcString => match b {
-                0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::SosPmApcString),
+                0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    (Action::NONE, ParseState::SosPmApcString)
+                }
                 0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
                 0x1b => (Action::NONE, ParseState::Escape),
                 _ => (Action::NONE, ParseState::SosPmApcString),
@@ -409,15 +471,26 @@ mod tests {
     /// Deliberate deviations from the DEC diagram (modern protocol
     /// extensions). `(state, byte)` pairs that intentionally behave
     /// differently from DEC; everything else must match `dec_step` exactly.
-    fn vtty_deviation(state: ParseState, b: u8) -> Option<(Action, ParseState)> {
+    fn vtty_deviation(
+        state: ParseState,
+        b: u8,
+    ) -> Option<(Action, ParseState)> {
         match (state, b) {
             // kitty colon sub-parameters: `:` is a param separator (SGR
             // `38:2::r:g:b`, `4:3` curly underline), not "ignore the whole
             // sequence" as DEC specified.
-            (ParseState::CsiEntry, 0x3a) => Some((Action::NONE, ParseState::CsiParam)),
-            (ParseState::CsiParam, 0x3a) => Some((Action::NONE, ParseState::CsiParam)),
-            (ParseState::DcsEntry, 0x3a) => Some((Action::NONE, ParseState::DcsParam)),
-            (ParseState::DcsParam, 0x3a) => Some((Action::NONE, ParseState::DcsParam)),
+            (ParseState::CsiEntry, 0x3a) => {
+                Some((Action::NONE, ParseState::CsiParam))
+            }
+            (ParseState::CsiParam, 0x3a) => {
+                Some((Action::NONE, ParseState::CsiParam))
+            }
+            (ParseState::DcsEntry, 0x3a) => {
+                Some((Action::NONE, ParseState::DcsParam))
+            }
+            (ParseState::DcsParam, 0x3a) => {
+                Some((Action::NONE, ParseState::DcsParam))
+            }
             // kitty APC graphics `_G`: SOS/PM/APC content bytes dispatch
             // `hook` (and reuse the DCS passthrough state for put/unhook)
             // instead of being ignored as DEC specified.
@@ -451,7 +524,8 @@ mod tests {
 
         for state in STATES {
             for b in 0x00..=0x7f {
-                let expected = vtty_deviation(state, b).unwrap_or_else(|| dec_step(state, b));
+                let expected = vtty_deviation(state, b)
+                    .unwrap_or_else(|| dec_step(state, b));
                 let actual = transition(state, b);
                 assert_eq!(
                     actual, expected,

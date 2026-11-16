@@ -9,9 +9,8 @@
 //! cargo run --release -p vtty_width --example zwj_conformance -- /tmp/zwj.txt
 //! ```
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "/tmp/zwj.txt".into());
+    let path =
+        std::env::args().nth(1).unwrap_or_else(|| "/tmp/zwj.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
     let mut total = 0_usize;
     let mut ok = 0_usize;
@@ -26,7 +25,9 @@ fn main() {
         };
         let cps: Vec<char> = cps
             .split_whitespace()
-            .filter_map(|h| u32::from_str_radix(h, 16).ok().and_then(char::from_u32))
+            .filter_map(|h| {
+                u32::from_str_radix(h, 16).ok().and_then(char::from_u32)
+            })
             .collect();
         if cps.is_empty() {
             continue;

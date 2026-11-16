@@ -9,9 +9,9 @@ use alloc::vec::Vec;
 use smallvec::SmallVec;
 
 use vtty_core::{
-    Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags, MouseButton,
-    MouseTracking, Recording, Sgr, SgrEffect, SgrFlags, State, StyleFlags, TermFlags,
-    UnderlineStyle,
+    Charset, Charsets, ColorId, ColorSpec, CursorStyle, Event, KittyFlags,
+    MouseButton, MouseTracking, Recording, Sgr, SgrEffect, SgrFlags, State,
+    StyleFlags, TermFlags, UnderlineStyle,
 };
 use vtty_status::{ProgramStatus, StatusKind, StatusState};
 
@@ -57,7 +57,10 @@ impl From<u8> for Tag {
 }
 
 impl Encode for Event {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         match self {
             Self::Print(c) => {
                 writer.write_byte(Tag::Print as u8)?;
@@ -71,31 +74,19 @@ impl Encode for Event {
                 writer.write_byte(Tag::Execute as u8)?;
                 b.encode(writer)
             }
-            Self::CsiDispatch {
-                params,
-                sep,
-                intermediates,
-                final_byte,
-            } => {
+            Self::CsiDispatch { params, sep, intermediates, final_byte } => {
                 writer.write_byte(Tag::Csi as u8)?;
                 params.encode(writer)?;
                 sep.encode(writer)?;
                 intermediates.encode(writer)?;
                 final_byte.encode(writer)
             }
-            Self::EscDispatch {
-                intermediates,
-                byte,
-            } => {
+            Self::EscDispatch { intermediates, byte } => {
                 writer.write_byte(Tag::Esc as u8)?;
                 intermediates.encode(writer)?;
                 byte.encode(writer)
             }
-            Self::DcsHook {
-                params,
-                intermediates,
-                final_byte,
-            } => {
+            Self::DcsHook { params, intermediates, final_byte } => {
                 writer.write_byte(Tag::DcsHook as u8)?;
                 params.encode(writer)?;
                 intermediates.encode(writer)?;
@@ -106,10 +97,7 @@ impl Encode for Event {
                 b.encode(writer)
             }
             Self::DcsUnhook => writer.write_byte(Tag::DcsUnhook as u8),
-            Self::OscDispatch {
-                params,
-                bell_terminated,
-            } => {
+            Self::OscDispatch { params, bell_terminated } => {
                 writer.write_byte(Tag::Osc as u8)?;
                 params.encode(writer)?;
                 bell_terminated.encode(writer)
@@ -152,21 +140,25 @@ impl Decode for Event {
 }
 
 impl Encode for Recording {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.events.encode(writer)
     }
 }
 
 impl Decode for Recording {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Ok(Self {
-            events: Vec::decode(reader)?,
-        })
+        Ok(Self { events: Vec::decode(reader)? })
     }
 }
 
 impl Encode for Sgr {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.params.encode(writer)?;
         self.sep.encode(writer)
     }
@@ -182,7 +174,10 @@ impl Decode for Sgr {
 }
 
 impl Encode for ColorId {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.index().encode(writer)
     }
 }
@@ -234,7 +229,10 @@ impl_tagged_codec!(
 );
 
 impl Encode for ColorSpec {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         match *self {
             Self::Default => writer.write_byte(0),
             Self::Ansi(v) => {
@@ -266,7 +264,10 @@ impl Decode for ColorSpec {
 }
 
 impl Encode for SgrEffect {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         match self {
             Self::Reset => writer.write_byte(0),
             Self::Set(f) => {
@@ -322,7 +323,10 @@ impl_tagged_codec!(
 );
 
 impl Encode for Charsets {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         for g in 0..4 {
             self.get(g).encode(writer)?;
         }
@@ -358,7 +362,10 @@ impl_tagged_codec!(
 );
 
 impl Encode for ProgramStatus {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.state.encode(writer)?;
         self.id.encode(writer)?;
         self.kind.encode(writer)?;
@@ -384,7 +391,10 @@ impl Decode for ProgramStatus {
 }
 
 impl Encode for State {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.text.encode(writer)?;
         encode_varint(writer, self.cursor)?;
         encode_varint(writer, self.line_start)
@@ -399,11 +409,7 @@ impl Decode for State {
         if line_start > cursor || cursor > text.len() {
             return Err(DecodeError::InvalidValue);
         }
-        Ok(Self {
-            text,
-            cursor,
-            line_start,
-        })
+        Ok(Self { text, cursor, line_start })
     }
 }
 
@@ -444,10 +450,7 @@ mod tests {
                 intermediates: SmallVec::from_buf(*b" "),
                 final_byte: b'm',
             },
-            Event::EscDispatch {
-                intermediates: SmallVec::new(),
-                byte: b'7',
-            },
+            Event::EscDispatch { intermediates: SmallVec::new(), byte: b'7' },
             Event::DcsHook {
                 params: SmallVec::new(),
                 intermediates: SmallVec::new(),
@@ -484,7 +487,8 @@ mod tests {
 
     #[test]
     fn decode_iter_events() {
-        let events = vec![Event::Print('a'), Event::Execute(b'\n'), Event::Print('λ')];
+        let events =
+            vec![Event::Print('a'), Event::Execute(b'\n'), Event::Print('λ')];
         let mut bytes = Vec::new();
         for event in &events {
             bytes.extend_from_slice(&ok(encode_to_vec(event)));
@@ -506,7 +510,10 @@ mod tests {
         assert_eq!(roundtrip(&MouseTracking::SGR), MouseTracking::SGR);
         assert_eq!(roundtrip(&CursorStyle::Bar), CursorStyle::Bar);
         assert_eq!(roundtrip(&UnderlineStyle::Curly), UnderlineStyle::Curly);
-        assert_eq!(roundtrip(&MouseButton::WheelRight), MouseButton::WheelRight);
+        assert_eq!(
+            roundtrip(&MouseButton::WheelRight),
+            MouseButton::WheelRight
+        );
         assert_eq!(roundtrip(&Charset::Dec), Charset::Dec);
 
         let mut charsets = Charsets::ascii();
@@ -564,7 +571,10 @@ mod tests {
     fn colorspec_roundtrip() {
         assert_eq!(roundtrip(&ColorSpec::Default), ColorSpec::Default);
         assert_eq!(roundtrip(&ColorSpec::Ansi(7)), ColorSpec::Ansi(7));
-        assert_eq!(roundtrip(&ColorSpec::Indexed(196)), ColorSpec::Indexed(196));
+        assert_eq!(
+            roundtrip(&ColorSpec::Indexed(196)),
+            ColorSpec::Indexed(196)
+        );
         assert_eq!(
             roundtrip(&ColorSpec::Rgb(0x112233)),
             ColorSpec::Rgb(0x112233)
@@ -630,11 +640,9 @@ mod tests {
         ] {
             assert_eq!(roundtrip(&state), state);
         }
-        for kind in [
-            StatusKind::Permission,
-            StatusKind::Question,
-            StatusKind::Auth,
-        ] {
+        for kind in
+            [StatusKind::Permission, StatusKind::Question, StatusKind::Auth]
+        {
             assert_eq!(roundtrip(&kind), kind);
         }
     }

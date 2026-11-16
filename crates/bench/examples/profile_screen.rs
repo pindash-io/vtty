@@ -18,17 +18,11 @@ const ROWS: u32 = 24;
 
 fn main() {
     let case = std::env::args().nth(1).unwrap_or_else(|| "sgr_nvim".into());
-    let simd = std::env::args()
-        .nth(2)
-        .map(|s| s == "simd")
-        .unwrap_or(false);
+    let simd = std::env::args().nth(2).map(|s| s == "simd").unwrap_or(false);
 
     let bytes = corpus(&case);
-    let mut parser = if simd {
-        vtty::Parser::with_simd()
-    } else {
-        vtty::Parser::new()
-    };
+    let mut parser =
+        if simd { vtty::Parser::with_simd() } else { vtty::Parser::new() };
     let mut screen = vtty_screen::Screen::new(COLS, ROWS);
 
     // Warm up once so SIMD level detection and caches settle.
@@ -79,7 +73,9 @@ fn corpus(case: &str) -> Vec<u8> {
                     for x in 0..COLS as usize {
                         let v = (x * 7 + y * 13 + frame * 31) % 253;
                         let w = (x * 11 + y * 3 + frame * 17) % 251;
-                        out += &format!("\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}");
+                        out += &format!(
+                            "\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}"
+                        );
                     }
                 }
                 frame += 1;
@@ -94,8 +90,11 @@ fn corpus(case: &str) -> Vec<u8> {
                 let b = (i * 13) % 256;
                 line += &format!("\x1b[1m\x1b[38;2;{r};{g};{b}mfn\x1b[0m ");
                 let w = (i * 53 + 8) % 256;
-                line += &format!("\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m ");
-                line += &format!("\x1b[4:3m\x1b[58:2::{r};{g};{b}mlink\x1b[0m ");
+                line += &format!(
+                    "\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m "
+                );
+                line +=
+                    &format!("\x1b[4:3m\x1b[58:2::{r};{g};{b}mlink\x1b[0m ");
                 line += "const v = ";
                 line += &format!("{i}; ");
             }

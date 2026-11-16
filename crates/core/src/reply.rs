@@ -76,7 +76,12 @@ impl Reply {
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
     /// Starts with `0` (reset-all), like vte. `palette` resolves RGB ids.
     #[must_use]
-    pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
+    pub fn sgr(
+        fg: ColorId,
+        bg: ColorId,
+        flags: SgrFlags,
+        palette: &[u32],
+    ) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str("0");
         for (_, code) in [
@@ -126,7 +131,10 @@ impl Reply {
     /// includes the `?` for `CSI ?Ps$p` queries.
     #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
-        format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
+        format_compact!(
+            "\x1b[{}{param};{state}$y",
+            if private { "?" } else { "" }
+        )
     }
 }
 
@@ -139,7 +147,12 @@ fn terminate(buf: &mut CompactString) {
 /// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
 /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
 /// failure messages.
-pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Option<&[u8]>) {
+pub(crate) fn xtgettcap(
+    buf: &mut CompactString,
+    ok: bool,
+    key: &[u8],
+    value: Option<&[u8]>,
+) {
     buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
     buf.push_str(&const_hex::encode(key));
     if let Some(value) = value {
@@ -151,13 +164,21 @@ pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Op
 
 /// Append an XTGETTCAP decimal-integer answer, hex-encoding the digits of
 /// the decimal form (same bytes as [`xtgettcap`] with a numeric value).
-pub(crate) fn xtgettcap_num_append(buf: &mut CompactString, key: &[u8], n: usize) {
+pub(crate) fn xtgettcap_num_append(
+    buf: &mut CompactString,
+    key: &[u8],
+    n: usize,
+) {
     xtgettcap(buf, true, key, Some(n.to_string().as_bytes()));
 }
 
 /// Build an XTGETTCAP answer in a fresh buffer.
 #[inline]
-fn xtgettcap_build(ok: bool, key: &[u8], value: Option<&[u8]>) -> CompactString {
+fn xtgettcap_build(
+    ok: bool,
+    key: &[u8],
+    value: Option<&[u8]>,
+) -> CompactString {
     let mut buf = CompactString::default();
     xtgettcap(&mut buf, ok, key, value);
     buf

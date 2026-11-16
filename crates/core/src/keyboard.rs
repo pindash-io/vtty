@@ -250,11 +250,15 @@ pub fn encode_key(
     }
     match encoding {
         KeyEncoding::Legacy => encode_legacy(key, mods, false, modes, text),
-        KeyEncoding::ApplicationCursorKeys => encode_legacy(key, mods, true, modes, text),
+        KeyEncoding::ApplicationCursorKeys => {
+            encode_legacy(key, mods, true, modes, text)
+        }
         KeyEncoding::ModifyOtherKeys(mode) => {
             encode_modify_other_keys(key, mods, mode, modes, text)
         }
-        KeyEncoding::Kitty(flags) => encode_kitty(key, mods, flags, kind, text),
+        KeyEncoding::Kitty(flags) => {
+            encode_kitty(key, mods, flags, kind, text)
+        }
     }
 }
 
@@ -300,7 +304,15 @@ fn encode_kitty(
 
     match key {
         Key::Character(ch) => {
-            return encode_kitty_text(ch, flags, mods, has_mods, encoded_mods, event, text);
+            return encode_kitty_text(
+                ch,
+                flags,
+                mods,
+                has_mods,
+                encoded_mods,
+                event,
+                text,
+            );
         }
         Key::Keypad { kitty, .. } => {
             return Some(kitty_csi(*kitty, 'u', encoded_mods, event));
@@ -350,7 +362,12 @@ fn encode_kitty(
 }
 
 /// kitty CSI formatter: `CSI <code>[;<mods>[:<event>]] <trailer>`.
-fn kitty_csi(code: u32, trailer: char, encoded_mods: u32, event: Option<u32>) -> CompactString {
+fn kitty_csi(
+    code: u32,
+    trailer: char,
+    encoded_mods: u32,
+    event: Option<u32>,
+) -> CompactString {
     let has_mods = encoded_mods != 1;
     let omit_code = code == 1 && !has_mods && event.is_none();
     match (has_mods, event, omit_code) {
@@ -440,13 +457,13 @@ fn encode_kitty_text(
 /// The shifted character of a Shift+key: the event `text`'s first char, else
 /// the uppercase base.
 fn shifted_char(ch: &char, text: Option<&str>) -> Option<char> {
-    text.and_then(|t| t.chars().next())
-        .or_else(|| ch.to_uppercase().next())
+    text.and_then(|t| t.chars().next()).or_else(|| ch.to_uppercase().next())
 }
 
 /// The shifted text of a Shift+key: the shifted char, else the base itself.
 fn shifted_text(ch: &char, text: Option<&str>) -> CompactString {
-    shifted_char(ch, text).map_or_else(|| ch.to_string().into(), |c| c.to_string().into())
+    shifted_char(ch, text)
+        .map_or_else(|| ch.to_string().into(), |c| c.to_string().into())
 }
 
 /// The kitty functional `(code, trailer)`, or `None` for fallback/legacy-only
@@ -483,7 +500,10 @@ fn encode_keypad(
 }
 
 /// The unmodified legacy byte sequence for a [`KeySpec`].
-fn legacy_spec_bytes(spec: &KeySpec, app_cursor: bool) -> Option<CompactString> {
+fn legacy_spec_bytes(
+    spec: &KeySpec,
+    app_cursor: bool,
+) -> Option<CompactString> {
     Some(match spec {
         KeySpec::Cursor(letter) => legacy_arrow(*letter, app_cursor),
         KeySpec::CsiLetter(letter) => format_compact!("\x1b[{letter}"),
@@ -516,11 +536,10 @@ fn legacy_base(
             }
         }
         Key::Tab => "\t".into(),
-        Key::Named(_) | Key::Keypad { .. } => legacy_spec_bytes(key.legacy_spec()?, app_cursor)?,
-        Key::Modifier {
-            legacy: Some(bytes),
-            ..
-        } => (*bytes).into(),
+        Key::Named(_) | Key::Keypad { .. } => {
+            legacy_spec_bytes(key.legacy_spec()?, app_cursor)?
+        }
+        Key::Modifier { legacy: Some(bytes), .. } => (*bytes).into(),
         Key::Modifier { .. } => return None,
     })
 }
@@ -563,7 +582,11 @@ fn legacy_arrow(letter: char, app_cursor: bool) -> CompactString {
 }
 
 /// Apply legacy modifiers (Shift/Alt/Ctrl) to an unmodified base sequence.
-fn legacy_modified(base: CompactString, key: &Key, mods: Modifiers) -> Option<CompactString> {
+fn legacy_modified(
+    base: CompactString,
+    key: &Key,
+    mods: Modifiers,
+) -> Option<CompactString> {
     let ctrl = mods.ctrl();
     let alt = mods.alt();
 
@@ -624,11 +647,7 @@ fn encode_legacy(
     modes: KeyModes,
     text: Option<&str>,
 ) -> Option<CompactString> {
-    if let Key::Keypad {
-        legacy: Some((sym, plain)),
-        ..
-    } = key
-    {
+    if let Key::Keypad { legacy: Some((sym, plain)), .. } = key {
         return encode_keypad(*sym, *plain, mods, modes);
     }
     let base = legacy_base(key, app_cursor, modes, text)?;
@@ -644,11 +663,7 @@ fn encode_modify_other_keys(
     modes: KeyModes,
     text: Option<&str>,
 ) -> Option<CompactString> {
-    if let Key::Keypad {
-        legacy: Some((sym, plain)),
-        ..
-    } = key
-    {
+    if let Key::Keypad { legacy: Some((sym, plain)), .. } = key {
         return encode_keypad(*sym, *plain, mods, modes);
     }
     // xterm modifier param: 1 (none), 2 shift, 3 alt, 4 shift+alt, 5 ctrl, …

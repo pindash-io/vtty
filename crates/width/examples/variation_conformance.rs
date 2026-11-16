@@ -16,9 +16,8 @@
 //! cargo run --release -p vtty_width --example variation_conformance -- /tmp/variation.txt
 //! ```
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "/tmp/variation.txt".into());
+    let path =
+        std::env::args().nth(1).unwrap_or_else(|| "/tmp/variation.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
     let mut text_ok = 0_usize;
     let mut text_bad = 0_usize;
@@ -36,16 +35,14 @@ fn main() {
         };
         let style = style.trim().trim_end_matches(';').trim();
         let mut parts = cps.split_whitespace();
-        let Some(base) = parts
-            .next()
-            .and_then(|h| u32::from_str_radix(h, 16).ok().and_then(char::from_u32))
-        else {
+        let Some(base) = parts.next().and_then(|h| {
+            u32::from_str_radix(h, 16).ok().and_then(char::from_u32)
+        }) else {
             continue;
         };
-        let Some(vs) = parts
-            .next()
-            .and_then(|h| u32::from_str_radix(h, 16).ok().and_then(char::from_u32))
-        else {
+        let Some(vs) = parts.next().and_then(|h| {
+            u32::from_str_radix(h, 16).ok().and_then(char::from_u32)
+        }) else {
             continue;
         };
         let s: String = [base, vs].iter().collect();
@@ -83,7 +80,9 @@ fn main() {
         }
     }
     println!("text style  (VS15): {text_ok} ok, {text_bad} bad");
-    println!("emoji style (VS16): {emoji_ok} ok, {keycap} keycap-incomplete, {emoji_bad} bad");
+    println!(
+        "emoji style (VS16): {emoji_ok} ok, {keycap} keycap-incomplete, {emoji_bad} bad"
+    );
     for b in bad {
         println!("  {b}");
     }

@@ -22,11 +22,8 @@ pub struct State {
 
 impl State {
     /// An empty cursor state.
-    pub const DEFAULT: Self = Self {
-        text: String::new(),
-        cursor: 0,
-        line_start: 0,
-    };
+    pub const DEFAULT: Self =
+        Self { text: String::new(), cursor: 0, line_start: 0 };
 
     /// An empty cursor state at byte offset 0.
     pub const fn new() -> Self {
@@ -52,9 +49,7 @@ impl State {
     /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
     /// [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {
-        self.cursor
-            .min(self.text.len())
-            .saturating_sub(self.line_start)
+        self.cursor.min(self.text.len()).saturating_sub(self.line_start)
     }
 
     /// Byte range `[start, end)` of line `line` (0-based). `end` is exclusive:
@@ -71,11 +66,7 @@ impl State {
         // newline BEFORE line `line` (start is one past it), then the next
         // newline is the line's end — one pass, no manual index bookkeeping.
         let mut newlines = self.text.match_indices('\n');
-        let start = if line == 0 {
-            0
-        } else {
-            newlines.nth(line - 1)?.0 + 1
-        };
+        let start = if line == 0 { 0 } else { newlines.nth(line - 1)?.0 + 1 };
         let end = newlines.next().map_or_else(|| bytes.len(), |(i, _)| i);
         Some(start..end)
     }
@@ -126,11 +117,7 @@ mod tests {
     use super::*;
 
     fn state(text: &str) -> State {
-        State {
-            text: String::from(text),
-            cursor: 0,
-            line_start: 0,
-        }
+        State { text: String::from(text), cursor: 0, line_start: 0 }
     }
 
     #[test]
@@ -205,10 +192,7 @@ mod tests {
         // `cursor_col` must stay total instead of underflowing.
         let s = state("abc");
         assert_eq!(s.cursor_col(), 0);
-        let s = State {
-            line_start: 5,
-            ..state("abc")
-        };
+        let s = State { line_start: 5, ..state("abc") };
         assert_eq!(s.cursor_col(), 0);
     }
 }

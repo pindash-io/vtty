@@ -16,11 +16,7 @@ impl Screen {
     /// mode, otherwise the screen edge (`down` = bottom).
     pub(crate) const fn row_bound(&self, down: bool) -> u32 {
         if self.flags.contains(BufferFlags::ORIGIN) {
-            if down {
-                self.bottom_margin
-            } else {
-                self.top_margin
-            }
+            if down { self.bottom_margin } else { self.top_margin }
         } else if down {
             self.rows - 1
         } else {
@@ -68,7 +64,8 @@ impl Screen {
     pub(crate) fn set_row_1based(&mut self, row: u32) {
         let row = row.saturating_sub(1);
         if self.flags.contains(BufferFlags::ORIGIN) {
-            self.cursor_row = self.top_margin + row.min(self.bottom_margin - self.top_margin);
+            self.cursor_row = self.top_margin
+                + row.min(self.bottom_margin - self.top_margin);
         } else {
             self.cursor_row = row.min(self.rows - 1);
         }
@@ -127,7 +124,8 @@ impl Screen {
         // DECSTBM: 0 (or negative) means the default — row 1 for the top, the
         // last row for the bottom. Non-positive values must not reach the
         // `- 1` below (a `0` param would underflow).
-        let top = params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
+        let top =
+            params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
         let bottom = params
             .get(1)
             .copied()

@@ -12,7 +12,9 @@
 
 mod common;
 
-use common::{corpus, diff_report, has_intermediate_overflow, run_rio, run_vtty};
+use common::{
+    corpus, diff_report, has_intermediate_overflow, run_rio, run_vtty,
+};
 
 #[test]
 fn differential_against_rio_vt() {

@@ -17,7 +17,8 @@ static ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
-        let now = ALLOC_BYTES.fetch_add(layout.size(), Ordering::Relaxed) + layout.size();
+        let now = ALLOC_BYTES.fetch_add(layout.size(), Ordering::Relaxed)
+            + layout.size();
         PEAK_BYTES.fetch_max(now, Ordering::Relaxed);
         unsafe { System.alloc(layout) }
     }
@@ -52,10 +53,7 @@ fn corpus() -> Vec<u8> {
 }
 
 fn main() {
-    println!(
-        "size_of vtty::Parser      = {} B",
-        size_of::<vtty::Parser>()
-    );
+    println!("size_of vtty::Parser      = {} B", size_of::<vtty::Parser>());
     println!(
         "size_of rio_vt::Parser    = {} B",
         size_of::<rio_vt::performer::parser::Parser>()

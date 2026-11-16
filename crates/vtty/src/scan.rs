@@ -14,7 +14,11 @@ const SPLAT_80: u64 = 0x8080_8080_8080_8080;
 /// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
 /// contains byte `b` (`x.wrapping_sub(SPLAT_01) & !x & SPLAT_80` is the
 /// classic zero-byte detector applied to `w ^ b`).
-#[inline(always)]
+///
+/// A set bit always lands on a byte's high bit (`SPLAT_80`), i.e. position
+/// `8*n + 7`, so `trailing_zeros() / 8` recovers the byte index `n` exactly
+/// (the `/8` truncates the `+7`).
+#[cfg_attr(feature = "perf-inline", inline(always))]
 const fn swar_byte_eq(w: u64, b: u64) -> u64 {
     let x = w ^ (SPLAT_01 * b);
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
@@ -27,7 +31,7 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
 /// when the answer decides between a cheap scalar decode and the SIMD
 /// transcode (and the position bounds the scalar window).
 #[cfg(feature = "simd")]
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
     let n = bytes.len().min(limit);
     let (chunks, tail) = bytes[..n].as_chunks::<8>();
@@ -49,7 +53,7 @@ pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
 /// SWAR scan: index of the first byte whose `stop_mask(word)` bit is set
 /// (one bit per byte, LSB = first byte), or `bytes.len()`. `is_stop` is the
 /// scalar predicate for the <8-byte tail.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_where(
     bytes: &[u8],
     stop_mask: impl Fn(u64) -> u64,
@@ -98,7 +102,7 @@ const SIMD_MIN_RUN: usize = 16;
 /// SWAR scan of the first 8-byte word: `Some(index)` of the first
 /// non-printable byte when the buffer holds a full word and one is found,
 /// `None` otherwise (shorter than a word, or the word is all printable).
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
     let &word = bytes.as_chunks::<8>().0.first()?;
     let stop = non_printable_mask(u64::from_le_bytes(word));
@@ -108,7 +112,7 @@ pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
 /// `DEL` (`0x7f`) is a C0 control, not printable.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
     // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
@@ -136,8 +140,12 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     first_where(bytes, non_printable_mask, is_non_printable)
 }
 
-/// SWAR mask for OSC boundaries: C0/C1 (`(b & 0x60) == 0`) or the `;`
-/// separator.
+/// SWAR mask for OSC boundaries: C0/C1 or the `;` separator.
+///
+/// C0 (`0x00..=0x1F`) and C1 (`0x80..=0x9F`) are exactly the bytes with
+/// both bits 5 and 6 clear, so `(b & 0x60) == 0` catches them in one mask:
+/// every byte in `0x20..=0x7E` and `0xA0..=0xFF` has at least one of those
+/// bits set.
 const fn osc_stop_mask(w: u64) -> u64 {
     swar_byte_eq(w & (SPLAT_01 * 0x60), 0) | swar_byte_eq(w, 0x3b)
 }
@@ -276,23 +284,24 @@ mod tests {
     /// Scalar reference for `first_non_printable` (length of the leading
     /// printable-ASCII run).
     fn reference(bytes: &[u8]) -> usize {
-        bytes
-            .iter()
-            .take_while(|&&x| (0x20..=0x7e).contains(&x))
-            .count()
+        bytes.iter().take_while(|&&x| (0x20..=0x7e).contains(&x)).count()
     }
 
     fn scalar_osc(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&b| b >= 0x20 && b != 0x3b && !(0x80..=0x9f).contains(&b))
+            .take_while(|&&b| {
+                b >= 0x20 && b != 0x3b && !(0x80..=0x9f).contains(&b)
+            })
             .count()
     }
 
     fn scalar_dcs(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&b| b < 0x80 && !matches!(b, 0x18 | 0x1a | 0x1b | 0x7f))
+            .take_while(|&&b| {
+                b < 0x80 && !matches!(b, 0x18 | 0x1a | 0x1b | 0x7f)
+            })
             .count()
     }
 
@@ -332,7 +341,8 @@ mod tests {
             bytes.extend_from_slice(b"$3:@ABCDEFGHIJKLMNOP");
         }
         for &b in &[
-            0x00_u8, 0x07, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x7f, 0x80, 0x9c, 0x9f, 0xa0, 0xff,
+            0x00_u8, 0x07, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x7f, 0x80, 0x9c,
+            0x9f, 0xa0, 0xff,
         ] {
             let mut v = bytes.clone();
             v.push(b);

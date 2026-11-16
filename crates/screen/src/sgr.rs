@@ -62,7 +62,11 @@ pub(crate) fn apply_sgr_to(
                             j += 1;
                         }
                         if j + 2 < params.len() {
-                            let rgb_value = vtty_core::rgb(params[j], params[j + 1], params[j + 2]);
+                            let rgb_value = vtty_core::rgb(
+                                params[j],
+                                params[j + 1],
+                                params[j + 2],
+                            );
                             let id = ColorId(258 + rgb.len() as u16);
                             rgb.push(rgb_value);
                             if is_fg {
@@ -115,10 +119,7 @@ impl Screen {
     }
 
     pub(crate) fn decaln(&mut self) {
-        self.cells.fill(Cell {
-            ch: 'E',
-            ..Cell::default()
-        });
+        self.cells.fill(Cell { ch: 'E', ..Cell::default() });
         self.reset_cursor_style_margins();
         self.continuation.fill(false);
     }

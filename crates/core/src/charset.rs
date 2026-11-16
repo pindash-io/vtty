@@ -203,15 +203,16 @@ impl Scs {
         let g = g.min(3);
         self.charsets.designate(g, charset);
         if g == self.gl as usize {
-            self.ascii_fast = self.single_shift.is_none() && charset == Charset::Ascii;
+            self.ascii_fast =
+                self.single_shift.is_none() && charset == Charset::Ascii;
         }
     }
 
     /// Set the GL locking-shift slot (LS0..=LS3).
     pub fn shift(&mut self, g: u8) {
         self.gl = g.min(3);
-        self.ascii_fast =
-            self.single_shift.is_none() && self.charsets.get(self.gl as usize) == Charset::Ascii;
+        self.ascii_fast = self.single_shift.is_none()
+            && self.charsets.get(self.gl as usize) == Charset::Ascii;
     }
 
     /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
@@ -238,8 +239,7 @@ impl Scs {
     /// The active charset: an `SS2`/`SS3` single shift wins for one char, then the
     /// GL locking shift, otherwise G0.
     pub fn active(&self) -> Charset {
-        self.charsets
-            .get(self.single_shift.unwrap_or(self.gl) as usize)
+        self.charsets.get(self.single_shift.unwrap_or(self.gl) as usize)
     }
 
     /// The LOCKED charset (the GL slot, ignoring any SS2/SS3 single shift) —
@@ -255,7 +255,8 @@ impl Scs {
     pub fn map(&mut self, c: char) -> char {
         let charset = self.active();
         self.single_shift = None;
-        self.ascii_fast = self.charsets.get(self.gl as usize) == Charset::Ascii;
+        self.ascii_fast =
+            self.charsets.get(self.gl as usize) == Charset::Ascii;
         charset.map(c)
     }
 

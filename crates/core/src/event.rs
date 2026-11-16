@@ -79,12 +79,7 @@ impl Event {
             }
             Self::PrintBytes(s) => out.extend_from_slice_copy(s),
             Self::Execute(b) => out.push(*b),
-            Self::CsiDispatch {
-                params,
-                sep,
-                intermediates,
-                final_byte,
-            } => {
+            Self::CsiDispatch { params, sep, intermediates, final_byte } => {
                 out.extend_from_slice_copy(b"\x1b[");
                 let (prefix, suffix) = split_intermediates(intermediates);
                 out.extend_from_slice_copy(&prefix);
@@ -92,19 +87,12 @@ impl Event {
                 out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
-            Self::EscDispatch {
-                intermediates,
-                byte,
-            } => {
+            Self::EscDispatch { intermediates, byte } => {
                 out.extend_from_slice_copy(b"\x1b");
                 out.extend_from_slice_copy(intermediates);
                 out.push(*byte);
             }
-            Self::DcsHook {
-                params,
-                intermediates,
-                final_byte,
-            } => {
+            Self::DcsHook { params, intermediates, final_byte } => {
                 out.extend_from_slice_copy(b"\x1bP");
                 let (prefix, suffix) = split_intermediates(intermediates);
                 out.extend_from_slice_copy(&prefix);
@@ -114,10 +102,7 @@ impl Event {
             }
             Self::DcsPut(b) => out.push(*b),
             Self::DcsUnhook => out.extend_from_slice_copy(b"\x1b\\"),
-            Self::OscDispatch {
-                params,
-                bell_terminated,
-            } => {
+            Self::OscDispatch { params, bell_terminated } => {
                 out.extend_from_slice_copy(b"\x1b]");
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
@@ -169,7 +154,11 @@ pub const fn set_param_colon_sep(sep: &mut u16, i: usize) {
     }
 }
 
-fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u16) {
+fn push_params<const N: usize>(
+    out: &mut SmallVec<u8, N>,
+    params: &[i32],
+    sep: u16,
+) {
     for (i, p) in params.iter().enumerate() {
         if i > 0 {
             // The separator before param `i` is "param `i - 1` followed by
@@ -267,7 +256,12 @@ impl Recording {
     }
 
     /// Record a DCS header.
-    pub fn dcs_hook(&mut self, params: &[i32], intermediates: &[u8], final_byte: u8) -> &mut Self {
+    pub fn dcs_hook(
+        &mut self,
+        params: &[i32],
+        intermediates: &[u8],
+        final_byte: u8,
+    ) -> &mut Self {
         self.push(Event::DcsHook {
             params: SmallVec::from(params),
             intermediates: SmallVec::from(intermediates),
@@ -286,7 +280,11 @@ impl Recording {
     }
 
     /// Record a raw OSC command.
-    pub fn osc(&mut self, params: &[&[u8]], bell_terminated: bool) -> &mut Self {
+    pub fn osc(
+        &mut self,
+        params: &[&[u8]],
+        bell_terminated: bool,
+    ) -> &mut Self {
         self.push(Event::OscDispatch {
             params: SmallVec::from_iter(params.iter().map(|p| p.to_vec())),
             bell_terminated,
@@ -306,23 +304,23 @@ impl Recording {
                     sep,
                     intermediates,
                     final_byte,
-                } => target.csi_dispatch(params, *sep, intermediates, *final_byte),
-                Event::EscDispatch {
-                    intermediates,
-                    byte,
-                } => target.esc_dispatch(intermediates, *byte),
-                Event::DcsHook {
+                } => target.csi_dispatch(
                     params,
+                    *sep,
                     intermediates,
-                    final_byte,
-                } => target.hook(params, intermediates, *final_byte),
+                    *final_byte,
+                ),
+                Event::EscDispatch { intermediates, byte } => {
+                    target.esc_dispatch(intermediates, *byte);
+                }
+                Event::DcsHook { params, intermediates, final_byte } => {
+                    target.hook(params, intermediates, *final_byte);
+                }
                 Event::DcsPut(b) => target.put(*b),
                 Event::DcsUnhook => target.unhook(),
-                Event::OscDispatch {
-                    params,
-                    bell_terminated,
-                } => {
-                    let refs: Vec<&[u8]> = params.iter().map(|v| v.as_slice()).collect();
+                Event::OscDispatch { params, bell_terminated } => {
+                    let refs: Vec<&[u8]> =
+                        params.iter().map(|v| v.as_slice()).collect();
                     target.osc_dispatch(&refs, *bell_terminated);
                 }
             }
@@ -340,7 +338,13 @@ impl Perform for Recording {
     fn execute(&mut self, byte: u8) {
         self.control(byte);
     }
-    fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
+    fn csi_dispatch(
+        &mut self,
+        params: &[i32],
+        sep: u16,
+        intermediates: &[u8],
+        final_byte: u8,
+    ) {
         self.csi(params, sep, intermediates, final_byte);
     }
     fn esc_dispatch(&mut self, intermediates: &[u8], byte: u8) {

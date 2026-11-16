@@ -77,8 +77,9 @@ impl CapValue {
     /// Text value for `SMULX`.
     pub const TEXT_SMULX: Self = Self::Text(b"\x1b[4:%p1%dm");
     /// Text value for `SETULC` (set underline color, one packed RGB param).
-    pub const TEXT_SETULC: Self =
-        Self::Text(b"\x1b[58:2:%p1%{65536}%/%d:%p1%{256}%/%{255}%&%d:%p1%{255}%&%dm");
+    pub const TEXT_SETULC: Self = Self::Text(
+        b"\x1b[58:2:%p1%{65536}%/%d:%p1%{256}%/%{255}%&%d:%p1%{255}%&%dm",
+    );
     /// Text value for `SS`.
     pub const TEXT_SS: Self = Self::Text(b"\x1b[%p1%d q");
     /// Text value for `SE`.
@@ -108,7 +109,8 @@ impl CapValue {
     /// Text value for `RMACS`.
     pub const TEXT_RMACS: Self = Self::Text(b"\x1b(B");
     /// Text value for `ACSC`.
-    pub const TEXT_ACSC: Self = Self::Text(b"``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~");
+    pub const TEXT_ACSC: Self =
+        Self::Text(b"``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~");
     /// Text value for `CIVIS`.
     pub const TEXT_CIVIS: Self = Self::Text(b"\x1b[?25l");
     /// Text value for `CNORM`.
@@ -238,7 +240,12 @@ impl crate::Reply {
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
     #[must_use]
-    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> CompactString {
+    pub fn termcap(
+        cap: &[u8],
+        cols: usize,
+        rows: usize,
+        tn: &[u8],
+    ) -> CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
         let mut buf = CompactString::default();
@@ -248,12 +255,16 @@ impl crate::Reply {
             }
             let (key, value) = Cap::parse(part);
             match value {
-                CapValue::None => xtgettcap(&mut buf, false, Cap::UNSUPPORTED, None),
+                CapValue::None => {
+                    xtgettcap(&mut buf, false, Cap::UNSUPPORTED, None);
+                }
                 CapValue::Bool => xtgettcap(&mut buf, true, key, None),
                 CapValue::Text(v) => xtgettcap(&mut buf, true, key, Some(v)),
                 CapValue::Cols => xtgettcap_num_append(&mut buf, key, cols),
                 CapValue::Rows => xtgettcap_num_append(&mut buf, key, rows),
-                CapValue::OsName => xtgettcap(&mut buf, true, key, Some(OS_NAME)),
+                CapValue::OsName => {
+                    xtgettcap(&mut buf, true, key, Some(OS_NAME));
+                }
                 CapValue::Tn => xtgettcap(&mut buf, true, key, Some(tn)),
             };
         }
@@ -275,7 +286,9 @@ mod tests {
 
         let (key, value) = Cap::parse(b"cl");
         assert_eq!(key, Cap::CLEAR);
-        assert!(matches!(value, CapValue::Text(v) if v == &b"\x1b[H\x1b[2J"[..]));
+        assert!(
+            matches!(value, CapValue::Text(v) if v == &b"\x1b[H\x1b[2J"[..])
+        );
 
         let (key, value) = Cap::parse(b"nope");
         assert_eq!(key, Cap::NONE);

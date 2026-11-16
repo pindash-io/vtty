@@ -80,7 +80,11 @@ unsafe fn state_mut(state: *mut VtState) -> Option<&'static mut VtState> {
 /// # Safety
 /// `state` must be null or a live [`vt_new`] pointer valid for the call.
 #[inline]
-unsafe fn with_state<T>(state: *const VtState, default: T, f: impl FnOnce(&VtState) -> T) -> T {
+unsafe fn with_state<T>(
+    state: *const VtState,
+    default: T,
+    f: impl FnOnce(&VtState) -> T,
+) -> T {
     match unsafe { state_ref(state) } {
         Some(s) => f(s),
         None => default,
@@ -155,7 +159,11 @@ pub unsafe extern "C" fn vt_reset(state: *mut VtState) {
 /// `state` must be a live [`vt_new`] pointer and `bytes` must point to `len`
 /// valid bytes for the duration of the call.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vt_advance(state: *mut VtState, bytes: *const u8, len: usize) {
+pub unsafe extern "C" fn vt_advance(
+    state: *mut VtState,
+    bytes: *const u8,
+    len: usize,
+) {
     // A null state or an empty/null input is a no-op.
     if bytes.is_null() || len == 0 {
         return;

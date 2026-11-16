@@ -170,7 +170,10 @@ impl Screen {
             default_bg: 0x000000,
             title: String::new(),
             progress: Progress::default(),
-            alt_cells: vec![Cell::default(); (cols as usize) * (rows as usize)],
+            alt_cells: vec![
+                Cell::default();
+                (cols as usize) * (rows as usize)
+            ],
             alt_scroll_top: 0,
             alt_cursor_row: 0,
             alt_cursor_col: 0,
@@ -415,7 +418,8 @@ impl Screen {
             self.scroll_top
         );
         assert!(
-            !self.flags.contains(BufferFlags::WRAP_PENDING) || self.cursor_col == self.cols - 1,
+            !self.flags.contains(BufferFlags::WRAP_PENDING)
+                || self.cursor_col == self.cols - 1,
             "WRAP_PENDING with cursor_col {} (cols {})",
             self.cursor_col,
             self.cols
@@ -430,7 +434,11 @@ impl Screen {
             (self.cols as usize) * (self.rows as usize),
             "cells length"
         );
-        assert_eq!(self.tab_stops.len(), self.cols as usize, "tab_stops length");
+        assert_eq!(
+            self.tab_stops.len(),
+            self.cols as usize,
+            "tab_stops length"
+        );
 
         assert!(
             self.alt_cursor_row < self.rows,
@@ -538,7 +546,8 @@ impl Screen {
     /// the ring-buffer scroll offset.
     #[inline]
     pub(crate) const fn row_offset(&self, row: u32) -> usize {
-        let phys = (self.scroll_top as usize + row as usize) % self.rows as usize;
+        let phys =
+            (self.scroll_top as usize + row as usize) % self.rows as usize;
         phys * self.cols as usize
     }
 
@@ -555,8 +564,7 @@ impl Screen {
         if self.scroll_top == 0 {
             return;
         }
-        self.cells
-            .rotate_left(self.scroll_top as usize * self.cols as usize);
+        self.cells.rotate_left(self.scroll_top as usize * self.cols as usize);
         self.continuation.rotate_left(self.scroll_top as usize);
         self.scroll_top = 0;
     }
@@ -568,8 +576,7 @@ impl Screen {
         }
         self.alt_cells
             .rotate_left(self.alt_scroll_top as usize * self.cols as usize);
-        self.alt_continuation
-            .rotate_left(self.alt_scroll_top as usize);
+        self.alt_continuation.rotate_left(self.alt_scroll_top as usize);
         self.alt_scroll_top = 0;
     }
 
@@ -642,8 +649,9 @@ impl Screen {
                     current_rgb = Some(state);
                 }
             } else {
-                let is_default =
-                    cell.sgr.is_empty() && cell.fg == DEFAULT_FG_ID && cell.bg == DEFAULT_BG_ID;
+                let is_default = cell.sgr.is_empty()
+                    && cell.fg == DEFAULT_FG_ID
+                    && cell.bg == DEFAULT_BG_ID;
                 if is_default {
                     if current.is_some() {
                         out.push_str("\x1b[0m");
@@ -652,7 +660,9 @@ impl Screen {
                 } else {
                     let state = (cell.sgr, cell.fg, cell.bg);
                     if current != Some(state) {
-                        push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
+                        push_sgr(
+                            &mut out, cell.sgr, cell.fg, cell.bg, &self.rgb,
+                        );
                         current = Some(state);
                     }
                 }
@@ -714,7 +724,8 @@ impl Screen {
 
         // Reflow scrollback + active buffer together as one logical stream.
         let active = rows_from(&self.cells, &self.continuation, self.cols);
-        let mut all_rows = Vec::with_capacity(self.scrollback.len() + active.len());
+        let mut all_rows =
+            Vec::with_capacity(self.scrollback.len() + active.len());
         all_rows.extend(self.scrollback.iter().cloned());
         all_rows.extend(active);
         let reflowed = reflow_rows(&all_rows, new_cols);
@@ -731,9 +742,11 @@ impl Screen {
         let (new_cells, new_cont) = fit_grid(&reflowed, new_cols, new_rows);
 
         // Reflow the alternate buffer (it has no scrollback of its own).
-        let alt = rows_from(&self.alt_cells, &self.alt_continuation, self.cols);
+        let alt =
+            rows_from(&self.alt_cells, &self.alt_continuation, self.cols);
         let alt_reflowed = reflow_rows(&alt, new_cols);
-        let (new_alt_cells, new_alt_cont) = fit_grid(&alt_reflowed, new_cols, new_rows);
+        let (new_alt_cells, new_alt_cont) =
+            fit_grid(&alt_reflowed, new_cols, new_rows);
 
         self.cols = cols;
         self.rows = rows;
@@ -798,8 +811,12 @@ impl Screen {
             match f {
                 b'h' => self.set_mode(params),   // DECSET
                 b'l' => self.reset_mode(params), // DECRST
-                b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), true), // DECSED
-                b'K' => self.erase_in_line(params.first().copied().unwrap_or(0), true), // DECSEL
+                b'J' => self.erase_in_display(
+                    params.first().copied().unwrap_or(0),
+                    true,
+                ), // DECSED
+                b'K' => self
+                    .erase_in_line(params.first().copied().unwrap_or(0), true), // DECSEL
                 _ => {}
             }
             return;
@@ -822,20 +839,26 @@ impl Screen {
             b'G' => self.cha(n(0)),              // CHA
             b'd' => self.vpa(n(0)),              // VPA
             b'H' | b'f' => self.cup(n(0), n(1)), // CUP / HVP
-            b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), false), // ED
-            b'K' => self.erase_in_line(params.first().copied().unwrap_or(0), false), // EL
-            b'L' => self.insert_lines(n(0)),     // IL
-            b'M' => self.delete_lines(n(0)),     // DL
-            b'P' => self.delete_chars(n(0)),     // DCH
-            b'@' => self.insert_chars(n(0)),     // ICH
-            b'X' => self.erase_chars(n(0)),      // ECH
-            b'S' => self.scroll_n(false, n(0)),  // SU
-            b'T' => self.scroll_n(true, n(0)),   // SD
+            b'J' => self
+                .erase_in_display(params.first().copied().unwrap_or(0), false), // ED
+            b'K' => {
+                self.erase_in_line(
+                    params.first().copied().unwrap_or(0),
+                    false,
+                );
+            } // EL
+            b'L' => self.insert_lines(n(0)), // IL
+            b'M' => self.delete_lines(n(0)), // DL
+            b'P' => self.delete_chars(n(0)), // DCH
+            b'@' => self.insert_chars(n(0)), // ICH
+            b'X' => self.erase_chars(n(0)),  // ECH
+            b'S' => self.scroll_n(false, n(0)), // SU
+            b'T' => self.scroll_n(true, n(0)), // SD
             b'h' => self.apply_ansi_modes(params, true), // SM
             b'l' => self.apply_ansi_modes(params, false), // RM
-            b'm' => self.sgr(params),            // SGR
-            b'g' => self.tbc(params),            // TBC
-            b'r' => self.set_margins(params),    // DECSTBM
+            b'm' => self.sgr(params),        // SGR
+            b'g' => self.tbc(params),        // TBC
+            b'r' => self.set_margins(params), // DECSTBM
             _ => {}
         }
     }
@@ -853,10 +876,8 @@ impl Perform for Screen {
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         // Segment the run into grapheme clusters so ZWJ emoji families write
         // as one cell instead of separate glyphs.
-        let text: String = codepoints
-            .iter()
-            .filter_map(|&cp| char::from_u32(cp))
-            .collect();
+        let text: String =
+            codepoints.iter().filter_map(|&cp| char::from_u32(cp)).collect();
         for grapheme in vtty_grapheme::graphemes(&text) {
             self.put_cluster(grapheme.as_str(&text));
         }
@@ -884,7 +905,13 @@ impl Perform for Screen {
         }
     }
 
-    fn csi_dispatch(&mut self, params: &[i32], _sep: u16, intermediates: &[u8], f: u8) {
+    fn csi_dispatch(
+        &mut self,
+        params: &[i32],
+        _sep: u16,
+        intermediates: &[u8],
+        f: u8,
+    ) {
         // DECSTR (`CSI ! p`): soft reset. The `!` intermediate distinguishes
         // it from the DEC private (`?`) sequences handled by `csi`.
         if intermediates.first() == Some(&b'!') && f == b'p' {
@@ -1012,7 +1039,10 @@ mod tests {
         let mut s = Screen::new(8, 1);
         run(&mut s, "👨\u{200D}👩\u{200D}👧x".as_bytes());
         // The whole family occupies two cells (one glyph); `x` lands after.
-        assert_eq!(s.render_line(0).as_deref(), Some("👨\u{200D}👩\u{200D}👧x"));
+        assert_eq!(
+            s.render_line(0).as_deref(),
+            Some("👨\u{200D}👩\u{200D}👧x")
+        );
         assert_eq!(s.cell(0, 0).map(|c| c.ch), Some('👨'));
         assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
         assert_eq!(s.cell(0, 2).map(|c| c.ch), Some('x'));

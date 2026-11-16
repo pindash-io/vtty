@@ -12,7 +12,8 @@ use icu_properties::CodePointSetDataBorrowed;
 #[cfg(feature = "icu")]
 use icu_properties::props::ExtendedPictographic;
 use icu_properties::props::{
-    DefaultIgnorableCodePoint, EastAsianWidth, GeneralCategory, GraphemeClusterBreak,
+    DefaultIgnorableCodePoint, EastAsianWidth, GeneralCategory,
+    GraphemeClusterBreak,
 };
 
 #[cfg(feature = "icu")]

@@ -37,7 +37,10 @@ macro_rules! impl_fixed_int {
 impl_fixed_int!(u8, u16, u32, u64, i32);
 
 impl Encode for bool {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         writer.write_byte(u8::from(*self))
     }
 }
@@ -53,7 +56,10 @@ impl Decode for bool {
 }
 
 impl Encode for char {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         u32::from(*self).encode(writer)
     }
 }
@@ -65,7 +71,10 @@ impl Decode for char {
 }
 
 impl Encode for f32 {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
     }
 }
@@ -77,7 +86,10 @@ impl Decode for f32 {
 }
 
 impl Encode for f64 {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
     }
 }
@@ -89,7 +101,10 @@ impl Decode for f64 {
 }
 
 impl Encode for () {
-    fn encode<W: Write + ?Sized>(&self, _writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        _writer: &mut W,
+    ) -> Result<(), EncodeError> {
         Ok(())
     }
 }
@@ -101,7 +116,10 @@ impl Decode for () {
 }
 
 impl<T: Encode> Encode for Option<T> {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         match self {
             Self::None => false.encode(writer),
             Self::Some(value) => {
@@ -123,7 +141,10 @@ impl<T: Decode> Decode for Option<T> {
 }
 
 impl<T: Encode> Encode for [T] {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         encode_varint(writer, self.len())?;
         for item in self {
             item.encode(writer)?;
@@ -133,7 +154,10 @@ impl<T: Encode> Encode for [T] {
 }
 
 impl<T: Encode> Encode for Vec<T> {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.as_slice().encode(writer)
     }
 }
@@ -145,7 +169,10 @@ impl<T: Decode> Decode for Vec<T> {
 }
 
 impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.as_ref().encode(writer)
     }
 }
@@ -174,25 +201,35 @@ fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
 }
 
 impl Encode for str {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.as_bytes().encode(writer)
     }
 }
 
 impl Encode for String {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
     }
 }
 
 impl Decode for String {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Self::from_utf8(Vec::<u8>::decode(reader)?).map_err(|_| DecodeError::InvalidValue)
+        Self::from_utf8(Vec::<u8>::decode(reader)?)
+            .map_err(|_| DecodeError::InvalidValue)
     }
 }
 
 impl Encode for CompactString {
-    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
     }
 }

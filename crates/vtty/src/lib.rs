@@ -35,7 +35,7 @@
 //! parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 //! ```
 //!
-//! With the `simd` feature enabled, [`Parser::with_simd`] opts into SIMD
+//! With the `simd` feature enabled, `Parser::with_simd` opts into SIMD
 //! scanning and UTF-8 validation.
 //!
 //! Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
@@ -76,6 +76,8 @@
 //!   `default-features = false`) — `reply` (DECRQSS/DECRQM/XTGETTCAP),
 //!   `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (`OSC 7501`
 //!   `ProgramStatus`).
+//! - **`perf-inline`** (on by default) — `#[inline(always)]` on the parser
+//!   hot path; opt out for smaller code at some throughput cost.
 //!
 //! ## Test
 //!
@@ -130,12 +132,30 @@ pub mod prelude {
     #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
     pub use crate::{Cap, CapValue};
     pub use crate::{
-        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle, DEFAULT_BG_ID,
-        DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec,
-        KittyFlags, Modifiers, MouseButton, MouseTracking, Parser, Perform, Recording, Scs, Sgr,
-        SgrEffect, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
+        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle,
+        DEFAULT_BG_ID, DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind,
+        KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers, MouseButton,
+        MouseTracking, Parser, Perform, Recording, Scs, Sgr, SgrEffect,
+        SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
     };
     #[cfg(feature = "status")]
     #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
-    pub use crate::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
+    pub use crate::{
+        PerformProgramStatus, ProgramStatus, StatusKind, StatusState,
+    };
+}
+
+/// Longer-form documentation kept in the repository and mirrored here so it
+/// also appears on docs.rs.
+#[allow(
+    clippy::doc_markdown,
+    reason = "embedded repository markdown uses plain-table identifiers, not Rust items"
+)]
+pub mod _documentation {
+    #[doc = include_str!("../ARCHITECTURE.md")]
+    pub mod architecture {}
+    #[doc = include_str!("../CONFORMANCE.md")]
+    pub mod conformance {}
+    #[doc = include_str!("../CHANGELOG.md")]
+    pub mod changelog {}
 }

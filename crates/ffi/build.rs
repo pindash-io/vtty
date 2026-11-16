@@ -9,10 +9,7 @@ use std::fs;
 use std::path::Path;
 
 fn part(name: &str) -> u32 {
-    env::var(name)
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0)
+    env::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(0)
 }
 
 fn main() {

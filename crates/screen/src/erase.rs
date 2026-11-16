@@ -21,7 +21,13 @@ impl Screen {
             _ => {
                 // 2 (and 3, scrollback — same in the MVP): whole screen.
                 if selective {
-                    self.erase_region(0, 0, self.rows - 1, self.cols - 1, true);
+                    self.erase_region(
+                        0,
+                        0,
+                        self.rows - 1,
+                        self.cols - 1,
+                        true,
+                    );
                 } else {
                     self.cells.fill(Cell::default());
                 }
@@ -32,16 +38,28 @@ impl Screen {
     /// Erase columns `[c0, c1)` of row `row` (0-based, `c1` exclusive).
     /// Selective erase skips protected cells.
     #[inline]
-    pub(crate) fn erase_row_range(&mut self, row: u32, c0: u32, c1: u32, selective: bool) {
+    pub(crate) fn erase_row_range(
+        &mut self,
+        row: u32,
+        c0: u32,
+        c1: u32,
+        selective: bool,
+    ) {
         let base = self.row_offset(row);
         // Extend the range to whole-glyph boundaries so erasing never splits
         // or strands a double-width glyph.
         let mut c0 = c0;
         let mut c1 = c1;
-        if c0 > 0 && c0 < self.cols && self.cells[base + c0 as usize].is_continuation() {
+        if c0 > 0
+            && c0 < self.cols
+            && self.cells[base + c0 as usize].is_continuation()
+        {
             c0 -= 1;
         }
-        if c1 > 0 && c1 < self.cols && self.cells[base + c1 as usize].is_continuation() {
+        if c1 > 0
+            && c1 < self.cols
+            && self.cells[base + c1 as usize].is_continuation()
+        {
             c1 += 1;
         }
         let range = &mut self.cells[base + c0 as usize..base + c1 as usize];
@@ -64,10 +82,22 @@ impl Screen {
     }
 
     pub(crate) fn erase_to_line_end(&mut self, selective: bool) {
-        self.erase_row_range(self.cursor_row, self.cursor_col, self.cols, selective);
+        self.erase_row_range(
+            self.cursor_row,
+            self.cursor_col,
+            self.cols,
+            selective,
+        );
     }
 
-    pub(crate) fn erase_region(&mut self, r0: u32, c0: u32, r1: u32, c1: u32, selective: bool) {
+    pub(crate) fn erase_region(
+        &mut self,
+        r0: u32,
+        c0: u32,
+        r1: u32,
+        c1: u32,
+        selective: bool,
+    ) {
         for r in r0..=r1 {
             let end = if r == r1 { c1 + 1 } else { self.cols };
             self.erase_row_range(r, c0, end, selective);
@@ -77,8 +107,15 @@ impl Screen {
     pub(crate) fn erase_in_line(&mut self, mode: i32, selective: bool) {
         match mode {
             0 => self.erase_to_line_end(selective),
-            1 => self.erase_row_range(self.cursor_row, 0, self.cursor_col + 1, selective),
-            _ => self.erase_row_range(self.cursor_row, 0, self.cols, selective),
+            1 => self.erase_row_range(
+                self.cursor_row,
+                0,
+                self.cursor_col + 1,
+                selective,
+            ),
+            _ => {
+                self.erase_row_range(self.cursor_row, 0, self.cols, selective);
+            }
         }
     }
 
@@ -95,7 +132,8 @@ impl Screen {
         let mut glyphs = 0_usize;
         let mut col = start;
         while col < cols && glyphs < n as usize {
-            let wide = col + 1 < cols && self.cells[row + col + 1].is_continuation();
+            let wide =
+                col + 1 < cols && self.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             count += width;
             glyphs += 1;

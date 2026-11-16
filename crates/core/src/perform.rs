@@ -55,7 +55,13 @@ pub trait Perform {
     /// (clamped to `0..=65535`); an empty colon param is the `-1` sentinel.
     /// `sep` marks colon-separated params: bit `i` = param `i` followed by
     /// `:` (`4:2` vs `4;2`). Default: ignore.
-    fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
+    fn csi_dispatch(
+        &mut self,
+        _params: &[i32],
+        _sep: u16,
+        _intermediates: &[u8],
+        _final_byte: u8,
+    ) {
     }
 
     /// An escape sequence's final byte. Default: ignore.
@@ -63,7 +69,13 @@ pub trait Perform {
 
     /// A device-control string header arrived. Parameters are `i32` (see
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
-    fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
+    fn hook(
+        &mut self,
+        _params: &[i32],
+        _intermediates: &[u8],
+        _final_byte: u8,
+    ) {
+    }
 
     /// A device-control string payload byte arrived. Raw — arbitrary, not
     /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:

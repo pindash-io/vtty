@@ -13,7 +13,8 @@ use smallvec::SmallVec;
 use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
 
 use crate::scan::{
-    first_dcs_boundary, first_non_printable, first_non_printable_word, first_osc_boundary,
+    first_dcs_boundary, first_non_printable, first_non_printable_word,
+    first_osc_boundary,
 };
 use crate::table::{Action, ParseState, transition};
 use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
@@ -216,7 +217,10 @@ impl Parser {
                     if matches!(cp, 0x00..=0x1f | 0x7f | 0x80..=0x9f) {
                         p.execute(cp as u8);
                     } else {
-                        p.print(char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER));
+                        p.print(
+                            char::from_u32(cp)
+                                .unwrap_or(char::REPLACEMENT_CHARACTER),
+                        );
                     }
                     break;
                 }
@@ -235,9 +239,13 @@ impl Parser {
 
         while i < bytes.len() {
             match self.state {
-                ParseState::Ground => i = self.advance_ground(p, bytes, i, valid_end),
+                ParseState::Ground => {
+                    i = self.advance_ground(p, bytes, i, valid_end);
+                }
                 ParseState::OscString => i = self.advance_osc_run(p, bytes, i),
-                ParseState::DcsPassthrough => i = self.advance_dcs_run(p, bytes, i),
+                ParseState::DcsPassthrough => {
+                    i = self.advance_dcs_run(p, bytes, i);
+                }
                 ParseState::Escape if !self.force_cold() => {
                     i = self.advance_escape_byte(p, bytes, i);
                 }
@@ -253,7 +261,8 @@ impl Parser {
 
         // An OSC payload that reached the end of this input chunk without a
         // terminator is flushed into `osc` so the next `advance` continues it.
-        if self.state == ParseState::OscString && self.osc_buffer.is_deferred() {
+        if self.state == ParseState::OscString && self.osc_buffer.is_deferred()
+        {
             self.osc_flush(bytes, bytes.len());
         }
     }
@@ -287,7 +296,7 @@ impl Parser {
     /// high-bit — which includes `ESC`), bulk-dispatch printable ASCII runs via
     /// `print_bytes`, and decode multi-byte chars one at a time. The hot path —
     /// kept inline.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_ground<P: Perform>(
         &mut self,
         p: &mut P,
@@ -324,7 +333,10 @@ impl Parser {
                     pos = end + 1;
                     continue;
                 }
-                if end + 1 < valid && run[end] == b'\r' && run[end + 1] == b'\n' {
+                if end + 1 < valid
+                    && run[end] == b'\r'
+                    && run[end + 1] == b'\n'
+                {
                     // CRLF storm: `printable\r\n` repeats (a scrolling log or
                     // `tail -f`). Stay in a tight loop, SWAR-scanning one
                     // 8-byte word per line, and dispatch `print_crlf_line`
@@ -336,7 +348,9 @@ impl Parser {
                         if pos >= valid {
                             break;
                         }
-                        let Some(n) = first_non_printable_word(&run[pos..valid]) else {
+                        let Some(n) =
+                            first_non_printable_word(&run[pos..valid])
+                        else {
                             break; // run longer than one word (or no full word)
                         };
                         if n == 0 {
@@ -370,11 +384,16 @@ impl Parser {
             // intermediate, a private marker after params, C0/DEL, or
             // high-bit — bails to the state machine, which enforces the
             // CsiIntermediate/CsiParam → CsiIgnore transitions.
-            if !self.force_cold() && b == 0x1b && run.get(pos + 1) == Some(&b'[') {
+            if !self.force_cold()
+                && b == 0x1b
+                && run.get(pos + 1) == Some(&b'[')
+            {
                 // Keep scanning in this pass on success: CSI-dense input
                 // (SGR churn, cursor motion) pays a re-entry + a fresh
                 // `first_non_printable` scan per sequence otherwise.
-                if let Some(consumed) = self.try_dispatch_csi(p, &run[pos + 2..valid]) {
+                if let Some(consumed) =
+                    self.try_dispatch_csi(p, &run[pos + 2..valid])
+                {
                     pos += 2 + consumed;
                     continue;
                 }
@@ -419,7 +438,8 @@ impl Parser {
                 }
                 _ => {
                     // Multi-byte UTF-8 lead (>= 0xa0).
-                    pos += decode_utf8(p, run, valid, pos, self.simd_enabled());
+                    pos +=
+                        decode_utf8(p, run, valid, pos, self.simd_enabled());
                 }
             }
         }
@@ -436,8 +456,12 @@ impl Parser {
     /// any prior sequence cleared it on dispatch, and the caller clears on
     /// bail), so there is no up-front clear — the success path's
     /// `dispatch_csi` and the bail path's caller both reset it.
-    #[inline(always)]
-    fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn try_dispatch_csi<P: Perform>(
+        &mut self,
+        p: &mut P,
+        seq: &[u8],
+    ) -> Option<usize> {
         // Fast CUP (`CSI r;c H` / `f`, the cursor-motion repaint shape):
         // parse the two 1-based params directly, skipping the per-byte param
         // dispatch and the trailing-param push. The extended-color SGR prefix
@@ -457,7 +481,8 @@ impl Parser {
                 i += 1;
                 let mut col = 0_i32;
                 while i < seq.len() && seq[i].is_ascii_digit() {
-                    col = (col * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
+                    col = (col * 10 + (seq[i] - b'0') as i32)
+                        .min(MAX_PARAM_VALUE);
                     i += 1;
                 }
                 if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
@@ -483,7 +508,10 @@ impl Parser {
                     // (CsiEntry), before any param or marker. After params the
                     // DEC state machine transitions to CsiIgnore and drops the
                     // whole sequence, so bail to the cold path.
-                    if self.params_len != 0 || !self.param_empty || self.intermediates_len != 0 {
+                    if self.params_len != 0
+                        || !self.param_empty
+                        || self.intermediates_len != 0
+                    {
                         return None;
                     }
                     self.push_intermediate(seq[f]);
@@ -514,13 +542,18 @@ impl Parser {
             0x9c => (Action::NONE, ParseState::Ground),   // ST
             0x9d => (Action::OSC_START, ParseState::OscString), // OSC
             0x9e | 0x9f => (Action::NONE, ParseState::SosPmApcString), // PM/APC
-            _ => (Action::EXECUTE, ParseState::Ground),   // other C1
+            _ => (Action::EXECUTE, ParseState::Ground), // other C1
         }
     }
 
     /// Escape-sequence states — rare, so kept cold and out of the hot loop.
     #[inline(never)]
-    fn advance_non_ground<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    fn advance_non_ground<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         let b = bytes[i];
         let state = self.state;
 
@@ -558,7 +591,9 @@ impl Parser {
         if !self.force_cold()
             && matches!(
                 state,
-                ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
+                ParseState::CsiEntry
+                    | ParseState::CsiParam
+                    | ParseState::CsiIntermediate
             )
             && (0x40..=0x7e).contains(&b)
         {
@@ -587,7 +622,9 @@ impl Parser {
                 }
                 _ => {}
             },
-            ParseState::Escape | ParseState::EscapeIntermediate if (0x20..=0x2f).contains(&b) => {
+            ParseState::Escape | ParseState::EscapeIntermediate
+                if (0x20..=0x2f).contains(&b) =>
+            {
                 self.push_intermediate(b);
             }
             _ => {}
@@ -611,8 +648,13 @@ impl Parser {
     /// `P` DCS, `X`/`^`/`_` `SOS`/`PM`/`APC`), `ESC` finals, intermediates and C0
     /// controls are all handled inline; only the rare bytes (`ESC` restart, `DEL`,
     /// raw C1/high bytes) fall through to the cold per-byte state machine.
-    #[inline(always)]
-    fn advance_escape_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn advance_escape_byte<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         match bytes[i] {
             0x5b => {
                 self.state = ParseState::CsiEntry;
@@ -661,8 +703,13 @@ impl Parser {
 
     /// `DcsEntry` byte dispatch: the final byte (0x40..=0x7e) hooks inline;
     /// digits/separators/intermediates fall through to the cold state machine.
-    #[inline(always)]
-    fn advance_dcs_entry_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn advance_dcs_entry_byte<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         let b = bytes[i];
         if (0x40..=0x7e).contains(&b) {
             // Same trailing-param convention as `apply(HOOK)`: a param-less
@@ -679,7 +726,12 @@ impl Parser {
     /// from `advance` so the hot OSC copy path does not pay the cold
     /// `advance_non_ground` call + prologue; boundary bytes fall through.
     #[inline]
-    fn advance_osc_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    fn advance_osc_run<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         let run = &bytes[i..];
         let n = first_osc_boundary(run, self.simd_enabled());
         if n > 0 {
@@ -705,11 +757,12 @@ impl Parser {
             0x3b => {
                 // The offset is `;`-free: subtract the separators already seen
                 // so deferred (input) and accumulated (`osc`) modes agree.
-                let offset = if let OscBuffer::Deferred { base } = self.osc_buffer {
-                    (i - base - (self.osc_num_starts - 1)) as u32
-                } else {
-                    self.osc.len() as u32
-                };
+                let offset =
+                    if let OscBuffer::Deferred { base } = self.osc_buffer {
+                        (i - base - (self.osc_num_starts - 1)) as u32
+                    } else {
+                        self.osc.len() as u32
+                    };
                 self.osc_param_boundary(offset);
                 i + 1
             }
@@ -726,7 +779,12 @@ impl Parser {
     /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte >= 0x80. Same
     /// inline-dispatch rationale as `advance_osc_run`.
     #[inline]
-    fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    fn advance_dcs_run<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         let run = &bytes[i..];
         let n = first_dcs_boundary(run, self.simd_enabled());
         if n > 0 {
@@ -746,8 +804,13 @@ impl Parser {
     /// CSI/DCS param run: digits, `;` and `:` never dispatch, so consume the
     /// whole run in a tight loop. Dispatched inline from `advance`; the
     /// boundary byte falls through to `advance_non_ground`.
-    #[inline(always)]
-    fn advance_param_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn advance_param_run<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bytes: &[u8],
+        i: usize,
+    ) -> usize {
         let mut j = i;
         while j < bytes.len() && self.param_byte(bytes[j]) {
             j += 1;
@@ -772,14 +835,14 @@ impl Parser {
 
     /// Whether the OSC payload has hit [`MAX_OSC_PAYLOAD`] and must be
     /// discarded wholesale.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn osc_overflow(&self) -> bool {
         self.osc_overflow
     }
 
     /// Append an OSC payload run, capping at [`MAX_OSC_PAYLOAD`] and flagging
     /// overflow when the run is truncated (or was already overflowed).
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_extend(&mut self, run: &[u8]) {
         if self.osc_overflow {
             return;
@@ -795,7 +858,13 @@ impl Parser {
     /// decode into garbage). With `bytes`/`end_pos` the params are sliced
     /// straight from the input when deferred; otherwise from `osc`.
     #[inline]
-    fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
+    fn osc_end<P: Perform>(
+        &mut self,
+        p: &mut P,
+        bell: bool,
+        bytes: &[u8],
+        end_pos: usize,
+    ) {
         let n = self.osc_num_starts;
         // The cap applies to the `;`-free payload bytes. In deferred mode the
         // input still holds the `n - 1` `;` separators, so subtract them.
@@ -846,11 +915,8 @@ impl Parser {
             };
             params[2] = &src[s2..e2];
         }
-        for (k, dst) in params
-            .iter_mut()
-            .enumerate()
-            .skip(3)
-            .take(m.saturating_sub(3))
+        for (k, dst) in
+            params.iter_mut().enumerate().skip(3).take(m.saturating_sub(3))
         {
             let start = base + self.osc_starts[k] as usize + k * shift;
             let end = if k + 1 < n {
@@ -867,7 +933,7 @@ impl Parser {
     /// Reset the OSC accumulation/dispatch state. `osc.clear()` keeps the heap
     /// allocation (rio-vt does the same); `mem::take` would free it and force
     /// a malloc on the next >56-byte payload.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_reset(&mut self) {
         self.osc.clear();
         self.osc_overflow = false;
@@ -891,7 +957,7 @@ impl Parser {
         self.osc_buffer = OscBuffer::Accumulated;
     }
 
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn apply<P: Perform>(&mut self, p: &mut P, action: Action, byte: u8) {
         if action.is_empty() {
             return;
@@ -968,16 +1034,17 @@ impl Parser {
     /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry — every writer
     /// either zeroes it or caps it via `min` — so `param * 10 + digit` can
     /// never overflow i32, and plain arithmetic replaces the saturating ops.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn param_digit(&mut self, b: u8) {
-        self.param = (self.param * 10 + (b - b'0') as i32).min(MAX_PARAM_VALUE);
+        self.param =
+            (self.param * 10 + (b - b'0') as i32).min(MAX_PARAM_VALUE);
         self.param_empty = false;
     }
 
     /// End a parameter on a `:` separator: push it (an empty one becomes the
     /// `-1` sentinel so SGR colon forms like `38:2::r:g:b` survive) and mark
     /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_colon(&mut self) {
         self.push_param(if self.param_empty { -1 } else { self.param });
         set_param_colon_sep(&mut self.sep, self.params_len - 1);
@@ -990,7 +1057,7 @@ impl Parser {
     /// s` (DECSLRM set-right margin) stays distinguishable from `CSI 0;Pr s`,
     /// and SGR can tell a leading empty (`;1m` = reset) from a trailing empty
     /// (`48;2;r;g;b;m` = ignore).
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_semicolon(&mut self) {
         self.push_param(if self.param_empty { -2 } else { self.param });
         self.param = 0;
@@ -999,7 +1066,7 @@ impl Parser {
 
     /// Accumulate one CSI/DCS param byte (digit/`:`/`;`). Returns `false` for
     /// any other byte so the caller can handle it.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     fn param_byte(&mut self, b: u8) -> bool {
         match b {
             b'0'..=b'9' => {
@@ -1039,7 +1106,12 @@ impl Parser {
     fn dispatch_csi<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
         self.push_trailing_param(true);
         let ints = &self.intermediates[..self.intermediates_len];
-        p.csi_dispatch(&self.params[..self.params_len], self.sep, ints, final_byte);
+        p.csi_dispatch(
+            &self.params[..self.params_len],
+            self.sep,
+            ints,
+            final_byte,
+        );
         self.clear_seq_state();
     }
 
@@ -1170,7 +1242,8 @@ mod tests {
         // OSC interrupted by each C1 control: the OSC dispatches (osc_end)
         // exactly once, then the control is executed (if it executes).
         for b in 0x80..=0x9f {
-            let events = Parser::new().parse_events(&[0x1b, b']', b'0', b';', b'x', b]);
+            let events =
+                Parser::new().parse_events(&[0x1b, b']', b'0', b';', b'x', b]);
             let oscs = events
                 .iter()
                 .filter(|e| matches!(e, Event::OscDispatch { .. }))
@@ -1183,13 +1256,18 @@ mod tests {
                 .iter()
                 .filter(|e| matches!(e, Event::Execute(_)))
                 .count();
-            assert_eq!(execs, executes(b), "C1 0x{b:02x} execute count: {events:?}");
+            assert_eq!(
+                execs,
+                executes(b),
+                "C1 0x{b:02x} execute count: {events:?}"
+            );
         }
 
         // DCS passthrough interrupted by each C1 control: unhook fires exactly
         // once, then the control is executed (if it executes).
         for b in 0x80..=0x9f {
-            let events = Parser::new().parse_events(&[0x1b, b'P', b'q', b'x', b'y', b]);
+            let events =
+                Parser::new().parse_events(&[0x1b, b'P', b'q', b'x', b'y', b]);
             let unhooks = events
                 .iter()
                 .filter(|e| matches!(e, Event::DcsUnhook))
@@ -1202,7 +1280,11 @@ mod tests {
                 .iter()
                 .filter(|e| matches!(e, Event::Execute(_)))
                 .count();
-            assert_eq!(execs, executes(b), "C1 0x{b:02x} execute count: {events:?}");
+            assert_eq!(
+                execs,
+                executes(b),
+                "C1 0x{b:02x} execute count: {events:?}"
+            );
         }
     }
 
@@ -1229,8 +1311,9 @@ mod tests {
 
     #[test]
     fn osc_param_overflow_drops_excess() {
-        let events = Parser::new()
-            .parse_events(b"\x1b]0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19\x07");
+        let events = Parser::new().parse_events(
+            b"\x1b]0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19\x07",
+        );
         assert!(!events.is_empty());
     }
 
@@ -1294,12 +1377,8 @@ mod tests {
         // intermediates into the NEXT CSI's dispatch (fuzz regression).
         let events = Parser::new().parse_events(b"\x1b[?)5h\x1b[1;1H");
         assert_eq!(events.len(), 1, "{events:?}");
-        let Event::CsiDispatch {
-            params,
-            sep,
-            intermediates,
-            final_byte,
-        } = &events[0]
+        let Event::CsiDispatch { params, sep, intermediates, final_byte } =
+            &events[0]
         else {
             unreachable!("length asserted as 1 above");
         };

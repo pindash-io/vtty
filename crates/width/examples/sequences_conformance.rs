@@ -14,9 +14,8 @@
 //! cargo run --release -p vtty_width --example sequences_conformance -- /tmp/seqs.txt
 //! ```
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "/tmp/seqs.txt".into());
+    let path =
+        std::env::args().nth(1).unwrap_or_else(|| "/tmp/seqs.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
     let mut basic_ok = 0_usize;
     let mut basic_bad = 0_usize;

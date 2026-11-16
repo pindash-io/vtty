@@ -105,11 +105,18 @@ pub const DEFAULT_BG_ID: ColorId = ColorId(257);
 pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
     // Little-endian bytes lay out [B, G, R, 0] — a single `from_le_bytes`
     // (a native u32 bit-cast on LE targets) instead of two shifts + two ORs.
-    u32::from_le_bytes([clamp_channel(b), clamp_channel(g), clamp_channel(r), 0])
+    u32::from_le_bytes([
+        clamp_channel(b),
+        clamp_channel(g),
+        clamp_channel(r),
+        0,
+    ])
 }
 
-/// Clamp one 0..255 channel. `i32::clamp` is not const-stable (`Ord` as a
-/// const trait is still nightly), so the clamp is an explicit branch.
+/// Clamp one 0..255 channel.
+///
+/// RUST: Use `i32::clamp` when it is available in `const` (`Ord` as a const
+/// trait is still nightly), instead of the explicit branch.
 #[inline]
 const fn clamp_channel(v: i32) -> u8 {
     if v < 0 {
@@ -136,11 +143,7 @@ pub const fn u32_to_rgba(rgb: u32) -> [f32; 4] {
 /// counterpart of [`u32_to_rgba`], for luma/table math).
 #[inline]
 pub const fn u32_to_rgb(rgb: u32) -> [u8; 3] {
-    [
-        ((rgb >> 16) & 0xff) as u8,
-        ((rgb >> 8) & 0xff) as u8,
-        (rgb & 0xff) as u8,
-    ]
+    [((rgb >> 16) & 0xff) as u8, ((rgb >> 8) & 0xff) as u8, (rgb & 0xff) as u8]
 }
 
 /// Convert [R, G, B, A] (0..1 floats) to packed 0xRRGGBB.
@@ -305,12 +308,15 @@ pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
     let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
     let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);
     let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0);
-    let [rh, rl] = *const_hex::const_encode::<1, false>(&[r]).as_byte_array::<2>();
-    let [gh, gl] = *const_hex::const_encode::<1, false>(&[g]).as_byte_array::<2>();
-    let [bh, bl] = *const_hex::const_encode::<1, false>(&[b]).as_byte_array::<2>();
+    let [rh, rl] =
+        *const_hex::const_encode::<1, false>(&[r]).as_byte_array::<2>();
+    let [gh, gl] =
+        *const_hex::const_encode::<1, false>(&[g]).as_byte_array::<2>();
+    let [bh, bl] =
+        *const_hex::const_encode::<1, false>(&[b]).as_byte_array::<2>();
     [
-        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl, b'/', gh, gl, gh, gl,
-        b'/', bh, bl, bh, bl, 0x1b, b'\\',
+        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl,
+        b'/', gh, gl, gh, gl, b'/', bh, bl, bh, bl, 0x1b, b'\\',
     ]
 }
 

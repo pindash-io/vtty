@@ -117,7 +117,8 @@ fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
         return true;
     }
     // GB6: L × (L | V | LV | LVT).
-    if left == Gcb::L && matches!(right, Gcb::L | Gcb::V | Gcb::LV | Gcb::LVT) {
+    if left == Gcb::L && matches!(right, Gcb::L | Gcb::V | Gcb::LV | Gcb::LVT)
+    {
         return false;
     }
     // GB7: (LV | V) × (V | T).
@@ -145,7 +146,10 @@ fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
         return false;
     }
     // GB12/GB13: (RI RI)* RI × RI (odd-length runs keep their pair).
-    if left == Gcb::RegionalIndicator && right == Gcb::RegionalIndicator && ri % 2 == 1 {
+    if left == Gcb::RegionalIndicator
+        && right == Gcb::RegionalIndicator
+        && ri % 2 == 1
+    {
         return false;
     }
     true
@@ -251,7 +255,9 @@ impl Iterator for Graphemes<'_> {
         // is `Prepend` (GB9b). The run's LAST byte is held as the open cluster
         // so a following combining mark can still attach to it (GB9/GB9a).
         if self.left != Some(Gcb::Prepend) {
-            let run = vtty_width::first_non_printable_ascii(&self.text.as_bytes()[self.pos..]);
+            let run = vtty_width::first_non_printable_ascii(
+                &self.text.as_bytes()[self.pos..],
+            );
             if run > 0 {
                 // A complete open cluster precedes the run: emit it before the
                 // ASCII bytes are drained.
@@ -269,10 +275,15 @@ impl Iterator for Graphemes<'_> {
         }
 
         loop {
-            let Some(ch) = self.text.get(self.pos..).and_then(|s| s.chars().next()) else {
+            let Some(ch) =
+                self.text.get(self.pos..).and_then(|s| s.chars().next())
+            else {
                 // GB2: ÷ eot — emit the final open cluster.
                 self.finished = true;
-                return Some(Grapheme::new(self.cluster_start, self.text.len()));
+                return Some(Grapheme::new(
+                    self.cluster_start,
+                    self.text.len(),
+                ));
             };
             let idx = self.pos;
             self.pos += ch.len_utf8();
@@ -316,10 +327,7 @@ pub struct ClusterWidths<'a> {
 /// Per-cluster display cell width: [`vtty_width::cell_width_sum`] of each
 /// grapheme cluster in `text`.
 pub const fn cluster_widths(text: &str) -> ClusterWidths<'_> {
-    ClusterWidths {
-        graphemes: graphemes(text),
-        text,
-    }
+    ClusterWidths { graphemes: graphemes(text), text }
 }
 
 impl Iterator for ClusterWidths<'_> {
@@ -364,7 +372,10 @@ mod tests {
         // Tamil NA + vowel sign I is a single extended cluster.
         assert_eq!(clusters_vec("நி"), ["நி"]);
         // World map U+1F5FA is one 4-byte cluster.
-        assert_eq!(clusters_vec("Hello 🗺"), ["H", "e", "l", "l", "o", " ", "🗺"]);
+        assert_eq!(
+            clusters_vec("Hello 🗺"),
+            ["H", "e", "l", "l", "o", " ", "🗺"]
+        );
     }
 
     #[test]

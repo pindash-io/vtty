@@ -227,9 +227,15 @@ mod tests {
     fn mode_private_param_roundtrip() {
         assert_eq!(TermFlags::from_private_param(1), TermFlags::CURSOR_KEYS);
         assert_eq!(TermFlags::from_private_param(6), TermFlags::ORIGIN);
-        assert_eq!(TermFlags::from_private_param(25), TermFlags::CURSOR_VISIBLE);
+        assert_eq!(
+            TermFlags::from_private_param(25),
+            TermFlags::CURSOR_VISIBLE
+        );
         assert_eq!(TermFlags::from_private_param(12), TermFlags::CURSOR_BLINK);
-        assert_eq!(TermFlags::from_private_param(1000), TermFlags::MOUSE_NORMAL);
+        assert_eq!(
+            TermFlags::from_private_param(1000),
+            TermFlags::MOUSE_NORMAL
+        );
         assert_eq!(TermFlags::from_private_param(1006), TermFlags::MOUSE_SGR);
         assert_eq!(
             TermFlags::from_private_param(1047),
@@ -287,7 +293,10 @@ mod tests {
             TermFlags::CURSOR_VISIBLE
         );
         assert_eq!(TermFlags::from_mode_code(25, false), TermFlags::NONE);
-        assert_eq!(TermFlags::from_mode_code(1006, true), TermFlags::MOUSE_SGR);
+        assert_eq!(
+            TermFlags::from_mode_code(1006, true),
+            TermFlags::MOUSE_SGR
+        );
         assert_eq!(TermFlags::from_mode_code(1006, false), TermFlags::NONE);
         // Unknown in both forms.
         assert_eq!(TermFlags::from_mode_code(999, false), TermFlags::NONE);
@@ -299,7 +308,10 @@ mod tests {
         // DECRQM/XTSAVE/XTRESTORE look up any tracked mode by code, ANSI or DEC.
         assert_eq!(TermFlags::from_any_mode_code(4), TermFlags::INSERT);
         assert_eq!(TermFlags::from_any_mode_code(20), TermFlags::LINEFEED);
-        assert_eq!(TermFlags::from_any_mode_code(25), TermFlags::CURSOR_VISIBLE);
+        assert_eq!(
+            TermFlags::from_any_mode_code(25),
+            TermFlags::CURSOR_VISIBLE
+        );
         assert_eq!(TermFlags::from_any_mode_code(1006), TermFlags::MOUSE_SGR);
         assert_eq!(TermFlags::from_any_mode_code(999), TermFlags::NONE);
     }

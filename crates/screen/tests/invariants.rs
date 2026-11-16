@@ -86,26 +86,26 @@ fn screen_invariants_hold_under_vt_input() {
         b"hello world\r\n",
         "\u{1b}[?1049h".as_bytes(), // enter alt screen (clear)
         "alt screen 中中".as_bytes(),
-        "\u{1b}[?1049l".as_bytes(),                   // leave alt screen
-        "\u{1b}[2;4r".as_bytes(),                     // DECSTBM margins
-        "\u{1b}[?6h".as_bytes(),                      // DECOM origin mode
-        "\u{1b}[1;1H".as_bytes(),                     // CUP (origin-relative)
-        "\u{1b}[?6l".as_bytes(),                      // DECOM off
-        "\u{1b}[4h".as_bytes(),                       // IRM insert mode
-        "中中中中中".as_bytes(),                      // wide glyphs in insert mode
-        "\u{1b}[4l".as_bytes(),                       // IRM off
-        "\u{1b}[2J".as_bytes(),                       // ED whole screen
-        "\u{1b}[3;1H\u{1b}[L\u{1b}[M".as_bytes(),     // IL then DL
-        "\u{1b}[1;2H\u{1b}[2@\u{1b}[2P".as_bytes(),   // ICH then DCH
-        "\u{1b}]0;title\u{7}".as_bytes(),             // OSC title (BEL)
+        "\u{1b}[?1049l".as_bytes(), // leave alt screen
+        "\u{1b}[2;4r".as_bytes(),   // DECSTBM margins
+        "\u{1b}[?6h".as_bytes(),    // DECOM origin mode
+        "\u{1b}[1;1H".as_bytes(),   // CUP (origin-relative)
+        "\u{1b}[?6l".as_bytes(),    // DECOM off
+        "\u{1b}[4h".as_bytes(),     // IRM insert mode
+        "中中中中中".as_bytes(),    // wide glyphs in insert mode
+        "\u{1b}[4l".as_bytes(),     // IRM off
+        "\u{1b}[2J".as_bytes(),     // ED whole screen
+        "\u{1b}[3;1H\u{1b}[L\u{1b}[M".as_bytes(), // IL then DL
+        "\u{1b}[1;2H\u{1b}[2@\u{1b}[2P".as_bytes(), // ICH then DCH
+        "\u{1b}]0;title\u{7}".as_bytes(), // OSC title (BEL)
         "\u{1b}]52;;QUJDREVGR0g=\u{1b}\\".as_bytes(), // OSC clipboard (ST)
-        "\u{1b}P1;2qpayload\u{1b}\\".as_bytes(),      // DCS passthrough
-        "\u{1b}#8".as_bytes(),                        // DECALN
-        "\u{1b}[!p".as_bytes(),                       // DECSTR soft reset
-        "\u{1b}c".as_bytes(),                         // RIS full reset
-        "👨\u{200d}👩\u{200d}👧".as_bytes(),          // ZWJ emoji family
-        "e\u{301} x".as_bytes(),                      // combining mark
-        "\t\r\n\x08".as_bytes(),                      // HT CR LF BS
+        "\u{1b}P1;2qpayload\u{1b}\\".as_bytes(), // DCS passthrough
+        "\u{1b}#8".as_bytes(),      // DECALN
+        "\u{1b}[!p".as_bytes(),     // DECSTR soft reset
+        "\u{1b}c".as_bytes(),       // RIS full reset
+        "👨\u{200d}👩\u{200d}👧".as_bytes(), // ZWJ emoji family
+        "e\u{301} x".as_bytes(),    // combining mark
+        "\t\r\n\x08".as_bytes(),    // HT CR LF BS
     ];
     for seq in curated {
         parser.advance(&mut screen, seq);

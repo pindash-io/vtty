@@ -11,7 +11,13 @@ use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 use crate::cell::Cell;
 
 /// Emit an SGR sequence (`ESC [ 0 ; … m`) for a cell's attributes.
-pub(crate) fn push_sgr(out: &mut String, sgr: SgrFlags, fg: ColorId, bg: ColorId, palette: &[u32]) {
+pub(crate) fn push_sgr(
+    out: &mut String,
+    sgr: SgrFlags,
+    fg: ColorId,
+    bg: ColorId,
+    palette: &[u32],
+) {
     push_sgr_flags(out, sgr);
     push_ansi_color(out, 3, fg, palette);
     push_ansi_color(out, 4, bg, palette);
@@ -54,15 +60,18 @@ pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
 /// Emit one SGR color (`;{base}8;5;n` indexed or `;{base}8;2;r;g;b`
 /// truecolor resolved from `palette`). The default color emits nothing —
 /// the leading `ESC [ 0` already selects it.
-pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: &[u32]) {
-    let default = if base == 3 {
-        DEFAULT_FG_ID
-    } else {
-        DEFAULT_BG_ID
-    };
+pub(crate) fn push_ansi_color(
+    out: &mut String,
+    base: u8,
+    id: ColorId,
+    palette: &[u32],
+) {
+    let default = if base == 3 { DEFAULT_FG_ID } else { DEFAULT_BG_ID };
     if id != default && id.0 <= 255 {
         let _ = write!(out, ";{base}8;5;{}", id.0);
-    } else if let Some(&rgb) = id.0.checked_sub(258).and_then(|i| palette.get(i as usize)) {
+    } else if let Some(&rgb) =
+        id.0.checked_sub(258).and_then(|i| palette.get(i as usize))
+    {
         let [r, g, b] = vtty_core::u32_to_rgb(rgb);
         let _ = write!(out, ";{base}8;2;{r};{g};{b}");
     }

@@ -28,6 +28,8 @@ relies on.
 - **Panic-free** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`.
 - **`no_std` by default** — optional `simd`/`simd-transcode` pull in `std`,
   selected per parser (`Parser::with_simd()`).
+- **`perf-inline` (on by default)** — `#[inline(always)]` on the parser and
+  width hot paths is feature-gated; opt out for smaller code.
 - **Byte-accurate UTF-8** — partial code points are carried across calls.
 
 ## Resource limits

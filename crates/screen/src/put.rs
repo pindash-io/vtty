@@ -51,7 +51,9 @@ impl Screen {
             col = self.cols - 1;
         }
         // A cursor on a double-width continuation acts on the glyph's lead.
-        if col > 0 && self.cells[self.row_offset(self.cursor_row) + col as usize].is_continuation()
+        if col > 0
+            && self.cells[self.row_offset(self.cursor_row) + col as usize]
+                .is_continuation()
         {
             col -= 1;
         }
@@ -71,10 +73,7 @@ impl Screen {
             let base = self.row_offset(self.cursor_row);
             while i < s.len() && col < self.cols {
                 let idx = base + col as usize;
-                self.cells[idx] = Cell {
-                    ch: s[i] as char,
-                    ..template
-                };
+                self.cells[idx] = Cell { ch: s[i] as char, ..template };
                 i += 1;
                 col += 1;
                 // Overwriting a wide glyph's lead orphans its continuation.
@@ -101,7 +100,8 @@ impl Screen {
         // A cursor on a double-width continuation acts on the glyph's lead,
         // so a write replaces/shifts the whole glyph, never half of it.
         if self.cursor_col > 0 {
-            let idx = self.row_offset(self.cursor_row) + self.cursor_col as usize;
+            let idx =
+                self.row_offset(self.cursor_row) + self.cursor_col as usize;
             if self.cells[idx].is_continuation() {
                 self.cursor_col -= 1;
             }
@@ -130,10 +130,7 @@ impl Screen {
         self.cells[idx] = cell;
         self.cursor_col += width;
         if width == 2 {
-            self.cells[idx + 1] = Cell {
-                ch: CONTINUATION,
-                ..cell
-            };
+            self.cells[idx + 1] = Cell { ch: CONTINUATION, ..cell };
         } else if idx + 1 < row_end && self.cells[idx + 1].is_continuation() {
             // Overwrote a double-width glyph's lead: clear the now-orphaned
             // continuation cell.
@@ -158,7 +155,8 @@ impl Screen {
             return;
         }
         let start = self.row_offset(self.cursor_row);
-        self.cells[start..start + cols].copy_within(col..cols - shift, col + shift);
+        self.cells[start..start + cols]
+            .copy_within(col..cols - shift, col + shift);
     }
 
     /// Write a grapheme cluster as one cell: the first glyph is the base, the

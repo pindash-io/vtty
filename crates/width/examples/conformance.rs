@@ -83,18 +83,16 @@ fn emoji_test(data: &str) -> (Tally, Tally, Tally, Tally, Vec<String>) {
         let s: String = chars.iter().collect();
         let ok = match qual {
             "fully-qualified" | "minimally-qualified" => {
-                let t = if qual == "fully-qualified" {
-                    &mut fq
-                } else {
-                    &mut mq
-                };
+                let t =
+                    if qual == "fully-qualified" { &mut fq } else { &mut mq };
                 let ok = collapse(&w);
                 t.bump(ok);
                 ok
             }
             "unqualified" => {
                 let ok = if chars.len() == 1 {
-                    let wide_cjk = w == [2] && vtty_width::cell_width(chars[0]) == Some(2);
+                    let wide_cjk = w == [2]
+                        && vtty_width::cell_width(chars[0]) == Some(2);
                     w == [1] || wide_cjk
                 } else if chars.contains(&'\u{200D}') {
                     collapse(&w)
@@ -106,7 +104,8 @@ fn emoji_test(data: &str) -> (Tally, Tally, Tally, Tally, Vec<String>) {
                 ok
             }
             "component" => {
-                let is_skin_tone = matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
+                let is_skin_tone =
+                    matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
                 let ok = if is_skin_tone { w == [1] } else { w == [2] };
                 comp.bump(ok);
                 ok
@@ -218,7 +217,9 @@ fn sequences(data: &str) -> (Tally, Tally, Tally, Tally, Tally, Vec<String>) {
         let w = widths(&chars);
         let s: String = chars.iter().collect();
         let ok = match kind {
-            "Basic_Emoji" | "RGI_Emoji_Flag_Sequence" | "RGI_Emoji_Modifier_Sequence" => {
+            "Basic_Emoji"
+            | "RGI_Emoji_Flag_Sequence"
+            | "RGI_Emoji_Modifier_Sequence" => {
                 let t = match kind {
                     "Basic_Emoji" => &mut basic,
                     "RGI_Emoji_Flag_Sequence" => &mut flag,
@@ -259,12 +260,15 @@ fn main() {
             "/tmp/emoji-sequences.txt".into(),
         ]
     };
-    let read = |p: &str| std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}"));
+    let read = |p: &str| {
+        std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}"))
+    };
 
     let (fq, mq, unq, comp, bad1) = emoji_test(&read(&paths[0]));
     let (zwj, bad2) = zwj_sequences(&read(&paths[1]));
     let (vtext, vemoji, vkeycap, bad3) = variation_sequences(&read(&paths[2]));
-    let (basic, keycap, flag, modifier, tag, bad4) = sequences(&read(&paths[3]));
+    let (basic, keycap, flag, modifier, tag, bad4) =
+        sequences(&read(&paths[3]));
 
     println!("emoji-test.txt");
     println!("  fully-qualified:     {}/{}", fq.ok, fq.ok + fq.bad);

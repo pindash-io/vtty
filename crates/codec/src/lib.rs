@@ -40,7 +40,9 @@ mod traits;
 mod varint;
 mod vtty;
 
-pub use decoder::{DecodeIter, Decoder, decode_from_slice, decode_iter, encode_to_vec};
+pub use decoder::{
+    DecodeIter, Decoder, decode_from_slice, decode_iter, encode_to_vec,
+};
 pub use error::{DecodeError, EncodeError};
 pub use io::{Read, SliceReader, SliceWriter, VecWriter, Write};
 pub use traits::{Decode, Encode};
@@ -193,11 +195,7 @@ mod tests {
             let decoded = ok(decoder.advance(&bytes[i..=i]));
             assert_eq!(
                 decoded,
-                if i + 1 == bytes.len() {
-                    Some(value.clone())
-                } else {
-                    None
-                }
+                if i + 1 == bytes.len() { Some(value.clone()) } else { None }
             );
         }
     }
@@ -279,7 +277,10 @@ mod tests {
         // Continuation bytes with no terminator.
         let bytes = [0xff_u8; 3];
         let mut reader = SliceReader::new(&bytes);
-        assert_eq!(decode_varint(&mut reader), Err(DecodeError::UnexpectedEof));
+        assert_eq!(
+            decode_varint(&mut reader),
+            Err(DecodeError::UnexpectedEof)
+        );
     }
 
     #[test]
@@ -314,7 +315,10 @@ mod tests {
     fn read_exact_truncated() {
         let mut reader = SliceReader::new(&[1_u8, 2]);
         let mut buf = [0_u8; 3];
-        assert_eq!(reader.read_exact(&mut buf), Err(DecodeError::UnexpectedEof));
+        assert_eq!(
+            reader.read_exact(&mut buf),
+            Err(DecodeError::UnexpectedEof)
+        );
     }
 
     #[test]

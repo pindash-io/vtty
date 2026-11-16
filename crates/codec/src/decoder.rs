@@ -12,7 +12,9 @@ use crate::io::{SliceReader, VecWriter};
 use crate::traits::{Decode, Encode};
 
 /// Encodes `value` into a freshly allocated `Vec<u8>`.
-pub fn encode_to_vec<T: Encode + ?Sized>(value: &T) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_to_vec<T: Encode + ?Sized>(
+    value: &T,
+) -> Result<Vec<u8>, EncodeError> {
     let mut buf = Vec::with_capacity(value.encoded_len());
     value.encode(&mut VecWriter::new(&mut buf))?;
     Ok(buf)
@@ -46,10 +48,7 @@ impl<T> Decoder<T> {
     /// An empty decoder.
     #[inline]
     pub const fn new() -> Self {
-        Self {
-            buf: Vec::new(),
-            marker: PhantomData,
-        }
+        Self { buf: Vec::new(), marker: PhantomData }
     }
 }
 

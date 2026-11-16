@@ -12,12 +12,22 @@
 //! The `vtty` (scalar) and `vtty-simd` (`Parser::with_simd`) paths are both
 //! measured in one run — vtty is compiled with the `simd` feature and the
 //! path is selected per-parser at runtime.
+//!
+//! `vt_input`/`vt_screen` use a 2 MiB working set (cache-resident, single
+//! core). `vt_bandwidth` re-runs a subset with `VTTY_BENCH_BYTES` (default
+//! 512 MiB) so the working set exceeds the last-level cache, and
+//! `vt_parallel` shards that input across `VTTY_BENCH_THREADS` (default:
+//! `available_parallelism()`) threads — the two knobs that separate memory
+//! bandwidth from core scaling.
 
 // The `criterion_group!` macro emits public functions; a benchmark binary has
 // no public API to document.
 #![allow(missing_docs, reason = "criterion_group! emits public fns in a bin")]
 
-use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{
+    BatchSize, BenchmarkId, Criterion, Throughput, criterion_group,
+    criterion_main,
+};
 
 const COLS: u16 = 80;
 const ROWS: u16 = 24;
@@ -44,7 +54,13 @@ impl vtty::Perform for VttySink {
         self.printed += codepoints.len() as u64;
     }
 
-    fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
+    fn csi_dispatch(
+        &mut self,
+        _params: &[i32],
+        _sep: u16,
+        _intermediates: &[u8],
+        _final_byte: u8,
+    ) {
         self.csis += 1;
     }
 }
@@ -163,8 +179,7 @@ macro_rules! bench_parser {
 
 /// Plain ASCII line repeated to `total` bytes.
 fn plain(total: usize) -> Vec<u8> {
-    let line =
-        "the quick brown fox jumps over the lazy dog 0123456789 lorem ipsum dolor sit amet\r\n";
+    let line = "the quick brown fox jumps over the lazy dog 0123456789 lorem ipsum dolor sit amet\r\n";
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
@@ -245,7 +260,9 @@ fn truecolor_unique(total: usize) -> Vec<u8> {
             for x in 0..COLS as usize {
                 let v = (x * 7 + y * 13 + frame * 31) % 253;
                 let w = (x * 11 + y * 3 + frame * 17) % 251;
-                out += &format!("\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}");
+                out += &format!(
+                    "\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}"
+                );
             }
         }
         frame += 1;
@@ -267,7 +284,9 @@ fn sgr_nvim(total: usize) -> Vec<u8> {
         line += &format!("\x1b[1m\x1b[38;2;{r};{g};{b}mfn\x1b[0m ");
         // String literal: truecolor fg + bg.
         let w = (i * 53 + 8) % 256;
-        line += &format!("\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m ");
+        line += &format!(
+            "\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m "
+        );
         // Underlined link: undercurl + underline color (colon, empty param).
         line += &format!("\x1b[4:3m\x1b[58:2::{r};{g};{b}mlink\x1b[0m ");
         // Plain run.
@@ -299,8 +318,7 @@ fn bracketed_paste(total: usize) -> Vec<u8> {
 /// (`ST`-terminated), and iTerm2 file payloads, exercising OSC param/payload
 /// accumulation across both terminator styles.
 fn osc_heavy(total: usize) -> Vec<u8> {
-    const B64: &str =
-        "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3ODk";
+    const B64: &str = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3ODk";
     let mut line = String::new();
     for i in 0..20 {
         line += &format!("\x1b]0;window {i}\x07");
@@ -378,7 +396,8 @@ fn sync_churn(total: usize) -> Vec<u8> {
     for _ in 0..5 {
         line += "\x1b[?2026h";
         for i in 0..8 {
-            line += &format!("\x1b[38;5;{}mstyled text\x1b[0m ", (i * 31) % 256);
+            line +=
+                &format!("\x1b[38;5;{}mstyled text\x1b[0m ", (i * 31) % 256);
         }
         line += "\x1b[2J\x1b[H";
         line += "\x1b[?2026l";
@@ -413,7 +432,8 @@ fn feed_fux_vt(parser: &mut fux_vt::Parser, bytes: &[u8]) {
     impl fux_vt::Sink for Deaf {}
     let mut sink = Deaf;
     let mut rest = bytes;
-    while let Ok(Some((taken, _))) = parser.process_until_stop(rest, &mut sink) {
+    while let Ok(Some((taken, _))) = parser.process_until_stop(rest, &mut sink)
+    {
         rest = rest.get(taken..).unwrap_or_default();
     }
 }
@@ -552,7 +572,10 @@ fn bench_vt_screen(c: &mut Criterion) {
                     || {
                         (
                             make_parser(),
-                            vtty_screen::Screen::new(u32::from(COLS), u32::from(ROWS)),
+                            vtty_screen::Screen::new(
+                                u32::from(COLS),
+                                u32::from(ROWS),
+                            ),
                         )
                     },
                     |(mut parser, mut screen)| {
@@ -568,5 +591,153 @@ fn bench_vt_screen(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_vt_input, bench_vt_screen);
+/// Total bytes for the bandwidth/parallel groups. Override with
+/// `VTTY_BENCH_BYTES` (a plain integer byte count). Defaults to 512 MiB so
+/// the working set exceeds L2/SLC and actually touches memory bandwidth.
+fn bench_bytes() -> usize {
+    std::env::var("VTTY_BENCH_BYTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(512 * 1024 * 1024)
+}
+
+/// Thread count for the parallel group. Override with `VTTY_BENCH_THREADS`;
+/// defaults to `available_parallelism()`.
+fn bench_threads() -> usize {
+    std::env::var("VTTY_BENCH_THREADS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+        })
+        .max(1)
+}
+
+/// Same parser-only measurement as `bench_vt_input`, but with a working set
+/// large enough to exceed the last-level cache. Single-threaded: isolates the
+/// memory-bandwidth ceiling (where a wider bus shows) from the core-scaling
+/// ceiling (measured by `bench_vt_parallel`).
+fn bench_vt_bandwidth(c: &mut Criterion) {
+    let total = bench_bytes();
+    let cases = [
+        ("plain", plain(total)),
+        ("utf8_mixed", utf8_mixed(total)),
+        ("ansi_mixed", ansi_mixed(total)),
+        ("sgr_churn", sgr_churn(total)),
+    ];
+    let mut group = c.benchmark_group("vt_bandwidth");
+    group.sample_size(10);
+
+    for (case, bytes) in &cases {
+        let case: &str = case;
+        let bytes: &[u8] = bytes.as_slice();
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
+
+        bench_parser!(
+            group,
+            "vtty",
+            case,
+            bytes,
+            (vtty::Parser::new(), VttySink::default()),
+            |(mut parser, mut sink)| {
+                parser.advance(&mut sink, bytes);
+                sink
+            }
+        );
+
+        bench_parser!(
+            group,
+            "vtty-simd",
+            case,
+            bytes,
+            (vtty::Parser::with_simd(), VttySink::default()),
+            |(mut parser, mut sink)| {
+                parser.advance(&mut sink, bytes);
+                sink
+            }
+        );
+
+        bench_parser!(
+            group,
+            "vte",
+            case,
+            bytes,
+            (vte::Parser::new(), VteSink::default()),
+            |(mut parser, mut sink)| {
+                parser.advance(&mut sink, bytes);
+                sink
+            }
+        );
+
+        bench_parser!(
+            group,
+            "rio-vt",
+            case,
+            bytes,
+            (rio_vt::performer::parser::Parser::new(), RioSink::default()),
+            |(mut parser, mut sink)| {
+                parser.advance(&mut sink, bytes);
+                sink
+            }
+        );
+    }
+
+    group.finish();
+}
+
+/// Shards one large corpus across `bench_threads()` threads, each parsing its
+/// slice with its own parser + sink. Aggregate throughput = total bytes / wall
+/// time; this is where extra P-cores should win.
+fn bench_vt_parallel(c: &mut Criterion) {
+    let total = bench_bytes();
+    let threads = bench_threads();
+    let cases = [
+        ("plain", plain(total)),
+        ("utf8_mixed", utf8_mixed(total)),
+        ("ansi_mixed", ansi_mixed(total)),
+    ];
+    let mut group = c.benchmark_group("vt_parallel");
+    group.sample_size(10);
+
+    for (case, bytes) in &cases {
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
+        for (name, make_parser) in [
+            ("vtty", vtty::Parser::new as fn() -> vtty::Parser),
+            ("vtty-simd", vtty::Parser::with_simd),
+        ] {
+            group.bench_function(BenchmarkId::new(name, *case), |b| {
+                b.iter_batched(
+                    || {
+                        bytes
+                            .chunks(bytes.len().div_ceil(threads))
+                            .collect::<Vec<_>>()
+                    },
+                    |chunks| {
+                        std::thread::scope(|scope| {
+                            for chunk in chunks {
+                                scope.spawn(move || {
+                                    let mut parser = make_parser();
+                                    let mut sink = VttySink::default();
+                                    parser.advance(&mut sink, chunk);
+                                    sink
+                                });
+                            }
+                        });
+                    },
+                    BatchSize::LargeInput,
+                );
+            });
+        }
+    }
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_vt_input,
+    bench_vt_screen,
+    bench_vt_bandwidth,
+    bench_vt_parallel,
+);
 criterion_main!(benches);

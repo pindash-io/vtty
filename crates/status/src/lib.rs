@@ -18,4 +18,6 @@ extern crate alloc;
 
 mod status;
 
-pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
+pub use status::{
+    PerformProgramStatus, ProgramStatus, StatusKind, StatusState,
+};

@@ -184,7 +184,11 @@ fn join_wrapped<T: core::fmt::Display>(
 
 #[cfg(feature = "reply")]
 /// Append `items` to `buf`, separated by `sep`.
-fn join_display<T: core::fmt::Display>(buf: &mut CompactString, items: &[T], sep: char) {
+fn join_display<T: core::fmt::Display>(
+    buf: &mut CompactString,
+    items: &[T],
+    sep: char,
+) {
     for (i, item) in items.iter().enumerate() {
         if i > 0 {
             buf.push(sep);

@@ -34,7 +34,9 @@ compact_str = { version = "0.10.0", default-features = false }
 utf8_iter = "1"
 
 icu_properties = { version = "=2.3.0", features = ["compiled_data", "alloc"] }
-icu_normalizer = { version = "=2.3.0", default-features = false, features = ["compiled_data"] }
+icu_normalizer = { version = "=2.3.0", default-features = false, features = [
+    "compiled_data",
+] }
 parley_emoji = "0.12.0"
 packtab = "1.9.0"
 
@@ -45,7 +47,9 @@ vtparse = "0.7.0"
 rio-vt = { version = "0.5.29", default-features = false }
 
 ## dev
-criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
+criterion = { version = "0.8", default-features = false, features = [
+    "html_reports",
+] }
 
 [workspace.lints]
 rust.keyword_idents_2024 = "forbid"
@@ -93,6 +97,11 @@ clippy.redundant_feature_names = "warn"
 clippy.wildcard_dependencies = "warn"
 
 rustdoc.broken_intra_doc_links = "deny"
+
+[profile.test]
+# Differential (vte/rio-vt) and build-time table tests are large; opt-level 1
+# keeps them fast without a full release build.
+opt-level = 1
 
 [profile.release]
 opt-level = 3

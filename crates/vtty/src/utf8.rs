@@ -23,11 +23,15 @@ const fn utf8_lead(lead: u8) -> (usize, u32) {
 /// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations). `N` is
 /// 2/3/4; the `match N` folds to per-length shifts at compile time.
 #[cfg(feature = "simd")]
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
     match N {
         2 => ((b[0] as u32 & 0x1f) << 6) | (b[1] as u32 & 0x3f),
-        3 => ((b[0] as u32 & 0x0f) << 12) | ((b[1] as u32 & 0x3f) << 6) | (b[2] as u32 & 0x3f),
+        3 => {
+            ((b[0] as u32 & 0x0f) << 12)
+                | ((b[1] as u32 & 0x3f) << 6)
+                | (b[2] as u32 & 0x3f)
+        }
         _ => {
             ((b[0] as u32 & 0x07) << 18)
                 | ((b[1] as u32 & 0x3f) << 12)
@@ -87,9 +91,11 @@ impl PartialUtf8 {
     /// [`Self::pending`] is now `false`). Returns `false` when the byte was
     /// not a continuation — the partial is cleared and the caller must emit
     /// `U+FFFD` and reprocess the byte.
-    #[inline(always)]
+    #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) fn feed(&mut self, b: u8) -> bool {
         if (0x80..0xc0).contains(&b) {
+            // OK because a code point needs at most 21 bits (4-byte:
+            // 3 lead + 3×6 continuation), so `cp << 6` never overflows u32.
             self.cp = (self.cp << 6) | (b & 0x3f) as u32;
             self.need -= 1;
             true
@@ -122,10 +128,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
         let (expected, cp) = utf8_lead(last);
         return Some((
             len - 1,
-            PartialUtf8 {
-                cp,
-                need: (expected - 1) as u8,
-            },
+            PartialUtf8 { cp, need: (expected - 1) as u8 },
         ));
     }
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
@@ -165,17 +168,11 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     for &b in &s[lead_idx + 1..] {
         cp = (cp << 6) | (b & 0x3f) as u32;
     }
-    Some((
-        lead_idx,
-        PartialUtf8 {
-            cp,
-            need: (expected - have) as u8,
-        },
-    ))
+    Some((lead_idx, PartialUtf8 { cp, need: (expected - have) as u8 }))
 }
 
 /// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 fn flush_cps<P: Perform>(p: &mut P, buf: &[u32], n: &mut usize) {
     if *n > 0 {
         p.print_codepoints(&buf[..*n]);
@@ -185,8 +182,13 @@ fn flush_cps<P: Perform>(p: &mut P, buf: &[u32], n: &mut usize) {
 
 /// Push one code point into the batch, flushing via `print_codepoints` when
 /// the 32-slot buffer fills.
-#[inline(always)]
-fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
+#[cfg_attr(feature = "perf-inline", inline(always))]
+fn push_cp<P: Perform>(
+    p: &mut P,
+    buf: &mut [u32; 32],
+    n: &mut usize,
+    cp: u32,
+) {
     buf[*n] = cp;
     *n += 1;
     if *n == buf.len() {
@@ -200,7 +202,7 @@ fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
 /// VALIDATED UTF-8. Returns the consumed byte count (the index of an `ESC`, or
 /// `s.len()`).
 #[cfg(all(feature = "simd", not(feature = "simd-transcode")))]
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     let mut i = 0;
     while i < s.len() {
@@ -225,7 +227,10 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 if end + 1 < s.len() && s[end] == b'\n' {
                     p.print_line(&s[i..end]);
                     i = end + 1;
-                } else if end + 2 < s.len() && s[end] == b'\r' && s[end + 1] == b'\n' {
+                } else if end + 2 < s.len()
+                    && s[end] == b'\r'
+                    && s[end + 1] == b'\n'
+                {
                     p.print_crlf_line(&s[i..end]);
                     i = end + 2;
                 } else {
@@ -256,7 +261,9 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             && (0xe0..=0xef).contains(&s[i + 9])
                             && n + 4 <= BATCH
                         {
-                            let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
+                            let cps = crate::simd::decode_3byte_dispatch(
+                                &s[i..i + 16],
+                            );
                             buf[n..n + 4].copy_from_slice(&cps);
                             n += 4;
                             // The 4-wide SIMD fill bypasses `push_cp` (whose
@@ -268,7 +275,12 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             }
                             i += 12;
                         } else {
-                            push_cp(p, &mut buf, &mut n, decode_utf8_n::<3>(&s[i..]));
+                            push_cp(
+                                p,
+                                &mut buf,
+                                &mut n,
+                                decode_utf8_n::<3>(&s[i..]),
+                            );
                             i += 3;
                         }
                     } else {
@@ -302,7 +314,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
 /// are split out via `execute`; a mixed window (ASCII + multi-byte) is one
 /// `print_codepoints` run. Returns `s.len()`.
 #[cfg(feature = "simd-transcode")]
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     // Buffer holds the max code points one `decode_block` call can emit: the
     // sub-76-byte scalar tail decodes 1 code point/byte (≤ 75), and the
@@ -311,7 +323,8 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     let mut buf = [0_u32; BATCH];
     let mut i = 0;
     while i < s.len() {
-        let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
+        let (count, consumed) =
+            crate::simd::decode_block_dispatch(&s[i..], &mut buf);
         // Fast path: when the block has no controls, dispatch the whole run
         // with one `print_codepoints` call instead of the per-code-point
         // split scan.
@@ -351,7 +364,7 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
 /// ill-formed sequence yields one U+FFFD, and a standalone C1 byte
 /// (`0x80..=0x9f`) dispatches via [`Perform::execute`] — the same contract
 /// as vte and rio-vt.
-#[inline(always)]
+#[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_utf8<P: Perform>(
     p: &mut P,
     bytes: &[u8],
@@ -470,16 +483,13 @@ mod tests {
         // A short mixed window decodes into ONE print_codepoints run
         // (ASCII + CJK + emoji together), not per-boundary callbacks.
         let input = "日本語 🚀 ".as_bytes();
-        let mut sink = Sink {
-            cps: vec![],
-            calls: 0,
-            bytes: vec![],
-            execs: vec![],
-        };
+        let mut sink =
+            Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
         let consumed = decode_utf8(&mut sink, input, input.len(), 0, true);
         assert_eq!(consumed, input.len());
         assert_eq!(sink.calls, 1, "one batched print_codepoints");
-        let expected: Vec<u32> = "日本語 🚀 ".chars().map(|c| c as u32).collect();
+        let expected: Vec<u32> =
+            "日本語 🚀 ".chars().map(|c| c as u32).collect();
         assert_eq!(sink.cps, expected);
         assert!(sink.execs.is_empty());
         assert!(sink.bytes.is_empty());
@@ -489,12 +499,8 @@ mod tests {
         // state machine.
         let mut input = "日本語 🚀 ".as_bytes().to_vec();
         input.extend_from_slice(b"\x1b[31m");
-        let mut sink = Sink {
-            cps: vec![],
-            calls: 0,
-            bytes: vec![],
-            execs: vec![],
-        };
+        let mut sink =
+            Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
         let consumed = decode_utf8(&mut sink, &input, input.len(), 0, true);
         assert_eq!(consumed, "日本語 🚀 ".len());
         assert_eq!(sink.cps, expected);

@@ -27,6 +27,8 @@
 //! ## Features
 //!
 //! `simd` + `baked` (default) | `icu` (runtime ICU4X lookups).
+//! `perf-inline` (default) — `#[inline(always)]` on the width hot paths; opt
+//! out for smaller code.
 //!
 //! ## Credits
 //!
@@ -52,33 +54,41 @@ pub mod write_order;
 
 /// Re-export the `parley_emoji` DFA + categories so callers don't depend
 /// on `parley_emoji` directly.
-pub use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
+pub use parley_emoji::{
+    EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory,
+};
 
 #[cfg(feature = "icu")]
 #[cfg_attr(docsrs, doc(cfg(feature = "icu")))]
 pub use icu::width_icu;
 
 pub use emoji::{
-    Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray,
+    Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target,
+    mark_attaches, mark_is_stray,
 };
 pub use properties::{
-    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed, first_non_ascii,
-    first_non_printable_ascii, is_printable_ascii, is_zero_width, pua_fast_width, vs_width,
+    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed,
+    first_non_ascii, first_non_printable_ascii, is_printable_ascii,
+    is_zero_width, pua_fast_width, vs_width,
 };
 pub use width::{
-    cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths, cell_col_byte_widths,
-    cell_col_char_ceil_from_widths, cell_col_char_end_from_widths, cell_col_char_from_widths,
-    cell_width_sum, cell_widths, cell_widths_from_codepoints, grapheme_end_from_widths,
-    grapheme_tail_end_from_widths, width_and_standalone, width_and_standalone_with,
+    cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths,
+    cell_col_byte_widths, cell_col_char_ceil_from_widths,
+    cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum,
+    cell_widths, cell_widths_from_codepoints, grapheme_end_from_widths,
+    grapheme_tail_end_from_widths, width_and_standalone,
+    width_and_standalone_with,
 };
 pub use write_order::{
-    EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths, wrap_width,
+    EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths,
+    wrap_width,
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
 /// (like `wcwidth` under a CJK locale). Off by
 /// default — Ambiguous chars stay 1 cell.
-static CJK_WIDTH: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+static CJK_WIDTH: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 
 /// Set whether Ambiguous chars are 2 cells wide.
 #[inline]
@@ -357,7 +367,9 @@ mod tests {
         assert_eq!(cell_widths("1\u{FE0F}"), vec![1, 0]);
         // Tag characters and cancel tag contribute no cells.
         assert_eq!(
-            cell_widths("🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}x"),
+            cell_widths(
+                "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}x"
+            ),
             vec![2, 0, 0, 0, 0, 0, 0, 1]
         );
     }
@@ -469,7 +481,8 @@ mod tests {
         use unicode_width::UnicodeWidthChar;
         // Curated common cases must agree exactly.
         for c in [
-            'a', '中', 'ｱ', 'ア', '👍', '\u{0301}', '\u{200D}', '\u{AC00}', '¡',
+            'a', '中', 'ｱ', 'ア', '👍', '\u{0301}', '\u{200D}', '\u{AC00}',
+            '¡',
         ] {
             assert_eq!(
                 width_icu(c),
@@ -505,7 +518,11 @@ mod tests {
             let Some(c) = char::from_u32(cp) else {
                 continue;
             };
-            assert_eq!(Properties::get(c).width(), width_icu(c) as u8, "U+{cp:04X}");
+            assert_eq!(
+                Properties::get(c).width(),
+                width_icu(c) as u8,
+                "U+{cp:04X}"
+            );
         }
     }
 
@@ -607,8 +624,8 @@ fn tui_symbols_are_single_cell() {
     // The box-drawing / braille / half-block / shade / arrow / bullet
     // symbols ratatui and every TUI app draws are all width 1.
     for c in [
-        '─', '│', '┌', '┐', '└', '┘', '╭', '╮', '╰', '╯', '▀', '▄', '█', '▌', '▐', '░', '▒', '▓',
-        '⠿', '⣿', '•', '●', '○', '←', '→', '↑', '↓',
+        '─', '│', '┌', '┐', '└', '┘', '╭', '╮', '╰', '╯', '▀', '▄', '█', '▌',
+        '▐', '░', '▒', '▓', '⠿', '⣿', '•', '●', '○', '←', '→', '↑', '↓',
     ] {
         assert_eq!(
             cell_width(c),
@@ -618,7 +635,8 @@ fn tui_symbols_are_single_cell() {
         );
     }
     // Keycap / key symbols gitui uses for its keybinding hints.
-    for c in ['⌥', '⌦', '⌫', '⎋', '⏎', '⇥', '⇧', '⇞', '▸', '▾', '✓', '…'] {
+    for c in ['⌥', '⌦', '⌫', '⎋', '⏎', '⇥', '⇧', '⇞', '▸', '▾', '✓', '…']
+    {
         assert_eq!(
             cell_width(c),
             Some(1),

@@ -18,7 +18,12 @@ fn coord(params: &[i32], i: usize) -> i32 {
 }
 
 /// DECRARA's "reverse": toggle SGR flags and swap foreground/background.
-fn reverse_sgr_to(params: &[i32], sgr: &mut SgrFlags, fg: &mut ColorId, bg: &mut ColorId) {
+fn reverse_sgr_to(
+    params: &[i32],
+    sgr: &mut SgrFlags,
+    fg: &mut ColorId,
+    bg: &mut ColorId,
+) {
     let mut i = 0;
     while i < params.len() {
         let code = params[i];
@@ -68,7 +73,13 @@ fn reverse_sgr_to(params: &[i32], sgr: &mut SgrFlags, fg: &mut ColorId, bg: &mut
 impl Screen {
     /// Clamp 1-based DEC coordinates to a 0-based inclusive
     /// `(top, left, bottom, right)`, or `None` when the rectangle is empty.
-    fn rect(&self, top: i32, left: i32, bottom: i32, right: i32) -> Option<(u32, u32, u32, u32)> {
+    fn rect(
+        &self,
+        top: i32,
+        left: i32,
+        bottom: i32,
+        right: i32,
+    ) -> Option<(u32, u32, u32, u32)> {
         let top = (top - 1).clamp(0, self.rows as i32 - 1) as u32;
         let bottom = (bottom - 1).clamp(0, self.rows as i32 - 1) as u32;
         let left = (left - 1).clamp(0, self.cols as i32 - 1) as u32;
@@ -85,7 +96,9 @@ impl Screen {
         if c0 > 0 && self.cells[base + c0 as usize].is_continuation() {
             c0 -= 1;
         }
-        if c1 + 1 < self.cols && self.cells[base + c1 as usize + 1].is_continuation() {
+        if c1 + 1 < self.cols
+            && self.cells[base + c1 as usize + 1].is_continuation()
+        {
             c1 += 1;
         }
         (c0, c1)
@@ -127,7 +140,8 @@ impl Screen {
         for r in r0..=r1 {
             let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
-            self.cells[base + c0 as usize..=base + c1 as usize].fill(Cell::default());
+            self.cells[base + c0 as usize..=base + c1 as usize]
+                .fill(Cell::default());
         }
     }
 
@@ -144,7 +158,9 @@ impl Screen {
         for r in r0..=r1 {
             let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
-            for cell in &mut self.cells[base + c0 as usize..=base + c1 as usize] {
+            for cell in
+                &mut self.cells[base + c0 as usize..=base + c1 as usize]
+            {
                 if !cell.protected {
                     *cell = Cell::default();
                 }
@@ -163,8 +179,10 @@ impl Screen {
         ) else {
             return;
         };
-        let dst_top = (coord(params, 0) - 1).clamp(0, self.rows as i32 - 1) as u32;
-        let dst_left = (coord(params, 5) - 1).clamp(0, self.cols as i32 - 1) as u32;
+        let dst_top =
+            (coord(params, 0) - 1).clamp(0, self.rows as i32 - 1) as u32;
+        let dst_left =
+            (coord(params, 5) - 1).clamp(0, self.cols as i32 - 1) as u32;
         let width = (c1 - c0 + 1) as usize;
         for dr in 0..=(r1 - r0) {
             let dst_row = dst_top + dr;
@@ -204,12 +222,20 @@ impl Screen {
         let sgr_params = params.get(4..).unwrap_or(&[]);
         for r in r0..=r1 {
             let base = self.row_offset(r);
-            for cell in &mut self.cells[base + c0 as usize..=base + c1 as usize] {
+            for cell in
+                &mut self.cells[base + c0 as usize..=base + c1 as usize]
+            {
                 let (mut sgr, mut fg, mut bg) = (cell.sgr, cell.fg, cell.bg);
                 if reverse {
                     reverse_sgr_to(sgr_params, &mut sgr, &mut fg, &mut bg);
                 } else {
-                    apply_sgr_to(sgr_params, &mut sgr, &mut fg, &mut bg, &mut self.rgb);
+                    apply_sgr_to(
+                        sgr_params,
+                        &mut sgr,
+                        &mut fg,
+                        &mut bg,
+                        &mut self.rgb,
+                    );
                 }
                 cell.sgr = sgr;
                 cell.fg = fg;

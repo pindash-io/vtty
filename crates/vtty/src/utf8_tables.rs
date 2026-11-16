@@ -82,7 +82,12 @@ const fn classify(mask: u32) -> (u8, u8) {
         let s = [sizes[0], sizes[1], sizes[2], sizes[3], sizes[4], sizes[5]];
         return (rank6(s), s[0] + s[1] + s[2] + s[3] + s[4] + s[5]);
     }
-    if len >= 4 && sizes[0] <= 3 && sizes[1] <= 3 && sizes[2] <= 3 && sizes[3] <= 3 {
+    if len >= 4
+        && sizes[0] <= 3
+        && sizes[1] <= 3
+        && sizes[2] <= 3
+        && sizes[3] <= 3
+    {
         let s = [sizes[0], sizes[1], sizes[2], sizes[3]];
         return (rank4(s), s[0] + s[1] + s[2] + s[3]);
     }
@@ -99,11 +104,7 @@ const fn put(out: &mut [u8; 16], o: usize, lane: usize, n: u8, pos: &mut u8) {
     let size = n as usize;
     let mut j = 0_usize;
     while j < lane {
-        out[o + j] = if j < size {
-            *pos + (size - 1 - j) as u8
-        } else {
-            0xff
-        };
+        out[o + j] = if j < size { *pos + (size - 1 - j) as u8 } else { 0xff };
         j += 1;
     }
     *pos += n;
@@ -200,7 +201,11 @@ const fn build_shufutf8() -> [[u8; 16]; 209] {
     // case1234: 3-tuples of 1..=4 (4^3).
     let mut code = 0_usize;
     while code < 64 {
-        table[idx] = shuf_case1234([digit(code, 4, 2), digit(code, 4, 1), digit(code, 4, 0)]);
+        table[idx] = shuf_case1234([
+            digit(code, 4, 2),
+            digit(code, 4, 1),
+            digit(code, 4, 0),
+        ]);
         idx += 1;
         code += 1;
     }
@@ -245,7 +250,8 @@ mod tests {
         let mut pos: u8 = 0;
         for (i, &s) in sizes.iter().enumerate() {
             for j in 0..lane {
-                out[lane * i + j] = if j < s { pos + (s - 1 - j) as u8 } else { 0xff };
+                out[lane * i + j] =
+                    if j < s { pos + (s - 1 - j) as u8 } else { 0xff };
             }
             pos += s as u8;
         }
@@ -277,11 +283,8 @@ mod tests {
             .cloned()
             .collect();
         assert_eq!(patterns.len(), 209, "three cases must total 209 patterns");
-        let index: HashMap<Vec<usize>, usize> = patterns
-            .iter()
-            .enumerate()
-            .map(|(i, p)| (p.clone(), i))
-            .collect();
+        let index: HashMap<Vec<usize>, usize> =
+            patterns.iter().enumerate().map(|(i, p)| (p.clone(), i)).collect();
 
         for (i, p) in patterns.iter().enumerate() {
             let expected = ref_shuf(p, if p.len() == 6 { 2 } else { 4 });
@@ -290,15 +293,16 @@ mod tests {
 
         for x in 0..4096_u32 {
             let s = ref_sizes(x);
-            let (idx, consumed) = if s.len() >= 6 && s[..6].iter().all(|&v| v <= 2) {
-                (index[&s[..6].to_vec()], s[..6].iter().sum())
-            } else if s.len() >= 4 && s[..4].iter().all(|&v| v <= 3) {
-                (index[&s[..4].to_vec()], s[..4].iter().sum())
-            } else if s.len() >= 3 && s[..3].iter().all(|&v| v <= 4) {
-                (index[&s[..3].to_vec()], s[..3].iter().sum())
-            } else {
-                (209, 12)
-            };
+            let (idx, consumed) =
+                if s.len() >= 6 && s[..6].iter().all(|&v| v <= 2) {
+                    (index[&s[..6].to_vec()], s[..6].iter().sum())
+                } else if s.len() >= 4 && s[..4].iter().all(|&v| v <= 3) {
+                    (index[&s[..4].to_vec()], s[..4].iter().sum())
+                } else if s.len() >= 3 && s[..3].iter().all(|&v| v <= 4) {
+                    (index[&s[..3].to_vec()], s[..3].iter().sum())
+                } else {
+                    (209, 12)
+                };
             assert_eq!(
                 UTF8BIGINDEX[x as usize],
                 [idx as u8, consumed as u8],

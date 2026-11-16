@@ -73,11 +73,7 @@ impl MouseButton {
     /// X10 `Cb`/`Cx`/`Cy`: button code + 32, and 1-based coordinates + 32.
     #[inline]
     const fn x10_bytes(self, x: u16, y: u16) -> (u8, u16, u16) {
-        (
-            (self as u8).wrapping_add(32),
-            x.wrapping_add(33),
-            y.wrapping_add(33),
-        )
+        ((self as u8).wrapping_add(32), x.wrapping_add(33), y.wrapping_add(33))
     }
 
     /// Encode this event as an SGR (`CSI < … M/m`) sequence. `x`/`y` are
@@ -114,8 +110,12 @@ impl MouseButton {
         let mut b = CompactString::new("");
         b.push_str("\x1b[M");
         b.push(cb as char);
-        b.push(char::from_u32(cx as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
-        b.push(char::from_u32(cy as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
+        b.push(
+            char::from_u32(cx as u32).unwrap_or(char::REPLACEMENT_CHARACTER),
+        );
+        b.push(
+            char::from_u32(cy as u32).unwrap_or(char::REPLACEMENT_CHARACTER),
+        );
         b
     }
 
@@ -137,11 +137,16 @@ impl MouseButton {
             return None;
         }
         if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {
-            return Some(SmallVec::from(self.encode_sgr(x, y, pressed).as_bytes()));
+            return Some(SmallVec::from(
+                self.encode_sgr(x, y, pressed).as_bytes(),
+            ));
         }
         // Drag motion reports only in any-motion (1003) mode; release is
         // `Cb = 3`.
-        if pressed && self == Self::Motion && !tracking.contains(MouseTracking::ANY_MOTION) {
+        if pressed
+            && self == Self::Motion
+            && !tracking.contains(MouseTracking::ANY_MOTION)
+        {
             return None;
         }
         let b = if pressed { self } else { Self::Release };
@@ -167,7 +172,10 @@ mod tests {
     fn mouse_sgr_encoding() {
         assert_eq!(MouseButton::Left.encode_sgr(3, 4, true), "\x1b[<0;4;5M");
         assert_eq!(MouseButton::Left.encode_sgr(3, 4, false), "\x1b[<0;4;5m");
-        assert_eq!(MouseButton::Right.encode_sgr(4, 9, false), "\x1b[<2;5;10m");
+        assert_eq!(
+            MouseButton::Right.encode_sgr(4, 9, false),
+            "\x1b[<2;5;10m"
+        );
         assert_eq!(
             MouseButton::WheelUp.encode_sgr(10, 20, true),
             "\x1b[<64;11;21M"
@@ -178,11 +186,17 @@ mod tests {
             "\x1b[<35;4;5M"
         );
         // Motion with the left button held (drag) is button 0: 32.
-        assert_eq!(MouseButton::Motion.encode_sgr(3, 4, true), "\x1b[<32;4;5M");
+        assert_eq!(
+            MouseButton::Motion.encode_sgr(3, 4, true),
+            "\x1b[<32;4;5M"
+        );
         // DEC 1005 UTF-8 mouse: X10 prefix + UTF-8 coordinates.
         assert_eq!(MouseButton::Left.encode_utf8(0, 0), "\x1b[M !!");
         // Coordinates past 0x7F encode as 2-byte UTF-8 (U+0080).
-        assert_eq!(MouseButton::Left.encode_utf8(95, 95), "\x1b[M \u{80}\u{80}");
+        assert_eq!(
+            MouseButton::Left.encode_utf8(95, 95),
+            "\x1b[M \u{80}\u{80}"
+        );
     }
 
     #[test]

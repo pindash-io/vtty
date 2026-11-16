@@ -22,7 +22,11 @@
 ///
 /// Spec §3.3:
 /// $$\mathsf{split}(B, a, b) = \{ x : x \in B,\ a < x < b,\ s\[x-1\] = \mathsf{ZWJ},\ w_1^0(s\[x\]) > 0 \}$$
-pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec<usize> {
+pub(crate) fn split_offsets(
+    text: &str,
+    fb: &[(usize, u8)],
+    start: usize,
+) -> Vec<usize> {
     if text.is_empty() {
         return Vec::new();
     }
@@ -57,7 +61,8 @@ pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec
         if flags & EmojiTrace::FB_FRESH != 0
             && rel > 0
             && text[rel..].chars().next().is_some_and(|c| {
-                crate::cell_width(c) == Some(0) && crate::Selector::from_char(c).is_none()
+                crate::cell_width(c) == Some(0)
+                    && crate::Selector::from_char(c).is_none()
             })
         {
             offs.push(rel);
@@ -114,9 +119,7 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
         // override must NOT apply — the selector's width is authoritative.
         let mut has_zwj = false;
         let mut has_vs = false;
-        for c in text[flush..]
-            .chars()
-            .take_while(|&c| crate::is_zero_width(c))
+        for c in text[flush..].chars().take_while(|&c| crate::is_zero_width(c))
         {
             if c == '\u{200D}' {
                 has_zwj = true;
@@ -144,7 +147,12 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
 /// shift `t >= end` by `diff` (clamped to 0). `None` drops the offset — the
 /// pure arithmetic behind the byte-offset traces' edit splice (spec §3.3).
 #[inline]
-pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<usize> {
+pub fn splice_offset(
+    t: usize,
+    pos: usize,
+    end: usize,
+    diff: isize,
+) -> Option<usize> {
     if t < pos {
         return Some(t);
     }
@@ -180,7 +188,11 @@ pub struct SplitBoundaries {
 ///
 /// Spec §3.3:
 /// $$W(s, a, b, B, F) = \mathsf{correct\_F}(\mathsf{seg}(B, s[a..b)), s, a, F)$$
-pub fn split_widths(text: &str, b: &SplitBoundaries, start: usize) -> Vec<usize> {
+pub fn split_widths(
+    text: &str,
+    b: &SplitBoundaries,
+    start: usize,
+) -> Vec<usize> {
     if crate::first_non_ascii(text.as_bytes()) == text.len() {
         return vec![1; text.len()];
     }
@@ -341,7 +353,10 @@ impl EmojiTrace {
                 continue;
             };
             // A pure insert clears the shifted copy of the flag at `pos`.
-            let flags = if old_len == 0 && diff > 0 && na == (pos.cast_signed() + diff) as usize {
+            let flags = if old_len == 0
+                && diff > 0
+                && na == (pos.cast_signed() + diff) as usize
+            {
                 flags & !saved
             } else {
                 flags
@@ -492,7 +507,10 @@ mod tests {
         // direct: wrap pending → raw (no swallow).
         assert_eq!(classify_cell(true, true, true, 2, None, false, false), 2);
         // direct: otherwise → raw.
-        assert_eq!(classify_cell(false, false, false, 1, None, false, false), 1);
+        assert_eq!(
+            classify_cell(false, false, false, 1, None, false, false),
+            1
+        );
     }
 
     #[test]

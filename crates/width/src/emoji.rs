@@ -4,7 +4,9 @@
 //! Emoji segmentation, the UTS #51 rules for which chars merge into one
 //! terminal glyph.
 
-use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
+use parley_emoji::{
+    EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory,
+};
 
 use crate::properties::{Gcb, Properties, cjk_fast_width, emoji_category};
 
@@ -105,7 +107,8 @@ pub fn is_vs_base(c: char) -> bool {
 /// keycap bases.
 #[inline]
 pub fn is_vs_target(c: char) -> bool {
-    Properties::get(c).is_emoji() && emoji_category(c) != EmojiSegmentationCategory::KeycapBase
+    Properties::get(c).is_emoji()
+        && emoji_category(c) != EmojiSegmentationCategory::KeycapBase
 }
 
 /// Whether a zero-width `mark` is a STRAY for `base` — the inverse of
@@ -156,7 +159,13 @@ const fn is_continuation(cat: EmojiSegmentationCategory) -> bool {
     use EmojiSegmentationCategory as C;
     matches!(
         cat,
-        C::Vs15 | C::Vs16 | C::Zwj | C::KeycapEnd | C::TagSpec | C::TagEnd | C::EmojiModifier
+        C::Vs15
+            | C::Vs16
+            | C::Zwj
+            | C::KeycapEnd
+            | C::TagSpec
+            | C::TagEnd
+            | C::EmojiModifier
     )
 }
 
@@ -218,7 +227,8 @@ pub(crate) const fn fresh_emoji_continues_from(
         p2.is_regional_indicator()
     } else {
         is_continuation_from(p2, c2)
-            || (matches!(gcb2, Gcb::Extend | Gcb::SpacingMark) && !is_halfwidth_sound_mark(c2))
+            || (matches!(gcb2, Gcb::Extend | Gcb::SpacingMark)
+                && !is_halfwidth_sound_mark(c2))
     }
 }
 
@@ -229,7 +239,12 @@ pub(crate) const fn fresh_emoji_continues_from(
 /// text-default 1 — a VS16 after a keycap base is dropped because it is not
 /// `Extended_Pictographic`).
 #[inline]
-fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usize {
+fn run_width(
+    dfa: &EmojiDFA,
+    lead: char,
+    lead_ep: bool,
+    keycap_end: bool,
+) -> usize {
     if emoji_category(lead) == EmojiSegmentationCategory::KeycapBase {
         return if dfa.has_vs() && keycap_end { 2 } else { 1 };
     }
@@ -278,7 +293,9 @@ impl Run {
             lead_gcb,
             len: 1,
             prev_zwj: cat == EmojiSegmentationCategory::Zwj,
-            ri_count: u8::from(cat == EmojiSegmentationCategory::RegionalIndicator),
+            ri_count: u8::from(
+                cat == EmojiSegmentationCategory::RegionalIndicator,
+            ),
             keycap_end: false,
         }
     }
@@ -288,7 +305,8 @@ impl Run {
         self.dfa.step_record(cat);
         self.len += 1;
         self.prev_zwj = cat == EmojiSegmentationCategory::Zwj;
-        self.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator {
+        self.ri_count = if cat == EmojiSegmentationCategory::RegionalIndicator
+        {
             self.ri_count + 1
         } else {
             0
@@ -308,7 +326,12 @@ impl Run {
 /// combining-mark exception (`w₁ = 0` non-selector attaches to any emoji
 /// base).
 #[inline]
-pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory, gcb: Gcb) -> bool {
+pub(crate) fn run_continues(
+    r: &Run,
+    c: char,
+    cat: EmojiSegmentationCategory,
+    gcb: Gcb,
+) -> bool {
     if !is_emoji_starter(r.lead_cat) {
         return false;
     }
@@ -320,13 +343,16 @@ pub(crate) fn run_continues(r: &Run, c: char, cat: EmojiSegmentationCategory, gc
                 | EmojiSegmentationCategory::KeycapEnd
         ),
         EmojiSegmentationCategory::RegionalIndicator => {
-            cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1
+            cat == EmojiSegmentationCategory::RegionalIndicator
+                && r.ri_count == 1
         }
         _ => {
             is_continuation(cat)
                 || (r.prev_zwj && is_zwj_target(c))
-                || (cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1)
-                || (matches!(gcb, Gcb::Extend | Gcb::SpacingMark) && !is_halfwidth_sound_mark(c))
+                || (cat == EmojiSegmentationCategory::RegionalIndicator
+                    && r.ri_count == 1)
+                || (matches!(gcb, Gcb::Extend | Gcb::SpacingMark)
+                    && !is_halfwidth_sound_mark(c))
         }
     }
 }

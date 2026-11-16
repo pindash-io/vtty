@@ -21,9 +21,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use icu_properties::props::{
-    DefaultIgnorableCodePoint, EastAsianWidth, Emoji, EmojiModifier, EmojiModifierBase,
-    EmojiPresentation, ExtendedPictographic, GeneralCategory, GraphemeClusterBreak,
-    RegionalIndicator,
+    DefaultIgnorableCodePoint, EastAsianWidth, Emoji, EmojiModifier,
+    EmojiModifierBase, EmojiPresentation, ExtendedPictographic,
+    GeneralCategory, GraphemeClusterBreak, RegionalIndicator,
 };
 use icu_properties::{CodePointMapData, CodePointSetData};
 
@@ -70,8 +70,10 @@ fn main() {
     let modifier = CodePointSetData::new::<EmojiModifier>();
     let modifier_base = CodePointSetData::new::<EmojiModifierBase>();
     let regional_indicator = CodePointSetData::new::<RegionalIndicator>();
-    let extended_pictographic = CodePointSetData::new::<ExtendedPictographic>();
-    let default_ignorable = CodePointSetData::new::<DefaultIgnorableCodePoint>();
+    let extended_pictographic =
+        CodePointSetData::new::<ExtendedPictographic>();
+    let default_ignorable =
+        CodePointSetData::new::<DefaultIgnorableCodePoint>();
     let gc = CodePointMapData::<GeneralCategory>::new();
     let eaw = CodePointMapData::<EastAsianWidth>::new();
     let gcb = CodePointMapData::<GraphemeClusterBreak>::new();
@@ -164,9 +166,7 @@ fn main() {
         &info,
         best,
         "emoji_packtab",
-        packtab::codegen::Language::Rust {
-            unsafe_access: false,
-        },
+        packtab::codegen::Language::Rust { unsafe_access: false },
     );
 
     let wrappers = format!(
