@@ -63,6 +63,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "bases"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5684a9e858298f0c252502c607c5b073f8e6bfa8daf07e34849adcb70d347033"
+
+[[package]]
 name = "bitflags"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1224,7 +1230,7 @@ dependencies = [
 name = "vtty_status"
 version = "0.1.0"
 dependencies = [
- "base64",
+ "bases",
  "compact_str",
  "vtty_core",
 ]

@@ -24,9 +24,7 @@
 
 use alloc::vec::Vec;
 
-use base64::Engine;
-use base64::engine::DecodePaddingMode;
-use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
+use bases::{Base64, Base64Unpadded};
 use compact_str::CompactString;
 
 use vtty_core::Perform;
@@ -268,10 +266,14 @@ impl ProgramStatus {
             self.app.as_ref().map(CompactString::as_bytes),
         );
         if let Some(title) = &self.title {
-            push_field(out, b"title", B64.encode(title.as_bytes()).as_bytes());
+            push_field(
+                out,
+                b"title",
+                Base64::encode(title.as_bytes()).as_bytes(),
+            );
         }
         if let Some(msg) = &self.msg {
-            push_field(out, b"msg", B64.encode(msg.as_bytes()).as_bytes());
+            push_field(out, b"msg", Base64::encode(msg.as_bytes()).as_bytes());
         }
         out.extend_from_slice(SEQ_ST);
     }
@@ -397,7 +399,9 @@ fn parse_text(
     if value.len() > max_encoded {
         return None;
     }
-    let decoded = B64.decode(value).ok()?;
+    let decoded = Base64::decode(value)
+        .or_else(|_| Base64Unpadded::decode(value))
+        .ok()?;
     if decoded.len() > max_decoded {
         return None;
     }
@@ -409,12 +413,9 @@ fn parse_text(
     Some(text)
 }
 
-/// Standard base64; decoding accepts optional padding (per the protocol).
-const B64: GeneralPurpose = GeneralPurpose::new(
-    &base64::alphabet::STANDARD,
-    GeneralPurposeConfig::new()
-        .with_decode_padding_mode(DecodePaddingMode::Indifferent),
-);
+/// Standard base64: encoding is padded; decoding accepts optional padding
+/// (per the protocol). `bases` is strict about padding, so decoding tries the
+/// padded profile and falls back to the unpadded one.
 
 /// Appends `:key=value` to `out`.
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
@@ -483,6 +484,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_msg_accepts_unpadded() {
+        // The protocol allows title/msg padding to be omitted; the decoder
+        // must fall back from the padded `bases` profile to the unpadded one.
+        let status = parsed(b"state=done:msg=QXBwcm92ZQ");
+        assert_eq!(status.msg.as_deref(), Some("Approve"));
+    }
+
+    #[test]
     fn parse_requires_state() {
         assert_eq!(ProgramStatus::parse(b"app=brew"), None);
     }
@@ -531,7 +540,7 @@ mod tests {
     #[test]
     fn parse_msg_control_char_discards_report() {
         // "a\nb" contains a control character.
-        let msg = B64.encode(b"a\nb");
+        let msg = Base64::encode(b"a\nb");
         let mut payload = Vec::from(b"state=done:msg=".as_slice());
         payload.extend_from_slice(msg.as_bytes());
         assert_eq!(ProgramStatus::parse(&payload), None);
@@ -584,7 +593,7 @@ mod tests {
         payload.extend_from_slice(&[b'A'; 257]);
         assert_eq!(ProgramStatus::parse(&payload), None);
         // Msg decodes over the decoded length limit.
-        let msg = B64.encode([0_u8; 2049]);
+        let msg = Base64::encode(&[0_u8; 2049]);
         let mut payload = Vec::from(b"state=done:msg=".as_slice());
         payload.extend_from_slice(msg.as_bytes());
         assert_eq!(ProgramStatus::parse(&payload), None);
