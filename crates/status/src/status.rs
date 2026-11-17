@@ -413,9 +413,9 @@ fn parse_text(
     Some(text)
 }
 
-/// Standard base64: encoding is padded; decoding accepts optional padding
-/// (per the protocol). `bases` is strict about padding, so decoding tries the
-/// padded profile and falls back to the unpadded one.
+// Standard base64: encoding is padded; decoding accepts optional padding
+// (per the protocol). `bases` is strict about padding, so decoding tries the
+// padded profile and falls back to the unpadded one.
 
 /// Appends `:key=value` to `out`.
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
