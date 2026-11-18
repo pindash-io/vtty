@@ -399,6 +399,7 @@ fn parse_text(
     if value.len() > max_encoded {
         return None;
     }
+    // The protocol allows title/msg padding to be omitted.
     let decoded = Base64::decode(value)
         .or_else(|_| Base64Unpadded::decode(value))
         .ok()?;
@@ -412,10 +413,6 @@ fn parse_text(
     }
     Some(text)
 }
-
-// Standard base64: encoding is padded; decoding accepts optional padding
-// (per the protocol). `bases` is strict about padding, so decoding tries the
-// padded profile and falls back to the unpadded one.
 
 /// Appends `:key=value` to `out`.
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
@@ -485,8 +482,6 @@ mod tests {
 
     #[test]
     fn parse_msg_accepts_unpadded() {
-        // The protocol allows title/msg padding to be omitted; the decoder
-        // must fall back from the padded `bases` profile to the unpadded one.
         let status = parsed(b"state=done:msg=QXBwcm92ZQ");
         assert_eq!(status.msg.as_deref(), Some("Approve"));
     }
