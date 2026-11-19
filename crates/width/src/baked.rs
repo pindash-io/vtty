@@ -6,6 +6,7 @@
 //! packed per codepoint into one lookup.
 
 #![allow(
+    clippy::identity_op,
     missing_docs,
     reason = "generated code; see build.rs"
 )]
