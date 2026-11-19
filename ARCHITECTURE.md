@@ -54,6 +54,7 @@ tests/tooling, not untrusted input.
 
 | file | role |
 | --- | --- |
+| `limits.rs` | single source of truth for the parser resource limits |
 | `parser.rs` | `Parser` state machine, inline per-state dispatch, boundary scans |
 | `table.rs` | compile-time DEC VT500 transition table |
 | `scan.rs` | SWAR boundary scanners |

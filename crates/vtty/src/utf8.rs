@@ -5,6 +5,8 @@
 
 use vtty_core::Perform;
 
+use crate::limits::MAX_UTF8_CONTINUATIONS;
+
 /// Expected byte length and initial code-point bits for a UTF-8 lead byte —
 /// the two facts the partial-decoder needs, from one range dispatch. Returns
 /// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
@@ -139,7 +141,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     }
     // Walk back over continuation bytes to the lead byte.
     let mut back = 1;
-    while back < 3 && len > back {
+    while back < MAX_UTF8_CONTINUATIONS && len > back {
         let b = s[len - 1 - back];
         if (0x80..0xc0).contains(&b) {
             back += 1;
@@ -390,8 +392,7 @@ pub(crate) fn decode_utf8<P: Perform>(
         let end = if short {
             if esc < remaining { pos + esc } else { valid }
         } else {
-            const CHUNK: usize = 4096;
-            let mut end = (pos + CHUNK).min(valid);
+            let mut end = (pos + crate::limits::SIMD_UTF8_CHUNK).min(valid);
             let rel = crate::simd::first_esc(&bytes[pos..end]);
             if rel < end - pos {
                 end = pos + rel;

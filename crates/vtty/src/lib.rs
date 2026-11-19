@@ -101,6 +101,7 @@
 
 extern crate alloc;
 
+mod limits;
 mod parser;
 mod scan;
 #[cfg(feature = "simd")]

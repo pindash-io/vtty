@@ -12,21 +12,16 @@ use smallvec::SmallVec;
 
 use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
 
+use crate::limits::{
+    MAX_INTERMEDIATES, MAX_OSC_PARAMS, MAX_OSC_PAYLOAD, MAX_PARAM_COUNT,
+    MAX_PARAM_VALUE,
+};
 use crate::scan::{
     first_dcs_boundary, first_non_printable, first_non_printable_word,
     first_osc_boundary,
 };
 use crate::table::{Action, ParseState, transition};
 use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
-
-/// Maximum buffered OSC payload. A hostile program can otherwise stream a
-/// gigabyte into `ESC ] … ST` and OOM the parser; xterm.js caps OSC/DCS at
-/// `PAYLOAD_LIMIT = 10000000` and aborts the sequence, so we bound here too.
-/// 1 MiB comfortably fits the largest real OSC (`OSC 52` clipboard ≈ 128 KiB).
-const MAX_OSC_PAYLOAD: usize = 1_048_576;
-
-/// Cap on OSC parameters (vte/rio-vt = 16); the remaining payload is dropped.
-const MAX_OSC_PARAMS: usize = 16;
 
 /// The byte-input VT parser: UTF-8 decoding plus per-codepoint dispatch.
 ///
@@ -55,7 +50,7 @@ pub struct Parser {
     sep: u16,
     /// Collected intermediates (private markers + 0x20..0x2f). The DEC spec
     /// caps these at two; extras are dropped.
-    intermediates: [u8; 2],
+    intermediates: [u8; MAX_INTERMEDIATES],
     intermediates_len: usize,
     /// OSC payload accumulator. Inline up to 56 — nvim's longest OSC is 54
     /// bytes (clipboard base64), so common OSC payloads stay inline.
@@ -115,7 +110,7 @@ impl Parser {
         params: [0; MAX_PARAM_COUNT],
         params_len: 0,
         sep: 0,
-        intermediates: [0; 2],
+        intermediates: [0; MAX_INTERMEDIATES],
         intermediates_len: 0,
         osc: SmallVec::new(),
         osc_overflow: false,
@@ -1134,17 +1129,12 @@ impl Parser {
     }
 }
 
-/// Cap on CSI/DCS parameters (vte/rio-vt = 32, xterm = 16).
-const MAX_PARAM_COUNT: usize = 32;
-
-/// Max CSI/DCS parameter value: DEC VT500 params are 16-bit (`0..=65535`).
-const MAX_PARAM_VALUE: i32 = 65535;
-
 #[cfg(test)]
 mod tests {
-    use super::{MAX_OSC_PAYLOAD, Parser};
+    use super::Parser;
     use crate::Event;
     use crate::Recording;
+    use crate::limits::MAX_OSC_PAYLOAD;
     use crate::table::{Action, ParseState};
     use alloc::vec;
     use alloc::vec::Vec;
