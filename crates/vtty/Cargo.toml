@@ -34,10 +34,11 @@ vtty_core = { path = "../core", default-features = false }
 vtty_status = { workspace = true, optional = true }
 
 bitflags.workspace = true
-fearless_simd = { workspace = true, optional = true }
-simdutf8 = { workspace = true, optional = true }
 smallvec.workspace = true
 utf8_iter.workspace = true
+
+fearless_simd = { workspace = true, optional = true }
+simdutf8 = { workspace = true, optional = true }
 
 [dev-dependencies]
 vtty_codec = { path = "../codec" }

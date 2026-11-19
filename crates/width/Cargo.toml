@@ -28,10 +28,11 @@ icu = ["dep:icu_properties"]
 perf-inline = []
 
 [dependencies]
-fearless_simd = { workspace = true, optional = true }
 icu_normalizer.workspace = true
-icu_properties = { workspace = true, optional = true }
 parley_emoji.workspace = true
+
+fearless_simd = { workspace = true, optional = true }
+icu_properties = { workspace = true, optional = true }
 
 [build-dependencies]
 icu_properties.workspace = true
