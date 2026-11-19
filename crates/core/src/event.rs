@@ -135,8 +135,6 @@ fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
     (prefix, suffix)
 }
 
-/// Append numeric params, `;`- or `:`-joined (`sep` bit `i` = param `i`
-/// followed by a colon).
 /// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
 /// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
 /// Only the first 16 parameters are tracked; later ones read as `false`.

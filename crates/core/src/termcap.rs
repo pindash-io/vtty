@@ -172,9 +172,9 @@ macro_rules! caps {
 }
 
 impl Cap {
-    /// `b""`.
+    /// Canonical key for an unrecognized capability name.
     pub const NONE: &'static [u8] = b"";
-    /// `b"unsupported"`.
+    /// Error key used in `DCS 0 + r` replies for unknown capabilities.
     pub const UNSUPPORTED: &'static [u8] = b"unsupported";
 }
 

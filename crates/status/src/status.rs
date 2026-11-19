@@ -46,7 +46,6 @@ const MAX_ID: usize = 128;
 const MAX_ID_SEGMENT: usize = 32;
 const MAX_ID_DEPTH: usize = 8;
 
-// The wire form: `SEQ_OSC` `OSC_NUM` `;` `key=value`… `SEQ_ST`.
 /// OSC program-status protocol number.
 const OSC_NUM: &[u8] = b"7501";
 
