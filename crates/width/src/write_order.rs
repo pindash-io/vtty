@@ -447,6 +447,7 @@ pub fn wrap_width(cell: usize, dfa_w: Option<usize>) -> usize {
 mod tests {
     use super::*;
 
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn split_widths_matches_theorem_1() {
         // E1 = P(👍) P(ZWJ) P(👍): no boundary → the second 👍 is a 0-cell
@@ -464,6 +465,7 @@ mod tests {
         assert_eq!(split_widths(text, &b, 0), vec![2, 0, 2]);
     }
 
+    #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn override_flush_width_unwidens_a_reped_base() {
         // ❤ is text-default (native width 1), but its trailing ZWJ widens it

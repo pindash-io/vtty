@@ -8,10 +8,13 @@
 //! ```rust
 //! use vtty_width::{cell_advance, cell_width, cell_widths};
 //!
+//! # #[cfg(any(feature = "baked", feature = "icu"))]
+//! # {
 //! assert_eq!(cell_width('中'), Some(2));
 //! assert_eq!(cell_width('\u{1F3FB}'), Some(0)); // skin-tone modifier
 //! assert_eq!(cell_widths("⚠\u{FE0F}"), [2, 0]); // VS16 widens the base
 //! assert_eq!(cell_widths("👨\u{200D}👩\u{200D}👧"), [2, 0, 0, 0, 0]); // ZWJ family
+//! # }
 //! assert_eq!(cell_advance(16.0, 10.0), 20.0); // 1.6 cells snaps to 2 cells
 //! ```
 //!
