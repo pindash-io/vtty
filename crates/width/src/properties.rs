@@ -493,11 +493,7 @@ pub fn emoji_fast_width(c: char) -> Option<usize> {
     if matches!(c, '\u{1F3FB}'..='\u{1F3FF}') {
         return None;
     }
-    if crate::baked::ep_get(c as u32) != 0 {
-        Some(2)
-    } else {
-        None
-    }
+    if crate::baked::ep_get(c as u32) != 0 { Some(2) } else { None }
 }
 
 /// Display cell width of a char: `None` (control), `Some(0)` (combining),
