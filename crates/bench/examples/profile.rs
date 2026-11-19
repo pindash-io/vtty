@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Profiling harness: run one corpus through the parser in a tight loop so
 //! `sample` (macOS) can attribute time to hot functions.
 //!

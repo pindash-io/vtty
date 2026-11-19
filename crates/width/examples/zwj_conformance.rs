@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Conformance check: every `RGI_Emoji_ZWJ_Sequence` in Unicode's
 //! `emoji-zwj-sequences.txt` must collapse to `[2, 0, 0, ...]` (lead 2 cells,
 //! every ZWJ continuation 0) via `cell_widths`.

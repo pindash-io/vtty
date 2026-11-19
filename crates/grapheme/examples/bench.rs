@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Throughput comparison of grapheme cluster segmentation strategies.
 //!
 //! ```bash

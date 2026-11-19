@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Conformance check against Unicode's `emoji-test.txt` (the authoritative
 //! qualified-emoji list, with fully-/minimally-qualified and unqualified
 //! forms plus the emoji components).

@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Conformance check against Unicode's `emoji-variation-sequences.txt` (the
 //! authoritative list of valid `base + VS15/VS16` presentation sequences).
 //!

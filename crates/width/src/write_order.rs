@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Layer 3 of the width model: the write-order derived cell width.
 //!
 //! The whole-text [`crate::cell_widths`] DFA cannot see write order: a

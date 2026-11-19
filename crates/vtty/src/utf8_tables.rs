@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Compile-time UTF-8→UTF-32 transcode lookup tables.
 //!
 //! Computed by `const fn` from simdutf's `shufutf8`/`utf8bigindex` algorithm

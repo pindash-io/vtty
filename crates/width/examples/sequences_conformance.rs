@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Conformance check against Unicode's `emoji-sequences.txt` (the RGI
 //! sequence catalogue: basic emoji, keycaps, flags, modifiers, tags).
 //!

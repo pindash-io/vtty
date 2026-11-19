@@ -1,6 +1,10 @@
-use super::*;
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use alloc::vec;
 use vtty::Parser;
+
+use super::*;
 
 fn run(screen: &mut Screen, bytes: &[u8]) {
     Parser::new().advance(screen, bytes);

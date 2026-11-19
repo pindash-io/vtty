@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Manual UTS #51 §2.7.1 probe: a VS15 (text selector) inside a ZWJ family
 //! breaks it. Prints `cell_widths` for the `👩👨👧` family with and without the
 //! VS15 on `👧`, plus a defective VS16 skin-tone modifier (`✌️🏻`).

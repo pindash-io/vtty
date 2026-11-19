@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! PGO profiling workload: runs the parser over representative terminal
 //! traffic (CSI-dense SGR/truecolor/cursor + OSC + plain ASCII), exercising
 //! both the scalar and SIMD fast paths.

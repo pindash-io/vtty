@@ -1,3 +1,6 @@
+// Copyright © Fangdun Tsai <fundon@pindash.io>
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Profiling harness for the full parser + screen pipeline: run one corpus
 //! through `Parser::advance` into a `vtty_screen::Screen` sink in a tight
 //! loop so `sample` (macOS) can attribute time to hot functions.
