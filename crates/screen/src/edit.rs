@@ -20,15 +20,15 @@ impl Screen {
     pub(crate) fn shift_lines(&mut self, n: u32, insert: bool) {
         // Region memmoves need logical == physical layout.
         self.materialize();
-        if self.cursor_row < self.top_margin
-            || self.cursor_row > self.bottom_margin
+        if self.active.cursor_row < self.active.top_margin
+            || self.active.cursor_row > self.active.bottom_margin
         {
             return;
         }
 
         let width = self.cols as usize;
-        let c = self.cursor_row as usize;
-        let b = self.bottom_margin as usize;
+        let c = self.active.cursor_row as usize;
+        let b = self.active.bottom_margin as usize;
         let n = (n as usize).min(b - c + 1);
         if n == 0 {
             return;
@@ -59,10 +59,10 @@ impl Screen {
             )
         };
 
-        self.cells.copy_within(src, dst);
-        self.cells[blank].fill(Cell::default());
-        self.continuation.copy_within(c_src, c_dst);
-        self.continuation[c_blank].fill(false);
+        self.active.cells.copy_within(src, dst);
+        self.active.cells[blank].fill(Cell::default());
+        self.active.continuation.copy_within(c_src, c_dst);
+        self.active.continuation[c_blank].fill(false);
     }
 
     pub(crate) fn insert_chars(&mut self, n: u32) {
@@ -78,10 +78,10 @@ impl Screen {
     /// as an atomic unit so edits never split or orphan one.
     pub(crate) fn shift_chars(&mut self, n: u32, insert: bool) {
         let cols = self.cols as usize;
-        let row = self.row_offset(self.cursor_row);
-        let mut start = self.cursor_col as usize;
+        let row = self.row_offset(self.active.cursor_row);
+        let mut start = self.active.cursor_col as usize;
         // A cursor on a continuation cell acts on the glyph's lead.
-        if start > 0 && self.cells[row + start].is_continuation() {
+        if start > 0 && self.active.cells[row + start].is_continuation() {
             start -= 1;
         }
         let end = row + cols;
@@ -91,8 +91,11 @@ impl Screen {
             if n == 0 {
                 return;
             }
-            self.cells.copy_within(row + start..end - n, row + start + n);
-            self.cells[row + start..row + start + n].fill(Cell::default());
+            self.active
+                .cells
+                .copy_within(row + start..end - n, row + start + n);
+            self.active.cells[row + start..row + start + n]
+                .fill(Cell::default());
             return;
         }
 
@@ -105,8 +108,8 @@ impl Screen {
             // `start` is never a continuation (it was adjusted to the lead),
             // and each iteration advances past a whole glyph, so `col` always
             // lands on a lead or a plain cell — never mid-pair.
-            let wide =
-                col + 1 < cols && self.cells[row + col + 1].is_continuation();
+            let wide = col + 1 < cols
+                && self.active.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             del += width;
             glyphs += 1;
@@ -115,7 +118,7 @@ impl Screen {
         if del == 0 {
             return;
         }
-        self.cells.copy_within(row + start + del..end, row + start);
-        self.cells[end - del..end].fill(Cell::default());
+        self.active.cells.copy_within(row + start + del..end, row + start);
+        self.active.cells[end - del..end].fill(Cell::default());
     }
 }

@@ -9,14 +9,18 @@ use crate::cell::BufferFlags;
 impl Screen {
     #[inline]
     pub(crate) fn clear_wrap(&mut self) {
-        self.flags.remove(BufferFlags::WRAP_PENDING);
+        self.active.flags.remove(BufferFlags::WRAP_PENDING);
     }
 
     /// The row boundary for cursor movement: the scroll-region edge in origin
     /// mode, otherwise the screen edge (`down` = bottom).
     pub(crate) const fn row_bound(&self, down: bool) -> u32 {
-        if self.flags.contains(BufferFlags::ORIGIN) {
-            if down { self.bottom_margin } else { self.top_margin }
+        if self.active.flags.contains(BufferFlags::ORIGIN) {
+            if down {
+                self.active.bottom_margin
+            } else {
+                self.active.top_margin
+            }
         } else if down {
             self.rows - 1
         } else {
@@ -35,10 +39,10 @@ impl Screen {
     /// Move the cursor vertically, clamping to the margin (or screen) bounds.
     pub(crate) fn cursor_vertical(&mut self, n: u32, down: bool) {
         self.clear_wrap();
-        self.cursor_row = if down {
-            (self.cursor_row + n).min(self.row_bound(true))
+        self.active.cursor_row = if down {
+            (self.active.cursor_row + n).min(self.row_bound(true))
         } else {
-            self.cursor_row.saturating_sub(n).max(self.row_bound(false))
+            self.active.cursor_row.saturating_sub(n).max(self.row_bound(false))
         };
     }
 
@@ -53,27 +57,27 @@ impl Screen {
     /// Move the cursor horizontally, clamping to the row bounds.
     pub(crate) fn cursor_horizontal(&mut self, n: u32, backward: bool) {
         self.clear_wrap();
-        self.cursor_col = if backward {
-            self.cursor_col.saturating_sub(n)
+        self.active.cursor_col = if backward {
+            self.active.cursor_col.saturating_sub(n)
         } else {
-            self.cursor_col.saturating_add(n).min(self.cols - 1)
+            self.active.cursor_col.saturating_add(n).min(self.cols - 1)
         };
     }
 
     /// Set the row from a 1-based row number (margin-relative in origin mode).
     pub(crate) fn set_row_1based(&mut self, row: u32) {
         let row = row.saturating_sub(1);
-        if self.flags.contains(BufferFlags::ORIGIN) {
-            self.cursor_row = self.top_margin
-                + row.min(self.bottom_margin - self.top_margin);
+        if self.active.flags.contains(BufferFlags::ORIGIN) {
+            self.active.cursor_row = self.active.top_margin
+                + row.min(self.active.bottom_margin - self.active.top_margin);
         } else {
-            self.cursor_row = row.min(self.rows - 1);
+            self.active.cursor_row = row.min(self.rows - 1);
         }
     }
 
     /// Set the column from a 1-based column number.
     pub(crate) fn set_col_1based(&mut self, col: u32) {
-        self.cursor_col = col.saturating_sub(1).min(self.cols - 1);
+        self.active.cursor_col = col.saturating_sub(1).min(self.cols - 1);
     }
 
     /// CUP/HVP — 1-based `(row, col)`, origin-mode aware.
@@ -85,7 +89,7 @@ impl Screen {
 
     /// The next tab stop strictly after the cursor, or the last column.
     pub(crate) fn next_tab_stop(&self) -> u32 {
-        for c in (self.cursor_col + 1)..self.cols {
+        for c in (self.active.cursor_col + 1)..self.cols {
             if self.tab_stops[c as usize] {
                 return c;
             }
@@ -96,13 +100,13 @@ impl Screen {
     /// HTS — set a tab stop at the cursor column.
     pub(crate) fn hts(&mut self) {
         self.clear_wrap();
-        self.tab_stops[self.cursor_col as usize] = true;
+        self.tab_stops[self.active.cursor_col as usize] = true;
     }
 
     /// TBC — clear a tab stop: `0` (default) at the cursor, `3` all.
     pub(crate) fn tbc(&mut self, params: &[i32]) {
         match params.first().copied().unwrap_or(0) {
-            0 => self.tab_stops[self.cursor_col as usize] = false,
+            0 => self.tab_stops[self.active.cursor_col as usize] = false,
             3 => self.tab_stops.fill(false),
             _ => {}
         }
@@ -142,9 +146,9 @@ impl Screen {
     /// Set the scroll margins to `[top, bottom]` and home the cursor.
     pub(crate) fn apply_margins(&mut self, top: u32, bottom: u32) {
         self.clear_wrap();
-        self.top_margin = top;
-        self.bottom_margin = bottom;
-        self.cursor_row = self.top_margin;
-        self.cursor_col = 0;
+        self.active.top_margin = top;
+        self.active.bottom_margin = bottom;
+        self.active.cursor_row = self.active.top_margin;
+        self.active.cursor_col = 0;
     }
 }

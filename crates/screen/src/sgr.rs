@@ -100,28 +100,28 @@ impl Screen {
     pub(crate) fn sgr(&mut self, params: &[i32]) {
         apply_sgr_to(
             params,
-            &mut self.sgr,
-            &mut self.fg,
-            &mut self.bg,
+            &mut self.active.sgr,
+            &mut self.active.fg,
+            &mut self.active.bg,
             &mut self.rgb,
         );
     }
 
     pub(crate) const fn save_cursor(&mut self) {
-        self.saved_row = self.cursor_row;
-        self.saved_col = self.cursor_col;
+        self.active.saved_row = self.active.cursor_row;
+        self.active.saved_col = self.active.cursor_col;
     }
 
     pub(crate) fn restore_cursor(&mut self) {
-        self.cursor_row = self.saved_row;
-        self.cursor_col = self.saved_col;
+        self.active.cursor_row = self.active.saved_row;
+        self.active.cursor_col = self.active.saved_col;
         self.clear_wrap();
     }
 
     pub(crate) fn decaln(&mut self) {
-        self.cells.fill(Cell { ch: 'E', ..Cell::default() });
+        self.active.cells.fill(Cell { ch: 'E', ..Cell::default() });
         self.reset_cursor_style_margins();
-        self.continuation.fill(false);
+        self.active.continuation.fill(false);
     }
 
     pub(crate) fn set_mode(&mut self, params: &[i32]) {
@@ -137,7 +137,7 @@ impl Screen {
         for &p in params {
             match p {
                 5 => self.modes.set(ScreenFlags::REVERSE, set), // DECSCNM
-                6 => self.flags.set(BufferFlags::ORIGIN, set),  // DECOM
+                6 => self.active.flags.set(BufferFlags::ORIGIN, set), // DECOM
                 7 => self.modes.set(ScreenFlags::WRAP, set),    // DECAWM
                 25 => self.modes.set(ScreenFlags::CURSOR_VISIBLE, set), // DECTCEM
                 47 | 1046 | 1047 | 1049 => {
@@ -173,6 +173,6 @@ impl Screen {
     /// cells. `1` marks them protected (DECSED/DECSEL skip them); `0`/`2`
     /// (or an absent parameter) leave them erasable.
     pub(crate) fn decsca(&mut self, params: &[i32]) {
-        self.protect = params.first().copied().unwrap_or(0) == 1;
+        self.active.protect = params.first().copied().unwrap_or(0) == 1;
     }
 }

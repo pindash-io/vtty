@@ -14,10 +14,10 @@ impl Screen {
     pub(crate) const fn base_cell(&self, ch: char) -> Cell {
         Cell {
             ch,
-            sgr: self.sgr,
-            fg: self.fg,
-            bg: self.bg,
-            protected: self.protect,
+            sgr: self.active.sgr,
+            fg: self.active.fg,
+            bg: self.active.bg,
+            protected: self.active.protect,
             combining: ['\0'; 8],
             combining_len: 0,
         }
@@ -46,13 +46,14 @@ impl Screen {
             }
             return;
         }
-        let mut col = self.cursor_col;
+        let mut col = self.active.cursor_col;
         if col >= self.cols {
             col = self.cols - 1;
         }
         // A cursor on a double-width continuation acts on the glyph's lead.
         if col > 0
-            && self.cells[self.row_offset(self.cursor_row) + col as usize]
+            && self.active.cells
+                [self.row_offset(self.active.cursor_row) + col as usize]
                 .is_continuation()
         {
             col -= 1;
@@ -66,27 +67,29 @@ impl Screen {
         while i < s.len() {
             // The previous write ended at the last column; wrap to the next
             // line before writing (same as `put_base`).
-            if self.flags.contains(BufferFlags::WRAP_PENDING) {
+            if self.active.flags.contains(BufferFlags::WRAP_PENDING) {
                 self.advance_line();
                 col = 0;
             }
-            let base = self.row_offset(self.cursor_row);
+            let base = self.row_offset(self.active.cursor_row);
             while i < s.len() && col < self.cols {
                 let idx = base + col as usize;
-                self.cells[idx] = Cell { ch: s[i] as char, ..template };
+                self.active.cells[idx] = Cell { ch: s[i] as char, ..template };
                 i += 1;
                 col += 1;
                 // Overwriting a wide glyph's lead orphans its continuation.
-                if col < self.cols && self.cells[idx + 1].is_continuation() {
-                    self.cells[idx + 1] = Cell::default();
+                if col < self.cols
+                    && self.active.cells[idx + 1].is_continuation()
+                {
+                    self.active.cells[idx + 1] = Cell::default();
                 }
             }
             if col >= self.cols {
                 col = self.cols - 1;
-                self.flags.set(BufferFlags::WRAP_PENDING, wrap);
+                self.active.flags.set(BufferFlags::WRAP_PENDING, wrap);
             }
         }
-        self.cursor_col = col;
+        self.active.cursor_col = col;
     }
 
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
@@ -99,21 +102,21 @@ impl Screen {
         }
         // A cursor on a double-width continuation acts on the glyph's lead,
         // so a write replaces/shifts the whole glyph, never half of it.
-        if self.cursor_col > 0 {
-            let idx =
-                self.row_offset(self.cursor_row) + self.cursor_col as usize;
-            if self.cells[idx].is_continuation() {
-                self.cursor_col -= 1;
+        if self.active.cursor_col > 0 {
+            let idx = self.row_offset(self.active.cursor_row)
+                + self.active.cursor_col as usize;
+            if self.active.cells[idx].is_continuation() {
+                self.active.cursor_col -= 1;
             }
         }
-        if self.flags.contains(BufferFlags::WRAP_PENDING) {
+        if self.active.flags.contains(BufferFlags::WRAP_PENDING) {
             self.advance_line();
         }
-        if self.cursor_col >= self.cols {
-            self.cursor_col = self.cols - 1;
+        if self.active.cursor_col >= self.cols {
+            self.active.cursor_col = self.cols - 1;
         }
         // A double-width glyph needs two cells; wrap if only one remains.
-        if width == 2 && self.cursor_col == self.cols - 1 {
+        if width == 2 && self.active.cursor_col == self.cols - 1 {
             if self.modes.contains(ScreenFlags::WRAP) {
                 self.advance_line();
             } else {
@@ -123,22 +126,24 @@ impl Screen {
         if self.modes.contains(ScreenFlags::INSERT) {
             self.insert_shift(width);
         }
-        let row_start = self.row_offset(self.cursor_row);
-        let idx = row_start + self.cursor_col as usize;
+        let row_start = self.row_offset(self.active.cursor_row);
+        let idx = row_start + self.active.cursor_col as usize;
         let row_end = row_start + self.cols as usize;
         let cell = self.base_cell(c);
-        self.cells[idx] = cell;
-        self.cursor_col += width;
+        self.active.cells[idx] = cell;
+        self.active.cursor_col += width;
         if width == 2 {
-            self.cells[idx + 1] = Cell { ch: CONTINUATION, ..cell };
-        } else if idx + 1 < row_end && self.cells[idx + 1].is_continuation() {
+            self.active.cells[idx + 1] = Cell { ch: CONTINUATION, ..cell };
+        } else if idx + 1 < row_end
+            && self.active.cells[idx + 1].is_continuation()
+        {
             // Overwrote a double-width glyph's lead: clear the now-orphaned
             // continuation cell.
-            self.cells[idx + 1] = Cell::default();
+            self.active.cells[idx + 1] = Cell::default();
         }
-        if self.cursor_col >= self.cols {
-            self.cursor_col = self.cols - 1;
-            self.flags.set(
+        if self.active.cursor_col >= self.cols {
+            self.active.cursor_col = self.cols - 1;
+            self.active.flags.set(
                 BufferFlags::WRAP_PENDING,
                 self.modes.contains(ScreenFlags::WRAP),
             );
@@ -149,13 +154,13 @@ impl Screen {
     /// mode); cells shifted past the last column are dropped.
     fn insert_shift(&mut self, width: u32) {
         let cols = self.cols as usize;
-        let col = self.cursor_col as usize;
+        let col = self.active.cursor_col as usize;
         let shift = (width as usize).min(cols - col);
         if shift == 0 {
             return;
         }
-        let start = self.row_offset(self.cursor_row);
-        self.cells[start..start + cols]
+        let start = self.row_offset(self.active.cursor_row);
+        self.active.cells[start..start + cols]
             .copy_within(col..cols - shift, col + shift);
     }
 

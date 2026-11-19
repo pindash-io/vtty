@@ -93,11 +93,11 @@ impl Screen {
         let base = self.row_offset(r);
         let mut c0 = c0;
         let mut c1 = c1;
-        if c0 > 0 && self.cells[base + c0 as usize].is_continuation() {
+        if c0 > 0 && self.active.cells[base + c0 as usize].is_continuation() {
             c0 -= 1;
         }
         if c1 + 1 < self.cols
-            && self.cells[base + c1 as usize + 1].is_continuation()
+            && self.active.cells[base + c1 as usize + 1].is_continuation()
         {
             c1 += 1;
         }
@@ -123,7 +123,8 @@ impl Screen {
         for r in r0..=r1 {
             let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
-            self.cells[base + c0 as usize..=base + c1 as usize].fill(cell);
+            self.active.cells[base + c0 as usize..=base + c1 as usize]
+                .fill(cell);
         }
     }
 
@@ -140,7 +141,7 @@ impl Screen {
         for r in r0..=r1 {
             let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
-            self.cells[base + c0 as usize..=base + c1 as usize]
+            self.active.cells[base + c0 as usize..=base + c1 as usize]
                 .fill(Cell::default());
         }
     }
@@ -159,7 +160,7 @@ impl Screen {
             let (c0, c1) = self.glyph_edges(r, c0, c1);
             let base = self.row_offset(r);
             for cell in
-                &mut self.cells[base + c0 as usize..=base + c1 as usize]
+                &mut self.active.cells[base + c0 as usize..=base + c1 as usize]
             {
                 if !cell.protected {
                     *cell = Cell::default();
@@ -193,8 +194,9 @@ impl Screen {
             let dst_base = self.row_offset(dst_row) + dst_left as usize;
             let len = width.min((self.cols - dst_left) as usize);
             // A per-row buffer keeps overlapping copies correct.
-            let row: Vec<Cell> = self.cells[src_base..src_base + len].to_vec();
-            self.cells[dst_base..dst_base + len].copy_from_slice(&row);
+            let row: Vec<Cell> =
+                self.active.cells[src_base..src_base + len].to_vec();
+            self.active.cells[dst_base..dst_base + len].copy_from_slice(&row);
         }
     }
 
@@ -223,7 +225,7 @@ impl Screen {
         for r in r0..=r1 {
             let base = self.row_offset(r);
             for cell in
-                &mut self.cells[base + c0 as usize..=base + c1 as usize]
+                &mut self.active.cells[base + c0 as usize..=base + c1 as usize]
             {
                 let (mut sgr, mut fg, mut bg) = (cell.sgr, cell.fg, cell.bg);
                 if reverse {

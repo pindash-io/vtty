@@ -25,10 +25,10 @@ impl Screen {
         self.clear_wrap();
         self.move_down();
         if soft_wrap {
-            self.cursor_col = 0;
+            self.active.cursor_col = 0;
         }
-        let row = self.phys_row(self.cursor_row);
-        self.continuation[row] = soft_wrap;
+        let row = self.phys_row(self.active.cursor_row);
+        self.active.continuation[row] = soft_wrap;
     }
 
     /// Move the cursor down one line, scrolling within the margins if at the
@@ -46,15 +46,15 @@ impl Screen {
     /// Move the cursor one line, scrolling within the margins at the edge.
     pub(crate) fn move_vertical(&mut self, down: bool) {
         if down {
-            if self.cursor_row >= self.bottom_margin {
+            if self.active.cursor_row >= self.active.bottom_margin {
                 self.scroll_up();
             } else {
-                self.cursor_row += 1;
+                self.active.cursor_row += 1;
             }
-        } else if self.cursor_row <= self.top_margin {
+        } else if self.active.cursor_row <= self.active.top_margin {
             self.scroll_down();
         } else {
-            self.cursor_row -= 1;
+            self.active.cursor_row -= 1;
         }
     }
 
@@ -63,27 +63,10 @@ impl Screen {
     }
 
     pub(crate) fn push_scrollback(&mut self) {
-        if self.max_scrollback == 0 {
-            return;
-        }
         let width = self.cols as usize;
-        let start = (self.scroll_top as usize) * width;
-        let cont = self.continuation[self.scroll_top as usize];
-        if self.scrollback.len() < self.max_scrollback {
-            let row = self.cells[start..start + width].to_vec();
-            self.scrollback.push_back((row, cont));
-            return;
-        }
-        // At capacity, recycle the oldest line's `Vec<Cell>` allocation
-        // instead of freeing it and allocating a fresh one for the incoming
-        // line. `len >= max_scrollback >= 1`, so the queue is non-empty; the
-        // `let-else` keeps the panic-free guarantee the crate promises.
-        let Some(mut oldest) = self.scrollback.pop_front() else {
-            return;
-        };
-        oldest.0.copy_from_slice(&self.cells[start..start + width]);
-        oldest.1 = cont;
-        self.scrollback.push_back(oldest);
+        let start = (self.active.scroll_top as usize) * width;
+        let cont = self.active.continuation[self.active.scroll_top as usize];
+        self.scrollback.push(&self.active.cells[start..start + width], cont);
     }
 
     pub(crate) fn scroll_down(&mut self) {
@@ -95,31 +78,33 @@ impl Screen {
     /// and a full-screen scroll pushes the top row into scrollback.
     pub(crate) fn scroll(&mut self, down: bool) {
         let width = self.cols as usize;
-        let top = self.top_margin as usize;
-        let bottom = self.bottom_margin as usize;
+        let top = self.active.top_margin as usize;
+        let bottom = self.active.bottom_margin as usize;
 
         // Full-screen scrolls rotate the ring in place — O(cols) per line
         // instead of memmoving the whole grid.
         if top == 0 && bottom == self.rows as usize - 1 {
             if down {
                 // RI / SD: rotate down; the new top row is blank.
-                self.scroll_top = if self.scroll_top == 0 {
+                self.active.scroll_top = if self.active.scroll_top == 0 {
                     self.rows - 1
                 } else {
-                    self.scroll_top - 1
+                    self.active.scroll_top - 1
                 };
-                let start = (self.scroll_top as usize) * width;
-                self.cells[start..start + width].fill(Cell::default());
-                self.continuation[self.scroll_top as usize] = false;
+                let start = (self.active.scroll_top as usize) * width;
+                self.active.cells[start..start + width].fill(Cell::default());
+                self.active.continuation[self.active.scroll_top as usize] =
+                    false;
             } else {
                 // LF / SU: rotate up; the scrolled-out top row goes to
                 // scrollback and its physical slot becomes the new bottom row.
-                let top_row = self.scroll_top as usize;
+                let top_row = self.active.scroll_top as usize;
                 self.push_scrollback();
-                self.scroll_top = (self.scroll_top + 1) % self.rows;
+                self.active.scroll_top =
+                    (self.active.scroll_top + 1) % self.rows;
                 let start = top_row * width;
-                self.cells[start..start + width].fill(Cell::default());
-                self.continuation[top_row] = false;
+                self.active.cells[start..start + width].fill(Cell::default());
+                self.active.continuation[top_row] = false;
             }
             return;
         }
@@ -133,8 +118,8 @@ impl Screen {
     /// already optimal there. Region scrolls memmove `n` lines in one pass
     /// instead of `n` passes.
     pub(crate) fn scroll_n(&mut self, down: bool, n: u32) {
-        let top = self.top_margin as usize;
-        let bottom = self.bottom_margin as usize;
+        let top = self.active.top_margin as usize;
+        let bottom = self.active.bottom_margin as usize;
 
         if top == 0 && bottom == self.rows as usize - 1 {
             for _ in 0..n {
@@ -177,9 +162,9 @@ impl Screen {
             )
         };
 
-        self.cells.copy_within(src, dst);
-        self.cells[blank].fill(Cell::default());
-        self.continuation.copy_within(c_src, c_dst);
-        self.continuation[c_blank].fill(false);
+        self.active.cells.copy_within(src, dst);
+        self.active.cells[blank].fill(Cell::default());
+        self.active.continuation.copy_within(c_src, c_dst);
+        self.active.continuation[c_blank].fill(false);
     }
 }

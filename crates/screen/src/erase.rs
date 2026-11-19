@@ -15,7 +15,7 @@ impl Screen {
             }
             1 => {
                 // Start to cursor.
-                let (r, c) = (self.cursor_row, self.cursor_col);
+                let (r, c) = (self.active.cursor_row, self.active.cursor_col);
                 self.erase_region(0, 0, r, c, selective);
             }
             _ => {
@@ -29,7 +29,7 @@ impl Screen {
                         true,
                     );
                 } else {
-                    self.cells.fill(Cell::default());
+                    self.active.cells.fill(Cell::default());
                 }
             }
         }
@@ -52,17 +52,18 @@ impl Screen {
         let mut c1 = c1;
         if c0 > 0
             && c0 < self.cols
-            && self.cells[base + c0 as usize].is_continuation()
+            && self.active.cells[base + c0 as usize].is_continuation()
         {
             c0 -= 1;
         }
         if c1 > 0
             && c1 < self.cols
-            && self.cells[base + c1 as usize].is_continuation()
+            && self.active.cells[base + c1 as usize].is_continuation()
         {
             c1 += 1;
         }
-        let range = &mut self.cells[base + c0 as usize..base + c1 as usize];
+        let range =
+            &mut self.active.cells[base + c0 as usize..base + c1 as usize];
         if selective {
             for cell in range {
                 if !cell.protected {
@@ -76,15 +77,15 @@ impl Screen {
 
     pub(crate) fn erase_from_cursor_to_end(&mut self, selective: bool) {
         self.erase_to_line_end(selective);
-        for r in self.cursor_row + 1..self.rows {
+        for r in self.active.cursor_row + 1..self.rows {
             self.erase_row_range(r, 0, self.cols, selective);
         }
     }
 
     pub(crate) fn erase_to_line_end(&mut self, selective: bool) {
         self.erase_row_range(
-            self.cursor_row,
-            self.cursor_col,
+            self.active.cursor_row,
+            self.active.cursor_col,
             self.cols,
             selective,
         );
@@ -108,22 +109,27 @@ impl Screen {
         match mode {
             0 => self.erase_to_line_end(selective),
             1 => self.erase_row_range(
-                self.cursor_row,
+                self.active.cursor_row,
                 0,
-                self.cursor_col + 1,
+                self.active.cursor_col + 1,
                 selective,
             ),
             _ => {
-                self.erase_row_range(self.cursor_row, 0, self.cols, selective);
+                self.erase_row_range(
+                    self.active.cursor_row,
+                    0,
+                    self.cols,
+                    selective,
+                );
             }
         }
     }
 
     pub(crate) fn erase_chars(&mut self, n: u32) {
         let cols = self.cols as usize;
-        let row = self.row_offset(self.cursor_row);
-        let mut start = self.cursor_col as usize;
-        if start > 0 && self.cells[row + start].is_continuation() {
+        let row = self.row_offset(self.active.cursor_row);
+        let mut start = self.active.cursor_col as usize;
+        if start > 0 && self.active.cells[row + start].is_continuation() {
             start -= 1;
         }
         // Erase `n` logical glyphs (a double-width glyph is one glyph, two
@@ -132,8 +138,8 @@ impl Screen {
         let mut glyphs = 0_usize;
         let mut col = start;
         while col < cols && glyphs < n as usize {
-            let wide =
-                col + 1 < cols && self.cells[row + col + 1].is_continuation();
+            let wide = col + 1 < cols
+                && self.active.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             count += width;
             glyphs += 1;
@@ -142,6 +148,7 @@ impl Screen {
         if count == 0 {
             return;
         }
-        self.cells[row + start..row + start + count].fill(Cell::default());
+        self.active.cells[row + start..row + start + count]
+            .fill(Cell::default());
     }
 }
