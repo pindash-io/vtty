@@ -430,26 +430,36 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
         return Some(2);
     }
     // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs,
-    // and the CJK extensions beyond the BMP.
-    if matches!(
+    // and the CJK extensions beyond the BMP. Split by plane so a
+    // supplementary codepoint (emoji, CJK extension) skips the BMP range
+    // scan and a BMP codepoint skips the supplementary scan — the halves are
+    // disjoint, so the split costs one plane compare.
+    if cp < 0x10000 {
+        if matches!(
+            cp,
+            0x2E9B..=0x2EF3
+                | 0x2F00..=0x2FD5
+                | 0x2FF0..=0x3029
+                | 0x3041..=0x3096
+                | 0x309B..=0x30FF
+                | 0x3105..=0x312F
+                | 0x3131..=0x3163
+                | 0x3165..=0x318E
+                | 0x3190..=0x31E5
+                | 0x31EF..=0x321E
+                | 0x3220..=0x3247
+                | 0x3250..=0x3296
+                | 0xA490..=0xA4C6
+                | 0xF900..=0xFAFF
+                | 0xFE30..=0xFE52
+                | 0xFF01..=0xFF60
+        ) {
+            return Some(2);
+        }
+        None
+    } else if matches!(
         cp,
-        0x2E9B..=0x2EF3
-            | 0x2F00..=0x2FD5
-            | 0x2FF0..=0x3029
-            | 0x3041..=0x3096
-            | 0x309B..=0x30FF
-            | 0x3105..=0x312F
-            | 0x3131..=0x3163
-            | 0x3165..=0x318E
-            | 0x3190..=0x31E5
-            | 0x31EF..=0x321E
-            | 0x3220..=0x3247
-            | 0x3250..=0x3296
-            | 0xA490..=0xA4C6
-            | 0xF900..=0xFAFF
-            | 0xFE30..=0xFE52
-            | 0xFF01..=0xFF60
-            | 0x17000..=0x18CD5
+        0x17000..=0x18CD5
             | 0x18D80..=0x18DF2
             | 0x1B000..=0x1B122
             | 0x1B170..=0x1B2FB
@@ -457,9 +467,10 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
             | 0x20000..=0x2FFFD
             | 0x30000..=0x3FFFD
     ) {
-        return Some(2);
+        Some(2)
+    } else {
+        None
     }
-    None
 }
 
 /// The Private Use Areas: EAW "Ambiguous", never emoji/combining, a
