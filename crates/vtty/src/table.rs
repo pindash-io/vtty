@@ -230,8 +230,7 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             0x1b => (Action::NONE, ParseState::Escape),
             // SOS/PM/APC: the first content byte is the "action" (e.g. `G`
             // for kitty graphics APC `_G`); dispatch it as a hook and reuse
-            // the DCS string state for put/unhook. This is more useful than
-            // vte's blanket drop (vte predates kitty graphics).
+            // the DCS string state for put/unhook.
             0x20..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
             0x9c => (Action::NONE, ParseState::Ground),
             _ => (Action::NONE, ParseState::SosPmApcString),

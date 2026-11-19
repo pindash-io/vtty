@@ -89,13 +89,13 @@ const fn is_dcs_boundary(b: &u8) -> bool {
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
 enum ScanKind {
-    /// Non-printable (`b < 0x20 || b >= 0x7f`).
+    /// Non-printable.
     NonPrintable,
-    /// The `ESC` byte (`0x1b`) — the state-machine sequence introducer.
+    /// The `ESC` byte.
     Esc,
-    /// OSC payload boundary: C0 (`< 0x20`), C1 (`0x80..=0x9f`), or `;`.
+    /// OSC payload boundary.
     OscBoundary,
-    /// DCS passthrough boundary: `>= 0x80`, or `CAN`/`SUB`/`ESC`/`DEL`.
+    /// DCS passthrough boundary.
     DcsBoundary,
 }
 

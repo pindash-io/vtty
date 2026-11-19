@@ -25,11 +25,9 @@ const fn swar_byte_eq(w: u64, b: u64) -> u64 {
 }
 
 /// Index of the first ESC byte (`0x1b`) in the first `limit` bytes, or the
-/// scan length when none — the mixed-UTF-8 probe before every multi-byte
-/// decode. SWAR over 8-byte words: `[u8]::contains(&0x1b)`'s SIMD memchr pays
-/// alignment + dispatch setup on a 32-byte window, which is pure overhead
-/// when the answer decides between a cheap scalar decode and the SIMD
-/// transcode (and the position bounds the scalar window).
+/// scan length when none — the probe that bounds each multi-byte decode
+/// window. SWAR over 8-byte words; SIMD memchr pays alignment and dispatch
+/// setup for no gain on such a short window.
 #[cfg(feature = "simd")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
@@ -89,13 +87,9 @@ const fn is_non_printable(b: u8) -> bool {
     b < 0x20 || b >= 0x7f
 }
 
-/// Below this length the SIMD scan cannot complete even one 16-byte vector
-/// chunk (`as_chunks::<16>` yields zero chunks), so it would pay
-/// `Level::new()` + `dispatch!` + `first_matching` setup and then fall
-/// through to an identical scalar tail loop — pure overhead. ANSI/CSI/OSC/DCS-
-/// dense input produces runs this short (a word between two escapes), so the
-/// guard keeps the hot path on the SWAR scanner and skips the per-scan
-/// dispatch entirely.
+/// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
+/// scan falls through to the same scalar tail loop anyway, so the SWAR path
+/// stays faster — and ANSI-dense input produces runs this short.
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 

@@ -74,7 +74,7 @@ impl Reply {
     }
 
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
-    /// Starts with `0` (reset-all), like vte. `palette` resolves RGB ids.
+    /// Starts with `0` (reset-all). `palette` resolves RGB ids.
     #[must_use]
     pub fn sgr(
         fg: ColorId,

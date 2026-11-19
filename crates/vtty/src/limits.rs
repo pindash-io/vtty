@@ -12,20 +12,18 @@
 /// Maximum buffered OSC payload, in bytes.
 ///
 /// A hostile program can otherwise stream a gigabyte into `ESC ] … ST` and
-/// OOM the parser; xterm.js caps OSC/DCS at `PAYLOAD_LIMIT = 10000000` and
-/// aborts the sequence, so we bound here too. 1 MiB comfortably fits the
-/// largest real OSC (`OSC 52` clipboard ≈ 128 KiB). On overflow the whole
-/// OSC is discarded.
+/// OOM the parser. 1 MiB comfortably fits the largest real OSC (`OSC 52`
+/// clipboard ≈ 128 KiB). On overflow the whole OSC is discarded.
 pub(crate) const MAX_OSC_PAYLOAD: usize = 1_048_576;
 
 /// Maximum number of OSC parameters.
 ///
-/// vte/rio-vt cap at 16; the remaining payload is dropped.
+/// Parameters beyond this cap are dropped.
 pub(crate) const MAX_OSC_PARAMS: usize = 16;
 
 /// Maximum number of CSI/DCS parameters.
 ///
-/// vte/rio-vt cap at 32, xterm at 16; past this the parameters are dropped.
+/// Parameters beyond this cap are dropped.
 pub(crate) const MAX_PARAM_COUNT: usize = 32;
 
 /// Maximum CSI/DCS parameter value.

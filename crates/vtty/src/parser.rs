@@ -56,12 +56,12 @@ pub struct Parser {
     /// bytes (clipboard base64), so common OSC payloads stay inline.
     osc: SmallVec<u8, 56>,
     /// Set when an OSC payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
-    /// then discarded (xterm.js aborts oversized payloads the same way).
+    /// then discarded.
     osc_overflow: bool,
     /// Start offset of each OSC param in `osc` (the params are contiguous in
     /// the buffer — `;` separators are not stored, so the ranges merge at the
     /// boundaries). `starts[0]` is always 0; the extra slot caps the 16th
-    /// param so params 17+ are dropped (vte/rio-vt convention).
+    /// param so params 17+ are dropped.
     osc_starts: [u32; MAX_OSC_PARAMS + 1],
     osc_num_starts: usize,
     /// Where the current OSC payload lives: deferred in the `advance` input
@@ -926,8 +926,8 @@ impl Parser {
     }
 
     /// Reset the OSC accumulation/dispatch state. `osc.clear()` keeps the heap
-    /// allocation (rio-vt does the same); `mem::take` would free it and force
-    /// a malloc on the next >56-byte payload.
+    /// allocation; `mem::take` would free it and force a malloc on the next
+    /// >56-byte payload.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_reset(&mut self) {
         self.osc.clear();
@@ -990,8 +990,7 @@ impl Parser {
             self.osc_end(p, byte == 0x07, &[], 0);
         }
         // EXECUTE last: a C0 control that also terminates a string (CAN/SUB in
-        // OSC/DCS passthrough) dispatches the string first, then executes —
-        // matching vte's order.
+        // OSC/DCS passthrough) dispatches the string first, then executes.
         if action.contains(Action::EXECUTE) {
             p.execute(byte);
         }
