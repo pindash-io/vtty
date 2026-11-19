@@ -11,3 +11,4 @@
 )]
 
 include!(concat!(env!("OUT_DIR"), "/emoji_packtab.rs"));
+include!(concat!(env!("OUT_DIR"), "/ep_packtab.rs"));

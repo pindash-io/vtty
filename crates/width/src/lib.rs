@@ -68,8 +68,8 @@ pub use emoji::{
 };
 pub use properties::{
     Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed,
-    first_non_ascii, first_non_printable_ascii, is_printable_ascii,
-    is_zero_width, pua_fast_width, vs_width,
+    emoji_fast_width, first_non_ascii, first_non_printable_ascii,
+    is_printable_ascii, is_zero_width, pua_fast_width, vs_width,
 };
 pub use width::{
     cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths,
@@ -275,6 +275,32 @@ mod tests {
             assert!(!p.is_emoji(), "emoji U+{cp:04X}");
             assert!(!p.is_emoji_presentation(), "epresent U+{cp:04X}");
             assert_eq!(fast, if cjk { 2 } else { 1 }, "cjk U+{cp:04X}");
+        }
+    }
+
+    #[cfg(feature = "baked")]
+    #[test]
+    fn emoji_fast_width_matches_table() {
+        // Every codepoint the emoji-presentation fast path classifies must
+        // be width 2 and an emoji starter per the baked composite table
+        // (guards the generated 1-bit EP table against drift).
+        for cp in 0x80_u32..=0x10_FFFF {
+            let Some(c) = char::from_u32(cp) else {
+                continue;
+            };
+            let Some(fast) = emoji_fast_width(c) else {
+                continue;
+            };
+            let p = Properties::get(c);
+            assert_eq!(
+                properties::cell_width_from(p, c),
+                Some(fast),
+                "width mismatch U+{cp:04X}"
+            );
+            assert!(
+                emoji::is_emoji_starter_from(p, c),
+                "not an emoji starter U+{cp:04X}"
+            );
         }
     }
 

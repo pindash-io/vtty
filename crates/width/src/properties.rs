@@ -481,6 +481,25 @@ pub fn pua_fast_width(c: char) -> Option<usize> {
     None
 }
 
+/// The emoji-presentation blocks: width 2, an emoji starter, and (except
+/// when followed by a ZWJ or skin-tone modifier) standalone. One small
+/// 1-bit baked table instead of the 5-level composite lookup (the mixed-
+/// width print hot path). Verified by `emoji_fast_width_matches_table`.
+#[cfg_attr(feature = "perf-inline", inline(always))]
+#[doc(hidden)]
+pub fn emoji_fast_width(c: char) -> Option<usize> {
+    // Skin-tone modifiers are Emoji_Presentation but zero-width (the
+    // terminal override): they continue a preceding emoji, never start one.
+    if matches!(c, '\u{1F3FB}'..='\u{1F3FF}') {
+        return None;
+    }
+    if crate::baked::ep_get(c as u32) != 0 {
+        Some(2)
+    } else {
+        None
+    }
+}
+
 /// Display cell width of a char: `None` (control), `Some(0)` (combining),
 /// `Some(1)`/`Some(2)` (printable). Resolves ASCII, terminal overrides
 /// (skin tones, halfwidth katakana, tags), the baked composite width, then
