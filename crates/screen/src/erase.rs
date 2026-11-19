@@ -15,7 +15,8 @@ impl Screen {
             }
             1 => {
                 // Start to cursor.
-                let (r, c) = (self.active.cursor_row, self.active.cursor_col);
+                let r = self.active.cursor.row;
+                let c = self.active.cursor.col.min(self.cols - 1);
                 self.erase_region(0, 0, r, c, selective);
             }
             _ => {
@@ -77,15 +78,15 @@ impl Screen {
 
     pub(crate) fn erase_from_cursor_to_end(&mut self, selective: bool) {
         self.erase_to_line_end(selective);
-        for r in self.active.cursor_row + 1..self.rows {
+        for r in self.active.cursor.row + 1..self.rows {
             self.erase_row_range(r, 0, self.cols, selective);
         }
     }
 
     pub(crate) fn erase_to_line_end(&mut self, selective: bool) {
         self.erase_row_range(
-            self.active.cursor_row,
-            self.active.cursor_col,
+            self.active.cursor.row,
+            self.active.cursor.col.min(self.cols - 1),
             self.cols,
             selective,
         );
@@ -109,14 +110,14 @@ impl Screen {
         match mode {
             0 => self.erase_to_line_end(selective),
             1 => self.erase_row_range(
-                self.active.cursor_row,
+                self.active.cursor.row,
                 0,
-                self.active.cursor_col + 1,
+                self.active.cursor.col.min(self.cols - 1) + 1,
                 selective,
             ),
             _ => {
                 self.erase_row_range(
-                    self.active.cursor_row,
+                    self.active.cursor.row,
                     0,
                     self.cols,
                     selective,
@@ -127,8 +128,8 @@ impl Screen {
 
     pub(crate) fn erase_chars(&mut self, n: u32) {
         let cols = self.cols as usize;
-        let row = self.row_offset(self.active.cursor_row);
-        let mut start = self.active.cursor_col as usize;
+        let row = self.row_offset(self.active.cursor.row);
+        let mut start = self.active.cursor.col.min(self.cols - 1) as usize;
         if start > 0 && self.active.cells[row + start].is_continuation() {
             start -= 1;
         }

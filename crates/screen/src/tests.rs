@@ -1363,7 +1363,7 @@ fn cursor_horizontal_forward_does_not_overflow() {
     // The forward branch must saturate like the backward branch, so a
     // near-maximum column plus a large param cannot overflow.
     let mut s = Screen::new(3, 2);
-    s.active.cursor_col = u32::MAX - 5;
+    s.active.cursor.col = u32::MAX - 5;
     s.cursor_horizontal(65535, false);
-    assert_eq!(s.active.cursor_col, s.cols - 1);
+    assert_eq!(s.active.cursor.col, s.cols - 1);
 }

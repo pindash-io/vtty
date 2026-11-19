@@ -20,15 +20,15 @@ impl Screen {
     pub(crate) fn shift_lines(&mut self, n: u32, insert: bool) {
         // Region memmoves need logical == physical layout.
         self.materialize();
-        if self.active.cursor_row < self.active.top_margin
-            || self.active.cursor_row > self.active.bottom_margin
+        if self.active.cursor.row < self.active.margins.top
+            || self.active.cursor.row > self.active.margins.bottom
         {
             return;
         }
 
         let width = self.cols as usize;
-        let c = self.active.cursor_row as usize;
-        let b = self.active.bottom_margin as usize;
+        let c = self.active.cursor.row as usize;
+        let b = self.active.margins.bottom as usize;
         let n = (n as usize).min(b - c + 1);
         if n == 0 {
             return;
@@ -78,8 +78,8 @@ impl Screen {
     /// as an atomic unit so edits never split or orphan one.
     pub(crate) fn shift_chars(&mut self, n: u32, insert: bool) {
         let cols = self.cols as usize;
-        let row = self.row_offset(self.active.cursor_row);
-        let mut start = self.active.cursor_col as usize;
+        let row = self.row_offset(self.active.cursor.row);
+        let mut start = self.active.cursor.col.min(self.cols - 1) as usize;
         // A cursor on a continuation cell acts on the glyph's lead.
         if start > 0 && self.active.cells[row + start].is_continuation() {
             start -= 1;

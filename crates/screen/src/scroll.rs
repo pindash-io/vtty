@@ -25,9 +25,9 @@ impl Screen {
         self.clear_wrap();
         self.move_down();
         if soft_wrap {
-            self.active.cursor_col = 0;
+            self.active.cursor.col = 0;
         }
-        let row = self.phys_row(self.active.cursor_row);
+        let row = self.phys_row(self.active.cursor.row);
         self.active.continuation[row] = soft_wrap;
     }
 
@@ -46,15 +46,15 @@ impl Screen {
     /// Move the cursor one line, scrolling within the margins at the edge.
     pub(crate) fn move_vertical(&mut self, down: bool) {
         if down {
-            if self.active.cursor_row >= self.active.bottom_margin {
+            if self.active.cursor.row >= self.active.margins.bottom {
                 self.scroll_up();
             } else {
-                self.active.cursor_row += 1;
+                self.active.cursor.row += 1;
             }
-        } else if self.active.cursor_row <= self.active.top_margin {
+        } else if self.active.cursor.row <= self.active.margins.top {
             self.scroll_down();
         } else {
-            self.active.cursor_row -= 1;
+            self.active.cursor.row -= 1;
         }
     }
 
@@ -78,8 +78,8 @@ impl Screen {
     /// and a full-screen scroll pushes the top row into scrollback.
     pub(crate) fn scroll(&mut self, down: bool) {
         let width = self.cols as usize;
-        let top = self.active.top_margin as usize;
-        let bottom = self.active.bottom_margin as usize;
+        let top = self.active.margins.top as usize;
+        let bottom = self.active.margins.bottom as usize;
 
         // Full-screen scrolls rotate the ring in place — O(cols) per line
         // instead of memmoving the whole grid.
@@ -100,8 +100,9 @@ impl Screen {
                 // scrollback and its physical slot becomes the new bottom row.
                 let top_row = self.active.scroll_top as usize;
                 self.push_scrollback();
+                let next = self.active.scroll_top + 1;
                 self.active.scroll_top =
-                    (self.active.scroll_top + 1) % self.rows;
+                    if next == self.rows { 0 } else { next };
                 let start = top_row * width;
                 self.active.cells[start..start + width].fill(Cell::default());
                 self.active.continuation[top_row] = false;
@@ -118,8 +119,8 @@ impl Screen {
     /// already optimal there. Region scrolls memmove `n` lines in one pass
     /// instead of `n` passes.
     pub(crate) fn scroll_n(&mut self, down: bool, n: u32) {
-        let top = self.active.top_margin as usize;
-        let bottom = self.active.bottom_margin as usize;
+        let top = self.active.margins.top as usize;
+        let bottom = self.active.margins.bottom as usize;
 
         if top == 0 && bottom == self.rows as usize - 1 {
             for _ in 0..n {

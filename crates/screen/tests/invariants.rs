@@ -156,7 +156,7 @@ fn margin_regressions() {
 
     screen = Screen::new(3, 5);
     parser = Parser::new();
-    parser.advance(&mut screen, b"abc"); // arm WRAP_PENDING at the last column
+    parser.advance(&mut screen, b"abc"); // leave a pending wrap (cursor one past the last column)
     parser.advance(&mut screen, b"\x1b[2;3r"); // margins home the cursor
     screen.check_invariants();
     assert_eq!(screen.cursor(), (1, 0));

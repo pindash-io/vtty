@@ -11,8 +11,6 @@ bitflags::bitflags! {
     /// Per-buffer screen state, swapped wholesale with the alternate screen.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct BufferFlags: u8 {
-        /// A wide glyph was written at the last column; the next print wraps.
-        const WRAP_PENDING = 1 << 0;
         /// DECOM — origin mode (cursor addressing is margin-relative).
         const ORIGIN = 1 << 1;
     }

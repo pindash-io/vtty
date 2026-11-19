@@ -37,12 +37,12 @@ impl Screen {
             b'E' => {
                 // CNL
                 self.cursor_down(n(0));
-                self.active.cursor_col = 0;
+                self.active.cursor.col = 0;
             }
             b'F' => {
                 // CPL
                 self.cursor_up(n(0));
-                self.active.cursor_col = 0;
+                self.active.cursor.col = 0;
             }
             b'G' => self.cha(n(0)),              // CHA
             b'd' => self.vpa(n(0)),              // VPA
@@ -97,18 +97,18 @@ impl Perform for Screen {
             b'\r' => {
                 // CR
                 self.clear_wrap();
-                self.active.cursor_col = 0;
+                self.active.cursor.col = 0;
             }
             b'\t' => {
                 // HT
                 self.clear_wrap();
-                self.active.cursor_col = self.next_tab_stop();
+                self.active.cursor.col = self.next_tab_stop();
             }
             0x08 => {
                 // BS
                 self.clear_wrap();
-                self.active.cursor_col =
-                    self.active.cursor_col.saturating_sub(1);
+                self.active.cursor.col =
+                    self.active.cursor.col.saturating_sub(1);
             }
             _ => {}
         }
@@ -166,7 +166,7 @@ impl Perform for Screen {
             b'H' => self.hts(),            // HTS
             b'M' => self.reverse_index(),  // RI
             b'E' => {
-                self.active.cursor_col = 0; // NEL
+                self.active.cursor.col = 0; // NEL
                 self.linefeed();
             }
             b'c' => self.reset(), // RIS

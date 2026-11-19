@@ -108,14 +108,15 @@ impl Screen {
     }
 
     pub(crate) const fn save_cursor(&mut self) {
-        self.active.saved_row = self.active.cursor_row;
-        self.active.saved_col = self.active.cursor_col;
+        self.active.saved.row = self.active.cursor.row;
+        let col = self.active.cursor.col;
+        self.active.saved.col =
+            if col >= self.cols { self.cols - 1 } else { col };
     }
 
     pub(crate) fn restore_cursor(&mut self) {
-        self.active.cursor_row = self.active.saved_row;
-        self.active.cursor_col = self.active.saved_col;
-        self.clear_wrap();
+        self.active.cursor.row = self.active.saved.row;
+        self.active.cursor.col = self.active.saved.col;
     }
 
     pub(crate) fn decaln(&mut self) {

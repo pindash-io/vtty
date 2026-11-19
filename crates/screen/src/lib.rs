@@ -77,27 +77,38 @@ pub enum Progress {
 }
 
 /// One screen buffer: the cell grid plus the per-buffer cursor, style and
+/// A cursor position: logical row and column. The column may be one past the
+/// last column to encode a pending autowrap.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Position {
+    row: u32,
+    col: u32,
+}
+
+/// DECSTBM scroll margins (inclusive, 0-based); `top <= bottom < rows`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Margins {
+    top: u32,
+    bottom: u32,
+}
+
+/// One screen buffer: the cell grid plus the per-buffer cursor, style and
 /// scroll state swapped in and out by the alternate-screen mode.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Buffer {
     cells: Vec<Cell>,
     /// Ring-buffer offset: logical row `0` lives at physical row `scroll_top`.
     scroll_top: u32,
-    cursor_row: u32,
-    cursor_col: u32,
-    saved_row: u32,
-    saved_col: u32,
+    cursor: Position,
+    saved: Position,
     sgr: SgrFlags,
     fg: ColorId,
     bg: ColorId,
     /// DECSCA protect attribute applied to subsequently written cells.
     protect: bool,
-    /// Per-buffer flags: autowrap-pending and DECOM origin.
+    /// Per-buffer flags: DECOM origin.
     flags: BufferFlags,
-    /// DECSTBM top margin (inclusive, 0-based).
-    top_margin: u32,
-    /// DECSTBM bottom margin (inclusive, 0-based).
-    bottom_margin: u32,
+    margins: Margins,
     /// Soft-wrap flags: `continuation[r]` is true when row `r` continues the
     /// logical line of row `r-1` (autowrap) rather than starting after a hard
     /// newline. Drives reflow on resize.
@@ -110,17 +121,14 @@ impl Buffer {
         Self {
             cells: vec![Cell::default(); (cols as usize) * (rows as usize)],
             scroll_top: 0,
-            cursor_row: 0,
-            cursor_col: 0,
-            saved_row: 0,
-            saved_col: 0,
+            cursor: Position { row: 0, col: 0 },
+            saved: Position { row: 0, col: 0 },
             sgr: SgrFlags::DEFAULT,
             fg: DEFAULT_FG_ID,
             bg: DEFAULT_BG_ID,
             protect: false,
             flags: BufferFlags::empty(),
-            top_margin: 0,
-            bottom_margin: rows - 1,
+            margins: Margins { top: 0, bottom: rows - 1 },
             continuation: vec![false; rows as usize],
         }
     }
@@ -181,14 +189,13 @@ impl Screen {
     /// Home the cursor, clear SGR state, and reset the scroll margins (the
     /// per-buffer part shared by `reset`, DECALN, and alt-screen entry).
     fn reset_cursor_style_margins(&mut self) {
-        self.active.cursor_row = 0;
-        self.active.cursor_col = 0;
+        self.active.cursor.row = 0;
+        self.active.cursor.col = 0;
         self.active.sgr = SgrFlags::DEFAULT;
         self.active.fg = DEFAULT_FG_ID;
         self.active.bg = DEFAULT_BG_ID;
-        self.active.flags.remove(BufferFlags::WRAP_PENDING);
-        self.active.top_margin = 0;
-        self.active.bottom_margin = self.rows - 1;
+        self.active.margins.top = 0;
+        self.active.margins.bottom = self.rows - 1;
     }
 
     /// Reset to a blank grid, default styles, margins and cursor (RIS).
@@ -196,8 +203,8 @@ impl Screen {
         self.active.cells.fill(Cell::default());
         self.active.scroll_top = 0;
         self.reset_cursor_style_margins();
-        self.active.saved_row = 0;
-        self.active.saved_col = 0;
+        self.active.saved.row = 0;
+        self.active.saved.col = 0;
         self.modes = ScreenFlags::DEFAULT;
         self.active.protect = false;
         self.active.flags.remove(BufferFlags::ORIGIN);
@@ -207,17 +214,17 @@ impl Screen {
         // Reset the alternate buffer too.
         self.inactive.cells.fill(Cell::default());
         self.inactive.scroll_top = 0;
-        self.inactive.cursor_row = 0;
-        self.inactive.cursor_col = 0;
-        self.inactive.saved_row = 0;
-        self.inactive.saved_col = 0;
+        self.inactive.cursor.row = 0;
+        self.inactive.cursor.col = 0;
+        self.inactive.saved.row = 0;
+        self.inactive.saved.col = 0;
         self.inactive.sgr = SgrFlags::DEFAULT;
         self.inactive.fg = DEFAULT_FG_ID;
         self.inactive.bg = DEFAULT_BG_ID;
         self.inactive.protect = false;
         self.inactive.flags = BufferFlags::empty();
-        self.inactive.top_margin = 0;
-        self.inactive.bottom_margin = self.rows - 1;
+        self.inactive.margins.top = 0;
+        self.inactive.margins.bottom = self.rows - 1;
         self.scrollback.clear();
         self.tab_stops = default_tabs(self.cols);
         self.active.continuation.fill(false);
@@ -311,10 +318,16 @@ impl Screen {
         self.rows
     }
 
-    /// Cursor position `(row, col)`, 0-based.
+    /// Cursor position `(row, col)`, 0-based. A pending wrap reports the
+    /// last column, not one past it.
     #[inline]
     pub const fn cursor(&self) -> (u32, u32) {
-        (self.active.cursor_row, self.active.cursor_col)
+        let col = if self.active.cursor.col >= self.cols {
+            self.cols - 1
+        } else {
+            self.active.cursor.col
+        };
+        (self.active.cursor.row, col)
     }
 
     /// The `OSC 0/1/2` window title.
@@ -346,52 +359,45 @@ impl Screen {
     }
 
     /// Assert the screen's structural invariants: cursor, saved cursor and
-    /// margins in bounds, ring-buffer offsets valid, `WRAP_PENDING` consistent
-    /// with the cursor column, and per-buffer vectors sized to the grid.
-    /// Panics on the first violation; called only from tests and fuzzing.
+    /// margins in bounds, ring-buffer offsets valid, and per-buffer vectors
+    /// sized to the grid. Panics on the first violation; called only from
+    /// tests and fuzzing.
     pub fn check_invariants(&self) {
         assert!(
-            self.active.cursor_row < self.rows,
-            "cursor_row {} out of bounds",
-            self.active.cursor_row
+            self.active.cursor.row < self.rows,
+            "cursor.row {} out of bounds",
+            self.active.cursor.row
         );
         assert!(
-            self.active.cursor_col < self.cols,
-            "cursor_col {} out of bounds",
-            self.active.cursor_col
+            self.active.cursor.col <= self.cols,
+            "cursor.col {} out of bounds",
+            self.active.cursor.col
         );
         assert!(
-            self.active.saved_row < self.rows,
-            "saved_row {} out of bounds",
-            self.active.saved_row
+            self.active.saved.row < self.rows,
+            "saved.row {} out of bounds",
+            self.active.saved.row
         );
         assert!(
-            self.active.saved_col < self.cols,
-            "saved_col {} out of bounds",
-            self.active.saved_col
+            self.active.saved.col < self.cols,
+            "saved.col {} out of bounds",
+            self.active.saved.col
         );
         assert!(
-            self.active.top_margin <= self.active.bottom_margin,
+            self.active.margins.top <= self.active.margins.bottom,
             "margins inverted: top {} bottom {}",
-            self.active.top_margin,
-            self.active.bottom_margin
+            self.active.margins.top,
+            self.active.margins.bottom
         );
         assert!(
-            self.active.bottom_margin < self.rows,
-            "bottom_margin {} out of bounds",
-            self.active.bottom_margin
+            self.active.margins.bottom < self.rows,
+            "margins.bottom {} out of bounds",
+            self.active.margins.bottom
         );
         assert!(
             self.active.scroll_top < self.rows,
             "scroll_top {} out of bounds",
             self.active.scroll_top
-        );
-        assert!(
-            !self.active.flags.contains(BufferFlags::WRAP_PENDING)
-                || self.active.cursor_col == self.cols - 1,
-            "WRAP_PENDING with cursor_col {} (cols {})",
-            self.active.cursor_col,
-            self.cols
         );
         assert_eq!(
             self.active.continuation.len(),
@@ -410,47 +416,40 @@ impl Screen {
         );
 
         assert!(
-            self.inactive.cursor_row < self.rows,
-            "inactive.cursor_row {} out of bounds",
-            self.inactive.cursor_row
+            self.inactive.cursor.row < self.rows,
+            "inactive.cursor.row {} out of bounds",
+            self.inactive.cursor.row
         );
         assert!(
-            self.inactive.cursor_col < self.cols,
-            "inactive.cursor_col {} out of bounds",
-            self.inactive.cursor_col
+            self.inactive.cursor.col <= self.cols,
+            "inactive.cursor.col {} out of bounds",
+            self.inactive.cursor.col
         );
         assert!(
-            self.inactive.saved_row < self.rows,
-            "inactive.saved_row {} out of bounds",
-            self.inactive.saved_row
+            self.inactive.saved.row < self.rows,
+            "inactive.saved.row {} out of bounds",
+            self.inactive.saved.row
         );
         assert!(
-            self.inactive.saved_col < self.cols,
-            "inactive.saved_col {} out of bounds",
-            self.inactive.saved_col
+            self.inactive.saved.col < self.cols,
+            "inactive.saved.col {} out of bounds",
+            self.inactive.saved.col
         );
         assert!(
-            self.inactive.top_margin <= self.inactive.bottom_margin,
+            self.inactive.margins.top <= self.inactive.margins.bottom,
             "inactive margins inverted: top {} bottom {}",
-            self.inactive.top_margin,
-            self.inactive.bottom_margin
+            self.inactive.margins.top,
+            self.inactive.margins.bottom
         );
         assert!(
-            self.inactive.bottom_margin < self.rows,
-            "inactive.bottom_margin {} out of bounds",
-            self.inactive.bottom_margin
+            self.inactive.margins.bottom < self.rows,
+            "inactive.margins.bottom {} out of bounds",
+            self.inactive.margins.bottom
         );
         assert!(
             self.inactive.scroll_top < self.rows,
             "inactive.scroll_top {} out of bounds",
             self.inactive.scroll_top
-        );
-        assert!(
-            !self.inactive.flags.contains(BufferFlags::WRAP_PENDING)
-                || self.inactive.cursor_col == self.cols - 1,
-            "inactive WRAP_PENDING with inactive.cursor_col {} (cols {})",
-            self.inactive.cursor_col,
-            self.cols
         );
         assert_eq!(
             self.inactive.continuation.len(),
@@ -512,18 +511,24 @@ impl Screen {
     }
 
     /// The physical flat offset of logical `row`'s first cell, accounting for
-    /// the ring-buffer scroll offset.
+    /// the ring-buffer scroll offset. The ring wraps at most once, so a
+    /// branch replaces the `%` (integer division) on this hot path.
     #[inline]
     pub(crate) const fn row_offset(&self, row: u32) -> usize {
-        let phys = (self.active.scroll_top as usize + row as usize)
-            % self.rows as usize;
+        let sum = self.active.scroll_top as usize + row as usize;
+        let phys = if sum >= self.rows as usize {
+            sum - self.rows as usize
+        } else {
+            sum
+        };
         phys * self.cols as usize
     }
 
     /// The physical row index of logical `row`.
     #[inline]
     pub(crate) const fn phys_row(&self, row: u32) -> usize {
-        (self.active.scroll_top as usize + row as usize) % self.rows as usize
+        let sum = self.active.scroll_top as usize + row as usize;
+        if sum >= self.rows as usize { sum - self.rows as usize } else { sum }
     }
 
     /// Rotate the active grid so logical row `0` sits at physical offset `0`.
@@ -726,15 +731,14 @@ impl Screen {
         self.inactive.cells = new_inactive_cells;
         self.inactive.continuation = new_inactive_cont;
         self.scrollback.replace(new_scrollback);
-        self.active.cursor_row = 0;
-        self.active.cursor_col = 0;
-        self.active.saved_row = 0;
-        self.active.saved_col = 0;
-        self.active.flags.remove(BufferFlags::WRAP_PENDING);
-        self.active.top_margin = 0;
-        self.active.bottom_margin = rows - 1;
-        self.inactive.top_margin = 0;
-        self.inactive.bottom_margin = rows - 1;
+        self.active.cursor.row = 0;
+        self.active.cursor.col = 0;
+        self.active.saved.row = 0;
+        self.active.saved.col = 0;
+        self.active.margins.top = 0;
+        self.active.margins.bottom = rows - 1;
+        self.inactive.margins.top = 0;
+        self.inactive.margins.bottom = rows - 1;
         self.tab_stops = default_tabs(cols);
     }
 
@@ -755,11 +759,11 @@ impl Screen {
     /// double-width continuation cell. Marks beyond four are dropped; a
     /// leading mark with no base cell is dropped.
     fn attach_mark(&mut self, c: char) {
-        if self.active.cursor_col == 0 {
+        if self.active.cursor.col == 0 {
             return;
         }
-        let mut col = self.active.cursor_col - 1;
-        let base = self.row_offset(self.active.cursor_row);
+        let mut col = self.active.cursor.col - 1;
+        let base = self.row_offset(self.active.cursor.row);
         let idx = |col: u32| base + col as usize;
         if self.active.cells[idx(col)].is_continuation() {
             col = col.saturating_sub(1);
