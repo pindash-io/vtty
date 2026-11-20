@@ -268,8 +268,10 @@ impl Parser {
                 ParseState::Ground => {
                     i = self.advance_ground(p, bytes, i, valid_end);
                 }
-                ParseState::OscString => i = self.advance_osc_run(p, bytes, i),
-                ParseState::DcsPassthrough => {
+                ParseState::OscString if !self.force_cold() => {
+                    i = self.advance_osc_run(p, bytes, i);
+                }
+                ParseState::DcsPassthrough if !self.force_cold() => {
                     i = self.advance_dcs_run(p, bytes, i);
                 }
                 ParseState::Escape if !self.force_cold() => {
@@ -278,7 +280,9 @@ impl Parser {
                 ParseState::DcsEntry if !self.force_cold() => {
                     i = self.advance_dcs_entry_byte(p, bytes, i);
                 }
-                ParseState::CsiParam | ParseState::DcsParam => {
+                ParseState::CsiParam | ParseState::DcsParam
+                    if !self.force_cold() =>
+                {
                     i = self.advance_param_run(p, bytes, i);
                 }
                 _ => i = self.advance_non_ground(p, bytes, i),
@@ -1219,6 +1223,39 @@ mod tests {
                 events_bytes(&cold),
                 "hot/cold divergence for {input:?}\nhot:  {hot:?}\ncold: {cold:?}"
             );
+        }
+    }
+
+    /// Exhaustive form of [`hot_and_cold_paths_agree`]: every state with both
+    /// a hot inline handler and a cold table row, over every byte. `Ground`
+    /// is excluded — it is hot-only (UTF-8 decoding + SIMD), with a table
+    /// stub of `(NONE, Ground)` for every byte.
+    #[test]
+    fn hot_and_cold_paths_agree_exhaustive() {
+        let states = [
+            ParseState::Escape,
+            ParseState::DcsEntry,
+            ParseState::OscString,
+            ParseState::DcsPassthrough,
+            ParseState::CsiParam,
+            ParseState::DcsParam,
+        ];
+        for state in states {
+            for byte in 0..=255u8 {
+                let mut hot = Parser::new();
+                hot.state = state;
+                let hot = events_bytes(&hot.parse_events(&[byte]));
+
+                let mut cold = Parser::new();
+                cold.cold = true;
+                cold.state = state;
+                let cold = events_bytes(&cold.parse_events(&[byte]));
+
+                assert_eq!(
+                    hot, cold,
+                    "hot/cold divergence for {state:?} + 0x{byte:02x}"
+                );
+            }
         }
     }
 
