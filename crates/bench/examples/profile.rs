@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 fn main() {
     let case = std::env::args().nth(1).unwrap_or_else(|| "utf8_mixed".into());
-    let simd = std::env::args().nth(2).map(|s| s == "simd").unwrap_or(false);
+    let simd = std::env::args().nth(2).is_some_and(|s| s == "simd");
 
     let bytes = corpus(&case);
     let mut parser =

@@ -1241,7 +1241,7 @@ mod tests {
             ParseState::DcsParam,
         ];
         for state in states {
-            for byte in 0..=255u8 {
+            for byte in 0..=255_u8 {
                 let mut hot = Parser::new();
                 hot.state = state;
                 let hot = events_bytes(&hot.parse_events(&[byte]));
