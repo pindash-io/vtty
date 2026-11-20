@@ -25,48 +25,76 @@ use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
 
 /// The byte-input VT parser: UTF-8 decoding plus per-codepoint dispatch.
 ///
+/// CSI/DCS parameter accumulator: the current digit run, the collected
+/// parameters and the colon-separator bits.
+#[derive(Debug, PartialEq, Eq)]
+struct Params {
+    /// Current parameter being accumulated. DEC VT500 params are 16-bit
+    /// (0..=65535); `i32` holds the clamped range plus the `-1` empty-param
+    /// sentinel.
+    param: i32,
+    /// True while the current parameter is empty (no digits seen since the
+    /// last `;`/`:`). An empty COLON parameter is pushed as `-1` so SGR colon
+    /// forms (`38:2::r:g:b` — empty colorspace) stay distinguishable from a
+    /// literal `0`.
+    empty: bool,
+    /// Collected parameters, capped at [`MAX_PARAM_COUNT`]. A fixed array plus
+    /// a separate length makes clearing O(1).
+    values: [i32; MAX_PARAM_COUNT],
+    len: usize,
+    /// Colon separators: bit `i` is set when parameter `i` was followed by
+    /// `:` (rather than `;`). Only the first 16 params are tracked.
+    sep: u16,
+}
+
+impl Default for Params {
+    fn default() -> Self {
+        Self {
+            param: 0,
+            empty: true,
+            values: [0; MAX_PARAM_COUNT],
+            len: 0,
+            sep: 0,
+        }
+    }
+}
+
+/// Collected CSI/DCS intermediates (private markers + `0x20..0x2f`). The DEC
+/// spec caps these at two; extras are dropped.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Intermediates {
+    bytes: [u8; MAX_INTERMEDIATES],
+    len: usize,
+}
+
+/// OSC payload accumulator.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Osc {
+    /// Accumulated payload bytes. Inline up to 56 — nvim's longest OSC is 54
+    /// bytes (clipboard base64), so common OSC payloads stay inline.
+    payload: SmallVec<u8, 56>,
+    /// Set when the payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
+    /// then discarded.
+    overflow: bool,
+    /// Start offset of each OSC param in `payload` (the params are contiguous
+    /// in the buffer — `;` separators are not stored). `starts[0]` is always
+    /// 0; the extra slot caps the 16th param so params 17+ are dropped.
+    starts: [u32; MAX_OSC_PARAMS + 1],
+    num_starts: usize,
+    /// Where the current payload lives: deferred in the `advance` input slice
+    /// (no copy into `payload` yet) or accumulated.
+    buffer: OscBuffer,
+}
+
 /// Feed bytes with [`Parser::advance`]; the [`Perform`] sink receives the
 /// decoded events. Escape-sequence states live in a cold transition table
 /// (see `crate::table`).
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Parser {
     state: ParseState,
-    /// CSI/DCS parameter currently being accumulated. DEC VT500 params are
-    /// 16-bit (0..=65535); `i32` holds the clamped range plus the `-1`
-    /// empty-param sentinel.
-    param: i32,
-    /// True while the current parameter is empty (no digits seen since the
-    /// last `;`/`:`). An empty COLON parameter is pushed as `-1` so the SGR
-    /// colon forms (`38:2::r:g:b` — empty colorspace) stay distinguishable
-    /// from a literal `0`.
-    param_empty: bool,
-    /// Collected CSI/DCS parameters, capped at [`MAX_PARAM_COUNT`]. A fixed array
-    /// plus a separate length makes clearing an O(1) reset (vs
-    /// `SmallVec::clear`, which walks every element — ~2% on the CSI path).
-    params: [i32; MAX_PARAM_COUNT],
-    params_len: usize,
-    /// Colon separators: bit `i` is set when parameter `i` was followed by
-    /// `:` (rather than `;`). Only the first 16 params are tracked.
-    sep: u16,
-    /// Collected intermediates (private markers + 0x20..0x2f). The DEC spec
-    /// caps these at two; extras are dropped.
-    intermediates: [u8; MAX_INTERMEDIATES],
-    intermediates_len: usize,
-    /// OSC payload accumulator. Inline up to 56 — nvim's longest OSC is 54
-    /// bytes (clipboard base64), so common OSC payloads stay inline.
-    osc: SmallVec<u8, 56>,
-    /// Set when an OSC payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
-    /// then discarded.
-    osc_overflow: bool,
-    /// Start offset of each OSC param in `osc` (the params are contiguous in
-    /// the buffer — `;` separators are not stored, so the ranges merge at the
-    /// boundaries). `starts[0]` is always 0; the extra slot caps the 16th
-    /// param so params 17+ are dropped.
-    osc_starts: [u32; MAX_OSC_PARAMS + 1],
-    osc_num_starts: usize,
-    /// Where the current OSC payload lives: deferred in the `advance` input
-    /// slice (no copy into `osc` yet) or accumulated.
-    osc_buffer: OscBuffer,
+    params: Params,
+    intermediates: Intermediates,
+    osc: Osc,
     /// A UTF-8 code point split across `advance` calls (lead + already-arrived
     /// continuation bytes held until the rest arrive).
     partial: PartialUtf8,
@@ -83,7 +111,7 @@ pub struct Parser {
 }
 
 /// Where the current OSC payload lives: still entirely within the current
-/// `advance` input slice (deferred, no copy) or accumulated into `osc`.
+/// `advance` input slice (deferred, no copy) or accumulated into `payload`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum OscBuffer {
     Deferred {
@@ -105,18 +133,21 @@ impl Parser {
     /// An empty parser in the ground state.
     pub const DEFAULT: Self = Self {
         state: ParseState::Ground,
-        param: 0,
-        param_empty: true,
-        params: [0; MAX_PARAM_COUNT],
-        params_len: 0,
-        sep: 0,
-        intermediates: [0; MAX_INTERMEDIATES],
-        intermediates_len: 0,
-        osc: SmallVec::new(),
-        osc_overflow: false,
-        osc_starts: [0; MAX_OSC_PARAMS + 1],
-        osc_num_starts: 0,
-        osc_buffer: OscBuffer::Accumulated,
+        params: Params {
+            param: 0,
+            empty: true,
+            values: [0; MAX_PARAM_COUNT],
+            len: 0,
+            sep: 0,
+        },
+        intermediates: Intermediates { bytes: [0; MAX_INTERMEDIATES], len: 0 },
+        osc: Osc {
+            payload: SmallVec::new(),
+            overflow: false,
+            starts: [0; MAX_OSC_PARAMS + 1],
+            num_starts: 0,
+            buffer: OscBuffer::Accumulated,
+        },
         partial: PartialUtf8::new(),
         #[cfg(feature = "simd")]
         simd: false,
@@ -255,8 +286,8 @@ impl Parser {
         }
 
         // An OSC payload that reached the end of this input chunk without a
-        // terminator is flushed into `osc` so the next `advance` continues it.
-        if self.state == ParseState::OscString && self.osc_buffer.is_deferred()
+        // terminator is flushed into `payload` so the next `advance` continues it.
+        if self.state == ParseState::OscString && self.osc.buffer.is_deferred()
         {
             self.osc_flush(bytes, bytes.len());
         }
@@ -481,11 +512,12 @@ impl Parser {
                     i += 1;
                 }
                 if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
-                    self.params[0] = row;
-                    self.params[1] = col;
-                    self.params_len = 2;
-                    let ints = &self.intermediates[..self.intermediates_len];
-                    p.csi_dispatch(&self.params[..2], 0, ints, seq[i]);
+                    self.params.values[0] = row;
+                    self.params.values[1] = col;
+                    self.params.len = 2;
+                    let ints =
+                        &self.intermediates.bytes[..self.intermediates.len];
+                    p.csi_dispatch(&self.params.values[..2], 0, ints, seq[i]);
                     self.clear_seq_state();
                     return Some(i + 1);
                 }
@@ -503,9 +535,9 @@ impl Parser {
                     // (CsiEntry), before any param or marker. After params the
                     // DEC state machine transitions to CsiIgnore and drops the
                     // whole sequence, so bail to the cold path.
-                    if self.params_len != 0
-                        || !self.param_empty
-                        || self.intermediates_len != 0
+                    if self.params.len != 0
+                        || !self.params.empty
+                        || self.intermediates.len != 0
                     {
                         return None;
                     }
@@ -656,10 +688,10 @@ impl Parser {
                 i + 1
             }
             0x5d => {
-                self.osc.clear();
-                self.osc_overflow = false;
-                self.osc_num_starts = 1;
-                self.osc_buffer = OscBuffer::Deferred { base: i + 1 };
+                self.osc.payload.clear();
+                self.osc.overflow = false;
+                self.osc.num_starts = 1;
+                self.osc.buffer = OscBuffer::Deferred { base: i + 1 };
                 self.state = ParseState::OscString;
                 i + 1
             }
@@ -730,7 +762,7 @@ impl Parser {
         let run = &bytes[i..];
         let n = first_osc_boundary(run, self.simd_enabled());
         if n > 0 {
-            if !self.osc_buffer.is_deferred() {
+            if !self.osc.buffer.is_deferred() {
                 self.osc_extend(&run[..n]);
             }
             return i + n;
@@ -751,18 +783,18 @@ impl Parser {
             }
             0x3b => {
                 // The offset is `;`-free: subtract the separators already seen
-                // so deferred (input) and accumulated (`osc`) modes agree.
+                // so deferred (input) and accumulated (`payload`) modes agree.
                 let offset =
-                    if let OscBuffer::Deferred { base } = self.osc_buffer {
-                        (i - base - (self.osc_num_starts - 1)) as u32
+                    if let OscBuffer::Deferred { base } = self.osc.buffer {
+                        (i - base - (self.osc.num_starts - 1)) as u32
                     } else {
-                        self.osc.len() as u32
+                        self.osc.payload.len() as u32
                     };
                 self.osc_param_boundary(offset);
                 i + 1
             }
             _ => {
-                if self.osc_buffer.is_deferred() {
+                if self.osc.buffer.is_deferred() {
                     self.osc_flush(bytes, i);
                 }
                 self.advance_non_ground(p, bytes, i)
@@ -817,41 +849,34 @@ impl Parser {
     }
 
     /// Record the start of the next OSC param. `;` separators are not buffered
-    /// into `osc`, so consecutive ranges merge at their boundary. Params past
+    /// into `payload`, so consecutive ranges merge at their boundary. Params past
     /// the 16th are dropped.
     #[inline]
     const fn osc_param_boundary(&mut self, offset: u32) {
-        if self.osc_num_starts > MAX_OSC_PARAMS {
+        if self.osc.num_starts > MAX_OSC_PARAMS {
             return;
         }
-        self.osc_starts[self.osc_num_starts] = offset;
-        self.osc_num_starts += 1;
-    }
-
-    /// Whether the OSC payload has hit [`MAX_OSC_PAYLOAD`] and must be
-    /// discarded wholesale.
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    const fn osc_overflow(&self) -> bool {
-        self.osc_overflow
+        self.osc.starts[self.osc.num_starts] = offset;
+        self.osc.num_starts += 1;
     }
 
     /// Append an OSC payload run, capping at [`MAX_OSC_PAYLOAD`] and flagging
     /// overflow when the run is truncated (or was already overflowed).
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_extend(&mut self, run: &[u8]) {
-        if self.osc_overflow {
+        if self.osc.overflow {
             return;
         }
-        let room = MAX_OSC_PAYLOAD - self.osc.len();
+        let room = MAX_OSC_PAYLOAD - self.osc.payload.len();
         let take = run.len().min(room);
-        self.osc.extend_from_slice_copy(&run[..take]);
-        self.osc_overflow = take < run.len();
+        self.osc.payload.extend_from_slice_copy(&run[..take]);
+        self.osc.overflow = take < run.len();
     }
 
     /// Dispatch a collected OSC command and reset the OSC state. An oversized
     /// payload is discarded wholesale (a truncated `OSC 52` would otherwise
     /// decode into garbage). With `bytes`/`end_pos` the params are sliced
-    /// straight from the input when deferred; otherwise from `osc`.
+    /// straight from the input when deferred; otherwise from `payload`.
     #[inline]
     fn osc_end<P: Perform>(
         &mut self,
@@ -860,51 +885,53 @@ impl Parser {
         bytes: &[u8],
         end_pos: usize,
     ) {
-        let n = self.osc_num_starts;
+        let n = self.osc.num_starts;
         // The cap applies to the `;`-free payload bytes. In deferred mode the
         // input still holds the `n - 1` `;` separators, so subtract them.
-        let payload_len = match self.osc_buffer {
+        let payload_len = match self.osc.buffer {
             OscBuffer::Deferred { base } => end_pos - base - (n - 1),
-            OscBuffer::Accumulated => self.osc.len(),
+            OscBuffer::Accumulated => self.osc.payload.len(),
         };
-        if self.osc_overflow() || payload_len > MAX_OSC_PAYLOAD {
+        if self.osc.overflow || payload_len > MAX_OSC_PAYLOAD {
             self.osc_reset();
             return;
         }
-        // Unify the deferred (input-sliced) and accumulated (`osc`-sliced)
+        // Unify the deferred (input-sliced) and accumulated (`payload`-sliced)
         // cases: the input holds the `;` separators, so each `;`-free
         // boundary offset shifts by `k` and the source is `bytes` rather
-        // than `osc`.
-        let (src, base, shift, last_end) = match self.osc_buffer {
+        // than `payload`.
+        let (src, base, shift, last_end) = match self.osc.buffer {
             OscBuffer::Deferred { base } => (bytes, base, 1, end_pos),
-            OscBuffer::Accumulated => (&self.osc[..], 0, 0, self.osc.len()),
+            OscBuffer::Accumulated => {
+                (&self.osc.payload[..], 0, 0, self.osc.payload.len())
+            }
         };
         let m = n.min(MAX_OSC_PARAMS);
         let mut params = [&[][..]; MAX_OSC_PARAMS];
         // The common 1-3 param shapes (title/clipboard/iTerm2) unrolled; the
         // longer tail falls back to the loop.
         if m >= 1 {
-            let s0 = base + self.osc_starts[0] as usize;
+            let s0 = base + self.osc.starts[0] as usize;
             let e0 = if 1 < n {
-                base + self.osc_starts[1] as usize
+                base + self.osc.starts[1] as usize
             } else {
                 last_end
             };
             params[0] = &src[s0..e0];
         }
         if m >= 2 {
-            let s1 = base + self.osc_starts[1] as usize + shift;
+            let s1 = base + self.osc.starts[1] as usize + shift;
             let e1 = if 2 < n {
-                base + self.osc_starts[2] as usize + shift
+                base + self.osc.starts[2] as usize + shift
             } else {
                 last_end
             };
             params[1] = &src[s1..e1];
         }
         if m >= 3 {
-            let s2 = base + self.osc_starts[2] as usize + 2 * shift;
+            let s2 = base + self.osc.starts[2] as usize + 2 * shift;
             let e2 = if 3 < n {
-                base + self.osc_starts[3] as usize + 2 * shift
+                base + self.osc.starts[3] as usize + 2 * shift
             } else {
                 last_end
             };
@@ -913,9 +940,9 @@ impl Parser {
         for (k, dst) in
             params.iter_mut().enumerate().skip(3).take(m.saturating_sub(3))
         {
-            let start = base + self.osc_starts[k] as usize + k * shift;
+            let start = base + self.osc.starts[k] as usize + k * shift;
             let end = if k + 1 < n {
-                base + self.osc_starts[k + 1] as usize + k * shift
+                base + self.osc.starts[k + 1] as usize + k * shift
             } else {
                 last_end
             };
@@ -930,18 +957,18 @@ impl Parser {
     /// >56-byte payload.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_reset(&mut self) {
-        self.osc.clear();
-        self.osc_overflow = false;
-        self.osc_num_starts = 0;
-        self.osc_buffer = OscBuffer::Accumulated;
+        self.osc.payload.clear();
+        self.osc.overflow = false;
+        self.osc.num_starts = 0;
+        self.osc.buffer = OscBuffer::Accumulated;
     }
 
-    /// Flush a deferred OSC payload into `osc` (the string spans `advance`
+    /// Flush a deferred OSC payload into `payload` (the string spans `advance`
     /// calls or hits a cold terminator). The recorded `osc_starts` offsets stay
-    /// valid — they become `osc`-relative instead of input-relative.
+    /// valid — they become `payload`-relative instead of input-relative.
     #[inline]
     fn osc_flush(&mut self, bytes: &[u8], end_pos: usize) {
-        let base = match self.osc_buffer {
+        let base = match self.osc.buffer {
             OscBuffer::Deferred { base } => base,
             OscBuffer::Accumulated => return, // nothing deferred to flush
         };
@@ -949,7 +976,7 @@ impl Parser {
         for part in bytes[base..end_pos].split(|&b| b == 0x3b) {
             self.osc_extend(part);
         }
-        self.osc_buffer = OscBuffer::Accumulated;
+        self.osc.buffer = OscBuffer::Accumulated;
     }
 
     #[cfg_attr(feature = "perf-inline", inline(always))]
@@ -978,7 +1005,7 @@ impl Parser {
         if action.contains(Action::OSC_START) {
             // Same reset as `osc_reset`, but the first param has already begun.
             self.osc_reset();
-            self.osc_num_starts = 1;
+            self.osc.num_starts = 1;
         }
         if action.contains(Action::OSC_PUT) {
             self.osc_extend(&[byte]);
@@ -986,7 +1013,7 @@ impl Parser {
         if action.contains(Action::OSC_END) {
             // Cold terminator (C1 ST / CAN / SUB): the deferred payload was
             // already flushed by the `advance_osc_run` fallback, so dispatch
-            // from `osc`.
+            // from `payload`.
             self.osc_end(p, byte == 0x07, &[], 0);
         }
         // EXECUTE last: a C0 control that also terminates a string (CAN/SUB in
@@ -997,30 +1024,30 @@ impl Parser {
     }
 
     const fn clear_seq_state(&mut self) {
-        self.params_len = 0;
-        self.sep = 0;
-        self.param = 0;
-        self.param_empty = true;
-        self.intermediates_len = 0;
+        self.params.len = 0;
+        self.params.sep = 0;
+        self.params.param = 0;
+        self.params.empty = true;
+        self.intermediates.len = 0;
     }
 
     const fn push_intermediate(&mut self, b: u8) {
-        if self.intermediates_len >= self.intermediates.len() {
+        if self.intermediates.len >= self.intermediates.bytes.len() {
             return;
         }
-        self.intermediates[self.intermediates_len] = b;
-        self.intermediates_len += 1;
+        self.intermediates.bytes[self.intermediates.len] = b;
+        self.intermediates.len += 1;
     }
 
     /// Push a CSI/DCS parameter, capping at [`MAX_PARAM_COUNT`]. Past the
     /// cap, params are dropped; vte and rio-vt both use 32.
     #[inline]
     const fn push_param(&mut self, value: i32) {
-        if self.params_len >= MAX_PARAM_COUNT {
+        if self.params.len >= MAX_PARAM_COUNT {
             return;
         }
-        self.params[self.params_len] = value;
-        self.params_len += 1;
+        self.params.values[self.params.len] = value;
+        self.params.len += 1;
     }
 
     /// Accumulate a decimal digit into the current parameter (16-bit clamp).
@@ -1030,9 +1057,9 @@ impl Parser {
     /// never overflow i32, and plain arithmetic replaces the saturating ops.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn param_digit(&mut self, b: u8) {
-        self.param =
-            (self.param * 10 + (b - b'0') as i32).min(MAX_PARAM_VALUE);
-        self.param_empty = false;
+        self.params.param =
+            (self.params.param * 10 + (b - b'0') as i32).min(MAX_PARAM_VALUE);
+        self.params.empty = false;
     }
 
     /// End a parameter on a `:` separator: push it (an empty one becomes the
@@ -1040,10 +1067,14 @@ impl Parser {
     /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_colon(&mut self) {
-        self.push_param(if self.param_empty { -1 } else { self.param });
-        set_param_colon_sep(&mut self.sep, self.params_len - 1);
-        self.param = 0;
-        self.param_empty = true;
+        self.push_param(if self.params.empty {
+            -1
+        } else {
+            self.params.param
+        });
+        set_param_colon_sep(&mut self.params.sep, self.params.len - 1);
+        self.params.param = 0;
+        self.params.empty = true;
     }
 
     /// End a parameter on a `;` separator. An empty one becomes the `-2`
@@ -1053,9 +1084,13 @@ impl Parser {
     /// (`48;2;r;g;b;m` = ignore).
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_semicolon(&mut self) {
-        self.push_param(if self.param_empty { -2 } else { self.param });
-        self.param = 0;
-        self.param_empty = true;
+        self.push_param(if self.params.empty {
+            -2
+        } else {
+            self.params.param
+        });
+        self.params.param = 0;
+        self.params.empty = true;
     }
 
     /// Accumulate one CSI/DCS param byte (digit/`:`/`;`). Returns `false` for
@@ -1086,11 +1121,11 @@ impl Parser {
     /// can ignore it) but the raw value for DCS.
     #[inline]
     const fn push_trailing_param(&mut self, sentinel: bool) {
-        if !self.param_empty || self.params_len != 0 {
-            self.push_param(if sentinel && self.param_empty {
+        if !self.params.empty || self.params.len != 0 {
+            self.push_param(if sentinel && self.params.empty {
                 -1
             } else {
-                self.param
+                self.params.param
             });
         }
     }
@@ -1099,10 +1134,10 @@ impl Parser {
     #[inline]
     fn dispatch_csi<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
         self.push_trailing_param(true);
-        let ints = &self.intermediates[..self.intermediates_len];
+        let ints = &self.intermediates.bytes[..self.intermediates.len];
         p.csi_dispatch(
-            &self.params[..self.params_len],
-            self.sep,
+            &self.params.values[..self.params.len],
+            self.params.sep,
             ints,
             final_byte,
         );
@@ -1113,8 +1148,8 @@ impl Parser {
     #[inline]
     fn dispatch_hook<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
         self.push_trailing_param(false);
-        let ints = &self.intermediates[..self.intermediates_len];
-        p.hook(&self.params[..self.params_len], ints, final_byte);
+        let ints = &self.intermediates.bytes[..self.intermediates.len];
+        p.hook(&self.params.values[..self.params.len], ints, final_byte);
         self.clear_seq_state();
     }
 
@@ -1122,7 +1157,7 @@ impl Parser {
     /// plain Escape state, where no intermediate byte has been seen yet).
     #[inline]
     fn dispatch_esc<P: Perform>(&mut self, p: &mut P, final_byte: u8) {
-        let ints = &self.intermediates[..self.intermediates_len];
+        let ints = &self.intermediates.bytes[..self.intermediates.len];
         p.esc_dispatch(ints, final_byte);
         self.clear_seq_state();
     }
