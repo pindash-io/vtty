@@ -26,6 +26,11 @@ icu = ["dep:icu_properties"]
 # More aggressive inline annotations on the width hot paths. Default-on; opt
 # out for smaller code at some throughput cost.
 perf-inline = []
+# Experimental CodePointTrie-style two-level lookup (built alongside the
+# packtab tables). The lookup micro-bench is ~2.4x faster, but the table
+# lookup is not the end-to-end bottleneck and the larger footprint regresses
+# the `combining` case, so the packtab path stays the default.
+trie = []
 
 [dependencies]
 icu_normalizer.workspace = true

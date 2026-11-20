@@ -646,6 +646,25 @@ mod tests {
             vec![2, 1, 1, 2, 0, 0, 0, 1]
         );
     }
+
+    #[cfg(all(feature = "baked", feature = "trie"))]
+    #[test]
+    fn trie_matches_packtab_for_every_codepoint() {
+        // The CodePointTrie-style two-level table must reproduce the packtab
+        // level-walk for the FULL codepoint space (not just the hot ranges).
+        for cp in 0_u32..=0x10_FFFF {
+            assert_eq!(
+                baked::composite_get_trie(cp),
+                baked::composite_get(cp),
+                "composite trie diverges at U+{cp:04X}"
+            );
+            assert_eq!(
+                baked::ep_get_trie(cp),
+                baked::ep_get(cp),
+                "EP trie diverges at U+{cp:04X}"
+            );
+        }
+    }
 }
 
 #[test]

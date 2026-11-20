@@ -7,9 +7,13 @@
 
 #![allow(
     clippy::identity_op,
+    dead_code,
     missing_docs,
+    non_upper_case_globals,
     reason = "generated code; see build.rs"
 )]
 
 include!(concat!(env!("OUT_DIR"), "/emoji_packtab.rs"));
 include!(concat!(env!("OUT_DIR"), "/ep_packtab.rs"));
+#[cfg(feature = "trie")]
+include!(concat!(env!("OUT_DIR"), "/trie.rs"));
