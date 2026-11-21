@@ -9,17 +9,17 @@ categories = ["parsing", "text-processing"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pindash-io/vtty"
-version = "0.2.0"
+version = "0.2.1"
 rust-version = "1.100"
 
 [workspace.dependencies]
-vtty = { path = "crates/vtty", version = "0.2.0", default-features = false }
-vtty_core = { path = "crates/core", version = "0.2.0", default-features = false }
-vtty_status = { path = "crates/status", version = "0.2.0", }
-vtty_codec = { path = "crates/codec", version = "0.2.0", }
-vtty_width = { path = "crates/width", version = "0.2.0", }
-vtty_grapheme = { path = "crates/grapheme", version = "0.2.0", }
-vtty_screen = { path = "crates/screen", version = "0.2.0", }
+vtty = { path = "crates/vtty", version = "0.2.1", default-features = false }
+vtty_core = { path = "crates/core", version = "0.2.1", default-features = false }
+vtty_status = { path = "crates/status", version = "0.2.1", }
+vtty_codec = { path = "crates/codec", version = "0.2.1", }
+vtty_width = { path = "crates/width", version = "0.2.1", }
+vtty_grapheme = { path = "crates/grapheme", version = "0.2.1", }
+vtty_screen = { path = "crates/screen", version = "0.2.1", }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.2.0", default-features = false }
@@ -33,8 +33,8 @@ smallvec = { version = "2.0.0-beta.5", default-features = false }
 compact_str = { version = "0.10.0", default-features = false }
 utf8_iter = "1"
 
-icu_properties = { version = "=2.4.0", features = ["compiled_data", "alloc"] }
-icu_normalizer = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
+icu_properties = { version = "=2.3.0", features = ["compiled_data", "alloc"] }
+icu_normalizer = { version = "=2.3.0", default-features = false, features = ["compiled_data"] }
 parley_emoji = "0.13.0"
 packtab = "1.9.0"
 
