@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "vtty"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bitflags",
  "fearless_simd",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_bench"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "criterion",
  "fux-vt",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_codec"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "compact_str",
  "smallvec 2.0.0-beta.5",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bitflags",
  "compact_str",
@@ -1202,14 +1202,14 @@ dependencies = [
 
 [[package]]
 name = "vtty_ffi"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "vtty",
 ]
 
 [[package]]
 name = "vtty_grapheme"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "icu_segmenter",
  "vtty_width",
@@ -1217,7 +1217,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_screen"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bitflags",
  "vtty",
@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_status"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bases",
  "compact_str",
@@ -1237,7 +1237,7 @@ dependencies = [
 
 [[package]]
 name = "vtty_width"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "fearless_simd",
  "icu_normalizer",

@@ -9,17 +9,17 @@ categories = ["parsing", "text-processing"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pindash-io/vtty"
-version = "0.2.1"
+version = "0.2.2"
 rust-version = "1.100"
 
 [workspace.dependencies]
-vtty = { path = "crates/vtty", version = "0.2.1", default-features = false }
-vtty_core = { path = "crates/core", version = "0.2.1", default-features = false }
-vtty_status = { path = "crates/status", version = "0.2.1", }
-vtty_codec = { path = "crates/codec", version = "0.2.1", }
-vtty_width = { path = "crates/width", version = "0.2.1", }
-vtty_grapheme = { path = "crates/grapheme", version = "0.2.1", }
-vtty_screen = { path = "crates/screen", version = "0.2.1", }
+vtty = { path = "crates/vtty", version = "0.2.2", default-features = false }
+vtty_core = { path = "crates/core", version = "0.2.2", default-features = false }
+vtty_status = { path = "crates/status", version = "0.2.2" }
+vtty_codec = { path = "crates/codec", version = "0.2.2" }
+vtty_width = { path = "crates/width", version = "0.2.2" }
+vtty_grapheme = { path = "crates/grapheme", version = "0.2.2" }
+vtty_screen = { path = "crates/screen", version = "0.2.2" }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.2.0", default-features = false }
