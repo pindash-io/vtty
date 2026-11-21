@@ -45,8 +45,6 @@ pub(crate) enum ParseState {
     SosPmApcString = 13,
 }
 
-// Actions (bitmask — a byte can trigger several)
-
 bitflags::bitflags! {
     /// Parser actions a byte can trigger (a byte can trigger several).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -300,7 +298,6 @@ mod tests {
     /// either this reference or the production table fails the comparison.
     fn dec_step(state: ParseState, b: u8) -> (Action, ParseState) {
         match state {
-            // escape
             ParseState::Escape => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::Escape)
@@ -322,7 +319,6 @@ mod tests {
                 0x5d => (Action::OSC_START, ParseState::OscString),
                 _ => (Action::NONE, ParseState::Escape),
             },
-            // escape intermediate
             ParseState::EscapeIntermediate => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::EscapeIntermediate)
@@ -333,7 +329,6 @@ mod tests {
                 0x30..=0x7e => (Action::ESC_DISPATCH, ParseState::Ground),
                 _ => (Action::NONE, ParseState::EscapeIntermediate),
             },
-            // csi entry
             ParseState::CsiEntry => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::CsiEntry)
@@ -346,7 +341,6 @@ mod tests {
                 0x40..=0x7e => (Action::CSI_DISPATCH, ParseState::Ground),
                 _ => (Action::NONE, ParseState::CsiEntry),
             },
-            // csi param
             ParseState::CsiParam => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::CsiParam)
@@ -359,7 +353,6 @@ mod tests {
                 0x40..=0x7e => (Action::CSI_DISPATCH, ParseState::Ground),
                 _ => (Action::NONE, ParseState::CsiParam),
             },
-            // csi intermediate
             ParseState::CsiIntermediate => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::CsiIntermediate)
@@ -371,7 +364,6 @@ mod tests {
                 0x40..=0x7e => (Action::CSI_DISPATCH, ParseState::Ground),
                 _ => (Action::NONE, ParseState::CsiIntermediate),
             },
-            // csi ignore
             ParseState::CsiIgnore => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::EXECUTE, ParseState::CsiIgnore)
@@ -382,7 +374,6 @@ mod tests {
                 0x40..=0x7e => (Action::NONE, ParseState::Ground),
                 _ => (Action::NONE, ParseState::CsiIgnore),
             },
-            // osc string
             ParseState::OscString => match b {
                 0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::OscString)
@@ -395,7 +386,6 @@ mod tests {
                 0x1b => (Action::OSC_END, ParseState::Escape),
                 _ => (Action::OSC_PUT, ParseState::OscString),
             },
-            // dcs entry
             ParseState::DcsEntry => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::DcsEntry)
@@ -408,7 +398,6 @@ mod tests {
                 0x40..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
                 _ => (Action::NONE, ParseState::DcsEntry),
             },
-            // dcs param
             ParseState::DcsParam => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::DcsParam)
@@ -421,7 +410,6 @@ mod tests {
                 0x40..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
                 _ => (Action::NONE, ParseState::DcsParam),
             },
-            // dcs intermediate
             ParseState::DcsIntermediate => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::DcsIntermediate)
@@ -433,7 +421,6 @@ mod tests {
                 0x40..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
                 _ => (Action::NONE, ParseState::DcsIntermediate),
             },
-            // dcs passthrough
             ParseState::DcsPassthrough => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x7e => {
                     (Action::PUT, ParseState::DcsPassthrough)
@@ -444,7 +431,6 @@ mod tests {
                 0x1b => (Action::UNHOOK, ParseState::Escape),
                 _ => (Action::NONE, ParseState::DcsPassthrough),
             },
-            // dcs ignore
             ParseState::DcsIgnore => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::DcsIgnore)
@@ -454,7 +440,6 @@ mod tests {
                 0x20..=0x7f => (Action::NONE, ParseState::DcsIgnore),
                 _ => (Action::NONE, ParseState::DcsIgnore),
             },
-            // sos/pm/apc string
             ParseState::SosPmApcString => match b {
                 0x00..=0x17 | 0x19 | 0x1c..=0x1f => {
                     (Action::NONE, ParseState::SosPmApcString)

@@ -41,7 +41,6 @@ impl From<usize> for ColorId {
 impl From<i32> for ColorId {
     #[inline]
     fn from(v: i32) -> Self {
-        // The shared 0..=255 clamp (xterm clamps out-of-range indexed colors).
         Self(clamp_channel(v) as u16)
     }
 }
@@ -114,9 +113,6 @@ pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
 }
 
 /// Clamp one 0..255 channel.
-///
-/// RUST: Use `i32::clamp` when it is available in `const` (`Ord` as a const
-/// trait is still nightly), instead of the explicit branch.
 #[inline]
 const fn clamp_channel(v: i32) -> u8 {
     if v < 0 {
