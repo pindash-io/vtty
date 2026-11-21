@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] (2026-11-21)
+
+### Changed
+
+- Updated `MSRV` to `1.100`. 
+- Updated `smallvec` to 2.0.0-beta.5. 
+
 ### Added
 
 - Added a `perf-inline` cargo feature to `vtty` and `vtty_width` (on by
@@ -110,5 +117,6 @@ Initial release: the `vtty` DEC VT500 parser, the `vtty_core` terminal model,
 segmentation, `vtty_status` OSC 7501, `vtty_codec` binary codec, and `vtty_ffi`
 C ABI.
 
-[Unreleased]: https://github.com/pindash-io/vtty/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/pindash-io/vtty/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pindash-io/vtty/compare/v0.2.0...v0.1.0
 [0.1.0]: https://github.com/pindash-io/vtty/releases/tag/v0.1.0

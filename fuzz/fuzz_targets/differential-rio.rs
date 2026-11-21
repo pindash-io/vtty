@@ -9,7 +9,7 @@ use libfuzzer_sys::fuzz_target;
 
 use vtty_fuzz::{
     Event, has_intermediate_overflow, has_known_divergence,
-    has_rio_utf8_simd_divergence, run_vtty,
+    has_osc_verbatim_divergence, has_rio_utf8_simd_divergence, run_vtty,
 };
 
 struct RioRec {
@@ -95,6 +95,11 @@ fuzz_target!(|data: &[u8]| {
     }
     // rio-vt allows up to four intermediates; vtty (and vte) cap at two.
     if has_intermediate_overflow(data, 2) {
+        return;
+    }
+    // rio-vt keeps the payload of some OSC commands verbatim; vtty/vte split
+    // every `;`.
+    if has_osc_verbatim_divergence(data) {
         return;
     }
     // rio-vt's simdutf backend decodes malformed ground-state UTF-8 wrongly on

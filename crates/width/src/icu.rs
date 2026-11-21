@@ -42,6 +42,7 @@ pub fn width_icu(cp: char) -> usize {
         // unicode-width's documented special cases (see the generator).
         0x115F | 0x17A4 => 2,
         0x2D7F => 1,
+        0xFF9E | 0xFF9F => 1,
         0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => 0,
         _ => match gc.get(cp) {
             // Control and surrogate have no width; default-ignorable and

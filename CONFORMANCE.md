@@ -210,7 +210,8 @@ Bounded, O(n) (see [ARCHITECTURE.md — Resource limits](ARCHITECTURE.md#resourc
 - `table.rs` — exhaustive state×byte differential vs the DEC diagram (1,664 assertions).
 - `parser.rs` — C1 "anywhere" + string-cancellation regression tests.
 - `tests/vt_differential.rs` / `vt_differential_rio.rs` — corpus parity vs `vte` / `rio-vt`
-  (raw C1 excluded: documented divergence).
+  (documented divergences excluded: raw C1, rio-vt's four intermediates, and
+  rio-vt's verbatim OSC payloads).
 - `fuzz/` — libFuzzer differential + robustness targets.
 
 ## Known gaps (roadmap)

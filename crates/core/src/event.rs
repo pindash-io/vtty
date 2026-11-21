@@ -381,9 +381,9 @@ mod tests {
     fn write_bytes_csi_with_private_marker() {
         let mut out = SmallVec::<u8, 16>::new();
         Event::CsiDispatch {
-            params: SmallVec::from_buf([25]),
+            params: SmallVec::from([25]),
             sep: 0,
-            intermediates: SmallVec::from_buf(*b"?"),
+            intermediates: SmallVec::from(*b"?"),
             final_byte: b'h',
         }
         .write_bytes(&mut out);
@@ -394,7 +394,7 @@ mod tests {
     fn write_bytes_osc_st_terminated() {
         let mut out = SmallVec::<u8, 16>::new();
         Event::OscDispatch {
-            params: SmallVec::from_buf([b"0".to_vec(), b"t".to_vec()]),
+            params: SmallVec::from([b"0".to_vec(), b"t".to_vec()]),
             bell_terminated: false,
         }
         .write_bytes(&mut out);
