@@ -29,9 +29,19 @@
 //!
 //! ## Features
 //!
-//! `simd` + `baked` (default) | `icu` (runtime ICU4X lookups).
-//! `perf-inline` (default) — `#[inline(always)]` on the width hot paths; opt
-//! out for smaller code.
+//! - `baked` (default) — compile-time-generated emoji + width table
+//!   (produced by `build.rs`).
+//! - `icu` — runtime ICU4X property lookups, an alternative to `baked` (also
+//!   used by the differential test).
+//! - `simd` (default) — vectorized first-non-ASCII scan in the width fast
+//!   paths.
+//! - `perf-inline` (default) — `#[inline(always)]` on the width hot paths;
+//!   opt out for smaller code at some throughput cost.
+//! - `trie` — experimental `CodePointTrie` two-level lookup (built alongside
+//!   the packtab tables; not the default).
+//!
+//! With neither `baked` nor `icu`, the ASCII/CJK/PUA fast paths still
+//! resolve correctly; the composite emoji/width lookup degrades to width 1.
 //!
 //! ## Credits
 //!

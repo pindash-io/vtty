@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `perf-inline` cargo feature to `vtty` and `vtty_width` (on by
   default) that gates the `#[inline(always)]` annotations on the parser and
   width hot paths; disable it for smaller code at some throughput cost.
+- Added an experimental `trie` cargo feature to `vtty_width`: a
+  CodePointTrie-style two-level lookup for the baked emoji/width tables.
+  Its lookup is faster but the larger footprint is not the end-to-end
+  bottleneck, so the packtab path stays the default.
 - Added `vtty_screen`, a cell-grid terminal screen crate (`Screen` `Perform`
   sink with scrolling, SGR, reflow, and rendering).
 - Added ISO 2022 `Scs` (Select Character Set) state to `vtty_core`, unifying
