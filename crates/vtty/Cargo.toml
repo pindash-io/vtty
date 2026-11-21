@@ -30,7 +30,7 @@ simd-transcode = ["simd"]
 perf-inline = []
 
 [dependencies]
-vtty_core = { path = "../core", default-features = false }
+vtty_core = { workspace = true, default-features = false }
 vtty_status = { workspace = true, optional = true }
 
 bitflags.workspace = true

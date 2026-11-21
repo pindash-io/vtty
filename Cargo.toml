@@ -1,6 +1,6 @@
 [workspace]
-resolver = "3"
 members = ["crates/*", "fuzz"]
+resolver = "3"
 
 [workspace.package]
 description = "Zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding and no_std support."
@@ -9,17 +9,17 @@ categories = ["parsing", "text-processing"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/pindash-io/vtty"
-version = "0.1.0"
-rust-version = "1.89"
+version = "0.2.0"
+rust-version = "1.100"
 
 [workspace.dependencies]
-vtty = { path = "crates/vtty", default-features = false }
-vtty_core = { path = "crates/core", default-features = false }
-vtty_status = { path = "crates/status" }
-vtty_codec = { path = "crates/codec" }
-vtty_width = { path = "crates/width" }
-vtty_grapheme = { path = "crates/grapheme" }
-vtty_screen = { path = "crates/screen" }
+vtty = { path = "crates/vtty", version = "0.2.0", default-features = false }
+vtty_core = { path = "crates/core", version = "0.2.0", default-features = false }
+vtty_status = { path = "crates/status", version = "0.2.0", }
+vtty_codec = { path = "crates/codec", version = "0.2.0", }
+vtty_width = { path = "crates/width", version = "0.2.0", }
+vtty_grapheme = { path = "crates/grapheme", version = "0.2.0", }
+vtty_screen = { path = "crates/screen", version = "0.2.0", }
 
 # Optional SIMD ground-state run classifier.
 fearless_simd = { version = "1.2.0", default-features = false }
@@ -29,13 +29,13 @@ simdutf8 = "0.1"
 bases = { version = "0.1.1", default-features = false, features = ["alloc"] }
 bitflags = "2"
 const-hex = { version = "1.19.3", default-features = false }
-smallvec = { version = "2.0.0-beta.4", default-features = false }
+smallvec = { version = "2.0.0-beta.5", default-features = false }
 compact_str = { version = "0.10.0", default-features = false }
 utf8_iter = "1"
 
-icu_properties = { version = "=2.3.0", features = ["compiled_data", "alloc"] }
-icu_normalizer = { version = "=2.3.0", default-features = false, features = ["compiled_data"] }
-parley_emoji = "0.12.0"
+icu_properties = { version = "=2.4.0", features = ["compiled_data", "alloc"] }
+icu_normalizer = { version = "=2.4.0", default-features = false, features = ["compiled_data"] }
+parley_emoji = "0.13.0"
 packtab = "1.9.0"
 
 ## benchmark comparison crates

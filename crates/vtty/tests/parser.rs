@@ -548,7 +548,7 @@ fn event_to_bytes_round_trips_the_parser() {
         (
             b"\x1b[1;31m",
             Event::CsiDispatch {
-                params: SmallVec::from_buf([1, 31]),
+                params: SmallVec::from([1, 31]),
                 sep: 0,
                 intermediates: SmallVec::new(),
                 final_byte: b'm',
@@ -557,7 +557,7 @@ fn event_to_bytes_round_trips_the_parser() {
         (
             b"\x1b[4:2m",
             Event::CsiDispatch {
-                params: SmallVec::from_buf([4, 2]),
+                params: SmallVec::from([4, 2]),
                 sep: 0b01,
                 intermediates: SmallVec::new(),
                 final_byte: b'm',
@@ -573,7 +573,7 @@ fn event_to_bytes_round_trips_the_parser() {
         (
             b"\x1b]0;title\x07",
             Event::OscDispatch {
-                params: SmallVec::from_buf([b"0".to_vec(), b"title".to_vec()]),
+                params: SmallVec::from([b"0".to_vec(), b"title".to_vec()]),
                 bell_terminated: true,
             },
         ),
@@ -599,7 +599,7 @@ fn event_to_bytes_dcs_hook_put_unhook() {
     let mut out = SmallVec::<u8, 16>::new();
     Event::DcsHook {
         params: SmallVec::new(),
-        intermediates: SmallVec::from_buf(*b"$"),
+        intermediates: SmallVec::from(*b"$"),
         final_byte: b'q',
     }
     .write_bytes(&mut out);

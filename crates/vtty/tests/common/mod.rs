@@ -449,6 +449,96 @@ pub(crate) fn has_intermediate_overflow(data: &[u8], limit: u8) -> bool {
     false
 }
 
+/// rio-vt keeps the payload of some OSC commands verbatim (semicolons stay in
+/// the final param) where vte/vtty split every `;`. Returns true when an OSC
+/// sequence in `data` hits that divergence.
+pub(crate) fn has_osc_verbatim_divergence(data: &[u8]) -> bool {
+    #[derive(PartialEq)]
+    enum S {
+        Ground,
+        Osc,
+    }
+
+    fn rio_osc_verbatim(num_params: usize, params: &[Vec<u8>; 2]) -> bool {
+        match num_params {
+            1 => params[0] == b"0" || params[0] == b"2" || params[0] == b"7",
+            2 => {
+                if params[0] == b"8" {
+                    true
+                } else if params[0] == b"9" {
+                    params[1] != b"4"
+                } else {
+                    false
+                }
+            }
+            3 => params[0] == b"777" && params[1] == b"notify",
+            _ => false,
+        }
+    }
+
+    let mut s = S::Ground;
+    let mut num_params = 0_usize;
+    let mut current = Vec::<u8>::new();
+    let mut params: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
+    let mut i = 0;
+    while i < data.len() {
+        let b = data[i];
+        match s {
+            S::Ground => {
+                if b == 0x1b && data.get(i + 1) == Some(&b']') {
+                    s = S::Osc;
+                    num_params = 0;
+                    current.clear();
+                    params = [Vec::new(), Vec::new()];
+                    i += 2;
+                } else if b == 0x9d {
+                    s = S::Osc;
+                    num_params = 0;
+                    current.clear();
+                    params = [Vec::new(), Vec::new()];
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            S::Osc => match b {
+                0x3b => {
+                    if rio_osc_verbatim(num_params, &params) {
+                        return true;
+                    }
+                    match num_params {
+                        0 => params[0] = current.clone(),
+                        1 => params[1] = current.clone(),
+                        _ => {}
+                    }
+                    num_params += 1;
+                    current.clear();
+                    i += 1;
+                }
+                0x07 | 0x9c | 0x18 | 0x1a => {
+                    s = S::Ground;
+                    i += 1;
+                }
+                0x1b => {
+                    // ESC both ends the OSC and starts the next escape
+                    // sequence (e.g. `ESC ] ... ESC ] ...`). Reprocess it
+                    // from Ground so the following OSC is not missed.
+                    s = S::Ground;
+                }
+                0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => {
+                    // rio-vt ignores these C0 bytes in OSC; don't accumulate.
+                    i += 1;
+                }
+                _ => {
+                    current.push(b);
+                    i += 1;
+                }
+            },
+        }
+    }
+    false
+}
+
 /// Build a human-readable difference report when two event streams differ.
 /// Normalize `Event`s for differential comparison against parsers that
 /// cannot express vtty's richer dispatch (`sep` colon bitfield, bulk

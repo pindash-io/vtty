@@ -445,9 +445,9 @@ mod tests {
             Event::PrintBytes(b"hello".to_vec()),
             Event::Execute(0x1b),
             Event::CsiDispatch {
-                params: SmallVec::from_buf([1, 31]),
+                params: SmallVec::from([1, 31]),
                 sep: 0,
-                intermediates: SmallVec::from_buf(*b" "),
+                intermediates: SmallVec::from(*b" "),
                 final_byte: b'm',
             },
             Event::EscDispatch { intermediates: SmallVec::new(), byte: b'7' },
@@ -459,7 +459,7 @@ mod tests {
             Event::DcsPut(b'x'),
             Event::DcsUnhook,
             Event::OscDispatch {
-                params: SmallVec::from_buf([b"0".to_vec(), b"title".to_vec()]),
+                params: SmallVec::from([b"0".to_vec(), b"title".to_vec()]),
                 bell_terminated: false,
             },
         ];
@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn sgr_roundtrip() {
-        let sgr = Sgr::new(SmallVec::from_buf([38, 2, -1, 1, 2, 3]), 0b0010);
+        let sgr = Sgr::new(SmallVec::from([38, 2, -1, 1, 2, 3]), 0b0010);
         assert_eq!(roundtrip(&sgr), sgr);
     }
 

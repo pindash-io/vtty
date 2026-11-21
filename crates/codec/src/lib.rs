@@ -154,7 +154,7 @@ mod tests {
         let text = alloc::string::String::from("héllo 世界");
         assert_eq!(roundtrip(&text), text);
 
-        let sv: SmallVec<i32, 6> = SmallVec::from_buf([1, -2, 3]);
+        let sv: SmallVec<i32, 6> = SmallVec::from([1, -2, 3]);
         assert_eq!(roundtrip(&sv), sv);
     }
 

@@ -14,13 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: typos,taplo,cargo-rdme,cargo-hack
+          tool: typos-cli,taplo,cargo-hack
 
       - name: Spell-check
         run: typos
@@ -31,7 +31,7 @@ jobs:
       - name: Install cargo-rdme intralink toolchain
         # cargo-rdme resolves intra-doc links with a pinned nightly rustdoc;
         # install exactly the toolchain the installed cargo-rdme expects.
-        run: cargo rdme install-rust-toolchain-for-intralinks
+        run: cargo +nightly install cargo-rdme --force
 
       - name: README sync check
         run: |
@@ -289,13 +289,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@1.89
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Check (MSRV)
-        # vtty_bench is dev-only tooling and pulls fux-vt, whose MSRV (1.95)
-        # is above the library's 1.89. The MSRV gate covers the library
-        # crates only; the bench builds on stable in the `bench` and `test`
-        # jobs.
         run: cargo check --workspace --exclude vtty_bench --all-features
 
   security:
