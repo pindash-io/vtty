@@ -172,8 +172,8 @@ impl core::ops::IndexMut<usize> for Charsets {
 
 /// The full ISO 2022 SCS (Select Character Set) state: the four designated
 /// G-sets plus the GL locking-shift slot and the `SS2`/`SS3` single shift. One
-/// `Copy` value shared by the cell and line screens so the active-charset
-/// selection lives in ONE place (teken's `t_scs_gl`/`t_curscs` over `t_scs`).
+/// `Copy` value so the active-charset selection lives in ONE place (teken's
+/// `t_scs_gl`/`t_curscs` over `t_scs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Scs {
     /// The four designated G-sets (G0..=G3).

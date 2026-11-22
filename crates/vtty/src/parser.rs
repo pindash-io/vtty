@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! The byte-input VT parser: the `Parser` state machine. The
-//! [`crate::Perform`] contract and the owned [`crate::Event`] API are
-//! re-exported from `vtty_core`; the UTF-8 incremental decoder lives in
-//! `utf8`, the SWAR byte scanners in `scan`.
+//! [`crate::Perform`] contract and the owned [`crate::Event`] API come from
+//! `vtty_core`; the UTF-8 incremental decoder lives in `utf8`, the SWAR byte
+//! scanners in `scan`.
 
 use alloc::vec::Vec;
 

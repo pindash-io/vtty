@@ -398,7 +398,7 @@ pub fn two_effects(
 }
 
 /// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
-/// underline), shared by the single-effect fast path and `parse_effects`.
+/// underline).
 #[inline]
 const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
     match code {

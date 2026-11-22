@@ -186,7 +186,7 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     bytes.len()
 }
 
-/// The scalar predicate for one byte, shared by the SIMD classifier's tail.
+/// The scalar predicate for one byte.
 #[inline]
 fn matches_kind(b: u8, kind: ScanKind) -> bool {
     match kind {

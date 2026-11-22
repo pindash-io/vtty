@@ -7,8 +7,7 @@
 //! [`State`] sink.
 //!
 //! This crate is split out so the `vtty` parser facade and `vtty_codec` can
-//! share it without the codec depending on the parser. `vtty` re-exports its
-//! API.
+//! share it without the codec depending on the parser.
 //!
 //! ## Features
 //!

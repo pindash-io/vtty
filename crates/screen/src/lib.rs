@@ -187,7 +187,7 @@ impl Screen {
     }
 
     /// Home the cursor, clear SGR state, and reset the scroll margins (the
-    /// per-buffer part shared by `reset`, DECALN, and alt-screen entry).
+    /// per-buffer part of `reset`, DECALN, and alt-screen entry).
     fn reset_cursor_style_margins(&mut self) {
         self.active.cursor.row = 0;
         self.active.cursor.col = 0;

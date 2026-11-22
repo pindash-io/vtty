@@ -184,7 +184,7 @@ impl<T: Decode, const N: usize> Decode for SmallVec<T, N> {
 }
 
 /// Decode a length-prefixed sequence of `T`s into any `FromIterator`
-/// collection (shared by `Vec` and `SmallVec`).
+/// collection.
 fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
     reader: &mut R,
 ) -> Result<C, DecodeError> {

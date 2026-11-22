@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Kitty keyboard protocol flags (`CSI > flags u` / `CSI < count u`), plus
-//! the winit-free key-encoding model shared by the terminal engines.
+//! the winit-free key-encoding model.
 //!
 //! Reference: <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>.
 
