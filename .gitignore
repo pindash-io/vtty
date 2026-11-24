@@ -3,6 +3,9 @@
 # macOS
 .DS_Store
 
+# Downloaded Unicode emoji data files (see crates/width/CONFORMANCE.md)
+/assets/emoji
+
 # vtty_ffi C example binaries
 /examples/ffi/term_demo
 

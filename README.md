@@ -52,15 +52,16 @@ use vtty::{Parser, Perform};
 struct Screen;
 
 impl Perform for Screen {
-    fn print_bytes(&mut self, s: &[u8]) { /* printable ASCII run */ }
-    fn print(&mut self, c: char) { /* non-ASCII code point */ }
-    fn execute(&mut self, b: u8) { /* \n \t \x1b … */ }
-    fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
+    fn print_bytes(&mut self, _s: &[u8]) { /* printable ASCII run */ }
+    fn print(&mut self, _c: char) { /* non-ASCII code point */ }
+    fn execute(&mut self, _b: u8) { /* \n \t \x1b … */ }
+    fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
         /* CSI Ps ; Ps final */
     }
-    fn osc_dispatch(&mut self, params: &[&[u8]], bell: bool) { /* OSC */ }
+    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell: bool) { /* OSC */ }
 }
 
+let mut screen = Screen;
 let mut parser = Parser::new();
 parser.advance(&mut screen, b"\x1b[1;31mhello\x1b[0m");
 ```
@@ -92,6 +93,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt` — see
 [`crates/bench`](crates/bench) for the full table.
 
+## Documentation
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — parser design and layout.
+- [`CONFORMANCE.md`](CONFORMANCE.md) — escape-sequence conformance notes.
+- [`CHANGELOG.md`](CHANGELOG.md) — release history.
+
 ## Testing
 
 ```bash
@@ -102,5 +109,10 @@ cargo test -p vtty --test vt_differential_rio -- --nocapture  # parity vs rio-vt
 
 ## License
 
-Licensed under either of [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT)
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
 at your option.

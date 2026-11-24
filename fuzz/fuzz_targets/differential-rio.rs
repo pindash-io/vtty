@@ -8,8 +8,8 @@
 use libfuzzer_sys::fuzz_target;
 
 use vtty_fuzz::{
-    Event, has_intermediate_overflow, has_known_divergence,
-    has_osc_verbatim_divergence, has_rio_utf8_simd_divergence, run_vtty,
+    Event, has_intermediate_overflow, has_known_divergence, has_osc_verbatim_divergence,
+    has_rio_utf8_simd_divergence, run_vtty,
 };
 
 struct RioRec {
@@ -24,9 +24,11 @@ impl rio_vt::performer::parser::Perform for RioRec {
         self.acts.extend(s.chars().map(Event::Print));
     }
     fn print_codepoints(&mut self, codepoints: &[u32]) {
-        self.acts.extend(codepoints.iter().map(|&cp| {
-            Event::Print(char::from_u32(cp).unwrap_or('\u{FFFD}'))
-        }));
+        self.acts.extend(
+            codepoints
+                .iter()
+                .map(|&cp| Event::Print(char::from_u32(cp).unwrap_or('\u{FFFD}'))),
+        );
     }
     fn execute(&mut self, b: u8) {
         self.acts.push(Event::Execute(b));
@@ -38,8 +40,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: smallvec::SmallVec<i32, 6> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             sep: 0,
@@ -60,8 +61,7 @@ impl rio_vt::performer::parser::Perform for RioRec {
         _ignore: bool,
         f: char,
     ) {
-        let flat: smallvec::SmallVec<i32, 6> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),

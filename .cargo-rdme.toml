@@ -1,3 +1,7 @@
 # Keep the README's `# name` as the only top-level heading; do not nest the
 # crate documentation's `##` sections under it.
 heading-base-level = 0
+
+# The pinned nightly is below this workspace's MSRV (1.100).
+[intralinks]
+rustdoc-toolchain = "default"

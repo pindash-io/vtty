@@ -22,15 +22,8 @@ impl vte::Perform for VteRec {
     fn execute(&mut self, b: u8) {
         self.acts.push(Event::Execute(b));
     }
-    fn csi_dispatch(
-        &mut self,
-        params: &vte::Params,
-        int: &[u8],
-        _ignore: bool,
-        f: char,
-    ) {
-        let flat: smallvec::SmallVec<i32, 6> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+    fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             sep: 0,
@@ -44,15 +37,8 @@ impl vte::Perform for VteRec {
             byte: b,
         });
     }
-    fn hook(
-        &mut self,
-        params: &vte::Params,
-        int: &[u8],
-        _ignore: bool,
-        f: char,
-    ) {
-        let flat: smallvec::SmallVec<i32, 6> =
-            params.iter().flatten().map(|&v| v as i32).collect();
+    fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
+        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),
@@ -104,8 +90,7 @@ fn run_vtty_parser(mut p: vtty::Parser, bytes: &[u8]) -> Vec<Event> {
         // Params first: normalize the empty sentinels and the empty
         // param list.
         match &mut e {
-            Event::CsiDispatch { params, .. }
-            | Event::DcsHook { params, .. } => {
+            Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => {
                 for p in params.iter_mut() {
                     if *p == -1 || *p == -2 {
                         *p = 0;
@@ -606,8 +591,7 @@ fn has_c1_divergence(data: &[u8]) -> bool {
 mod tests {
     use super::{
         has_c1_divergence, has_intermediate_overflow, has_known_divergence,
-        has_osc_verbatim_divergence, has_rio_utf8_simd_divergence, run_vte,
-        run_vtty,
+        has_osc_verbatim_divergence, has_rio_utf8_simd_divergence, run_vte, run_vtty,
     };
 
     #[test]
@@ -615,10 +599,9 @@ mod tests {
         // The CI fuzz crash: bulk print runs plus a UTF-8 check mark must
         // expand to per-byte `Print`, matching vte.
         let data: &[u8] = &[
-            36, 32, 108, 115, 32, 45, 108, 97, 13, 10, 116, 111, 116, 97, 108,
-            32, 48, 13, 10, 27, 91, 49, 59, 51, 50, 109, 100, 111, 110, 101,
-            27, 91, 48, 109, 32, 226, 156, 147, 32, 13, 10, 36, 32, 101, 120,
-            105, 116, 13, 10,
+            36, 32, 108, 115, 32, 45, 108, 97, 13, 10, 116, 111, 116, 97, 108, 32, 48, 13, 10, 27,
+            91, 49, 59, 51, 50, 109, 100, 111, 110, 101, 27, 91, 48, 109, 32, 226, 156, 147, 32,
+            13, 10, 36, 32, 101, 120, 105, 116, 13, 10,
         ];
         assert_eq!(run_vtty(data), run_vte(data));
 
@@ -636,10 +619,9 @@ mod tests {
         // An ignored CSI (middle intermediate) must not leak its collected
         // intermediates into the next sequence's dispatch.
         let data: &[u8] = &[
-            27, 40, 66, 27, 41, 48, 27, 35, 56, 27, 91, 63, 49, 104, 27, 177,
-            177, 177, 177, 177, 122, 177, 177, 177, 177, 62, 27, 91, 50, 59,
-            181, 72, 27, 91, 63, 50, 53, 108, 27, 91, 63, 41, 53, 104, 27, 91,
-            49, 59, 49, 72, 27, 91, 74, 27, 91, 75,
+            27, 40, 66, 27, 41, 48, 27, 35, 56, 27, 91, 63, 49, 104, 27, 177, 177, 177, 177, 177,
+            122, 177, 177, 177, 177, 62, 27, 91, 50, 59, 181, 72, 27, 91, 63, 50, 53, 108, 27, 91,
+            63, 41, 53, 104, 27, 91, 49, 59, 49, 72, 27, 91, 74, 27, 91, 75,
         ];
         assert_eq!(run_vtty(data), run_vte(data));
     }
