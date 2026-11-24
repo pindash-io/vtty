@@ -16,6 +16,11 @@ use crate::utils::{
     CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_esc, is_non_printable, is_osc_boundary,
 };
 
+/// Payload bits of one byte in a transcode lane. The UTF-8 lead/continuation
+/// markers live above bit 6, so masking a lane keeps the code-point payload.
+#[cfg(feature = "simd-transcode")]
+const PAYLOAD_MASK: u32 = 0x7f;
+
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
 enum ScanKind {
@@ -175,7 +180,7 @@ fn first_set(mask: [i8; 16]) -> usize {
 /// code points. Shared by [`decode_3byte`] and the 2/3-byte-mix table path.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
-    let ascii = p & simd.splat_u32x4(0x7f);
+    let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
     let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
     let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
     ((ascii | middle) | high).into()
@@ -235,7 +240,7 @@ fn decode_utf8_12<S: Simd>(
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
         let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u16x8<S> = perm.bitcast();
-        let ascii = p & simd.splat_u16x8(0x7f);
+        let ascii = p & simd.splat_u16x8(PAYLOAD_MASK as u16);
         let high = simd.shr_u16x8(p & simd.splat_u16x8(0x1f00), 2);
         let composed = ascii | high;
         let (lo, hi) = composed.widen();
@@ -256,7 +261,7 @@ fn decode_utf8_12<S: Simd>(
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
         let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u32x4<S> = perm.bitcast();
-        let ascii = p & simd.splat_u32x4(0x7f);
+        let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
         let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
         let correct = simd.shr_u32x4(p & simd.splat_u32x4(0x400000), 1);
         let middlehigh = simd.shr_u32x4(correct ^ (p & simd.splat_u32x4(0x3f0000)), 4);
@@ -324,7 +329,7 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
-/// Whether any code point in `cps` is a control (`< 0x20`, `0x7f`, or
+/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
 /// `0x80..=0x9f`) — the ones the dispatch loop must split out via `execute`
 /// instead of a single `print_codepoints` run.
 #[cfg(feature = "simd-transcode")]
@@ -343,7 +348,7 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
         let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(0x20));
-        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(0x7f))
+        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(u32::from(DEL)))
             & simd.simd_le_u32x4(v, simd.splat_u32x4(0x9f));
         any |= simd.any_true_mask32x4(c0 | c1);
     }
@@ -351,7 +356,7 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
         return true;
     }
     tail.iter()
-        .any(|&cp| cp < 0x20 || (0x7f..=0x9f).contains(&cp))
+        .any(|&cp| cp < 0x20 || (u32::from(DEL)..=0x9f).contains(&cp))
 }
 
 #[cfg(test)]
