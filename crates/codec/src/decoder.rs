@@ -11,20 +11,6 @@ use crate::error::{DecodeError, EncodeError};
 use crate::io::{SliceReader, VecWriter};
 use crate::traits::{Decode, Encode};
 
-/// Encodes `value` into a freshly allocated `Vec<u8>`.
-pub fn encode_to_vec<T: Encode + ?Sized>(
-    value: &T,
-) -> Result<Vec<u8>, EncodeError> {
-    let mut buf = Vec::with_capacity(value.encoded_len());
-    value.encode(&mut VecWriter::new(&mut buf))?;
-    Ok(buf)
-}
-
-/// Decodes a value from `bytes`.
-pub fn decode_from_slice<T: Decode>(bytes: &[u8]) -> Result<T, DecodeError> {
-    T::decode(&mut SliceReader::new(bytes))
-}
-
 /// A streaming, push-based decoder: feed bytes incrementally and receive the
 /// value once its complete encoding has arrived.
 ///
@@ -48,7 +34,10 @@ impl<T> Decoder<T> {
     /// An empty decoder.
     #[inline]
     pub const fn new() -> Self {
-        Self { buf: Vec::new(), marker: PhantomData }
+        Self {
+            buf: Vec::new(),
+            marker: PhantomData,
+        }
     }
 }
 
@@ -80,10 +69,10 @@ impl<T: Decode> Decoder<T> {
     pub fn finish(self) -> Result<T, DecodeError> {
         let mut reader = SliceReader::new(&self.buf);
         let value = T::decode(&mut reader)?;
-        if reader.position() != self.buf.len() {
-            return Err(DecodeError::UnexpectedEof);
+        if reader.position() == self.buf.len() {
+            return Ok(value);
         }
-        Ok(value)
+        Err(DecodeError::UnexpectedEof)
     }
 }
 
@@ -134,6 +123,18 @@ impl<T: Decode> Iterator for DecodeIter<'_, T> {
             }
         }
     }
+}
+
+/// Encodes `value` into a freshly allocated `Vec<u8>`.
+pub fn encode_to_vec<T: Encode + ?Sized>(value: &T) -> Result<Vec<u8>, EncodeError> {
+    let mut buf = Vec::with_capacity(value.encoded_len());
+    value.encode(&mut VecWriter::new(&mut buf))?;
+    Ok(buf)
+}
+
+/// Decodes a value from `bytes`.
+pub fn decode_from_slice<T: Decode>(bytes: &[u8]) -> Result<T, DecodeError> {
+    T::decode(&mut SliceReader::new(bytes))
 }
 
 /// Iterates over values decoded from `bytes`.

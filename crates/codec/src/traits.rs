@@ -15,10 +15,7 @@ pub trait Encode {
     /// Returns [`EncodeError::BufferTooSmall`] when `writer` has no room,
     /// or [`EncodeError::UnknownVariant`] when a `#[non_exhaustive]` enum
     /// carries a variant this build does not know.
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError>;
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError>;
 
     /// The exact number of bytes [`Encode::encode`] will write.
     ///

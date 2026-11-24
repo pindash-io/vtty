@@ -12,8 +12,7 @@ pub(crate) fn encode_varint<W: Write + ?Sized>(
     mut value: usize,
 ) -> Result<(), EncodeError> {
     loop {
-        // OK because `value & 0x7f` is 0..=127, so the `u8` cast never
-        // truncates.
+        // `value & 0x7f` is 0..=127, so the `u8` cast never truncates.
         let byte = (value & 0x7f) as u8;
         value >>= 7;
         if value == 0 {
@@ -24,9 +23,7 @@ pub(crate) fn encode_varint<W: Write + ?Sized>(
 }
 
 /// LEB128-decodes a `usize` from `reader`.
-pub(crate) fn decode_varint<R: Read + ?Sized>(
-    reader: &mut R,
-) -> Result<usize, DecodeError> {
+pub(crate) fn decode_varint<R: Read + ?Sized>(reader: &mut R) -> Result<usize, DecodeError> {
     let mut value = 0_usize;
     let mut shift = 0_u32;
     loop {
@@ -35,8 +32,8 @@ pub(crate) fn decode_varint<R: Read + ?Sized>(
             return Err(DecodeError::InvalidValue);
         }
         let payload = usize::from(byte & 0x7f);
-        // Rejects any payload whose `<< shift` would overflow: if it exceeds
-        // the bits left above `shift`, the shifted value cannot fit `usize`.
+        // Reject a payload whose `<< shift` would overflow: if it exceeds the
+        // bits left above `shift`, the shifted value cannot fit `usize`.
         if payload > (usize::MAX >> shift) {
             return Err(DecodeError::InvalidValue);
         }

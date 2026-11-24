@@ -37,10 +37,7 @@ macro_rules! impl_fixed_int {
 impl_fixed_int!(u8, u16, u32, u64, i32);
 
 impl Encode for bool {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         writer.write_byte(u8::from(*self))
     }
 }
@@ -56,10 +53,7 @@ impl Decode for bool {
 }
 
 impl Encode for char {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         u32::from(*self).encode(writer)
     }
 }
@@ -71,10 +65,7 @@ impl Decode for char {
 }
 
 impl Encode for f32 {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
     }
 }
@@ -86,10 +77,7 @@ impl Decode for f32 {
 }
 
 impl Encode for f64 {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.to_bits().encode(writer)
     }
 }
@@ -101,10 +89,7 @@ impl Decode for f64 {
 }
 
 impl Encode for () {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        _writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, _writer: &mut W) -> Result<(), EncodeError> {
         Ok(())
     }
 }
@@ -116,10 +101,7 @@ impl Decode for () {
 }
 
 impl<T: Encode> Encode for Option<T> {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         match self {
             Self::None => false.encode(writer),
             Self::Some(value) => {
@@ -141,10 +123,7 @@ impl<T: Decode> Decode for Option<T> {
 }
 
 impl<T: Encode> Encode for [T] {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         encode_varint(writer, self.len())?;
         for item in self {
             item.encode(writer)?;
@@ -154,10 +133,7 @@ impl<T: Encode> Encode for [T] {
 }
 
 impl<T: Encode> Encode for Vec<T> {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_slice().encode(writer)
     }
 }
@@ -169,10 +145,7 @@ impl<T: Decode> Decode for Vec<T> {
 }
 
 impl<T: Encode, const N: usize> Encode for SmallVec<T, N> {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_ref().encode(writer)
     }
 }
@@ -189,47 +162,37 @@ fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
     reader: &mut R,
 ) -> Result<C, DecodeError> {
     let len = decode_varint(reader)?;
-    // Every element encodes at least one byte, so a length prefix larger than
-    // the remaining input can never be satisfied. Return early before
-    // `collect` pre-allocates `len` elements (a malicious prefix would
-    // otherwise force a huge allocation). `UnexpectedEof` keeps the streaming
-    // decoder's partial-input semantics: it reads as "need more bytes".
-    if reader.len_hint().is_some_and(|remaining| len > remaining) {
+    // A non-ZST element encodes at least one byte, so a length prefix larger
+    // than the remaining input can never be satisfied. Reject before `collect`
+    // pre-allocates `len` elements (a malicious prefix would force a huge
+    // allocation). `UnexpectedEof` keeps the streaming semantics: "need more
+    // bytes". ZSTs allocate nothing, so the guard is skipped for them.
+    if size_of::<T>() > 0 && reader.len_hint().is_some_and(|remaining| len > remaining) {
         return Err(DecodeError::UnexpectedEof);
     }
     (0..len).map(|_| T::decode(reader)).collect()
 }
 
 impl Encode for str {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_bytes().encode(writer)
     }
 }
 
 impl Encode for String {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
     }
 }
 
 impl Decode for String {
     fn decode<R: Read + ?Sized>(reader: &mut R) -> Result<Self, DecodeError> {
-        Self::from_utf8(Vec::<u8>::decode(reader)?)
-            .map_err(|_| DecodeError::InvalidValue)
+        Self::from_utf8(Vec::<u8>::decode(reader)?).map_err(|_| DecodeError::InvalidValue)
     }
 }
 
 impl Encode for CompactString {
-    fn encode<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-    ) -> Result<(), EncodeError> {
+    fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError> {
         self.as_str().encode(writer)
     }
 }

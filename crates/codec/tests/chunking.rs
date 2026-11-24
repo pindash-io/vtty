@@ -75,11 +75,7 @@ fn length_prefixed() {
     // Long enough to exercise the "length prefix promises more bytes" path
     // (the decoder must wait rather than error).
     assert_chunking(&(0_u8..200_u8).collect::<Vec<u8>>());
-    assert_chunking(&vec![
-        "a".to_string(),
-        "bb".to_string(),
-        "中".to_string(),
-    ]);
+    assert_chunking(&vec!["a".to_string(), "bb".to_string(), "中".to_string()]);
 }
 
 #[test]
