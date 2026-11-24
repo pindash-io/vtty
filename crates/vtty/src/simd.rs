@@ -84,9 +84,9 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
 fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     match kind {
         ScanKind::NonPrintable => {
-            // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
+            // b < 0x20 (control) or b >= DEL (DEL + high-bit).
             simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
-                | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
+                | simd.simd_ge_u8x16(v, simd.splat_u8x16(DEL))
         }
         ScanKind::Esc => simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC)),
         ScanKind::OscBoundary => {

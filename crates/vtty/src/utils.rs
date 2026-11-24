@@ -27,10 +27,10 @@ pub(crate) const fn is_esc(&b: &u8) -> bool {
     b == ESC
 }
 
-/// Printable ASCII, `0x20..=0x7e`.
+/// Printable ASCII, `0x20..=0x7e` — from space up to, but excluding, `DEL`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) const fn is_printable_ascii(&b: &u8) -> bool {
-    b >= 0x20 && b <= 0x7e
+    b >= 0x20 && b < DEL
 }
 
 /// Anything outside printable ASCII: a C0/C1 control, `DEL`, or a high-bit
