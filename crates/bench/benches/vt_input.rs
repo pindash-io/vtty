@@ -24,10 +24,7 @@
 // no public API to document.
 #![allow(missing_docs, reason = "criterion_group! emits public fns in a bin")]
 
-use criterion::{
-    BatchSize, BenchmarkId, Criterion, Throughput, criterion_group,
-    criterion_main,
-};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 const COLS: u16 = 80;
 const ROWS: u16 = 24;
@@ -54,13 +51,7 @@ impl vtty::Perform for VttySink {
         self.printed += codepoints.len() as u64;
     }
 
-    fn csi_dispatch(
-        &mut self,
-        _params: &[i32],
-        _sep: u16,
-        _intermediates: &[u8],
-        _final_byte: u8,
-    ) {
+    fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
         self.csis += 1;
     }
 }
@@ -179,7 +170,8 @@ macro_rules! bench_parser {
 
 /// Plain ASCII line repeated to `total` bytes.
 fn plain(total: usize) -> Vec<u8> {
-    let line = "the quick brown fox jumps over the lazy dog 0123456789 lorem ipsum dolor sit amet\r\n";
+    let line =
+        "the quick brown fox jumps over the lazy dog 0123456789 lorem ipsum dolor sit amet\r\n";
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
@@ -260,9 +252,7 @@ fn truecolor_unique(total: usize) -> Vec<u8> {
             for x in 0..COLS as usize {
                 let v = (x * 7 + y * 13 + frame * 31) % 253;
                 let w = (x * 11 + y * 3 + frame * 17) % 251;
-                out += &format!(
-                    "\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}"
-                );
+                out += &format!("\x1b[38;2;{v};{v};{v}m\x1b[48;2;{w};{w};{w}m\u{2580}");
             }
         }
         frame += 1;
@@ -284,9 +274,7 @@ fn sgr_nvim(total: usize) -> Vec<u8> {
         line += &format!("\x1b[1m\x1b[38;2;{r};{g};{b}mfn\x1b[0m ");
         // String literal: truecolor fg + bg.
         let w = (i * 53 + 8) % 256;
-        line += &format!(
-            "\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m "
-        );
+        line += &format!("\x1b[38;2;{w};{w};{w}m\x1b[48;2;{b};{b};{b}m\"text{i}\"\x1b[0m ");
         // Underlined link: undercurl + underline color (colon, empty param).
         line += &format!("\x1b[4:3m\x1b[58:2::{r};{g};{b}mlink\x1b[0m ");
         // Plain run.
@@ -318,7 +306,8 @@ fn bracketed_paste(total: usize) -> Vec<u8> {
 /// (`ST`-terminated), and iTerm2 file payloads, exercising OSC param/payload
 /// accumulation across both terminator styles.
 fn osc_heavy(total: usize) -> Vec<u8> {
-    const B64: &str = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3ODk";
+    const B64: &str =
+        "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ejAxMjM0NTY3ODk";
     let mut line = String::new();
     for i in 0..20 {
         line += &format!("\x1b]0;window {i}\x07");
@@ -396,8 +385,7 @@ fn sync_churn(total: usize) -> Vec<u8> {
     for _ in 0..5 {
         line += "\x1b[?2026h";
         for i in 0..8 {
-            line +=
-                &format!("\x1b[38;5;{}mstyled text\x1b[0m ", (i * 31) % 256);
+            line += &format!("\x1b[38;5;{}mstyled text\x1b[0m ", (i * 31) % 256);
         }
         line += "\x1b[2J\x1b[H";
         line += "\x1b[?2026l";
@@ -432,8 +420,7 @@ fn feed_fux_vt(parser: &mut fux_vt::Parser, bytes: &[u8]) {
     impl fux_vt::Sink for Deaf {}
     let mut sink = Deaf;
     let mut rest = bytes;
-    while let Ok(Some((taken, _))) = parser.process_until_stop(rest, &mut sink)
-    {
+    while let Ok(Some((taken, _))) = parser.process_until_stop(rest, &mut sink) {
         rest = rest.get(taken..).unwrap_or_default();
     }
 }
@@ -572,10 +559,7 @@ fn bench_vt_screen(c: &mut Criterion) {
                     || {
                         (
                             make_parser(),
-                            vtty_screen::Screen::new(
-                                u32::from(COLS),
-                                u32::from(ROWS),
-                            ),
+                            vtty_screen::Screen::new(u32::from(COLS), u32::from(ROWS)),
                         )
                     },
                     |(mut parser, mut screen)| {
@@ -608,7 +592,9 @@ fn bench_threads() -> usize {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or_else(|| {
-            std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
         })
         .max(1)
 }

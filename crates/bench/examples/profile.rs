@@ -16,12 +16,17 @@ use std::hint::black_box;
 use std::time::{Duration, Instant};
 
 fn main() {
-    let case = std::env::args().nth(1).unwrap_or_else(|| "utf8_mixed".into());
+    let case = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "utf8_mixed".into());
     let simd = std::env::args().nth(2).is_some_and(|s| s == "simd");
 
     let bytes = corpus(&case);
-    let mut parser =
-        if simd { vtty::Parser::with_simd() } else { vtty::Parser::new() };
+    let mut parser = if simd {
+        vtty::Parser::with_simd()
+    } else {
+        vtty::Parser::new()
+    };
     let mut sink = Sink::default();
 
     // Warm up once so SIMD level detection and caches settle.
@@ -108,9 +113,7 @@ fn corpus(case: &str) -> Vec<u8> {
             line.repeat(BYTES / line.len() + 1).into_bytes()
         }
         _ => {
-            eprintln!(
-                "unknown case {case}; try plain, utf8_mixed, sgr_churn, cursor_motion"
-            );
+            eprintln!("unknown case {case}; try plain, utf8_mixed, sgr_churn, cursor_motion");
             std::process::exit(1);
         }
     }

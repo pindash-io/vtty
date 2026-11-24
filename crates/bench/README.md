@@ -55,3 +55,13 @@ Measured on Apple Silicon (aarch64). Numbers are medians of 20 Criterion
 samples from a full-suite run; throughput is sensitive to thermal throttling
 and CPU clock, so results vary run-to-run — treat as relative rankings rather
 than absolute figures.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
