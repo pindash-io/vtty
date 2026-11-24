@@ -109,6 +109,7 @@ mod table;
 mod utf8;
 #[cfg(feature = "simd-transcode")]
 mod utf8_tables;
+mod utils;
 
 pub use parser::Parser;
 pub use vtty_core::*;

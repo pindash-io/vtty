@@ -3,16 +3,33 @@
 
 //! SWAR byte scanners for the hot paths: the ground-state printable-run
 //! scanner and the OSC/DCS payload-boundary scanners. Eight bytes per
-//! iteration, `no_std`, no allocation.
+//! iteration, `no_std`, no allocation. Byte classes live in [`crate::utils`].
+
+#[cfg(feature = "simd")]
+use crate::utils::is_esc;
+use crate::utils::{
+    CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_non_printable, is_osc_boundary,
+};
 
 /// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
 const SPLAT_01: u64 = 0x0101_0101_0101_0101;
-
 const SPLAT_20: u64 = 0x2020_2020_2020_2020;
-
+const SPLAT_60: u64 = 0x6060_6060_6060_6060;
 const SPLAT_7F: u64 = 0x7f7f_7f7f_7f7f_7f7f;
-
 const SPLAT_80: u64 = 0x8080_8080_8080_8080;
+
+/// SWAR byte-equality mask: bits set where the little-endian word `w` holds
+/// `b`. The classic zero-byte detector (`x.wrapping_sub(SPLAT_01) & !x &
+/// SPLAT_80`) applied to the byte's splat.
+///
+/// A set bit always lands on a byte's high bit, i.e. position `8*n + 7`, so
+/// `trailing_zeros() / 8` recovers the byte index `n` exactly (the `/8`
+/// truncates the `+7`).
+#[cfg_attr(feature = "perf-inline", inline(always))]
+const fn swar_byte_eq(w: u64, b: u8) -> u64 {
+    let x = w ^ (SPLAT_01 * (b as u64));
+    x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
+}
 
 /// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
 /// scan falls through to the same scalar tail loop anyway, so the SWAR path
@@ -20,17 +37,22 @@ const SPLAT_80: u64 = 0x8080_8080_8080_8080;
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
-/// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
-/// contains byte `b` (`x.wrapping_sub(SPLAT_01) & !x & SPLAT_80` is the
-/// classic zero-byte detector applied to `w ^ b`).
-///
-/// A set bit always lands on a byte's high bit (`SPLAT_80`), i.e. position
-/// `8*n + 7`, so `trailing_zeros() / 8` recovers the byte index `n` exactly
-/// (the `/8` truncates the `+7`).
-#[cfg_attr(feature = "perf-inline", inline(always))]
-const fn swar_byte_eq(w: u64, b: u64) -> u64 {
-    let x = w ^ (SPLAT_01 * b);
-    x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
+/// Run the SWAR scan unless the `simd` feature is on, the parser opted in, and
+/// the first `SIMD_MIN_RUN` bytes hold no stop — the same probe the scalar path
+/// uses, so a run that ends early never pays for the vector dispatch.
+macro_rules! scan_or_simd {
+    ($bytes:expr, $simd:expr, $mask:expr, $scalar:expr, $vector:path) => {{
+        #[cfg(feature = "simd")]
+        if $simd
+            && $bytes.len() >= SIMD_MIN_RUN
+            && first_stop_in_word::<SIMD_MIN_RUN>($bytes, $mask).is_none()
+        {
+            return $vector($bytes);
+        }
+        #[cfg(not(feature = "simd"))]
+        let _ = $simd;
+        first_where($bytes, $mask, $scalar)
+    }};
 }
 
 /// Index of the first ESC byte (`0x1b`) in the first `limit` bytes, or the
@@ -43,14 +65,14 @@ pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
     let n = bytes.len().min(limit);
     let (chunks, tail) = bytes[..n].as_chunks::<8>();
     for (i, chunk) in chunks.iter().enumerate() {
-        let stop = swar_byte_eq(u64::from_le_bytes(*chunk), 0x1b);
+        let stop = swar_byte_eq(u64::from_le_bytes(*chunk), ESC);
         if stop != 0 {
             return i * 8 + (stop.trailing_zeros() / 8) as usize;
         }
     }
     let base = chunks.len() * 8;
-    for (j, &b) in tail.iter().enumerate() {
-        if b == 0x1b {
+    for (j, b) in tail.iter().enumerate() {
+        if is_esc(b) {
             return base + j;
         }
     }
@@ -64,17 +86,17 @@ pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
 fn first_where(
     bytes: &[u8],
     stop_mask: impl Fn(u64) -> u64,
-    is_stop: impl Fn(u8) -> bool,
+    is_stop: impl Fn(&u8) -> bool,
 ) -> usize {
     let (chunks, tail) = bytes.as_chunks::<8>();
-    for (i, chunk) in chunks.iter().enumerate() {
-        let stop = stop_mask(u64::from_le_bytes(*chunk));
+    for (i, &chunk) in chunks.iter().enumerate() {
+        let stop = stop_mask(u64::from_le_bytes(chunk));
         if stop != 0 {
             return i * 8 + (stop.trailing_zeros() / 8) as usize;
         }
     }
     let base = chunks.len() * 8;
-    for (j, &b) in tail.iter().enumerate() {
+    for (j, b) in tail.iter().enumerate() {
         if is_stop(b) {
             return base + j;
         }
@@ -87,23 +109,36 @@ const fn non_printable_mask(w: u64) -> u64 {
     let lt_20 = w.wrapping_sub(SPLAT_20) & !w & SPLAT_80; // b < 0x20
     let ge_80 = w & SPLAT_80; // b >= 0x80
     let x = w ^ SPLAT_7F;
-    let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == 0x7f
+    let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == DEL
     lt_20 | ge_80 | eq_7f
 }
 
-/// Scalar predicate for non-printable bytes.
-const fn is_non_printable(b: u8) -> bool {
-    b < 0x20 || b >= 0x7f
+/// SWAR probe of the first `N` bytes (a multiple of 8): `Some(index)` of the
+/// first stop byte when the buffer holds all `N` bytes and the mask hits
+/// inside them, `None` otherwise.
+///
+/// `N = 8` is the scalar short-run fast path; a longer window gates the vector
+/// dispatch, which only pays once the run is known to reach that far.
+#[cfg_attr(feature = "perf-inline", inline(always))]
+fn first_stop_in_word<const N: usize>(
+    bytes: &[u8],
+    stop_mask: impl Fn(u64) -> u64,
+) -> Option<usize> {
+    debug_assert!(N > 0 && N % 8 == 0, "probe window is whole words");
+    let window = bytes.get(..N)?;
+    for (i, chunk) in window.as_chunks::<8>().0.iter().enumerate() {
+        let stop = stop_mask(u64::from_le_bytes(*chunk));
+        if stop != 0 {
+            return Some(i * 8 + (stop.trailing_zeros() / 8) as usize);
+        }
+    }
+    None
 }
 
-/// SWAR scan of the first 8-byte word: `Some(index)` of the first
-/// non-printable byte when the buffer holds a full word and one is found,
-/// `None` otherwise (shorter than a word, or the word is all printable).
+/// [`first_stop_in_word`] for the ground state's printable-run scan.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
-    let &word = bytes.as_chunks::<8>().0.first()?;
-    let stop = non_printable_mask(u64::from_le_bytes(word));
-    (stop != 0).then(|| (stop.trailing_zeros() / 8) as usize)
+    first_stop_in_word::<8>(bytes, non_printable_mask)
 }
 
 /// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
@@ -114,12 +149,12 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
     // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
     // 8-byte SWAR word is overkill.
-    if let Some(&b) = bytes.first()
+    if let Some(b) = bytes.first()
         && is_non_printable(b)
     {
         return 0;
     }
-    if let Some(&b) = bytes.get(1)
+    if let Some(b) = bytes.get(1)
         && is_non_printable(b)
     {
         return 1;
@@ -131,74 +166,59 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     if let Some(n) = first_non_printable_word(bytes) {
         return n;
     }
-
-    #[cfg(feature = "simd")]
-    if simd && bytes.len() >= SIMD_MIN_RUN {
-        return crate::simd::first_non_printable(bytes);
-    }
-    #[cfg(not(feature = "simd"))]
-    let _ = simd;
-
-    first_where(bytes, non_printable_mask, is_non_printable)
+    scan_or_simd!(
+        bytes,
+        simd,
+        non_printable_mask,
+        is_non_printable,
+        crate::simd::first_non_printable
+    )
 }
 
-/// SWAR mask for OSC boundaries: C0/C1 or the `;` separator.
-///
-/// C0 (`0x00..=0x1F`) and C1 (`0x80..=0x9F`) are exactly the bytes with
-/// both bits 5 and 6 clear, so `(b & 0x60) == 0` catches them in one mask:
-/// every byte in `0x20..=0x7E` and `0xA0..=0xFF` has at least one of those
-/// bits set.
+/// SWAR mask for OSC boundaries: C0/C1 (`(b & 0x60) == 0`) or `;`.
 const fn osc_stop_mask(w: u64) -> u64 {
-    swar_byte_eq(w & (SPLAT_01 * 0x60), 0) | swar_byte_eq(w, 0x3b)
+    swar_byte_eq(w & SPLAT_60, 0) | swar_byte_eq(w, SEMICOLON)
 }
 
-/// Scalar predicate for OSC boundaries.
-const fn osc_is_stop(b: u8) -> bool {
-    (b & 0x60) == 0 || b == 0x3b
-}
-
-/// Index of the first byte that ends an OSC payload run: a C0 byte
-/// (`< 0x20`, including `BEL`/`ESC`), a raw C1 byte (`0x80..=0x9f`), or the `;`
-/// param separator (`0x3b`). The rest are `OSC_PUT` bytes.
+/// Index of the first byte that ends an OSC payload run — see
+/// [`is_osc_boundary`] for the class. The rest are `OSC_PUT` bytes.
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
-    #[cfg(feature = "simd")]
-    if simd && bytes.len() >= SIMD_MIN_RUN {
-        return crate::simd::first_osc_boundary(bytes);
+    if let Some(n) = first_stop_in_word::<8>(bytes, osc_stop_mask) {
+        return n;
     }
-    #[cfg(not(feature = "simd"))]
-    let _ = simd;
-
-    first_where(bytes, osc_stop_mask, osc_is_stop)
+    scan_or_simd!(
+        bytes,
+        simd,
+        osc_stop_mask,
+        is_osc_boundary,
+        crate::simd::first_osc_boundary
+    )
 }
 
 /// SWAR mask for DCS boundaries: `>= 0x80`, `CAN`, `SUB`, `ESC`, `DEL`.
 const fn dcs_stop_mask(w: u64) -> u64 {
     (w & SPLAT_80)
-        | swar_byte_eq(w, 0x18)
-        | swar_byte_eq(w, 0x1a)
-        | swar_byte_eq(w, 0x1b)
-        | swar_byte_eq(w, 0x7f)
+        | swar_byte_eq(w, CAN)
+        | swar_byte_eq(w, SUB)
+        | swar_byte_eq(w, ESC)
+        | swar_byte_eq(w, DEL)
 }
 
-/// Scalar predicate for DCS boundaries.
-const fn dcs_is_stop(b: u8) -> bool {
-    b >= 0x80 || b == 0x18 || b == 0x1a || b == 0x1b || b == 0x7f
-}
-
-/// Index of the first byte that ends a DCS passthrough run. The put class is
-/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`; everything else (`CAN`, `SUB`, `ESC`, `DEL`,
-/// and any byte `>= 0x80`) ends the run or is ignored.
+/// Index of the first byte that ends a DCS passthrough run — see
+/// [`is_dcs_boundary`] for the class.
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
-    #[cfg(feature = "simd")]
-    if simd && bytes.len() >= SIMD_MIN_RUN {
-        return crate::simd::first_dcs_boundary(bytes);
+    if let Some(n) = first_stop_in_word::<8>(bytes, dcs_stop_mask) {
+        return n;
     }
-    #[cfg(not(feature = "simd"))]
-    let _ = simd;
-
-    first_where(bytes, dcs_stop_mask, dcs_is_stop)
+    scan_or_simd!(
+        bytes,
+        simd,
+        dcs_stop_mask,
+        is_dcs_boundary,
+        crate::simd::first_dcs_boundary
+    )
 }
 
 #[cfg(test)]

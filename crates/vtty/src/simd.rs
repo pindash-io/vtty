@@ -12,6 +12,9 @@ use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
+use crate::utils::{
+    CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_esc, is_non_printable, is_osc_boundary,
+};
 
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
@@ -26,27 +29,33 @@ enum ScanKind {
     DcsBoundary,
 }
 
+/// Two explicit byte checks, then the vector scan: 0- and 1-byte runs are the
+/// common shape (ANSI-dense input, `word\r\n` lines, a `;` right after an OSC
+/// separator), where dispatch and chunk setup cost more than the scan.
+macro_rules! scan_or_fast {
+    ($bytes:expr, $kind:ident, $is_stop:expr) => {{
+        let bytes = $bytes;
+        if let Some(b) = bytes.first()
+            && $is_stop(b)
+        {
+            return 0;
+        }
+        if let Some(b) = bytes.get(1)
+            && $is_stop(b)
+        {
+            return 1;
+        }
+        let level = Level::new();
+        dispatch!(level, simd => first_matching(simd, bytes, ScanKind::$kind))
+    }};
+}
+
 /// Return the index of the first byte outside printable ASCII (`0x20..=0x7e`;
 /// `0x7f` DEL is dispatched via `execute`), or `bytes.len()` if every byte is
 /// printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
-    // Fast path: the first byte is usually the match, skipping SIMD dispatch
-    // and chunk setup on printable runs.
-    if let Some(&b) = bytes.first()
-        && !(0x20..=0x7e).contains(&b)
-    {
-        return 0;
-    }
-    // Second fast path: a one-byte printable run (the CSI-dense
-    // `ESC [ … m X ESC …` pattern) skips the 16-byte SIMD scan.
-    if let Some(&b) = bytes.get(1)
-        && !(0x20..=0x7e).contains(&b)
-    {
-        return 1;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
+    scan_or_fast!(bytes, NonPrintable, is_non_printable)
 }
 
 /// Index of the first `ESC` byte (`0x1b`), or `bytes.len()` if none. Caps the
@@ -58,43 +67,16 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
-/// Index of the first OSC payload boundary: a C0 byte (`< 0x20`), a raw C1
-/// byte (`0x80..=0x9f`), or the `;` param separator. The rest are `OSC_PUT`.
+/// Index of the first OSC payload boundary — see [`is_osc_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
-    // Fast path: OSC runs are often short — a `;` or terminator right after
-    // the introducer or a previous separator skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(is_osc_boundary) {
-        return i;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::OscBoundary))
+    scan_or_fast!(bytes, OscBoundary, is_osc_boundary)
 }
 
-/// Index of the first DCS passthrough boundary: a byte `>= 0x80`, or
-/// `CAN`/`SUB`/`ESC`/`DEL`. The put class is
-/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
+/// Index of the first DCS passthrough boundary — see [`is_dcs_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
-    // Fast path: a terminator (`CAN`/`SUB`/`ESC`/`DEL`/high-bit) right at the
-    // run start skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(is_dcs_boundary) {
-        return i;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::DcsBoundary))
-}
-
-/// OSC payload boundary: C0 (`< 0x20`), C1 (`0x80..=0x9f`), or `;`.
-#[cfg_attr(feature = "perf-inline", inline(always))]
-const fn is_osc_boundary(b: &u8) -> bool {
-    (*b & 0x60) == 0 || *b == 0x3b
-}
-
-/// DCS passthrough boundary: `>= 0x80`, or `CAN`/`SUB`/`ESC`/`DEL`.
-#[cfg_attr(feature = "perf-inline", inline(always))]
-const fn is_dcs_boundary(b: &u8) -> bool {
-    *b >= 0x80 || matches!(*b, 0x18 | 0x1a | 0x1b | 0x7f)
+    scan_or_fast!(bytes, DcsBoundary, is_dcs_boundary)
 }
 
 /// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
@@ -106,24 +88,19 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
             simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
                 | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
         }
-        ScanKind::Esc => {
-            // b == 0x1b.
-            simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
-        }
+        ScanKind::Esc => simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC)),
         ScanKind::OscBoundary => {
-            // (b & 0x60) == 0 → C0 (< 0x20) or C1 (0x80..=0x9f); or b == ';'.
-            let c0c1 = simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0));
-            let semi = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x3b));
-            c0c1 | semi
+            // (b & 0x60) == 0 → C0 or C1; or b == ';'.
+            simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(SEMICOLON))
         }
         ScanKind::DcsBoundary => {
             // b >= 0x80, or CAN/SUB/ESC/DEL.
-            let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x80));
-            let can = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x18));
-            let sub = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1a));
-            let esc = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b));
-            let del = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x7f));
-            high | can | sub | esc | del
+            simd.simd_ge_u8x16(v, simd.splat_u8x16(0x80))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(CAN))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(SUB))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(DEL))
         }
     }
 }
@@ -170,7 +147,7 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     }
 
     // Scalar tail (< 16 bytes).
-    if let Some(j) = remainder.iter().position(|&b| matches_kind(b, kind)) {
+    if let Some(j) = remainder.iter().position(|b| matches_kind(b, kind)) {
         return offset + j;
     }
     bytes.len()
@@ -178,12 +155,12 @@ fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
 
 /// The scalar predicate for one byte.
 #[inline]
-fn matches_kind(b: u8, kind: ScanKind) -> bool {
+const fn matches_kind(b: &u8, kind: ScanKind) -> bool {
     match kind {
-        ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
-        ScanKind::Esc => b == 0x1b,
-        ScanKind::OscBoundary => is_osc_boundary(&b),
-        ScanKind::DcsBoundary => is_dcs_boundary(&b),
+        ScanKind::NonPrintable => is_non_printable(b),
+        ScanKind::Esc => is_esc(b),
+        ScanKind::OscBoundary => is_osc_boundary(b),
+        ScanKind::DcsBoundary => is_dcs_boundary(b),
     }
 }
 
