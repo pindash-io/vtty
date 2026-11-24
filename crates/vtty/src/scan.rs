@@ -123,7 +123,7 @@ fn first_stop_in_word<const N: usize>(
     bytes: &[u8],
     stop_mask: impl Fn(u64) -> u64,
 ) -> Option<usize> {
-    debug_assert!(N > 0 && N % 8 == 0, "probe window is whole words");
+    debug_assert!(N > 0 && N.is_multiple_of(8), "probe window is whole words");
     first_stop_word(bytes.get(..N)?, stop_mask)
 }
 

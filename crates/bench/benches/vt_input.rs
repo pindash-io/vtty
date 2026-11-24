@@ -219,8 +219,8 @@ fn ansi_mixed(total: usize) -> Vec<u8> {
 /// dispatch cost.
 fn ansi_two_styles(total: usize) -> Vec<u8> {
     let mut line = String::new();
-    for i in 0..30 {
-        line += if i % 2 == 0 {
+    for i in 0_u32..30 {
+        line += if i.is_multiple_of(2) {
             "\x1b[31mword\x1b[0m "
         } else {
             "\x1b[44mword\x1b[0m "

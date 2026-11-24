@@ -102,7 +102,7 @@ impl Cell {
 
 /// Default DEC tab stops: every 8th column, starting at column 8 (0-based).
 pub(crate) fn default_tabs(cols: u32) -> Vec<bool> {
-    (0..cols).map(|c| c != 0 && c % 8 == 0).collect()
+    (0..cols).map(|c| c != 0 && c.is_multiple_of(8)).collect()
 }
 
 /// The classic xterm 16-color palette (the default theme).
