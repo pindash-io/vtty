@@ -40,7 +40,7 @@ fn push_sgr_flags(out: &mut String, sgr: SgrFlags) {
 }
 
 /// Emit an SGR sequence with explicit truecolor foreground/background
-/// (already resolved to packed `0xRRGGBB`). Used by reverse video, where
+/// (already resolved to packed `0xRRGGBBAA`). Used by reverse video, where
 /// the default colors must swap as real RGB rather than sentinel ids.
 pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
     push_sgr_flags(out, sgr);

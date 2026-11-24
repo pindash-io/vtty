@@ -146,7 +146,8 @@ pub(crate) fn apply_sgr_to(
                             j += 1;
                         }
                         if j + 2 < params.len() {
-                            let rgb_value = vtty_core::rgb(params[j], params[j + 1], params[j + 2]);
+                            let rgb_value =
+                                vtty_core::rgb_to_u32(params[j], params[j + 1], params[j + 2]);
                             let id = ColorId(258 + rgb.len() as u16);
                             rgb.push(rgb_value);
                             if is_fg {
