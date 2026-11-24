@@ -343,21 +343,25 @@ pub(crate) fn any_control(cps: &[u32]) -> bool {
 #[cfg(feature = "simd-transcode")]
 fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     let (chunks, tail) = cps.as_chunks::<4>();
+    // A control is below SPACE, or DEL and the C1 range above it.
+    let space = SPACE as u32;
+    let del = DEL as u32;
+    let c1_end = 0x9f;
     // Branch-free accumulate: an early `return true` serializes the loop on
     // the movemask dependency; `|=` lets the SIMD iterations pipeline.
     let mut any = false;
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
-        let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(0x20));
-        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(u32::from(DEL)))
-            & simd.simd_le_u32x4(v, simd.splat_u32x4(0x9f));
+        let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(space));
+        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(del))
+            & simd.simd_le_u32x4(v, simd.splat_u32x4(c1_end));
         any |= simd.any_true_mask32x4(c0 | c1);
     }
     if any {
         return true;
     }
     tail.iter()
-        .any(|&cp| cp < 0x20 || (u32::from(DEL)..=0x9f).contains(&cp))
+        .any(|&cp| cp < space || (del..=c1_end).contains(&cp))
 }
 
 #[cfg(test)]
