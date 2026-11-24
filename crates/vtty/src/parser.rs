@@ -182,6 +182,26 @@ impl OscBuffer {
     }
 }
 
+/// Parse one decimal CSI parameter at `*i`, clamped to [`MAX_PARAM_VALUE`].
+/// Absent digits read as `0`, matching what the accumulator yields for an
+/// empty parameter.
+#[cfg_attr(feature = "perf-inline", inline(always))]
+const fn param_at(seq: &[u8], i: &mut usize) -> i32 {
+    let mut v = 0_i32;
+    while *i < seq.len() {
+        let d = seq[*i];
+        if !d.is_ascii_digit() {
+            break;
+        }
+        v = v * 10 + (d - b'0') as i32;
+        if v > MAX_PARAM_VALUE {
+            v = MAX_PARAM_VALUE;
+        }
+        *i += 1;
+    }
+    v
+}
+
 impl Parser {
     /// An empty parser in the ground state.
     ///
@@ -635,18 +655,10 @@ impl Parser {
             && !(matches!(first, b'3' | b'4') && seq.get(1) == Some(&b'8'))
         {
             let mut i = 0;
-            let mut row = 0_i32;
-            while i < seq.len() && seq[i].is_ascii_digit() {
-                row = (row * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
-                i += 1;
-            }
+            let row = param_at(seq, &mut i);
             if seq.get(i) == Some(&b';') {
                 i += 1;
-                let mut col = 0_i32;
-                while i < seq.len() && seq[i].is_ascii_digit() {
-                    col = (col * 10 + (seq[i] - b'0') as i32).min(MAX_PARAM_VALUE);
-                    i += 1;
-                }
+                let col = param_at(seq, &mut i);
                 if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
                     self.params.values[0] = row;
                     self.params.values[1] = col;
@@ -658,7 +670,41 @@ impl Parser {
                 }
             }
         }
+        // Two shapes carry almost every CSI, and both start with a numeric
+        // parameter: a bare colour change (`CSI 31m`) and cursor addressing
+        // (`CSI r;c H` / `f`). Parse that parameter once and branch on what
+        // follows — a bare `m` skips the accumulator entirely, and everything
+        // else hands the parsed value to the byte loop below.
         let mut f = 0_usize;
+        if seq.first().is_some_and(u8::is_ascii_digit) {
+            let mut i = 0;
+            let first = param_at(seq, &mut i);
+            match seq.get(i) {
+                Some(&b'm') => {
+                    p.csi_dispatch(&[first], 0, &[], b'm');
+                    return Some(i + 1);
+                }
+                // A numeric row plus a column, which `38;`/`48;` never is:
+                // those open an extended colour and belong to the byte loop.
+                Some(&b';') if !matches!(first, 38 | 48) => {
+                    let mut j = i + 1;
+                    let col = param_at(seq, &mut j);
+                    if j > i + 1 && matches!(seq.get(j), Some(b'H' | b'f')) {
+                        self.params.values[0] = first;
+                        self.params.values[1] = col;
+                        self.params.len = 2;
+                        let ints = &self.intermediates.bytes[..self.intermediates.len];
+                        p.csi_dispatch(&self.params.values[..2], 0, ints, seq[j]);
+                        self.clear_seq_state();
+                        return Some(j + 1);
+                    }
+                }
+                _ => {}
+            }
+            f = i;
+            self.params.param = first;
+            self.params.empty = false;
+        }
         while f < seq.len() {
             if self.param_byte(seq[f]) {
                 f += 1;
@@ -723,7 +769,7 @@ impl Parser {
         // OSC payload was already flushed), then the control executes or an
         // introducer re-enters its state.
         // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
-        if (0x80..=0x9f).contains(&b) {
+        if matches!(b, 0x80..=0x9f) {
             match state {
                 ParseState::OscString => self.osc_end(p, false, bytes, i),
                 ParseState::DcsPassthrough => p.unhook(),
@@ -748,7 +794,7 @@ impl Parser {
                 state,
                 ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
             )
-            && (0x40..=0x7e).contains(&b)
+            && matches!(b, 0x40..=0x7e)
         {
             // Same trailing-empty sentinel as the bulk/apply CSI paths.
             self.dispatch_csi(p, b);
@@ -1192,7 +1238,7 @@ impl Parser {
     /// Accumulate one CSI/DCS param byte (digit/`:`/`;`). Returns `false` for
     /// any other byte so the caller can handle it.
     #[cfg_attr(feature = "perf-inline", inline(always))]
-    fn param_byte(&mut self, b: u8) -> bool {
+    const fn param_byte(&mut self, b: u8) -> bool {
         match b {
             b'0'..=b'9' => {
                 self.param_digit(b);
