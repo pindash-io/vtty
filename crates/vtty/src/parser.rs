@@ -378,17 +378,18 @@ impl Parser {
                     break;
                 }
                 i += 1;
-                if !self.partial.pending() {
-                    // Test the numeric code point first: the control ranges
-                    // never need a `char`, so convert only on the print path.
-                    let cp = self.partial.codepoint();
-                    if matches!(cp, 0x00..=0x1f | 0x7f | 0x80..=0x9f) {
-                        p.execute(cp as u8);
-                    } else {
-                        p.print(char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER));
-                    }
-                    break;
+                if self.partial.pending() {
+                    continue;
                 }
+                // Test the numeric code point first: the control ranges
+                // never need a `char`, so convert only on the print path.
+                let cp = self.partial.codepoint();
+                if matches!(cp, 0x00..=0x1f | 0x7f | 0x80..=0x9f) {
+                    p.execute(cp as u8);
+                } else {
+                    p.print(char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER));
+                }
+                break;
             }
         }
 
@@ -579,7 +580,7 @@ impl Parser {
             // pass. Anything else (an intermediate, a private marker after
             // params, C0/DEL, high-bit) bails to the state machine, which
             // enforces CsiIntermediate/CsiParam → CsiIgnore.
-            if !self.force_cold() && b == 0x1b && run.get(pos + 1) == Some(&b'[') {
+            if !self.force_cold() && b == 0x1b && matches!(run.get(pos + 1), Some(&b'[')) {
                 // Keep scanning on success: a re-entry costs a fresh
                 // `first_non_printable` scan per sequence on CSI-dense input
                 // (SGR churn, cursor motion).
@@ -634,10 +635,11 @@ impl Parser {
         i + run.len()
     }
 
-    /// Parse a `ESC [` CSI sequence from `seq` (the bytes after `ESC [`),
-    /// dispatching inline. Returns the number of bytes consumed, or `None`
-    /// to bail to the state machine (an intermediate, a private marker after
-    /// params, C0/DEL, or a high bit).
+    /// Parse a `ESC [` CSI sequence from `seq`, dispatching inline. `seq` is
+    /// the printable run that follows `ESC [`, so it can extend past the final
+    /// byte; every read here is bounds-checked. Returns the number of bytes
+    /// consumed, or `None` to bail to the state machine (an intermediate, a
+    /// private marker after params, C0/DEL, or a high bit).
     ///
     /// The sequence state is already empty on entry (ground-state invariant:
     /// any prior sequence cleared it on dispatch, and the caller clears on
@@ -645,50 +647,32 @@ impl Parser {
     /// `dispatch_csi` and the bail path's caller both reset it.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
-        // Fast CUP (`CSI r;c H` / `f`, the cursor-motion repaint shape):
-        // parse the two 1-based params directly, skipping per-byte param
-        // dispatch and the trailing-param push. The extended-color SGR prefix
-        // (`38;`/`48;`) is the dominant non-CUP shape, so bail immediately (a
-        // CUP row 38/48 is rare and uses the general path).
-        if let Some(&first) = seq.first()
-            && first.is_ascii_digit()
-            && !(matches!(first, b'3' | b'4') && seq.get(1) == Some(&b'8'))
-        {
-            let mut i = 0;
-            let row = param_at(seq, &mut i);
-            if seq.get(i) == Some(&b';') {
-                i += 1;
-                let col = param_at(seq, &mut i);
-                if seq.get(i).is_some_and(|&b| b == b'H' || b == b'f') {
-                    self.params.values[0] = row;
-                    self.params.values[1] = col;
-                    self.params.len = 2;
-                    let ints = &self.intermediates.bytes[..self.intermediates.len];
-                    p.csi_dispatch(&self.params.values[..2], 0, ints, seq[i]);
-                    self.clear_seq_state();
-                    return Some(i + 1);
-                }
-            }
+        if seq.is_empty() {
+            return None;
         }
-        // Two shapes carry almost every CSI, and both start with a numeric
+
+        // Two shapes carry nearly every CSI, and both begin with a numeric
         // parameter: a bare colour change (`CSI 31m`) and cursor addressing
-        // (`CSI r;c H` / `f`). Parse that parameter once and branch on what
-        // follows — a bare `m` skips the accumulator entirely, and everything
-        // else hands the parsed value to the byte loop below.
-        let mut f = 0_usize;
-        if seq.first().is_some_and(u8::is_ascii_digit) {
-            let mut i = 0;
+        // (`CSI r;c H` / `f`). Parse that parameter once, then prime the
+        // accumulator so the byte loop below resumes past the digits instead of
+        // re-parsing them. `38;`/`48;`/`58;` stay with the loop: they open
+        // multi-parameter colour sequences, which it handles in one pass.
+        let mut i = 0;
+        if seq[i].is_ascii_digit()
+            && !matches!(seq.first_chunk::<3>(), Some([b'3'..=b'5', b'8', b';']))
+        {
             let first = param_at(seq, &mut i);
-            match seq.get(i) {
-                Some(&b'm') => {
+
+            if let Some(&next) = seq.get(i) {
+                if next == b'm' {
                     p.csi_dispatch(&[first], 0, &[], b'm');
                     return Some(i + 1);
                 }
-                // A numeric row plus a column, which `38;`/`48;` never is:
-                // those open an extended colour and belong to the byte loop.
-                Some(&b';') if !matches!(first, 38 | 48) => {
+                if next == b';' {
                     let mut j = i + 1;
                     let col = param_at(seq, &mut j);
+                    // A column needs at least one digit; `CSI r;H` reports
+                    // the `-1` sentinel that the loop would push for it.
                     if j > i + 1 && matches!(seq.get(j), Some(b'H' | b'f')) {
                         self.params.values[0] = first;
                         self.params.values[1] = col;
@@ -699,18 +683,18 @@ impl Parser {
                         return Some(j + 1);
                     }
                 }
-                _ => {}
             }
-            f = i;
+
             self.params.param = first;
             self.params.empty = false;
         }
-        while f < seq.len() {
-            if self.param_byte(seq[f]) {
-                f += 1;
+
+        while i < seq.len() {
+            if self.param_byte(seq[i]) {
+                i += 1;
                 continue;
             }
-            match seq[f] {
+            match seq[i] {
                 0x3c..=0x3f => {
                     // Private marker (`> = < ?`) — only valid as a CSI prefix
                     // (CsiEntry), before any param or marker. After params the
@@ -719,15 +703,15 @@ impl Parser {
                     if self.params.len != 0 || !self.params.empty || self.intermediates.len != 0 {
                         return None;
                     }
-                    self.push_intermediate(seq[f]);
-                    f += 1;
+                    self.push_intermediate(seq[i]);
+                    i += 1;
                 }
                 0x40..=0x7e => {
                     // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
                     // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
                     // is pushed as `-1`.
-                    self.dispatch_csi(p, seq[f]);
-                    return Some(f + 1);
+                    self.dispatch_csi(p, seq[i]);
+                    return Some(i + 1);
                 }
                 _ => return None,
             }
@@ -790,11 +774,11 @@ impl Parser {
         // CsiIntermediate always dispatches (CSI_DISPATCH → Ground). Skip the
         // transition() table lookup for the one dispatch byte per sequence.
         if !self.force_cold()
+            && matches!(b, 0x40..=0x7e)
             && matches!(
                 state,
                 ParseState::CsiEntry | ParseState::CsiParam | ParseState::CsiIntermediate
             )
-            && matches!(b, 0x40..=0x7e)
         {
             // Same trailing-empty sentinel as the bulk/apply CSI paths.
             self.dispatch_csi(p, b);
@@ -821,7 +805,7 @@ impl Parser {
                 }
                 _ => {}
             },
-            ParseState::Escape | ParseState::EscapeIntermediate if (0x20..=0x2f).contains(&b) => {
+            ParseState::Escape | ParseState::EscapeIntermediate if matches!(b, 0x20..=0x2f) => {
                 self.push_intermediate(b);
             }
             _ => {}
@@ -897,7 +881,7 @@ impl Parser {
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_dcs_entry_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let b = bytes[i];
-        if (0x40..=0x7e).contains(&b) {
+        if matches!(b, 0x40..=0x7e) {
             // Same trailing-param convention as `apply(HOOK)`: a param-less
             // DCS hooks with `[]`, not `[0]`.
             self.dispatch_hook(p, b);
@@ -1043,44 +1027,10 @@ impl Parser {
         };
         let m = n.min(MAX_OSC_PARAMS);
         let mut params = [&[][..]; MAX_OSC_PARAMS];
-        // The common 1-3 param shapes (title/clipboard/iTerm2) unrolled; the
-        // longer tail falls back to the loop.
-        if m >= 1 {
-            let s0 = base + self.osc.starts[0] as usize;
-            let e0 = if 1 < n {
-                base + self.osc.starts[1] as usize
-            } else {
-                last_end
-            };
-            params[0] = &src[s0..e0];
-        }
-        if m >= 2 {
-            let s1 = base + self.osc.starts[1] as usize + shift;
-            let e1 = if 2 < n {
-                base + self.osc.starts[2] as usize + shift
-            } else {
-                last_end
-            };
-            params[1] = &src[s1..e1];
-        }
-        if m >= 3 {
-            let s2 = base + self.osc.starts[2] as usize + 2 * shift;
-            let e2 = if 3 < n {
-                base + self.osc.starts[3] as usize + 2 * shift
-            } else {
-                last_end
-            };
-            params[2] = &src[s2..e2];
-        }
-        for (k, dst) in params
-            .iter_mut()
-            .enumerate()
-            .skip(3)
-            .take(m.saturating_sub(3))
-        {
-            let start = base + self.osc.starts[k] as usize + k * shift;
-            let end = if k + 1 < n {
-                base + self.osc.starts[k + 1] as usize + k * shift
+        for (i, dst) in params.iter_mut().enumerate().take(m) {
+            let start = base + self.osc.starts[i] as usize + i * shift;
+            let end = if i + 1 < n {
+                base + self.osc.starts[i + 1] as usize + i * shift
             } else {
                 last_end
             };
@@ -1350,16 +1300,106 @@ mod tests {
             b"text\x1b[31mred\x1b[0mmore",
             b"\x9b31m",
             b"\x1b]title\x07",
+            b"\x1b[1;H",
+            b"\x1b[12;H",
+            b"\x1b[1;2H",
+            b"\x1b[1:2H",
+            b"\x1b[3;4;H",
+            b"\x1b[;5H",
+            b"\x1b[99999999999999m",
+            b"\x1b[65536;1H",
+            b"\x1b[0;0H",
+            b"\x1b[;m",
+            b"\x1b[;;m",
+            b"\x1b[:m",
+            b"\x1b[1:2:3m",
+            b"\x1b[?1;2H",
+            b"\x1b[1 H",
+            b"\x1b[1\x7f",
+            b"\x9b5A",
+            b"\x1b[2147483648;1H",
+            b"\x1b[1;2147483648H",
+            b"\x1b[58;5;220m",
+            b"\x1b[58:2::1;2;3m",
+            b"\x1b[58m",
+            b"\x1b[58H",
         ];
         for input in corpus {
-            let hot = Parser::new().parse_events(input);
-            let mut cold_parser = Parser::new();
-            cold_parser.cold = true;
-            let cold = cold_parser.parse_events(input);
+            assert_agrees(input);
+        }
+    }
+
+    /// Assert that the bulk CSI path and the state machine agree on `input`.
+    fn assert_agrees(input: &[u8]) {
+        let hot = Parser::new().parse_events(input);
+        let mut cold_parser = Parser::new();
+        cold_parser.cold = true;
+        let cold = cold_parser.parse_events(input);
+        assert_eq!(
+            events_bytes(&hot),
+            events_bytes(&cold),
+            "hot/cold divergence for {input:?}\nhot:  {hot:?}\ncold: {cold:?}"
+        );
+    }
+
+    /// Systematic form of [`hot_and_cold_paths_agree`]: every combination of
+    /// digits, both separators, the private marker, an intermediate and a final
+    /// byte, over 1..=4-byte runs with and without a tail.
+    #[test]
+    fn hot_and_cold_paths_agree_systematic() {
+        let alphabet = b"018;:Hm ?fJ";
+        for len in 1..=4 {
+            let mut idx = vec![0_usize; len];
+            loop {
+                let params: Vec<u8> = idx.iter().map(|&k| alphabet[k]).collect();
+                for tail in [&b""[..], &b"Z"[..]] {
+                    let mut input = b"\x1b[".to_vec();
+                    input.extend_from_slice(&params);
+                    input.extend_from_slice(tail);
+                    assert_agrees(&input);
+                }
+                let mut p = 0;
+                while p < len && idx[p] + 1 == alphabet.len() {
+                    idx[p] = 0;
+                    p += 1;
+                }
+                if p == len {
+                    break;
+                }
+                idx[p] += 1;
+            }
+        }
+    }
+
+    /// Random form of [`hot_and_cold_paths_agree`] across the escape alphabet,
+    /// plus chunk invariance: three-byte feeds must match one `parse_events`.
+    #[test]
+    fn hot_and_cold_paths_agree_random() {
+        let alphabet = b"0123456789;:?>=< HfmrAJKhl\x00\x7f\x9b\x1b[";
+        let mut state = 0x243f_6a88_85a3_08d3_u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..200_000 {
+            let len = (next() % 14) as usize;
+            let input: Vec<u8> = (0..len)
+                .map(|_| alphabet[(next() as usize) % alphabet.len()])
+                .collect();
+            assert_agrees(&input);
+
+            let mut sink = Recording::default();
+            let mut parser = Parser::new();
+            for chunk in input.chunks(3) {
+                parser.advance(&mut sink, chunk);
+            }
+            parser.flush(&mut sink);
             assert_eq!(
-                events_bytes(&hot),
-                events_bytes(&cold),
-                "hot/cold divergence for {input:?}\nhot:  {hot:?}\ncold: {cold:?}"
+                events_bytes(&sink.events),
+                events_bytes(&Parser::new().parse_events(&input)),
+                "chunked/whole divergence for {input:?}"
             );
         }
     }

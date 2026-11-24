@@ -40,19 +40,14 @@ enum ScanKind {
 /// separator), where dispatch and chunk setup cost more than the scan.
 macro_rules! scan_or_fast {
     ($bytes:expr, $kind:ident, $is_stop:expr) => {{
-        let bytes = $bytes;
-        if let Some(b) = bytes.first()
-            && $is_stop(b)
-        {
+        if matches!($bytes.first(), Some(b) if $is_stop(b)) {
             return 0;
         }
-        if let Some(b) = bytes.get(1)
-            && $is_stop(b)
-        {
+        if matches!($bytes.get(1), Some(b) if $is_stop(b)) {
             return 1;
         }
         let level = Level::new();
-        dispatch!(level, simd => first_matching(simd, bytes, ScanKind::$kind))
+        dispatch!(level, simd => first_matching(simd, $bytes, ScanKind::$kind))
     }};
 }
 
@@ -111,52 +106,23 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     }
 }
 
-/// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans
-/// 4×16-byte chunks per iteration; the final (<16) tail uses the scalar
-/// predicate.
+/// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans one
+/// 16-byte chunk per iteration; the final (<16) tail uses the scalar predicate.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     let (chunks, remainder) = bytes.as_chunks::<16>();
     let mut offset = 0;
-
-    // Unroll 4× (64 bytes/iter), classifying lazily so an early match skips
-    // later loads; long printable runs still pipeline through the not-taken
-    // checks.
-    let (quads, leftover) = chunks.as_chunks::<4>();
-    for quad in quads {
-        let m0 = classify_scan(simd, u8x16::from_slice(simd, &quad[0]), kind);
-        if simd.any_true_mask8x16(m0) {
-            return offset + first_set(m0.into());
-        }
-        let m1 = classify_scan(simd, u8x16::from_slice(simd, &quad[1]), kind);
-        if simd.any_true_mask8x16(m1) {
-            return offset + 16 + first_set(m1.into());
-        }
-        let m2 = classify_scan(simd, u8x16::from_slice(simd, &quad[2]), kind);
-        if simd.any_true_mask8x16(m2) {
-            return offset + 32 + first_set(m2.into());
-        }
-        let m3 = classify_scan(simd, u8x16::from_slice(simd, &quad[3]), kind);
-        if simd.any_true_mask8x16(m3) {
-            return offset + 48 + first_set(m3.into());
-        }
-        offset += 64;
-    }
-
-    // Leftover full chunks (0..=3).
-    for chunk in leftover {
+    for chunk in chunks {
         let m = classify_scan(simd, u8x16::from_slice(simd, chunk), kind);
         if simd.any_true_mask8x16(m) {
             return offset + first_set(m.into());
         }
         offset += 16;
     }
-
-    // Scalar tail (< 16 bytes).
-    if let Some(j) = remainder.iter().position(|b| matches_kind(b, kind)) {
-        return offset + j;
+    match remainder.iter().position(|b| matches_kind(b, kind)) {
+        Some(j) => offset + j,
+        None => bytes.len(),
     }
-    bytes.len()
 }
 
 /// The scalar predicate for one byte.
@@ -347,21 +313,25 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     let space = SPACE as u32;
     let del = DEL as u32;
     let c1_end = 0x9f;
-    // Branch-free accumulate: an early `return true` serializes the loop on
-    // the movemask dependency; `|=` lets the SIMD iterations pipeline.
-    let mut any = false;
+    // Return at the first chunk holding a control. Accumulating the masks and
+    // branching once is slower: printable text scans every chunk either way,
+    // and the accumulator adds a loop-carried dependency (2.2% on
+    // `utf8_mixed`).
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
         let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(space));
         let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(del))
             & simd.simd_le_u32x4(v, simd.splat_u32x4(c1_end));
-        any |= simd.any_true_mask32x4(c0 | c1);
+        if simd.any_true_mask32x4(c0 | c1) {
+            return true;
+        }
     }
-    if any {
-        return true;
+    for cp in tail {
+        if *cp < space || (del..=c1_end).contains(cp) {
+            return true;
+        }
     }
-    tail.iter()
-        .any(|&cp| cp < space || (del..=c1_end).contains(&cp))
+    false
 }
 
 #[cfg(test)]

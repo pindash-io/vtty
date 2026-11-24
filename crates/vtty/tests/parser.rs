@@ -562,6 +562,34 @@ fn event_to_bytes_round_trips_the_parser() {
                 final_byte: b'm',
             },
         ),
+        // Empty params keep their `-1` / `-2` sentinels through a write.
+        (
+            b"\x1b[1;m",
+            Event::CsiDispatch {
+                params: SmallVec::from([1, -1]),
+                sep: 0,
+                intermediates: SmallVec::new(),
+                final_byte: b'm',
+            },
+        ),
+        (
+            b"\x1b[;1m",
+            Event::CsiDispatch {
+                params: SmallVec::from([-2, 1]),
+                sep: 0,
+                intermediates: SmallVec::new(),
+                final_byte: b'm',
+            },
+        ),
+        (
+            b"\x1b[;;m",
+            Event::CsiDispatch {
+                params: SmallVec::from([-2, -2, -1]),
+                sep: 0,
+                intermediates: SmallVec::new(),
+                final_byte: b'm',
+            },
+        ),
         (
             b"\x1b7",
             Event::EscDispatch {

@@ -62,9 +62,10 @@ macro_rules! scan_or_simd {
 fn first_stop_word(bytes: &[u8], stop_mask: impl Fn(u64) -> u64) -> Option<usize> {
     for (i, chunk) in bytes.as_chunks::<8>().0.iter().enumerate() {
         let stop = stop_mask(u64::from_le_bytes(*chunk));
-        if stop != 0 {
-            return Some(i * 8 + (stop.trailing_zeros() / 8) as usize);
+        if stop == 0 {
+            continue;
         }
+        return Some(i * 8 + (stop.trailing_zeros() / 8) as usize);
     }
     None
 }
@@ -140,14 +141,10 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
     // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
     // 8-byte SWAR word is overkill.
-    if let Some(b) = bytes.first()
-        && is_non_printable(b)
-    {
+    if matches!(bytes.first(), Some(b) if is_non_printable(b)) {
         return 0;
     }
-    if let Some(b) = bytes.get(1)
-        && is_non_printable(b)
-    {
+    if matches!(bytes.get(1), Some(b) if is_non_printable(b)) {
         return 1;
     }
     // One SWAR word over the first 8 bytes catches the short-run pattern (a
@@ -299,14 +296,14 @@ mod tests {
     fn reference(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&x| (0x20..=0x7e).contains(&x))
+            .take_while(|&&x| matches!(x, 0x20..=0x7e))
             .count()
     }
 
     fn scalar_osc(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&b| b >= 0x20 && b != 0x3b && !(0x80..=0x9f).contains(&b))
+            .take_while(|&&b| b >= 0x20 && b != 0x3b && !matches!(b, 0x80..=0x9f))
             .count()
     }
 
