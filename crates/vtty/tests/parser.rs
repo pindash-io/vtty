@@ -34,20 +34,16 @@ impl Perform for Collecting {
         clippy::cast_possible_truncation,
         reason = "the -1 sentinel surfaces as u16::MAX"
     )]
-    fn csi_dispatch(
-        &mut self,
-        params: &[i32],
-        sep: u16,
-        inters: &[u8],
-        final_byte: u8,
-    ) {
+    fn csi_dispatch(&mut self, params: &[i32], sep: u16, inters: &[u8], final_byte: u8) {
         // The `-1` empty-param sentinel surfaces as `u16::MAX` after the
         // `i32 → u16` cast (asserted by `csi_trailing_empty_param_is_sentinel`).
         let values: Vec<u16> = params.iter().map(|&p| p as u16).collect();
         // Bit `i` of `sep` marks param `i` as followed by a colon.
-        let seps: Vec<bool> =
-            (0..values.len()).map(|i| i < 16 && sep & (1 << i) != 0).collect();
-        self.csi.push((values, inters.to_vec(), final_byte as char, seps));
+        let seps: Vec<bool> = (0..values.len())
+            .map(|i| i < 16 && sep & (1 << i) != 0)
+            .collect();
+        self.csi
+            .push((values, inters.to_vec(), final_byte as char, seps));
     }
     fn esc_dispatch(&mut self, inters: &[u8], b: u8) {
         self.esc.push((inters.to_vec(), b));
@@ -292,7 +288,10 @@ fn osc_single_call_payload_over_limit_is_discarded() {
     buf.extend_from_slice(&vec![b'a'; 1_048_577]); // MAX_OSC_PAYLOAD + 1
     buf.push(0x07);
     p.advance(&mut c, &buf);
-    assert!(c.osc.is_empty(), "single-call oversized OSC must be discarded");
+    assert!(
+        c.osc.is_empty(),
+        "single-call oversized OSC must be discarded"
+    );
 
     // The parser still works afterward.
     p.advance(&mut c, b"\x1b]0;ok\x07");
@@ -325,9 +324,9 @@ fn utf8_split_across_chunks() {
 
 #[test]
 fn utf8_partial_abort_emits_single_replacement() {
-    // A 3-byte lead (U+4xxx) followed by a NON-continuation byte must emit
-    // exactly one U+FFFD for the aborted partial and then decode the byte —
-    // NOT re-emit the stale truncated code point as a spurious control char.
+    // A 3-byte lead (U+4xxx) followed by a non-continuation byte must emit
+    // exactly one U+FFFD for the aborted partial, then decode the byte —
+    // not re-emit the stale code point as a spurious control char.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, &[0xe4]); // partial lead, 2 continuations expected
@@ -447,7 +446,7 @@ fn dcs_hook_put_unhook() {
         events[9],
         Event::EscDispatch {
             intermediates: Vec::new().into_iter().collect(),
-            byte: b'\\',
+            byte: b'\\'
         }
     );
 }
@@ -565,7 +564,10 @@ fn event_to_bytes_round_trips_the_parser() {
         ),
         (
             b"\x1b7",
-            Event::EscDispatch { intermediates: SmallVec::new(), byte: b'7' },
+            Event::EscDispatch {
+                intermediates: SmallVec::new(),
+                byte: b'7',
+            },
         ),
         // BEL-terminated OSC (ST termination is handled as ESC + `\`, so a
         // BEL avoids the extra `EscDispatch` the parser emits for the ST

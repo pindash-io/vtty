@@ -7,57 +7,6 @@ use vtty_core::Perform;
 
 use crate::limits::MAX_UTF8_CONTINUATIONS;
 
-/// Expected byte length and initial code-point bits for a UTF-8 lead byte —
-/// the two facts the partial-decoder needs, from one range dispatch. Returns
-/// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
-/// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
-#[inline]
-const fn utf8_lead(lead: u8) -> (usize, u32) {
-    match lead {
-        0x00..=0x7f => (1, lead as u32),
-        0xc2..=0xdf => (2, (lead & 0x1f) as u32),
-        0xe0..=0xef => (3, (lead & 0x0f) as u32),
-        0xf0..=0xf4 => (4, (lead & 0x07) as u32),
-        _ => (0, 0),
-    }
-}
-
-/// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations). `N` is
-/// 2/3/4; the `match N` folds to per-length shifts at compile time.
-#[cfg(feature = "simd")]
-#[cfg_attr(feature = "perf-inline", inline(always))]
-pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
-    match N {
-        2 => ((b[0] as u32 & 0x1f) << 6) | (b[1] as u32 & 0x3f),
-        3 => {
-            ((b[0] as u32 & 0x0f) << 12)
-                | ((b[1] as u32 & 0x3f) << 6)
-                | (b[2] as u32 & 0x3f)
-        }
-        _ => {
-            ((b[0] as u32 & 0x07) << 18)
-                | ((b[1] as u32 & 0x3f) << 12)
-                | ((b[2] as u32 & 0x3f) << 6)
-                | (b[3] as u32 & 0x3f)
-        }
-    }
-}
-
-/// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
-/// leads and unrestricted 3/4-byte leads accept any continuation; the four
-/// constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower ranges
-/// (UTF-8's non-shortest/non-surrogate/non-overlong rules).
-#[inline]
-const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
-    match lead {
-        0xe0 => second >= 0xa0 && second <= 0xbf,
-        0xed => second >= 0x80 && second <= 0x9f,
-        0xf0 => second >= 0x90 && second <= 0xbf,
-        0xf4 => second >= 0x80 && second <= 0x8f,
-        _ => true,
-    }
-}
-
 /// A partially-decoded UTF-8 code point carried across `advance` calls.
 ///
 /// Multi-byte code points are decoded incrementally: a lead byte (plus any
@@ -96,8 +45,8 @@ impl PartialUtf8 {
     #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) fn feed(&mut self, b: u8) -> bool {
         if (0x80..0xc0).contains(&b) {
-            // OK because a code point needs at most 21 bits (4-byte:
-            // 3 lead + 3×6 continuation), so `cp << 6` never overflows u32.
+            // A code point needs at most 21 bits (3 lead + 3×6 continuation),
+            // so `cp << 6` never overflows `u32`.
             self.cp = (self.cp << 6) | (b & 0x3f) as u32;
             self.need -= 1;
             true
@@ -110,6 +59,53 @@ impl PartialUtf8 {
     /// Clear the pending partial, discarding any accumulated bits.
     pub(crate) const fn clear(&mut self) {
         self.need = 0;
+    }
+}
+
+/// Expected byte length and initial code-point bits for a UTF-8 lead byte —
+/// the two facts the partial-decoder needs, from one range dispatch. Returns
+/// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
+/// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
+#[inline]
+const fn utf8_lead(lead: u8) -> (usize, u32) {
+    match lead {
+        0x00..=0x7f => (1, lead as u32),
+        0xc2..=0xdf => (2, (lead & 0x1f) as u32),
+        0xe0..=0xef => (3, (lead & 0x0f) as u32),
+        0xf0..=0xf4 => (4, (lead & 0x07) as u32),
+        _ => (0, 0),
+    }
+}
+
+/// Decode `N` validated UTF-8 bytes (lead + `N-1` continuations). `N` is
+/// 2/3/4; the `match N` folds to per-length shifts at compile time.
+#[cfg(feature = "simd")]
+#[cfg_attr(feature = "perf-inline", inline(always))]
+pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
+    match N {
+        2 => ((b[0] as u32 & 0x1f) << 6) | (b[1] as u32 & 0x3f),
+        3 => ((b[0] as u32 & 0x0f) << 12) | ((b[1] as u32 & 0x3f) << 6) | (b[2] as u32 & 0x3f),
+        _ => {
+            ((b[0] as u32 & 0x07) << 18)
+                | ((b[1] as u32 & 0x3f) << 12)
+                | ((b[2] as u32 & 0x3f) << 6)
+                | (b[3] as u32 & 0x3f)
+        }
+    }
+}
+
+/// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
+/// leads and unrestricted 3/4-byte leads accept any continuation; the four
+/// constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower ranges
+/// (UTF-8's non-shortest/non-surrogate/non-overlong rules).
+#[inline]
+const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
+    match lead {
+        0xe0 => second >= 0xa0 && second <= 0xbf,
+        0xed => second >= 0x80 && second <= 0x9f,
+        0xf0 => second >= 0x90 && second <= 0xbf,
+        0xf4 => second >= 0x80 && second <= 0x8f,
+        _ => true,
     }
 }
 
@@ -130,7 +126,10 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
         let (expected, cp) = utf8_lead(last);
         return Some((
             len - 1,
-            PartialUtf8 { cp, need: (expected - 1) as u8 },
+            PartialUtf8 {
+                cp,
+                need: (expected - 1) as u8,
+            },
         ));
     }
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
@@ -170,7 +169,13 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     for &b in &s[lead_idx + 1..] {
         cp = (cp << 6) | (b & 0x3f) as u32;
     }
-    Some((lead_idx, PartialUtf8 { cp, need: (expected - have) as u8 }))
+    Some((
+        lead_idx,
+        PartialUtf8 {
+            cp,
+            need: (expected - have) as u8,
+        },
+    ))
 }
 
 /// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
@@ -185,12 +190,7 @@ fn flush_cps<P: Perform>(p: &mut P, buf: &[u32], n: &mut usize) {
 /// Push one code point into the batch, flushing via `print_codepoints` when
 /// the 32-slot buffer fills.
 #[cfg_attr(feature = "perf-inline", inline(always))]
-fn push_cp<P: Perform>(
-    p: &mut P,
-    buf: &mut [u32; 32],
-    n: &mut usize,
-    cp: u32,
-) {
+fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
     buf[*n] = cp;
     *n += 1;
     if *n == buf.len() {
@@ -201,7 +201,7 @@ fn push_cp<P: Perform>(
 
 /// The scalar mixed-window loop: ASCII runs via `print_bytes`, multi-byte via
 /// `print_codepoints`, C0/C1 via `execute`; `ESC` ends the chunk. `s` is
-/// VALIDATED UTF-8. Returns the consumed byte count (the index of an `ESC`, or
+/// validated UTF-8. Returns the consumed byte count (the index of an `ESC`, or
 /// `s.len()`).
 #[cfg(all(feature = "simd", not(feature = "simd-transcode")))]
 #[cfg_attr(feature = "perf-inline", inline(always))]
@@ -218,21 +218,16 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 i += 1;
             }
             // Printable ASCII run (0x20..=0x7e) — SIMD-scanned.
-            // Use the SAME print+LF fusion as `advance_ground`: a run
-            // followed by `\n`/`\r\n` dispatches the fused
-            // `print_line`/`print_crlf_line` (the cell/line screens
-            // specialize it), instead of `print_bytes` + two per-byte
-            // `execute`s.
+            // Same print+LF fusion as `advance_ground`: `\n`/`\r\n` after a
+            // run dispatches the fused `print_line`/`print_crlf_line` instead
+            // of `print_bytes` + two `execute`s.
             0x20..=0x7e => {
                 let n = crate::simd::first_non_printable(&s[i..]);
                 let end = i + n;
                 if end + 1 < s.len() && s[end] == b'\n' {
                     p.print_line(&s[i..end]);
                     i = end + 1;
-                } else if end + 2 < s.len()
-                    && s[end] == b'\r'
-                    && s[end + 1] == b'\n'
-                {
+                } else if end + 2 < s.len() && s[end] == b'\r' && s[end + 1] == b'\n' {
                     p.print_crlf_line(&s[i..end]);
                     i = end + 2;
                 } else {
@@ -263,26 +258,19 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             && (0xe0..=0xef).contains(&s[i + 9])
                             && n + 4 <= BATCH
                         {
-                            let cps = crate::simd::decode_3byte_dispatch(
-                                &s[i..i + 16],
-                            );
+                            let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
                             buf[n..n + 4].copy_from_slice(&cps);
                             n += 4;
                             // The 4-wide SIMD fill bypasses `push_cp` (whose
-                            // flush-at-32 guard is the invariant the next
-                            // `push_cp` relies on), so flush here when full.
+                            // flush-at-32 guard the next `push_cp` relies on),
+                            // so flush here when full.
                             if n == BATCH {
                                 p.print_codepoints(&buf[..n]);
                                 n = 0;
                             }
                             i += 12;
                         } else {
-                            push_cp(
-                                p,
-                                &mut buf,
-                                &mut n,
-                                decode_utf8_n::<3>(&s[i..]),
-                            );
+                            push_cp(p, &mut buf, &mut n, decode_utf8_n::<3>(&s[i..]));
                             i += 3;
                         }
                     } else {
@@ -325,8 +313,7 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     let mut buf = [0_u32; BATCH];
     let mut i = 0;
     while i < s.len() {
-        let (count, consumed) =
-            crate::simd::decode_block_dispatch(&s[i..], &mut buf);
+        let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
         // Fast path: when the block has no controls, dispatch the whole run
         // with one `print_codepoints` call instead of the per-code-point
         // split scan.
@@ -378,17 +365,16 @@ pub(crate) fn decode_utf8<P: Perform>(
     if simd {
         // A lone char before the next ESC (truecolor SGR) is cheaper on the
         // scalar path: probe for a nearby ESC before paying for SIMD setup.
-        // The position also bounds the short window so `from_utf8` validates
-        // at most PROBE bytes.
+        // The probe also bounds the window so `from_utf8` validates at most
+        // `PROBE` bytes.
         const PROBE: usize = 32;
         let remaining = valid - pos;
         let esc = crate::scan::first_esc_bounded(&bytes[pos..valid], PROBE);
         let short = esc < remaining.min(PROBE) || remaining < PROBE;
-        // The window ends at the next ESC (never a UTF-8 continuation, and it
-        // must reach the escape state rather than `execute`) — or at the
-        // input end. Short windows (an ESC nearby or a short tail) stop at
-        // the probe bound; long windows cap at the next ESC / 4096 / a char
-        // boundary and decode via SIMD transcode.
+        // The window ends at the next ESC (it must reach the escape state, not
+        // `execute`) or at the input end. Short windows stop at the probe
+        // bound; long windows cap at the next ESC / 4096 / a char boundary and
+        // decode via SIMD transcode.
         let end = if short {
             if esc < remaining { pos + esc } else { valid }
         } else {
@@ -449,7 +435,7 @@ pub(crate) fn decode_utf8<P: Perform>(
         }
     }
     flush_cps(p, &buf, &mut n);
-    // The consumed byte count is NOT `c.len_utf8()` for invalid UTF-8
+    // The consumed byte count is not `c.len_utf8()` for invalid UTF-8
     // (U+FFFD is 3 bytes but a lone byte consumes 1).
     let consumed = (valid - pos) - it.as_slice().len();
     consumed.max(1)
@@ -481,16 +467,19 @@ mod tests {
             }
         }
 
-        // A short mixed window decodes into ONE print_codepoints run
+        // A short mixed window decodes into one print_codepoints run
         // (ASCII + CJK + emoji together), not per-boundary callbacks.
         let input = "日本語 🚀 ".as_bytes();
-        let mut sink =
-            Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let mut sink = Sink {
+            cps: vec![],
+            calls: 0,
+            bytes: vec![],
+            execs: vec![],
+        };
         let consumed = decode_utf8(&mut sink, input, input.len(), 0, true);
         assert_eq!(consumed, input.len());
         assert_eq!(sink.calls, 1, "one batched print_codepoints");
-        let expected: Vec<u32> =
-            "日本語 🚀 ".chars().map(|c| c as u32).collect();
+        let expected: Vec<u32> = "日本語 🚀 ".chars().map(|c| c as u32).collect();
         assert_eq!(sink.cps, expected);
         assert!(sink.execs.is_empty());
         assert!(sink.bytes.is_empty());
@@ -500,8 +489,12 @@ mod tests {
         // state machine.
         let mut input = "日本語 🚀 ".as_bytes().to_vec();
         input.extend_from_slice(b"\x1b[31m");
-        let mut sink =
-            Sink { cps: vec![], calls: 0, bytes: vec![], execs: vec![] };
+        let mut sink = Sink {
+            cps: vec![],
+            calls: 0,
+            bytes: vec![],
+            execs: vec![],
+        };
         let consumed = decode_utf8(&mut sink, &input, input.len(), 0, true);
         assert_eq!(consumed, "日本語 🚀 ".len());
         assert_eq!(sink.cps, expected);

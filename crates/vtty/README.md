@@ -7,12 +7,11 @@ A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
 
 `vtty` turns bytes into typed events via the `Perform` callback trait and
 re-exports the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …)
-from `vtty_core`; the companion `vtty_codec` crate provides the compact
+from `vtty_core`. The companion `vtty_codec` crate provides the compact
 binary `Encode`/`Decode` implementations for the owned types.
 
 The parser implements the DEC VT500 state machine from Paul Flo Williams'
-[A parser for DEC's ANSI-compatible video
-terminals](https://vt100.net/emu/dec_ansi_parser).
+[A parser for DEC's ANSI-compatible video terminals][dec-parser].
 
 ## Usage
 
@@ -42,8 +41,7 @@ scanning and UTF-8 validation.
 Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
 sink with line/cursor geometry), `Reply` (query reply builder),
 `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`, `Charset`,
-`Cap`, and a compact binary `vtty_codec` crate (`Encode`/`Decode`) covering
-all of the above.
+and `Cap`.
 
 ## Serialization
 
@@ -53,7 +51,6 @@ Every owned type round-trips through the compact, `no_std` binary codec:
 use vtty_codec::{decode_from_slice, encode_to_vec};
 use vtty::{Event, Parser};
 
-// Owned events encode/decode as data:
 let mut parser = Parser::new();
 let events = parser.parse_events(b"\x1b[1;31mhi");
 let bytes = encode_to_vec(&events)?;
@@ -85,4 +82,16 @@ cargo test -p vtty --test vt_differential -- --nocapture     # parity vs vte
 cargo test -p vtty --test vt_differential_rio -- --nocapture # parity vs rio-vt
 ```
 
+[dec-parser]: https://vt100.net/emu/dec_ansi_parser
+
 <!-- cargo-rdme end -->
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.

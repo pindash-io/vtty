@@ -7,9 +7,18 @@
 
 /// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
 const SPLAT_01: u64 = 0x0101_0101_0101_0101;
+
 const SPLAT_20: u64 = 0x2020_2020_2020_2020;
+
 const SPLAT_7F: u64 = 0x7f7f_7f7f_7f7f_7f7f;
+
 const SPLAT_80: u64 = 0x8080_8080_8080_8080;
+
+/// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
+/// scan falls through to the same scalar tail loop anyway, so the SWAR path
+/// stays faster — and ANSI-dense input produces runs this short.
+#[cfg(feature = "simd")]
+const SIMD_MIN_RUN: usize = 16;
 
 /// SWAR byte-equality mask: bits set where the 8-byte little-endian word `w`
 /// contains byte `b` (`x.wrapping_sub(SPLAT_01) & !x & SPLAT_80` is the
@@ -87,12 +96,6 @@ const fn is_non_printable(b: u8) -> bool {
     b < 0x20 || b >= 0x7f
 }
 
-/// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
-/// scan falls through to the same scalar tail loop anyway, so the SWAR path
-/// stays faster — and ANSI-dense input produces runs this short.
-#[cfg(feature = "simd")]
-const SIMD_MIN_RUN: usize = 16;
-
 /// SWAR scan of the first 8-byte word: `Some(index)` of the first
 /// non-printable byte when the buffer holds a full word and one is found,
 /// `None` otherwise (shorter than a word, or the word is all printable).
@@ -111,15 +114,20 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
     // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
     // 8-byte SWAR word is overkill.
-    match bytes {
-        [b, ..] if is_non_printable(*b) => return 0,
-        [_, b, ..] if is_non_printable(*b) => return 1,
-        _ => {}
+    if let Some(&b) = bytes.first()
+        && is_non_printable(b)
+    {
+        return 0;
     }
-    // One SWAR word over the first 8 bytes catches the short-run pattern
-    // (a word followed by ESC or CR/LF) without paying the SIMD dispatch
-    // below. Long printable runs fall through — the word scan is ~9 ops
-    // against a 32 KiB run, so the overlap with the SIMD pass is negligible.
+    if let Some(&b) = bytes.get(1)
+        && is_non_printable(b)
+    {
+        return 1;
+    }
+    // One SWAR word over the first 8 bytes catches the short-run pattern (a
+    // word followed by ESC or CR/LF) without paying for the SIMD dispatch.
+    // Long printable runs fall through; the word scan is ~9 ops against a
+    // 32 KiB run, so the overlap with the SIMD pass is negligible.
     if let Some(n) = first_non_printable_word(bytes) {
         return n;
     }
@@ -178,7 +186,7 @@ const fn dcs_is_stop(b: u8) -> bool {
     b >= 0x80 || b == 0x18 || b == 0x1a || b == 0x1b || b == 0x7f
 }
 
-/// Index of the first byte that ends a DCS passthrough run. The PUT class is
+/// Index of the first byte that ends a DCS passthrough run. The put class is
 /// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`; everything else (`CAN`, `SUB`, `ESC`, `DEL`,
 /// and any byte `>= 0x80`) ends the run or is ignored.
 #[inline]
@@ -278,24 +286,23 @@ mod tests {
     /// Scalar reference for `first_non_printable` (length of the leading
     /// printable-ASCII run).
     fn reference(bytes: &[u8]) -> usize {
-        bytes.iter().take_while(|&&x| (0x20..=0x7e).contains(&x)).count()
+        bytes
+            .iter()
+            .take_while(|&&x| (0x20..=0x7e).contains(&x))
+            .count()
     }
 
     fn scalar_osc(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&b| {
-                b >= 0x20 && b != 0x3b && !(0x80..=0x9f).contains(&b)
-            })
+            .take_while(|&&b| b >= 0x20 && b != 0x3b && !(0x80..=0x9f).contains(&b))
             .count()
     }
 
     fn scalar_dcs(bytes: &[u8]) -> usize {
         bytes
             .iter()
-            .take_while(|&&b| {
-                b < 0x80 && !matches!(b, 0x18 | 0x1a | 0x1b | 0x7f)
-            })
+            .take_while(|&&b| b < 0x80 && !matches!(b, 0x18 | 0x1a | 0x1b | 0x7f))
             .count()
     }
 
@@ -335,8 +342,7 @@ mod tests {
             bytes.extend_from_slice(b"$3:@ABCDEFGHIJKLMNOP");
         }
         for &b in &[
-            0x00_u8, 0x07, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x7f, 0x80, 0x9c,
-            0x9f, 0xa0, 0xff,
+            0x00_u8, 0x07, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x7f, 0x80, 0x9c, 0x9f, 0xa0, 0xff,
         ] {
             let mut v = bytes.clone();
             v.push(b);

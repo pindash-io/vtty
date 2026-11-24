@@ -6,12 +6,11 @@
 //!
 //! `vtty` turns bytes into typed events via the `Perform` callback trait and
 //! re-exports the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …)
-//! from `vtty_core`; the companion `vtty_codec` crate provides the compact
+//! from `vtty_core`. The companion `vtty_codec` crate provides the compact
 //! binary `Encode`/`Decode` implementations for the owned types.
 //!
 //! The parser implements the DEC VT500 state machine from Paul Flo Williams'
-//! [A parser for DEC's ANSI-compatible video
-//! terminals](https://vt100.net/emu/dec_ansi_parser).
+//! [A parser for DEC's ANSI-compatible video terminals][dec-parser].
 //!
 //! ## Usage
 //!
@@ -41,8 +40,7 @@
 //! Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
 //! sink with line/cursor geometry), `Reply` (query reply builder),
 //! `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`, `Charset`,
-//! `Cap`, and a compact binary `vtty_codec` crate (`Encode`/`Decode`) covering
-//! all of the above.
+//! and `Cap`.
 //!
 //! ## Serialization
 //!
@@ -53,7 +51,6 @@
 //! use vtty::{Event, Parser};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Owned events encode/decode as data:
 //! let mut parser = Parser::new();
 //! let events = parser.parse_events(b"\x1b[1;31mhi");
 //! let bytes = encode_to_vec(&events)?;
@@ -86,6 +83,8 @@
 //! cargo test -p vtty --test vt_differential -- --nocapture     # parity vs vte
 //! cargo test -p vtty --test vt_differential_rio -- --nocapture # parity vs rio-vt
 //! ```
+//!
+//! [dec-parser]: https://vt100.net/emu/dec_ansi_parser
 #![forbid(unsafe_code)]
 #![cfg_attr(not(feature = "simd"), no_std)]
 #![expect(
@@ -133,17 +132,14 @@ pub mod prelude {
     #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
     pub use crate::{Cap, CapValue};
     pub use crate::{
-        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle,
-        DEFAULT_BG_ID, DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind,
-        KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers, MouseButton,
-        MouseTracking, Parser, Perform, Recording, Scs, Sgr, SgrEffect,
-        SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
+        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle, DEFAULT_BG_ID,
+        DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec,
+        KittyFlags, Modifiers, MouseButton, MouseTracking, Parser, Perform, Recording, Scs, Sgr,
+        SgrEffect, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
     };
     #[cfg(feature = "status")]
     #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
-    pub use crate::{
-        PerformProgramStatus, ProgramStatus, StatusKind, StatusState,
-    };
+    pub use crate::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
 }
 
 /// Longer-form documentation kept in the repository and mirrored here so it

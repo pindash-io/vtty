@@ -6,18 +6,29 @@
 
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
-use fearless_simd::{
-    Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4,
-};
+use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
 
 #[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 
-/// Return the index of the first byte that is NOT printable ASCII
-/// (`0x20..=0x7e`; `DEL` `0x7f` is a C0 control dispatched via `execute`),
-/// or `bytes.len()` if every byte is printable.
+/// What terminates the scan run.
+#[derive(Clone, Copy)]
+enum ScanKind {
+    /// Any byte outside `0x20..=0x7e`.
+    NonPrintable,
+    /// The `ESC` byte.
+    Esc,
+    /// OSC payload boundary.
+    OscBoundary,
+    /// DCS passthrough boundary.
+    DcsBoundary,
+}
+
+/// Return the index of the first byte outside printable ASCII (`0x20..=0x7e`;
+/// `0x7f` DEL is dispatched via `execute`), or `bytes.len()` if every byte is
+/// printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     // Fast path: the first byte is usually the match, skipping SIMD dispatch
@@ -61,7 +72,7 @@ pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
 }
 
 /// Index of the first DCS passthrough boundary: a byte `>= 0x80`, or
-/// `CAN`/`SUB`/`ESC`/`DEL`. The PUT class is
+/// `CAN`/`SUB`/`ESC`/`DEL`. The put class is
 /// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
@@ -86,26 +97,9 @@ const fn is_dcs_boundary(b: &u8) -> bool {
     *b >= 0x80 || matches!(*b, 0x18 | 0x1a | 0x1b | 0x7f)
 }
 
-/// What terminates the scan run.
-#[derive(Clone, Copy)]
-enum ScanKind {
-    /// Non-printable.
-    NonPrintable,
-    /// The `ESC` byte.
-    Esc,
-    /// OSC payload boundary.
-    OscBoundary,
-    /// DCS passthrough boundary.
-    DcsBoundary,
-}
-
 /// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
 #[cfg_attr(feature = "perf-inline", inline(always))]
-fn classify_scan<S: Simd>(
-    simd: S,
-    v: u8x16<S>,
-    kind: ScanKind,
-) -> mask8x16<S> {
+fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     match kind {
         ScanKind::NonPrintable => {
             // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
@@ -118,10 +112,7 @@ fn classify_scan<S: Simd>(
         }
         ScanKind::OscBoundary => {
             // (b & 0x60) == 0 → C0 (< 0x20) or C1 (0x80..=0x9f); or b == ';'.
-            let c0c1 = simd.simd_eq_u8x16(
-                v & simd.splat_u8x16(0x60),
-                simd.splat_u8x16(0),
-            );
+            let c0c1 = simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0));
             let semi = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x3b));
             c0c1 | semi
         }
@@ -138,17 +129,16 @@ fn classify_scan<S: Simd>(
 }
 
 /// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans
-/// 4×16-byte chunks per iteration so the independent loads pipeline; the
-/// final (<16) tail falls back to the scalar predicate.
+/// 4×16-byte chunks per iteration; the final (<16) tail uses the scalar
+/// predicate.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     let (chunks, remainder) = bytes.as_chunks::<16>();
     let mut offset = 0;
 
-    // Unroll 4× (64 bytes/iter), classifying each chunk lazily so an early
-    // match returns before the later chunks are loaded. The long printable
-    // runs (the common no-match case) still pipeline: the loads are pure, so
-    // the branch predictor speculates through the not-taken checks.
+    // Unroll 4× (64 bytes/iter), classifying lazily so an early match skips
+    // later loads; long printable runs still pipeline through the not-taken
+    // checks.
     let (quads, leftover) = chunks.as_chunks::<4>();
     for quad in quads {
         let m0 = classify_scan(simd, u8x16::from_slice(simd, &quad[0]), kind);
@@ -292,8 +282,7 @@ fn decode_utf8_12<S: Simd>(
         let ascii = p & simd.splat_u32x4(0x7f);
         let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
         let correct = simd.shr_u32x4(p & simd.splat_u32x4(0x400000), 1);
-        let middlehigh =
-            simd.shr_u32x4(correct ^ (p & simd.splat_u32x4(0x3f0000)), 4);
+        let middlehigh = simd.shr_u32x4(correct ^ (p & simd.splat_u32x4(0x3f0000)), 4);
         let high = simd.shr_u32x4(p & simd.splat_u32x4(0x07000000), 6);
         let composed = (ascii | middle) | (high | middlehigh);
         let arr: [u32; 4] = composed.into();
@@ -306,16 +295,12 @@ fn decode_utf8_12<S: Simd>(
 
 /// Transcode one 64-byte block of validated UTF-8 to UTF-32 (one end-of-code-
 /// point mask per block, then a 12-byte chunk loop).
-/// Returns `(code_points_written, bytes_consumed)`; a full block consumes 52
-/// bytes (the last 12 overlap into the next call), a sub-64-byte tail falls
-/// back to scalar decode.
+/// Returns `(code_points_written, bytes_consumed)`. A full block consumes
+/// 52..=63 bytes (the trailing ≤12 overlap into the next call); a sub-76-byte
+/// input falls back to scalar decode.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
-fn decode_block<S: Simd>(
-    simd: S,
-    bytes: &[u8],
-    out: &mut [u32],
-) -> (usize, usize) {
+fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let n = bytes.len();
     let mut written = 0;
     let mut pos = 0;
@@ -324,21 +309,14 @@ fn decode_block<S: Simd>(
         let mut cont = 0_u64;
         for k in 0..4 {
             let v = u8x16::from_slice(simd, &bytes[k * 16..k * 16 + 16]);
-            let m = simd.simd_eq_u8x16(
-                v & simd.splat_u8x16(0xc0),
-                simd.splat_u8x16(0x80),
-            );
+            let m = simd.simd_eq_u8x16(v & simd.splat_u8x16(0xc0), simd.splat_u8x16(0x80));
             cont |= simd.to_bitmask_mask8x16(m) << (k * 16);
         }
         let mut end_mask = !(cont >> 1);
         // Process up to 52 bytes; the last 12 overlap into the next block.
         while pos < 52 {
-            let (count, consumed) = decode_utf8_12(
-                simd,
-                &bytes[pos..pos + 16],
-                end_mask,
-                &mut out[written..],
-            );
+            let (count, consumed) =
+                decode_utf8_12(simd, &bytes[pos..pos + 16], end_mask, &mut out[written..]);
             written += count;
             pos += consumed;
             end_mask >>= consumed;
@@ -364,10 +342,7 @@ fn decode_block<S: Simd>(
 /// Runtime-dispatched wrapper for [`decode_block`].
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
-pub(crate) fn decode_block_dispatch(
-    bytes: &[u8],
-    out: &mut [u32],
-) -> (usize, usize) {
+pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let level = Level::new();
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
@@ -398,7 +373,8 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     if any {
         return true;
     }
-    tail.iter().any(|&cp| cp < 0x20 || (0x7f..=0x9f).contains(&cp))
+    tail.iter()
+        .any(|&cp| cp < 0x20 || (0x7f..=0x9f).contains(&cp))
 }
 
 #[cfg(test)]
@@ -409,8 +385,7 @@ mod tests {
     fn decode_3byte_decodes_four_cjk() {
         // 中 (U+4E2D) 文 (U+6587) 日 (U+65E5) 本 (U+672C)
         let bytes = [
-            0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c,
-            0xac, 0, 0, 0, 0,
+            0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c, 0xac, 0, 0, 0, 0,
         ];
         let out = dispatch!(Level::new(), simd => decode_3byte(simd, &bytes));
         assert_eq!(out, [0x4e2d, 0x6587, 0x65e5, 0x672c]);
@@ -432,10 +407,11 @@ mod tests {
             cps.extend_from_slice(&out[..c]);
             i += k;
         }
-        let decoded: Vec<u32> =
-            cps.into_iter().take_while(|&cp| cp != b' ' as u32).collect();
-        let expected: [u32; 5] =
-            ['a', '日', '🚀', 'e', '日'].map(|c| c as u32);
+        let decoded: Vec<u32> = cps
+            .into_iter()
+            .take_while(|&cp| cp != b' ' as u32)
+            .collect();
+        let expected: [u32; 5] = ['a', '日', '🚀', 'e', '日'].map(|c| c as u32);
         assert_eq!(decoded.as_slice(), expected.as_slice());
     }
 

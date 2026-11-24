@@ -14,8 +14,7 @@
 mod common;
 
 use common::{
-    corpus, diff_report, has_intermediate_overflow,
-    has_osc_verbatim_divergence, run_rio, run_vtty,
+    corpus, diff_report, has_intermediate_overflow, has_osc_verbatim_divergence, run_rio, run_vtty,
 };
 
 #[test]
