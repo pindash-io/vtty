@@ -3,10 +3,9 @@
 
 //! Display cell width and emoji-sequence handling.
 //!
-//! The formal statement of the model — Layers 1–3, the symbol-to-code
-//! binding, and the invariants — is [`_documentation::width_model`]; the
-//! Unicode data-file counts and the deliberate terminal overrides are in
-//! [`_documentation::conformance`].
+//! [`_documentation::width_model`] carries the whole document: Layers 1–3, the
+//! symbol-to-code binding, the invariants, and the Unicode conformance counts
+//! with the deliberate terminal overrides.
 //!
 //! ## Usage
 //!
@@ -126,8 +125,6 @@ pub fn cjk_width() -> bool {
 pub mod _documentation {
     #[doc = include_str!("../WIDTH-MODEL.md")]
     pub mod width_model {}
-    #[doc = include_str!("../CONFORMANCE.md")]
-    pub mod conformance {}
 }
 
 #[cfg(test)]

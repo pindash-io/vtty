@@ -23,7 +23,7 @@
 /// REP'd base was flushed (`F`). Pure data — the live automaton flags live in
 /// [`EmojiTrace`], which OWNS a `SplitBoundaries` alongside them.
 ///
-/// $$B = \{ \mathsf{bytes}(s, k) : fb\[k\] \neq 0 \}, \qquad F = \mathsf{zwj\_flushes}$$
+/// $$B = \{ \mathsf{bytes}(s, k) : fb\lbrack{}k\rbrack \neq 0 \}, \qquad F = \mathsf{zwj\_flushes}$$
 #[derive(Debug, Default)]
 pub struct SplitBoundaries {
     /// Sparse write-order flag set aligned to the logical text: a sorted
@@ -210,7 +210,7 @@ impl EmojiTrace {
 /// is the logical offset of `text`'s first byte.
 ///
 /// Spec §3.3:
-/// $$\mathsf{split}(B, a, b) = \{ x : x \in B,\ a < x < b,\ s\[x-1\] = \mathsf{ZWJ},\ w_1^0(s\[x\]) > 0 \}$$
+/// $$\mathsf{split}(B, a, b) = \{ x : x \in B,\ a < x < b,\ s\lbrack{}x-1\rbrack = \mathsf{ZWJ},\ w_1^0(s\lbrack{}x\rbrack) > 0 \}$$
 pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec<usize> {
     if text.is_empty() {
         return Vec::new();
