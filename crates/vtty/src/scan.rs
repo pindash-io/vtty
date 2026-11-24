@@ -13,8 +13,8 @@ use crate::utils::{
 
 /// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
 const SPLAT_01: u64 = 0x0101_0101_0101_0101;
-const SPLAT_20: u64 = 0x2020_2020_2020_2020;
-const SPLAT_60: u64 = 0x6060_6060_6060_6060;
+const SPLAT_SPACE: u64 = 0x2020_2020_2020_2020;
+const SPLAT_C0_C1: u64 = 0x6060_6060_6060_6060;
 const SPLAT_7F: u64 = 0x7f7f_7f7f_7f7f_7f7f;
 const SPLAT_80: u64 = 0x8080_8080_8080_8080;
 
@@ -104,7 +104,7 @@ const fn esc_mask(w: u64) -> u64 {
 
 /// SWAR mask for non-printable bytes (`b < 0x20 || b >= DEL`).
 const fn non_printable_mask(w: u64) -> u64 {
-    let lt_20 = w.wrapping_sub(SPLAT_20) & !w & SPLAT_80; // b < 0x20
+    let lt_20 = w.wrapping_sub(SPLAT_SPACE) & !w & SPLAT_80; // b < 0x20
     let gt_del = w & SPLAT_80; // b > DEL
     let x = w ^ SPLAT_7F;
     let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == DEL
@@ -168,7 +168,7 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
 
 /// SWAR mask for OSC boundaries: C0/C1 (`(b & 0x60) == 0`) or `;`.
 const fn osc_stop_mask(w: u64) -> u64 {
-    swar_byte_eq(w & SPLAT_60, 0) | swar_byte_eq(w, SEMICOLON)
+    swar_byte_eq(w & SPLAT_C0_C1, 0) | swar_byte_eq(w, SEMICOLON)
 }
 
 /// Index of the first byte that ends an OSC payload run — see

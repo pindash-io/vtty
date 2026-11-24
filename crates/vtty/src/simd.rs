@@ -13,7 +13,8 @@ use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
 use crate::utils::{
-    CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_esc, is_non_printable, is_osc_boundary,
+    C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB, is_dcs_boundary, is_esc, is_non_printable,
+    is_osc_boundary,
 };
 
 /// Payload bits of one byte in a transcode lane. The UTF-8 lead/continuation
@@ -89,14 +90,14 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
 fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     match kind {
         ScanKind::NonPrintable => {
-            // b < 0x20 (control) or b >= DEL (DEL + high-bit).
-            simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
+            // b < SPACE (C0) or b >= DEL (DEL + high-bit).
+            simd.simd_lt_u8x16(v, simd.splat_u8x16(SPACE))
                 | simd.simd_ge_u8x16(v, simd.splat_u8x16(DEL))
         }
         ScanKind::Esc => simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC)),
         ScanKind::OscBoundary => {
-            // (b & 0x60) == 0 → C0 or C1; or b == ';'.
-            simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0))
+            // (b & C0_C1_MASK) == 0 → C0 or C1; or b == ';'.
+            simd.simd_eq_u8x16(v & simd.splat_u8x16(C0_C1_MASK), simd.splat_u8x16(0))
                 | simd.simd_eq_u8x16(v, simd.splat_u8x16(SEMICOLON))
         }
         ScanKind::DcsBoundary => {

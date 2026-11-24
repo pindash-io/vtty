@@ -14,11 +14,18 @@ pub(crate) const SUB: u8 = 0x1a;
 /// `ESC` — introduces a sequence, and terminates a string in 8-bit mode.
 pub(crate) const ESC: u8 = 0x1b;
 
-/// `DEL` — a C0 control, never printable and never part of a string payload.
-pub(crate) const DEL: u8 = 0x7f;
+/// Space — the lowest printable ASCII byte.
+pub(crate) const SPACE: u8 = 0x20;
 
 /// The OSC parameter separator.
 pub(crate) const SEMICOLON: u8 = b';';
+
+/// Bits 5 and 6: clear exactly on C0 (`0x00..=0x1f`) and C1 (`0x80..=0x9f`),
+/// so `b & C0_C1_MASK == 0` tests both ranges at once.
+pub(crate) const C0_C1_MASK: u8 = 0x60;
+
+/// `DEL` — a C0 control, never printable and never part of a string payload.
+pub(crate) const DEL: u8 = 0x7f;
 
 /// `ESC`.
 #[cfg(feature = "simd")]
@@ -30,7 +37,7 @@ pub(crate) const fn is_esc(&b: &u8) -> bool {
 /// Printable ASCII, `0x20..=0x7e` — from space up to, but excluding, `DEL`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) const fn is_printable_ascii(&b: &u8) -> bool {
-    b >= 0x20 && b < DEL
+    b >= SPACE && b < DEL
 }
 
 /// Anything outside printable ASCII: a C0/C1 control, `DEL`, or a high-bit
@@ -44,7 +51,7 @@ pub(crate) const fn is_non_printable(b: &u8) -> bool {
 /// and 6 both clear, so one mask covers both ranges.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) const fn is_c0_or_c1(b: u8) -> bool {
-    b & 0x60 == 0
+    b & C0_C1_MASK == 0
 }
 
 /// OSC payload boundary: a C0/C1 control (which includes `BEL` and `ESC`) or
