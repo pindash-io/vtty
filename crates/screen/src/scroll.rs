@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! scroll commands for [`Screen`](crate::Screen).
+//! Scroll commands for [`Screen`](crate::Screen).
 
 use crate::Screen;
 use crate::cell::Cell;
@@ -66,7 +66,8 @@ impl Screen {
         let width = self.cols as usize;
         let start = (self.active.scroll_top as usize) * width;
         let cont = self.active.continuation[self.active.scroll_top as usize];
-        self.scrollback.push(&self.active.cells[start..start + width], cont);
+        self.scrollback
+            .push(&self.active.cells[start..start + width], cont);
     }
 
     pub(crate) fn scroll_down(&mut self) {
@@ -93,16 +94,14 @@ impl Screen {
                 };
                 let start = (self.active.scroll_top as usize) * width;
                 self.active.cells[start..start + width].fill(Cell::default());
-                self.active.continuation[self.active.scroll_top as usize] =
-                    false;
+                self.active.continuation[self.active.scroll_top as usize] = false;
             } else {
                 // LF / SU: rotate up; the scrolled-out top row goes to
                 // scrollback and its physical slot becomes the new bottom row.
                 let top_row = self.active.scroll_top as usize;
                 self.push_scrollback();
                 let next = self.active.scroll_top + 1;
-                self.active.scroll_top =
-                    if next == self.rows { 0 } else { next };
+                self.active.scroll_top = if next == self.rows { 0 } else { next };
                 let start = top_row * width;
                 self.active.cells[start..start + width].fill(Cell::default());
                 self.active.continuation[top_row] = false;
@@ -140,9 +139,9 @@ impl Screen {
         let start = top * width;
         let end = (bottom + 1) * width;
 
-        // Content and soft-wrap flags shift one way by `n` rows; the vacated
-        // `n` rows go blank. The source and destination overlap, and
-        // `copy_within` moves them in the right order.
+        // Shift content and soft-wrap flags by `n` rows in one pass; the
+        // vacated rows go blank. The ranges overlap, and `copy_within` moves
+        // them in the right order.
         let (src, dst, blank, c_src, c_dst, c_blank) = if down {
             (
                 start..end - n * width,

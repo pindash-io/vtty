@@ -21,7 +21,10 @@ pub(crate) struct Scrollback {
 impl Scrollback {
     /// An empty scrollback with capacity `max`.
     pub(crate) fn new(max: usize) -> Self {
-        Self { lines: VecDeque::new(), max }
+        Self {
+            lines: VecDeque::new(),
+            max,
+        }
     }
 
     /// The number of retained lines.

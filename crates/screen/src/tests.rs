@@ -85,7 +85,10 @@ fn render_ansi_truecolor() {
 fn render_ansi_style_change() {
     let mut s = Screen::new(8, 1);
     run(&mut s, b"\x1b[31mR\x1b[32mG");
-    assert_eq!(s.render_ansi_line(0), "\x1b[0;38;5;1mR\x1b[0;38;5;2mG\x1b[0m");
+    assert_eq!(
+        s.render_ansi_line(0),
+        "\x1b[0;38;5;1mR\x1b[0;38;5;2mG\x1b[0m"
+    );
 }
 
 #[test]

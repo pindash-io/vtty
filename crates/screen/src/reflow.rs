@@ -26,10 +26,7 @@ pub(crate) fn rows_from(
 
 /// Re-wrap a row list at `width`, dropping trailing blank rows (viewport
 /// padding) so content stays anchored to the top when the grid shrinks.
-pub(crate) fn reflow_rows(
-    rows: &[(Vec<Cell>, bool)],
-    width: usize,
-) -> Vec<(Vec<Cell>, bool)> {
+pub(crate) fn reflow_rows(rows: &[(Vec<Cell>, bool)], width: usize) -> Vec<(Vec<Cell>, bool)> {
     let mut reflowed = rewrap_rows(rows, width);
     while reflowed
         .last()
@@ -70,10 +67,8 @@ fn logical_lines_rows(rows: &[(Vec<Cell>, bool)]) -> Vec<Vec<Cell>> {
         if i > 0 && !cont {
             lines.push(core::mem::take(&mut current));
         }
-        // Trim trailing padding blanks — but only on the last row of a
-        // logical line. A soft-wrapped row is full of content, so its
-        // trailing spaces (e.g. the space before the wrap in "hello
-        // world") must be kept.
+        // Trim trailing padding blanks only on the last row of a logical line.
+        // A soft-wrapped row keeps them (e.g. the space before a wrap).
         let soft_wrapped = rows.get(i + 1).is_some_and(|(_, next)| *next);
         let end = if soft_wrapped {
             cells.len()
@@ -81,7 +76,10 @@ fn logical_lines_rows(rows: &[(Vec<Cell>, bool)]) -> Vec<Vec<Cell>> {
             cells.len() - trailing_blanks(cells)
         };
         current.extend(
-            cells[..end].iter().copied().filter(|c| !c.is_continuation()),
+            cells[..end]
+                .iter()
+                .copied()
+                .filter(|c| !c.is_continuation()),
         );
     }
     lines.push(current);
@@ -90,10 +88,7 @@ fn logical_lines_rows(rows: &[(Vec<Cell>, bool)]) -> Vec<Vec<Cell>> {
 
 /// Re-wrap a list of `(row, continuation)` pairs at `width`, re-deriving
 /// the continuation flags from the new layout.
-fn rewrap_rows(
-    rows: &[(Vec<Cell>, bool)],
-    width: usize,
-) -> Vec<(Vec<Cell>, bool)> {
+fn rewrap_rows(rows: &[(Vec<Cell>, bool)], width: usize) -> Vec<(Vec<Cell>, bool)> {
     let mut out = Vec::new();
     for line in logical_lines_rows(rows) {
         for (i, row) in rewrap(&line, width).into_iter().enumerate() {
@@ -128,7 +123,10 @@ fn rewrap(line: &[Cell], width: usize) -> Vec<Vec<Cell>> {
         }
         row.push(cell);
         if w == 2 {
-            row.push(Cell { ch: CONTINUATION, ..cell });
+            row.push(Cell {
+                ch: CONTINUATION,
+                ..cell
+            });
         }
     }
     if !row.is_empty() || rows.is_empty() {

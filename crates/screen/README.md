@@ -35,5 +35,12 @@ Parser::new().advance(&mut screen, b"\x1b[1;31mhello\x1b[0m\r\n");
 assert_eq!(screen.render_line(0), "hello");
 ```
 
-Licensed under either of [Apache-2.0](../../LICENSE-APACHE) or
-[MIT](../../LICENSE-MIT) at your option.
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.

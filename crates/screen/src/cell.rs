@@ -7,6 +7,10 @@ use alloc::vec::Vec;
 
 use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags};
 
+/// Marker stored in the trailing cell of a double-width glyph. Render skips
+/// it (the lead cell already accounts for both columns).
+pub(crate) const CONTINUATION: char = '\0';
+
 bitflags::bitflags! {
     /// Per-buffer screen state, swapped wholesale with the alternate screen.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,10 +39,6 @@ impl ScreenFlags {
     /// Power-on modes: DECAWM autowrap + DECTCEM cursor visible.
     pub const DEFAULT: Self = Self::WRAP.union(Self::CURSOR_VISIBLE);
 }
-
-/// Marker stored in the trailing cell of a double-width glyph. Render skips
-/// it (the lead cell already accounts for both columns).
-pub(crate) const CONTINUATION: char = '\0';
 
 /// A single screen cell: glyph + SGR attributes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

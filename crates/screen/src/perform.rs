@@ -19,12 +19,8 @@ impl Screen {
             match f {
                 b'h' => self.set_mode(params),   // DECSET
                 b'l' => self.reset_mode(params), // DECRST
-                b'J' => self.erase_in_display(
-                    params.first().copied().unwrap_or(0),
-                    true,
-                ), // DECSED
-                b'K' => self
-                    .erase_in_line(params.first().copied().unwrap_or(0), true), // DECSEL
+                b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), true), // DECSED
+                b'K' => self.erase_in_line(params.first().copied().unwrap_or(0), true), // DECSEL
                 _ => {}
             }
             return;
@@ -47,26 +43,22 @@ impl Screen {
             b'G' => self.cha(n(0)),              // CHA
             b'd' => self.vpa(n(0)),              // VPA
             b'H' | b'f' => self.cup(n(0), n(1)), // CUP / HVP
-            b'J' => self
-                .erase_in_display(params.first().copied().unwrap_or(0), false), // ED
+            b'J' => self.erase_in_display(params.first().copied().unwrap_or(0), false), // ED
             b'K' => {
-                self.erase_in_line(
-                    params.first().copied().unwrap_or(0),
-                    false,
-                );
+                self.erase_in_line(params.first().copied().unwrap_or(0), false);
             } // EL
-            b'L' => self.insert_lines(n(0)), // IL
-            b'M' => self.delete_lines(n(0)), // DL
-            b'P' => self.delete_chars(n(0)), // DCH
-            b'@' => self.insert_chars(n(0)), // ICH
-            b'X' => self.erase_chars(n(0)),  // ECH
-            b'S' => self.scroll_n(false, n(0)), // SU
-            b'T' => self.scroll_n(true, n(0)), // SD
+            b'L' => self.insert_lines(n(0)),     // IL
+            b'M' => self.delete_lines(n(0)),     // DL
+            b'P' => self.delete_chars(n(0)),     // DCH
+            b'@' => self.insert_chars(n(0)),     // ICH
+            b'X' => self.erase_chars(n(0)),      // ECH
+            b'S' => self.scroll_n(false, n(0)),  // SU
+            b'T' => self.scroll_n(true, n(0)),   // SD
             b'h' => self.apply_ansi_modes(params, true), // SM
             b'l' => self.apply_ansi_modes(params, false), // RM
-            b'm' => self.sgr(params),        // SGR
-            b'g' => self.tbc(params),        // TBC
-            b'r' => self.set_margins(params), // DECSTBM
+            b'm' => self.sgr(params),            // SGR
+            b'g' => self.tbc(params),            // TBC
+            b'r' => self.set_margins(params),    // DECSTBM
             _ => {}
         }
     }
@@ -84,8 +76,10 @@ impl Perform for Screen {
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         // Segment the run into grapheme clusters so ZWJ emoji families write
         // as one cell instead of separate glyphs.
-        let text: String =
-            codepoints.iter().filter_map(|&cp| char::from_u32(cp)).collect();
+        let text: String = codepoints
+            .iter()
+            .filter_map(|&cp| char::from_u32(cp))
+            .collect();
         for grapheme in vtty_grapheme::graphemes(&text) {
             self.put_cluster(grapheme.as_str(&text));
         }
@@ -107,20 +101,13 @@ impl Perform for Screen {
             0x08 => {
                 // BS
                 self.clear_wrap();
-                self.active.cursor.col =
-                    self.active.cursor.col.saturating_sub(1);
+                self.active.cursor.col = self.active.cursor.col.saturating_sub(1);
             }
             _ => {}
         }
     }
 
-    fn csi_dispatch(
-        &mut self,
-        params: &[i32],
-        _sep: u16,
-        intermediates: &[u8],
-        f: u8,
-    ) {
+    fn csi_dispatch(&mut self, params: &[i32], _sep: u16, intermediates: &[u8], f: u8) {
         // DECSTR (`CSI ! p`): soft reset. The `!` intermediate distinguishes
         // it from the DEC private (`?`) sequences handled by `csi`.
         if intermediates.first() == Some(&b'!') && f == b'p' {
@@ -166,7 +153,8 @@ impl Perform for Screen {
             b'H' => self.hts(),            // HTS
             b'M' => self.reverse_index(),  // RI
             b'E' => {
-                self.active.cursor.col = 0; // NEL
+                // NEL
+                self.active.cursor.col = 0;
                 self.linefeed();
             }
             b'c' => self.reset(), // RIS

@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! cursor commands for [`Screen`](crate::Screen).
+//! Cursor commands for [`Screen`](crate::Screen).
 
 use crate::Screen;
 use crate::cell::BufferFlags;
@@ -46,7 +46,11 @@ impl Screen {
         self.active.cursor.row = if down {
             (self.active.cursor.row + n).min(self.row_bound(true))
         } else {
-            self.active.cursor.row.saturating_sub(n).max(self.row_bound(false))
+            self.active
+                .cursor
+                .row
+                .saturating_sub(n)
+                .max(self.row_bound(false))
         };
     }
 
@@ -73,8 +77,7 @@ impl Screen {
         let row = row.saturating_sub(1);
         if self.active.flags.contains(BufferFlags::ORIGIN) {
             self.active.cursor.row = self.active.margins.top
-                + row
-                    .min(self.active.margins.bottom - self.active.margins.top);
+                + row.min(self.active.margins.bottom - self.active.margins.top);
         } else {
             self.active.cursor.row = row.min(self.rows - 1);
         }
@@ -134,8 +137,7 @@ impl Screen {
         // DECSTBM: 0 (or negative) means the default — row 1 for the top, the
         // last row for the bottom. Non-positive values must not reach the
         // `- 1` below (a `0` param would underflow).
-        let top =
-            params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
+        let top = params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
         let bottom = params
             .get(1)
             .copied()

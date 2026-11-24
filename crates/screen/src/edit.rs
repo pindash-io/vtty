@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! edit commands for [`Screen`](crate::Screen).
+//! Edit commands for [`Screen`](crate::Screen).
 
 use crate::Screen;
 use crate::cell::Cell;
@@ -36,9 +36,9 @@ impl Screen {
         let start = c * width;
         let end = (b + 1) * width;
 
-        // Content and soft-wrap flags shift one way by `n` rows in one pass;
-        // the vacated `n` rows go blank. The source and destination overlap,
-        // and `copy_within` moves them in the right order.
+        // Shift content and soft-wrap flags by `n` rows in one pass; the
+        // vacated rows go blank. The ranges overlap, and `copy_within` moves
+        // them in the right order.
         let (src, dst, blank, c_src, c_dst, c_blank) = if insert {
             (
                 start..end - n * width,
@@ -94,8 +94,7 @@ impl Screen {
             self.active
                 .cells
                 .copy_within(row + start..end - n, row + start + n);
-            self.active.cells[row + start..row + start + n]
-                .fill(Cell::default());
+            self.active.cells[row + start..row + start + n].fill(Cell::default());
             return;
         }
 
@@ -108,8 +107,7 @@ impl Screen {
             // `start` is never a continuation (it was adjusted to the lead),
             // and each iteration advances past a whole glyph, so `col` always
             // lands on a lead or a plain cell — never mid-pair.
-            let wide = col + 1 < cols
-                && self.active.cells[row + col + 1].is_continuation();
+            let wide = col + 1 < cols && self.active.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             del += width;
             glyphs += 1;
@@ -118,7 +116,9 @@ impl Screen {
         if del == 0 {
             return;
         }
-        self.active.cells.copy_within(row + start + del..end, row + start);
+        self.active
+            .cells
+            .copy_within(row + start + del..end, row + start);
         self.active.cells[end - del..end].fill(Cell::default());
     }
 }

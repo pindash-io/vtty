@@ -76,7 +76,6 @@ pub enum Progress {
     Error,
 }
 
-/// One screen buffer: the cell grid plus the per-buffer cursor, style and
 /// A cursor position: logical row and column. The column may be one past the
 /// last column to encode a pending autowrap.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -128,7 +127,10 @@ impl Buffer {
             bg: DEFAULT_BG_ID,
             protect: false,
             flags: BufferFlags::empty(),
-            margins: Margins { top: 0, bottom: rows - 1 },
+            margins: Margins {
+                top: 0,
+                bottom: rows - 1,
+            },
             continuation: vec![false; rows as usize],
         }
     }
@@ -409,11 +411,7 @@ impl Screen {
             (self.cols as usize) * (self.rows as usize),
             "cells length"
         );
-        assert_eq!(
-            self.tab_stops.len(),
-            self.cols as usize,
-            "tab_stops length"
-        );
+        assert_eq!(self.tab_stops.len(), self.cols as usize, "tab_stops length");
 
         assert!(
             self.inactive.cursor.row < self.rows,
@@ -528,7 +526,11 @@ impl Screen {
     #[inline]
     pub(crate) const fn phys_row(&self, row: u32) -> usize {
         let sum = self.active.scroll_top as usize + row as usize;
-        if sum >= self.rows as usize { sum - self.rows as usize } else { sum }
+        if sum >= self.rows as usize {
+            sum - self.rows as usize
+        } else {
+            sum
+        }
     }
 
     /// Rotate the active grid so logical row `0` sits at physical offset `0`.
@@ -541,7 +543,9 @@ impl Screen {
         self.active
             .cells
             .rotate_left(self.active.scroll_top as usize * self.cols as usize);
-        self.active.continuation.rotate_left(self.active.scroll_top as usize);
+        self.active
+            .continuation
+            .rotate_left(self.active.scroll_top as usize);
         self.active.scroll_top = 0;
     }
 
@@ -550,9 +554,9 @@ impl Screen {
         if self.inactive.scroll_top == 0 {
             return;
         }
-        self.inactive.cells.rotate_left(
-            self.inactive.scroll_top as usize * self.cols as usize,
-        );
+        self.inactive
+            .cells
+            .rotate_left(self.inactive.scroll_top as usize * self.cols as usize);
         self.inactive
             .continuation
             .rotate_left(self.inactive.scroll_top as usize);
@@ -604,7 +608,6 @@ impl Screen {
             return out;
         }
         let cells = &self.active.cells[self.row_range(row)];
-        // Trim trailing blank cells.
         let last = cells.len() - trailing_blanks(cells);
         let reverse = self.modes.contains(ScreenFlags::REVERSE);
         // `current` is the emitted style; `None` means "default, no SGR
@@ -628,9 +631,8 @@ impl Screen {
                     current_rgb = Some(state);
                 }
             } else {
-                let is_default = cell.sgr.is_empty()
-                    && cell.fg == DEFAULT_FG_ID
-                    && cell.bg == DEFAULT_BG_ID;
+                let is_default =
+                    cell.sgr.is_empty() && cell.fg == DEFAULT_FG_ID && cell.bg == DEFAULT_BG_ID;
                 if is_default {
                     if current.is_some() {
                         out.push_str("\x1b[0m");
@@ -639,9 +641,7 @@ impl Screen {
                 } else {
                     let state = (cell.sgr, cell.fg, cell.bg);
                     if current != Some(state) {
-                        push_sgr(
-                            &mut out, cell.sgr, cell.fg, cell.bg, &self.rgb,
-                        );
+                        push_sgr(&mut out, cell.sgr, cell.fg, cell.bg, &self.rgb);
                         current = Some(state);
                     }
                 }
@@ -695,13 +695,8 @@ impl Screen {
         self.materialize_alt();
 
         // Reflow scrollback + active buffer together as one logical stream.
-        let active = rows_from(
-            &self.active.cells,
-            &self.active.continuation,
-            self.cols,
-        );
-        let mut all_rows =
-            Vec::with_capacity(self.scrollback.len() + active.len());
+        let active = rows_from(&self.active.cells, &self.active.continuation, self.cols);
+        let mut all_rows = Vec::with_capacity(self.scrollback.len() + active.len());
         all_rows.extend(self.scrollback.iter().cloned());
         all_rows.extend(active);
         let reflowed = reflow_rows(&all_rows, new_cols);
@@ -715,11 +710,7 @@ impl Screen {
         let (new_cells, new_cont) = fit_grid(&reflowed, new_cols, new_rows);
 
         // Reflow the inactive buffer (it has no scrollback of its own).
-        let inactive = rows_from(
-            &self.inactive.cells,
-            &self.inactive.continuation,
-            self.cols,
-        );
+        let inactive = rows_from(&self.inactive.cells, &self.inactive.continuation, self.cols);
         let inactive_reflowed = reflow_rows(&inactive, new_cols);
         let (new_inactive_cells, new_inactive_cont) =
             fit_grid(&inactive_reflowed, new_cols, new_rows);
@@ -756,7 +747,7 @@ impl Screen {
 
     /// Attach a zero-width glyph (combining mark, variation selector, skin
     /// tone) to the base cell immediately left of the cursor, skipping a
-    /// double-width continuation cell. Marks beyond four are dropped; a
+    /// double-width continuation cell. Marks beyond eight are dropped; a
     /// leading mark with no base cell is dropped.
     fn attach_mark(&mut self, c: char) {
         if self.active.cursor.col == 0 {

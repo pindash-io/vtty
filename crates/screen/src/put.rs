@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! put commands for [`Screen`](crate::Screen).
+//! Put commands for [`Screen`](crate::Screen).
 
 use vtty_width::{cell_width, cell_width_sum};
 
@@ -62,20 +62,19 @@ impl Screen {
             }
             // A cursor on a double-width continuation acts on the glyph's lead.
             let base = self.row_offset(self.active.cursor.row);
-            if col > 0
-                && self.active.cells[base + col as usize].is_continuation()
-            {
+            if col > 0 && self.active.cells[base + col as usize].is_continuation() {
                 col -= 1;
             }
             while i < s.len() && col < self.cols {
                 let idx = base + col as usize;
-                self.active.cells[idx] = Cell { ch: s[i] as char, ..template };
+                self.active.cells[idx] = Cell {
+                    ch: s[i] as char,
+                    ..template
+                };
                 i += 1;
                 col += 1;
                 // Overwriting a wide glyph's lead orphans its continuation.
-                if col < self.cols
-                    && self.active.cells[idx + 1].is_continuation()
-                {
+                if col < self.cols && self.active.cells[idx + 1].is_continuation() {
                     self.active.cells[idx + 1] = Cell::default();
                 }
             }
@@ -102,8 +101,7 @@ impl Screen {
         // A cursor on a double-width continuation acts on the glyph's lead,
         // so a write replaces/shifts the whole glyph, never half of it.
         if self.active.cursor.col > 0 {
-            let idx = self.row_offset(self.active.cursor.row)
-                + self.active.cursor.col as usize;
+            let idx = self.row_offset(self.active.cursor.row) + self.active.cursor.col as usize;
             if self.active.cells[idx].is_continuation() {
                 self.active.cursor.col -= 1;
             }
@@ -126,17 +124,17 @@ impl Screen {
         self.active.cells[idx] = cell;
         self.active.cursor.col += width;
         if width == 2 {
-            self.active.cells[idx + 1] = Cell { ch: CONTINUATION, ..cell };
-        } else if idx + 1 < row_end
-            && self.active.cells[idx + 1].is_continuation()
-        {
+            self.active.cells[idx + 1] = Cell {
+                ch: CONTINUATION,
+                ..cell
+            };
+        } else if idx + 1 < row_end && self.active.cells[idx + 1].is_continuation() {
             // Overwrote a double-width glyph's lead: clear the now-orphaned
             // continuation cell.
             self.active.cells[idx + 1] = Cell::default();
         }
         if self.active.cursor.col >= self.cols {
-            self.active.cursor.col = if self.modes.contains(ScreenFlags::WRAP)
-            {
+            self.active.cursor.col = if self.modes.contains(ScreenFlags::WRAP) {
                 self.cols
             } else {
                 self.cols - 1
@@ -154,8 +152,7 @@ impl Screen {
             return;
         }
         let start = self.row_offset(self.active.cursor.row);
-        self.active.cells[start..start + cols]
-            .copy_within(col..cols - shift, col + shift);
+        self.active.cells[start..start + cols].copy_within(col..cols - shift, col + shift);
     }
 
     /// Write a grapheme cluster as one cell: the first glyph is the base, the
