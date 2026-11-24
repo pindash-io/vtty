@@ -47,7 +47,7 @@ const DECRQSS_ERR: &str = "\x1bP0$r";
 ///
 /// // An OSC 11 background-color report (red):
 /// assert_eq!(
-///     Reply::osc_color(11, 0xff0000).as_str(),
+///     Reply::osc_color(11, 0xff0000ff).as_str(),
 ///     "\x1b]11;rgb:ffff/0000/0000\x1b\\",
 /// );
 /// ```
@@ -116,7 +116,7 @@ impl Reply {
     }
 
     /// Build an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
-    /// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
+    /// `0xRRGGBBAA` value (8-bit channels repeated to 4 hex digits, the xterm
     /// convention).
     #[inline]
     #[must_use]
@@ -245,9 +245,9 @@ mod tests {
             Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::BOLD, &pal),
             "0;1;39;49"
         );
-        // 5 = indexed, 258 = an RGB id (0x112233) in the palette.
+        // 5 = indexed, 258 = an RGB id (0x112233ff) in the palette.
         let mut pal = [0_u32; 259];
-        pal[258] = 0x112233;
+        pal[258] = 0x112233ff;
         assert_eq!(
             Reply::sgr(ColorId(5), ColorId(258), SgrFlags::empty(), &pal),
             "0;38;5;5;48;2;17;34;51"
@@ -277,11 +277,11 @@ mod tests {
     #[test]
     fn osc_reply_formats() {
         assert_eq!(
-            Reply::osc_color(10, 0x112233),
+            Reply::osc_color(10, 0x112233ff),
             "\x1b]10;rgb:1111/2222/3333\x1b\\"
         );
         assert_eq!(
-            Reply::osc_palette(4, 0x112233),
+            Reply::osc_palette(4, 0x112233ff),
             "\x1b]4;4;rgb:1111/2222/3333\x1b\\"
         );
         assert_eq!(

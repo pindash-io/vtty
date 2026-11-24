@@ -10,7 +10,7 @@
 
 use alloc::string::ToString;
 
-use compact_str::{CompactString, format_compact};
+use compact_str::{CompactString, ToCompactString, format_compact};
 
 bitflags::bitflags! {
     /// Kitty keyboard protocol flags, reported by `CSI > flags u` and pushed
@@ -334,7 +334,7 @@ fn encode_kitty(
 
     let encoded = match key {
         Key::Character(ch) => {
-            encode_kitty_text(ch, flags, mods, has_mods, encoded_mods, event, text)?
+            encode_kitty_text(*ch, flags, mods, has_mods, encoded_mods, event, text)?
         }
         Key::Keypad { kitty, .. } => kitty_csi(*kitty, 'u', encoded_mods, event),
         Key::Backspace => kitty_fallback(127, "\x7f", has_mods, event, flags, encoded_mods),
@@ -373,7 +373,7 @@ fn kitty_csi(code: u32, trailer: char, encoded_mods: u32, event: Option<u32>) ->
 /// Encode a kitty text key (`report_alternates` / `report_text` /
 /// `report_events`).
 fn encode_kitty_text(
-    ch: &char,
+    ch: char,
     flags: u8,
     mods: Modifiers,
     has_mods: bool,
@@ -382,7 +382,6 @@ fn encode_kitty_text(
     text: Option<&str>,
 ) -> Option<CompactString> {
     use core::fmt::Write as _;
-    let cp = *ch as u32;
     let embed_text = flags & 16 != 0 && text.is_some_and(|t| !t.is_empty());
 
     // A text key with only shift (or no modifier) stays text.
@@ -401,15 +400,15 @@ fn encode_kitty_text(
     }
 
     let mut b = CompactString::default();
-    let _ = write!(b, "\x1b[{cp}");
+    let _ = write!(b, "\x1b[{}", ch as u32);
 
     // report_alternates (flag 4): `:shifted:base`.
     if flags & 4 != 0 && has_mods {
         if mods.shift() {
             let shifted = shifted_char(ch, text)?;
-            let _ = write!(b, ":{}:{cp}", shifted as u32);
+            let _ = write!(b, ":{}:{}", shifted as u32, ch as u32);
         } else {
-            let _ = write!(b, "::{cp}");
+            let _ = write!(b, "::{}", ch as u32);
         }
     }
 
@@ -440,14 +439,14 @@ fn encode_kitty_text(
 
 /// The shifted character of a Shift+key: the event `text`'s first char, else
 /// the uppercase base.
-fn shifted_char(ch: &char, text: Option<&str>) -> Option<char> {
+fn shifted_char(ch: char, text: Option<&str>) -> Option<char> {
     text.and_then(|t| t.chars().next())
         .or_else(|| ch.to_uppercase().next())
 }
 
 /// The shifted text of a Shift+key: the shifted char, else the base itself.
-fn shifted_text(ch: &char, text: Option<&str>) -> CompactString {
-    shifted_char(ch, text).map_or_else(|| ch.to_string().into(), |c| c.to_string().into())
+fn shifted_text(ch: char, text: Option<&str>) -> CompactString {
+    shifted_char(ch, text).unwrap_or(ch).to_compact_string()
 }
 
 /// The kitty functional `(code, trailer)`, or `None` for fallback/legacy-only
@@ -507,7 +506,7 @@ fn legacy_base(
     Some(match key {
         Key::Character(ch) => match text {
             Some(t) if !t.is_empty() => t.into(),
-            _ => ch.to_string().into(),
+            _ => ch.to_compact_string(),
         },
         Key::Backspace => {
             if modes.backarrow {
@@ -528,9 +527,9 @@ fn legacy_base(
 
 /// The xterm modifyOtherKeys cursor letter for a Ctrl+cursor key
 /// (`Ctrl+Left` → `CSI 1;5D`): the kitty code-1 trailer.
-fn cursor_key_letter(key: &Key) -> Option<char> {
-    match key.legacy_spec()? {
-        KeySpec::Cursor(l) | KeySpec::CsiLetter(l) => Some(*l),
+const fn cursor_key_letter(key: &Key) -> Option<char> {
+    match key.legacy_spec() {
+        Some(KeySpec::Cursor(l) | KeySpec::CsiLetter(l)) => Some(*l),
         _ => None,
     }
 }
@@ -567,16 +566,17 @@ fn legacy_arrow(letter: char, app_cursor: bool) -> CompactString {
 fn legacy_modified(base: CompactString, key: &Key, mods: Modifiers) -> Option<CompactString> {
     let ctrl = mods.ctrl();
     let alt = mods.alt();
+    let shift = mods.shift();
 
     // Shift+Tab is the BackTab (`CSI Z`), not a shifted tab byte.
-    if mods.shift() && !ctrl && !alt && matches!(key, Key::Tab) {
+    if shift && !ctrl && !alt && matches!(key, Key::Tab) {
         return Some("\x1b[Z".into());
     }
 
     // Shift/Alt (without Ctrl) on cursor keys keep the xterm modifyOtherKeys
     // form (`CSI 1;2A` Shift+Up, `CSI 1;3A` Alt+Up).
     if !ctrl
-        && (mods.shift() || alt)
+        && (shift || alt)
         && let Some(letter) = cursor_key_letter(key)
     {
         return Some(format_compact!("\x1b[1;{}{letter}", mods.encoded()));
@@ -586,9 +586,9 @@ fn legacy_modified(base: CompactString, key: &Key, mods: Modifiers) -> Option<Co
         return Some(base);
     }
 
-    let ctrl_char = if ctrl && !(mods.shift() && base.as_bytes() != *b"@") {
+    let ctrl_char = if ctrl && !(shift && base.as_bytes() != *b"@") {
         match base.as_bytes() {
-            [b] if *b < 0x20 || *b == 0x7f => Some(*b as char),
+            [b] if matches!(b, ..0x20 | 0x7f) => Some(*b as char),
             [b] => legacy_ctrl(*b),
             _ => None,
         }
@@ -708,6 +708,59 @@ mod tests {
         assert_eq!(KittyFlags::REPORT_ALTERNATE_KEYS.bits(), 4);
         assert_eq!(KittyFlags::REPORT_ALL_KEYS.bits(), 8);
         assert_eq!(KittyFlags::REPORT_ASSOCIATED_TEXT.bits(), 16);
+    }
+
+    #[test]
+    fn kitty_text_params_are_code_points() {
+        // `CSI <code point>[:shifted:base][;mods[:event]][;text] u`: the
+        // parameters are decimal code points, never the character itself.
+        let all = KittyFlags::DISAMBIGUATE
+            | KittyFlags::REPORT_EVENT_TYPES
+            | KittyFlags::REPORT_ALTERNATE_KEYS
+            | KittyFlags::REPORT_ALL_KEYS
+            | KittyFlags::REPORT_ASSOCIATED_TEXT;
+        let encode = |flags: KittyFlags, mods: Modifiers, text: Option<&'static str>| {
+            encode_key(
+                &Key::Character('a'),
+                mods,
+                KeyEncoding::Kitty(flags.bits()),
+                KeyEventKind::Press,
+                KeyModes::default(),
+                text,
+            )
+            .map(|s| s.to_string())
+        };
+
+        assert_eq!(
+            encode(all, Modifiers::SHIFT, Some("A")).as_deref(),
+            Some("\x1b[97:65:97;2;65u")
+        );
+        assert_eq!(
+            encode(
+                KittyFlags::DISAMBIGUATE
+                    | KittyFlags::REPORT_ALTERNATE_KEYS
+                    | KittyFlags::REPORT_ASSOCIATED_TEXT,
+                Modifiers::CTRL,
+                Some("a")
+            )
+            .as_deref(),
+            Some("\x1b[97::97;5;97u")
+        );
+        // No modifier reports an empty field rather than dropping it.
+        assert_eq!(
+            encode(all, Modifiers::empty(), Some("a")).as_deref(),
+            Some("\x1b[97;;97u")
+        );
+        // Without `report_all_keys` or embedded text the key stays plain text.
+        assert_eq!(
+            encode(
+                KittyFlags::DISAMBIGUATE | KittyFlags::REPORT_EVENT_TYPES,
+                Modifiers::empty(),
+                None
+            )
+            .as_deref(),
+            Some("a")
+        );
     }
 
     #[test]

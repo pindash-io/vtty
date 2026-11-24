@@ -6,8 +6,6 @@
 //! SGR (Select Graphic Rendition) follows ECMA-48, as documented in the DEC
 //! manuals (EK-VT520-RM §5).
 
-use alloc::string::ToString;
-
 use smallvec::SmallVec;
 
 use crate::event::param_colon_sep;
@@ -268,15 +266,15 @@ pub enum ColorSpec {
     /// `38;5;n` / `48;5;n` / `58;5;n` — the extended indexed color (already
     /// clamped to 0..=255).
     Indexed(u16),
-    /// `38;2;r;g;b` etc. — truecolor, packed 0xRRGGBB.
+    /// `38;2;r;g;b` etc. — truecolor, packed `0xRRGGBBAA`.
     Rgb(u32),
 }
 
 impl ColorSpec {
-    /// Pack a truecolor triplet into an RGB color (`0x00RRGGBB`).
+    /// Pack a truecolor triplet into an opaque RGB color (`0xRRGGBBFF`).
     #[inline]
     pub const fn rgb(r: i32, g: i32, b: i32) -> Self {
-        Self::Rgb(crate::rgb(r, g, b))
+        Self::Rgb(crate::rgb_to_u32(r, g, b))
     }
 
     /// Clamp an indexed color to the 256-color table and wrap it.
@@ -352,7 +350,7 @@ impl Sgr {
                 let colon = i - 1 < 16 && self.sep & (1_u16 << (i - 1)) != 0;
                 out.push(if colon { b':' } else { b';' });
             }
-            out.extend_from_slice_copy(p.to_string().as_bytes());
+            crate::event::push_param(out, *p);
         }
         out.push(b'm');
     }
@@ -737,6 +735,12 @@ mod tests {
         out.clear();
         Sgr::new(SmallVec::from([4, 2]), 0b01).write_bytes(&mut out);
         assert_eq!(out.as_ref(), b"\x1b[4:2m");
+
+        // A trailing empty param (ConPTY's `SGR …;m`) writes nothing: the
+        // separator carries it.
+        out.clear();
+        Sgr::new(SmallVec::from([48, 2, 255, 0, 128, -1]), 0).write_bytes(&mut out);
+        assert_eq!(out.as_ref(), b"\x1b[48;2;255;0;128;m");
 
         out.clear();
         Sgr::default().write_bytes(&mut out);

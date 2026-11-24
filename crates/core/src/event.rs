@@ -3,7 +3,6 @@
 
 //! The owned, trait-free event API: `Event` + `Recording`.
 
-use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use smallvec::SmallVec;
@@ -374,9 +373,10 @@ pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
 /// Parameters past the 16th are not tracked.
 #[inline]
 pub const fn set_param_colon_sep(sep: &mut u16, i: usize) {
-    if i < 16 {
-        *sep |= 1 << i;
+    if i >= 16 {
+        return;
     }
+    *sep |= 1 << i;
 }
 
 fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u16) {
@@ -387,8 +387,20 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
             let colon = param_colon_sep(sep, i - 1);
             out.push(if colon { b':' } else { b';' });
         }
-        out.extend_from_slice_copy(p.to_string().as_bytes());
+        push_param(out, *p);
     }
+}
+
+/// Append one parameter as decimal text. The negative sentinels (`-1` trailing
+/// or colon-empty, `-2` separator-empty) are written as nothing: the
+/// surrounding separators already carry them.
+#[inline]
+pub(crate) fn push_param<const N: usize>(out: &mut SmallVec<u8, N>, p: i32) {
+    if p < 0 {
+        return;
+    }
+    let mut buf = [0_u8; 10];
+    out.extend_from_slice_copy(crate::write_decimal(p as u32, &mut buf));
 }
 
 #[cfg(test)]
@@ -417,6 +429,33 @@ mod tests {
         }
         .write_bytes(&mut out);
         assert_eq!(&out[..], b"\x1b[?25h");
+    }
+
+    #[test]
+    fn write_bytes_skips_empty_param_sentinels() {
+        // `-2` is a separator-empty param and `-1` a trailing or colon-empty
+        // one; the separators alone must reproduce them.
+        for (params, expected) in [
+            (SmallVec::from([1, 31, -1]), &b"\x1b[1;31;m"[..]),
+            (SmallVec::from([-2, 1]), &b"\x1b[;1m"[..]),
+            (SmallVec::from([-2, -2, -1]), &b"\x1b[;;m"[..]),
+            (SmallVec::from([-1]), &b"\x1b[m"[..]),
+            (SmallVec::from([0, 65535]), &b"\x1b[0;65535m"[..]),
+            // Hand-built params are not clamped; `i32::MAX` is the widest
+            // value `push_param` can see, and it needs every one of the ten
+            // buffer bytes.
+            (SmallVec::from([i32::MAX]), &b"\x1b[2147483647m"[..]),
+        ] {
+            let mut out = SmallVec::<u8, 16>::new();
+            Event::CsiDispatch {
+                params,
+                sep: 0,
+                intermediates: SmallVec::new(),
+                final_byte: b'm',
+            }
+            .write_bytes(&mut out);
+            assert_eq!(out.as_ref(), expected);
+        }
     }
 
     #[test]
