@@ -2,14 +2,54 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! The callback interface the byte parser dispatches to. Each method matches
-//! an action in the [DEC parser state
-//! diagram](https://vt100.net/emu/dec_ansi_parser) (`print`, `execute`,
+//! an action in the [DEC parser state diagram] (`print`, `execute`,
 //! `esc_dispatch`, `csi_dispatch`, `hook`/`put`/`unhook`, `osc_dispatch`).
+//!
+//! [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
 
-/// Sink for the byte parser's decoded output. `Parser::advance` calls these
-/// as it decodes; every method has a no-op default, so a screen overrides
-/// only what it cares about. [`Event`](crate::Event) is the owned,
-/// trait-free alternative.
+/// A sink for the byte parser's decoded output.
+///
+/// `Parser::advance` calls one method per dispatch: a printable code point or
+/// ASCII run, a C0/C1 control, or the parsed body of a CSI, OSC, DCS or ESC
+/// sequence. Every method has a no-op default, so a screen overrides only the
+/// callbacks it needs.
+///
+/// [`Event`](crate::Event) is the owned, trait-free alternative: parse into a
+/// `Vec<Event>` via `Parser::parse_events` instead of implementing this trait.
+///
+/// # Fused callbacks
+///
+/// Two defaults are composites rather than raw parser actions:
+///
+/// * [`print_line`](Perform::print_line) fuses a printable ASCII run with a
+///   following bare `\n`.
+/// * [`print_crlf_line`](Perform::print_crlf_line) fuses a printable ASCII
+///   run with a following `\r\n`.
+///
+/// Terminal output almost always arrives as LF- or CRLF-terminated lines, so
+/// one fused call avoids two or three callback round-trips. The defaults
+/// delegate to [`print_bytes`](Perform::print_bytes) and
+/// [`execute`](Perform::execute); a screen may override them to render the
+/// fused form directly.
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::Perform;
+///
+/// struct Screen;
+///
+/// impl Perform for Screen {
+///     fn print_bytes(&mut self, _s: &[u8]) {}
+///     fn execute(&mut self, _byte: u8) {}
+/// }
+///
+/// let mut screen = Screen;
+/// screen.print_bytes(b"hello");
+/// screen.execute(b'\n');
+/// // The fused default delegates to the two callbacks above:
+/// screen.print_line(b"world");
+/// ```
 pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).
     fn print(&mut self, _c: char) {}
@@ -55,13 +95,7 @@ pub trait Perform {
     /// (clamped to `0..=65535`); an empty colon param is the `-1` sentinel.
     /// `sep` marks colon-separated params: bit `i` = param `i` followed by
     /// `:` (`4:2` vs `4;2`). Default: ignore.
-    fn csi_dispatch(
-        &mut self,
-        _params: &[i32],
-        _sep: u16,
-        _intermediates: &[u8],
-        _final_byte: u8,
-    ) {
+    fn csi_dispatch(&mut self, _params: &[i32], _sep: u16, _intermediates: &[u8], _final_byte: u8) {
     }
 
     /// An escape sequence's final byte. Default: ignore.
@@ -69,13 +103,7 @@ pub trait Perform {
 
     /// A device-control string header arrived. Parameters are `i32` (see
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
-    fn hook(
-        &mut self,
-        _params: &[i32],
-        _intermediates: &[u8],
-        _final_byte: u8,
-    ) {
-    }
+    fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
 
     /// A device-control string payload byte arrived. Raw — arbitrary, not
     /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:

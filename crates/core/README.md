@@ -8,8 +8,7 @@ owned [`Event`](https://docs.rs/vtty_core/latest/vtty_core/event/enum.Event.html
 [`State`](https://docs.rs/vtty_core/latest/vtty_core/state/struct.State.html) sink.
 
 This crate is split out so the `vtty` parser facade and `vtty_codec` can
-share it without the codec depending on the parser. `vtty` re-exports its
-API.
+share it without the codec depending on the parser.
 
 ## Features
 
@@ -26,3 +25,13 @@ exhaustive. Types with public fields stay constructible by struct
 literal, so they are never `#[non_exhaustive]`.
 
 <!-- cargo-rdme end -->
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.

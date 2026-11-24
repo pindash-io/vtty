@@ -4,9 +4,11 @@
 //! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP and the
 //! `$`-family DCS reports).
 //!
-//! Query/response pairs follow the [DECronomicon CSI/DCS
-//! tables](https://vt100.net/emu/ctrlseq_dec.html); the individual report
-//! formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR) follow EK-VT520-RM §5.
+//! Query/response pairs follow the [DECronomicon CSI/DCS tables]; the
+//! individual report formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR)
+//! follow EK-VT520-RM §5.
+//!
+//! [DECronomicon CSI/DCS tables]: https://vt100.net/emu/ctrlseq_dec.html
 
 use alloc::string::ToString;
 use core::fmt::Write as _;
@@ -28,9 +30,27 @@ const DECRQSS_OK: &str = "\x1bP1$r";
 /// DECRQSS answer prefix — `DCS 0 $ r` (invalid).
 const DECRQSS_ERR: &str = "\x1bP0$r";
 
-/// Namespace for VT query reply builders. Each associated function returns
-/// the finished reply as a [`CompactString`]; the screen accumulates a burst
-/// of replies by concatenating them in dispatch order.
+/// Namespace for VT query reply builders.
+///
+/// Each associated function returns a finished reply as a
+/// [`CompactString`], ready to write back to the PTY. The screen accumulates
+/// a burst of replies by concatenating them in dispatch order. The report
+/// formats follow the DEC manuals (DECRQSS/DECRQM/XTGETTCAP).
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::Reply;
+///
+/// // DECRQSS answer for "what is the SGR state?":
+/// assert_eq!(Reply::decrqss(true, "0").as_str(), "\x1bP1$r0\x1b\\");
+///
+/// // An OSC 11 background-color report (red):
+/// assert_eq!(
+///     Reply::osc_color(11, 0xff0000).as_str(),
+///     "\x1b]11;rgb:ffff/0000/0000\x1b\\",
+/// );
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Reply;
 
@@ -76,12 +96,7 @@ impl Reply {
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
     /// Starts with `0` (reset-all). `palette` resolves RGB ids.
     #[must_use]
-    pub fn sgr(
-        fg: ColorId,
-        bg: ColorId,
-        flags: SgrFlags,
-        palette: &[u32],
-    ) -> CompactString {
+    pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();
         buf.push_str("0");
         for (_, code) in [
@@ -121,9 +136,10 @@ impl Reply {
     #[inline]
     #[must_use]
     pub fn osc_background(c: [f32; 4]) -> CompactString {
-        // The 25-byte buffer is pure ASCII (ESC + hex digits + ST).
-        let fixed = crate::color::format_osc_background(c);
-        CompactString::from(core::str::from_utf8(&fixed).unwrap_or_default())
+        // Pure ASCII (ESC + hex digits + ST), so validation cannot fail. Stay
+        // strict rather than lossy: a broken invariant should drop the reply,
+        // not splice U+FFFD into it.
+        CompactString::from_utf8(crate::color::format_osc_background(c)).unwrap_or_default()
     }
 
     /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
@@ -131,10 +147,7 @@ impl Reply {
     /// includes the `?` for `CSI ?Ps$p` queries.
     #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
-        format_compact!(
-            "\x1b[{}{param};{state}$y",
-            if private { "?" } else { "" }
-        )
+        format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
     }
 }
 
@@ -147,12 +160,7 @@ fn terminate(buf: &mut CompactString) {
 /// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
 /// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
 /// failure messages.
-pub(crate) fn xtgettcap(
-    buf: &mut CompactString,
-    ok: bool,
-    key: &[u8],
-    value: Option<&[u8]>,
-) {
+pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Option<&[u8]>) {
     buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
     buf.push_str(&const_hex::encode(key));
     if let Some(value) = value {
@@ -164,21 +172,13 @@ pub(crate) fn xtgettcap(
 
 /// Append an XTGETTCAP decimal-integer answer, hex-encoding the digits of
 /// the decimal form (same bytes as [`xtgettcap`] with a numeric value).
-pub(crate) fn xtgettcap_num_append(
-    buf: &mut CompactString,
-    key: &[u8],
-    n: usize,
-) {
+pub(crate) fn xtgettcap_num_append(buf: &mut CompactString, key: &[u8], n: usize) {
     xtgettcap(buf, true, key, Some(n.to_string().as_bytes()));
 }
 
 /// Build an XTGETTCAP answer in a fresh buffer.
 #[inline]
-fn xtgettcap_build(
-    ok: bool,
-    key: &[u8],
-    value: Option<&[u8]>,
-) -> CompactString {
+fn xtgettcap_build(ok: bool, key: &[u8], value: Option<&[u8]>) -> CompactString {
     let mut buf = CompactString::default();
     xtgettcap(&mut buf, ok, key, value);
     buf

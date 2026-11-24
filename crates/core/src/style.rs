@@ -6,6 +6,12 @@
 //! SGR (Select Graphic Rendition) follows ECMA-48, as documented in the DEC
 //! manuals (EK-VT520-RM §5).
 
+use alloc::string::ToString;
+
+use smallvec::SmallVec;
+
+use crate::event::param_colon_sep;
+
 bitflags::bitflags! {
     /// SGR attribute state: bold/faint/italic/underline/strikethrough/
     /// overline/inverse/invisible/blink. The nine stored attributes occupy
@@ -152,7 +158,7 @@ impl From<u8> for UnderlineStyle {
 }
 
 impl UnderlineStyle {
-    /// Decode a STORED underline-style code (0 = off, 1..=5 = a style) into a
+    /// Decode a stored underline-style code (0 = off, 1..=5 = a style) into a
     /// style, treating any out-of-range code as [`Self::None`]. The
     /// stored-field counterpart of the SGR sub-parameter decoder ([`From`]):
     /// a stored field holds only 0..=5 in practice, so an unknown code is the
@@ -243,11 +249,11 @@ impl CursorStyle {
     /// and unsupported codes (≥7) leave the blink state unchanged (`None`).
     #[inline]
     pub const fn decscusr_blink(param: i32) -> Option<bool> {
-        match param {
-            1 | 3 | 5 => Some(true),
-            0 | 2 | 4 | 6 => Some(false),
-            _ => None,
-        }
+        Some(match param {
+            1 | 3 | 5 => true,
+            0 | 2 | 4 | 6 => false,
+            _ => return None,
+        })
     }
 }
 
@@ -257,7 +263,7 @@ pub enum ColorSpec {
     /// 39/49 — restore the default fg/bg.
     Default,
     /// 30..=37 / 90..=97 / 40..=47 / 100..=107 — the direct ANSI codes.
-    /// The line screen maps 30..=37 to the bright half under bold (legacy).
+    /// Under bold, 30..=37 may render as the bright 90..=97 range (legacy).
     Ansi(u16),
     /// `38;5;n` / `48;5;n` / `58;5;n` — the extended indexed color (already
     /// clamped to 0..=255).
@@ -285,9 +291,9 @@ impl ColorSpec {
 pub enum SgrEffect {
     /// 0 — reset all attributes and colors.
     Reset,
-    /// Turn attribute flags ON (bold/faint/…).
+    /// Turn attribute flags on (bold/faint/…).
     Set(SgrFlags),
-    /// Turn attribute flags OFF.
+    /// Turn attribute flags off.
     Clear(SgrFlags),
     /// 4 / 4:n / 21 — set the underline style (`None` clears it).
     Underline(UnderlineStyle),
@@ -301,20 +307,61 @@ pub enum SgrEffect {
     ClearUnderlineColor,
 }
 
-use alloc::string::ToString;
+/// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the
+/// colon-separator bitfield (bit `i` = parameter `i` followed by `:`).
+///
+/// Params are inline-allocated — the common 1–8 param SGR sequence never
+/// touches the heap.
+///
+/// # Example
+///
+/// Raw params are usually turned into [`SgrEffect`]s with the
+/// [`single_effect`] or [`parse_effects`] fast paths:
+///
+/// ```
+/// use vtty_core::{single_effect, SgrEffect, SgrFlags};
+///
+/// // SGR 1 = bold:
+/// assert_eq!(
+///     single_effect(&[1], 0),
+///     Some(SgrEffect::Set(SgrFlags::BOLD)),
+/// );
+/// // SGR 0 = reset:
+/// assert_eq!(single_effect(&[0], 0), Some(SgrEffect::Reset));
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Sgr {
+    /// The SGR parameter values.
+    pub params: SmallVec<i32, 8>,
+    /// Bit `i` is set when parameter `i` was followed by a colon.
+    pub sep: u16,
+}
 
-use smallvec::SmallVec;
+impl Sgr {
+    /// Build an SGR sequence from raw CSI dispatch parts.
+    pub const fn new(params: SmallVec<i32, 8>, sep: u16) -> Self {
+        Self { params, sep }
+    }
 
-use crate::event::param_colon_sep;
+    /// Append the canonical `CSI … m` sequence to `out`, honouring the
+    /// colon-separator bitfield.
+    pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
+        out.extend_from_slice_copy(b"\x1b[");
+        for (i, p) in self.params.iter().enumerate() {
+            if i > 0 {
+                let colon = i - 1 < 16 && self.sep & (1_u16 << (i - 1)) != 0;
+                out.push(if colon { b':' } else { b';' });
+            }
+            out.extend_from_slice_copy(p.to_string().as_bytes());
+        }
+        out.push(b'm');
+    }
+}
 
 /// Parse an SGR sequence into its effects, appending to `out` (which the
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
 /// ([`ColorSpec`]) so each consumer interns them against its own palette.
-pub fn parse_effects(
-    params: &[i32],
-    sep: u16,
-    out: &mut SmallVec<SgrEffect, 8>,
-) {
+pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
     if params.is_empty() {
         out.push(SgrEffect::Reset);
         return;
@@ -359,17 +406,14 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
         return None;
     }
-    match params {
-        [] => Some(SgrEffect::Reset),
-        [code @ (38 | 48 | 58), 2, r, g, b] => {
-            Some(extended_effect(*code, ColorSpec::rgb(*r, *g, *b)))
-        }
-        [code @ (38 | 48 | 58), 5, n] => {
-            Some(extended_effect(*code, ColorSpec::indexed(*n)))
-        }
-        [code] => single_code(*code),
-        _ => None,
-    }
+    let value = match *params {
+        [] => SgrEffect::Reset,
+        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
+        [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
+        [code] => return single_code(code),
+        _ => return None,
+    };
+    Some(value)
 }
 
 /// The common two-effect SGR form — one attribute code followed by one
@@ -377,24 +421,22 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
 /// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
 /// for anything else; the caller falls back to [`parse_effects`].
 #[inline]
-pub fn two_effects(
-    params: &[i32],
-    sep: u16,
-) -> Option<(SgrEffect, SgrEffect)> {
+pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
-    match params {
-        [attr, code @ (38 | 48 | 58), 2, r, g, b] => Some((
-            single_code(*attr)?,
-            extended_effect(*code, ColorSpec::rgb(*r, *g, *b)),
-        )),
-        [attr, code @ (38 | 48 | 58), 5, n] => Some((
-            single_code(*attr)?,
-            extended_effect(*code, ColorSpec::indexed(*n)),
-        )),
-        _ => None,
-    }
+    let value = match *params {
+        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (
+            single_code(attr)?,
+            extended_effect(code, ColorSpec::rgb(r, g, b)),
+        ),
+        [attr, code @ (38 | 48 | 58), 5, n] => (
+            single_code(attr)?,
+            extended_effect(code, ColorSpec::indexed(n)),
+        ),
+        _ => return None,
+    };
+    Some(value)
 }
 
 /// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
@@ -411,24 +453,20 @@ const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
 /// The effect of a single SGR attribute code.
 #[inline]
 pub fn single_code(code: i32) -> Option<SgrEffect> {
-    match code {
+    let value = match code {
         // `-2` is the parser's `;`-separated empty sentinel; in SGR an empty
-        // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is NOT a
+        // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is not a
         // reset — it is ignored by the callers.
-        0 | -2 => Some(SgrEffect::Reset),
-        4 => Some(SgrEffect::Underline(UnderlineStyle::Single)),
-        21 => Some(SgrEffect::Underline(UnderlineStyle::Double)),
-        30..=37 => Some(SgrEffect::Fg(ColorSpec::Ansi((code - 30) as u16))),
-        39 => Some(SgrEffect::Fg(ColorSpec::Default)),
-        40..=47 => Some(SgrEffect::Bg(ColorSpec::Ansi((code - 40) as u16))),
-        49 => Some(SgrEffect::Bg(ColorSpec::Default)),
-        59 => Some(SgrEffect::ClearUnderlineColor),
-        90..=97 => {
-            Some(SgrEffect::Fg(ColorSpec::Ansi((code - 90 + 8) as u16)))
-        }
-        100..=107 => {
-            Some(SgrEffect::Bg(ColorSpec::Ansi((code - 100 + 8) as u16)))
-        }
+        0 | -2 => SgrEffect::Reset,
+        4 => SgrEffect::Underline(UnderlineStyle::Single),
+        21 => SgrEffect::Underline(UnderlineStyle::Double),
+        30..=37 => SgrEffect::Fg(ColorSpec::Ansi((code - 30) as u16)),
+        39 => SgrEffect::Fg(ColorSpec::Default),
+        40..=47 => SgrEffect::Bg(ColorSpec::Ansi((code - 40) as u16)),
+        49 => SgrEffect::Bg(ColorSpec::Default),
+        59 => SgrEffect::ClearUnderlineColor,
+        90..=97 => SgrEffect::Fg(ColorSpec::Ansi((code - 90 + 8) as u16)),
+        100..=107 => SgrEffect::Bg(ColorSpec::Ansi((code - 100 + 8) as u16)),
         _ => {
             let mut flags = SgrFlags::from(code);
             if flags.is_empty() {
@@ -436,12 +474,13 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
             }
             if flags.contains(SgrFlags::RESET) {
                 flags.remove(SgrFlags::RESET);
-                Some(SgrEffect::Clear(flags))
+                SgrEffect::Clear(flags)
             } else {
-                Some(SgrEffect::Set(flags))
+                SgrEffect::Set(flags)
             }
         }
-    }
+    };
+    Some(value)
 }
 
 /// Parse an extended color (38/48/58): `X;5;n` / `X;2;r;g;b` and the colon
@@ -450,19 +489,15 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
-pub fn parse_extended(
-    params: &[i32],
-    sep: u16,
-    i: usize,
-) -> Option<(ColorSpec, usize)> {
+pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
     let len = params.len();
     let colon = param_colon_sep(sep, i);
     // A colon after the `g` slot (i + 4) marks the colorspace form.
     let cs = colon && param_colon_sep(sep, i + 4);
-    match *params.get(i + 1)? {
+    let value = match params.get(i + 1)? {
         5 if len > i + 2 => {
             // Indexed colors clamp to the 256-color table (xterm).
-            Some((ColorSpec::indexed(params[i + 2]), 2))
+            (ColorSpec::indexed(params[i + 2]), 2)
         }
         2 => {
             // `cs` skips the colorspace param at `i+2`, shifting the triplet
@@ -477,44 +512,11 @@ pub fn parse_extended(
                 params[i + 3 + off],
                 params[i + 4 + off],
             );
-            Some((ColorSpec::rgb(r, g, b), 4 + off))
+            (ColorSpec::rgb(r, g, b), 4 + off)
         }
-        _ => None,
-    }
-}
-
-/// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the
-/// colon-separator bitfield (bit `i` = parameter `i` followed by `:`).
-///
-/// Params are inline-allocated — the common 1–8 param SGR sequence never
-/// touches the heap.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Sgr {
-    /// The SGR parameter values.
-    pub params: SmallVec<i32, 8>,
-    /// Bit `i` is set when parameter `i` was followed by a colon.
-    pub sep: u16,
-}
-
-impl Sgr {
-    /// Build an SGR sequence from raw CSI dispatch parts.
-    pub const fn new(params: SmallVec<i32, 8>, sep: u16) -> Self {
-        Self { params, sep }
-    }
-
-    /// Append the canonical `CSI … m` sequence to `out`, honouring the
-    /// colon-separator bitfield.
-    pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
-        out.extend_from_slice_copy(b"\x1b[");
-        for (i, p) in self.params.iter().enumerate() {
-            if i > 0 {
-                let colon = i - 1 < 16 && self.sep & (1_u16 << (i - 1)) != 0;
-                out.push(if colon { b':' } else { b';' });
-            }
-            out.extend_from_slice_copy(p.to_string().as_bytes());
-        }
-        out.push(b'm');
-    }
+        _ => return None,
+    };
+    Some(value)
 }
 
 #[cfg(test)]
@@ -617,8 +619,7 @@ mod tests {
         for code in 1..=6 {
             let shape = CursorStyle::from_decscusr(code);
             assert_eq!(
-                CursorStyle::decscusr_blink(code)
-                    .map(|blink| shape.to_decscusr(blink)),
+                CursorStyle::decscusr_blink(code).map(|blink| shape.to_decscusr(blink)),
                 Some(code as u8),
             );
         }
@@ -690,10 +691,7 @@ mod tests {
     fn sgr_parse_effects_extended_rgb() {
         let mut out = SmallVec::new();
         parse_effects(&[38, 2, 255, 0, 128], 0, &mut out);
-        assert_eq!(
-            out.as_ref(),
-            &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]
-        );
+        assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(255, 0, 128))]);
     }
 
     #[test]
@@ -723,10 +721,7 @@ mod tests {
             single_effect(&[48, 5, 196], 0),
             Some(SgrEffect::Bg(ColorSpec::indexed(196)))
         );
-        assert_eq!(
-            single_effect(&[1], 0),
-            Some(SgrEffect::Set(SgrFlags::BOLD))
-        );
+        assert_eq!(single_effect(&[1], 0), Some(SgrEffect::Set(SgrFlags::BOLD)));
         // Colon-separated forms fall back to `parse_effects`.
         assert_eq!(single_effect(&[4, 2], 0b01), None);
         assert_eq!(single_effect(&[1, 2], 0), None);

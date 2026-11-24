@@ -8,13 +8,37 @@ use core::ops::Range;
 
 use crate::perform::Perform;
 
-/// Minimal byte-cursor state; the invariant is `line_start <= cursor <=
-/// text.len()` (the row/col accessors clamp).
+/// A minimal byte-cursor terminal state.
+///
+/// `State` is a reference [`Perform`](crate::Perform) sink that records printed
+/// text and moves a byte cursor on the control bytes a parser dispatches. It
+/// models just enough of a screen to report the cursor's line and column
+/// without a cell grid: text accumulates verbatim, and `\n`/`\r` move the
+/// cursor.
+///
+/// The invariant is `line_start <= cursor <= text.len()`; the row and column
+/// accessors clamp when the fields are inconsistent.
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::{Perform, State};
+///
+/// let mut s = State::new();
+/// s.print_bytes(b"hello");
+/// s.execute(b'\n');
+/// s.print_bytes(b"world");
+///
+/// assert_eq!(s.text, "hello\nworld");
+/// assert_eq!(s.line_count(), 2);
+/// assert_eq!(s.cursor_row(), 1);
+/// assert_eq!(s.cursor_col(), 5);
+/// ```
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct State {
     /// Accumulated text (lines joined by `\n`).
     pub text: String,
-    /// Cursor position in `text` as a BYTE offset.
+    /// Cursor position in `text` as a byte offset.
     pub cursor: usize,
     /// Byte offset of the current line's start (the `\n`-free column base).
     pub line_start: usize,
@@ -22,8 +46,11 @@ pub struct State {
 
 impl State {
     /// An empty cursor state.
-    pub const DEFAULT: Self =
-        Self { text: String::new(), cursor: 0, line_start: 0 };
+    pub const DEFAULT: Self = Self {
+        text: String::new(),
+        cursor: 0,
+        line_start: 0,
+    };
 
     /// An empty cursor state at byte offset 0.
     pub const fn new() -> Self {
@@ -44,12 +71,14 @@ impl State {
         self.text[..cursor].bytes().filter(|&b| b == b'\n').count()
     }
 
-    /// 0-based BYTE column of the cursor within its line (offset from the
+    /// 0-based byte column of the cursor within its line (offset from the
     /// line start, not a terminal cell column — this byte-cursor state has no
     /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
     /// [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {
-        self.cursor.min(self.text.len()).saturating_sub(self.line_start)
+        self.cursor
+            .min(self.text.len())
+            .saturating_sub(self.line_start)
     }
 
     /// Byte range `[start, end)` of line `line` (0-based). `end` is exclusive:
@@ -62,12 +91,15 @@ impl State {
             return None;
         }
 
-        // `match_indices` yields each `\n` byte offset lazily: skip to the
-        // newline BEFORE line `line` (start is one past it), then the next
-        // newline is the line's end — one pass, no manual index bookkeeping.
+        // `match_indices` yields `\n` offsets lazily: skip to the newline before
+        // `line` (start is one past it), then the next newline ends the line.
         let mut newlines = self.text.match_indices('\n');
-        let start = if line == 0 { 0 } else { newlines.nth(line - 1)?.0 + 1 };
-        let end = newlines.next().map_or_else(|| bytes.len(), |(i, _)| i);
+        let start = if line == 0 {
+            0
+        } else {
+            newlines.nth(line - 1)?.0 + 1
+        };
+        let end = newlines.next().map_or(bytes.len(), |(i, _)| i);
         Some(start..end)
     }
 }
@@ -117,7 +149,11 @@ mod tests {
     use super::*;
 
     fn state(text: &str) -> State {
-        State { text: String::from(text), cursor: 0, line_start: 0 }
+        State {
+            text: String::from(text),
+            cursor: 0,
+            line_start: 0,
+        }
     }
 
     #[test]
@@ -134,7 +170,7 @@ mod tests {
 
     #[test]
     fn line_range_multibyte_uses_byte_offsets() {
-        // 中 is 3 bytes; the range must be a BYTE range, not a char index.
+        // 中 is 3 bytes; the range must be a byte range, not a char index.
         let s = state("中a\nb");
         assert_eq!(s.line_range(0), Some(0..4)); // 中(3) + a(1), the \n at 4
         assert_eq!(s.line_range(1), Some(5..6)); // b
@@ -192,7 +228,10 @@ mod tests {
         // `cursor_col` must stay total instead of underflowing.
         let s = state("abc");
         assert_eq!(s.cursor_col(), 0);
-        let s = State { line_start: 5, ..state("abc") };
+        let s = State {
+            line_start: 5,
+            ..state("abc")
+        };
         assert_eq!(s.cursor_col(), 0);
     }
 }

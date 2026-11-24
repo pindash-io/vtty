@@ -4,7 +4,9 @@
 //! Kitty keyboard protocol flags (`CSI > flags u` / `CSI < count u`), plus
 //! the winit-free key-encoding model.
 //!
-//! Reference: <https://sw.kovidgoyal.net/kitty/keyboard-protocol/>.
+//! Reference: [kitty keyboard protocol].
+//!
+//! [kitty keyboard protocol]: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
 
 use alloc::string::ToString;
 
@@ -233,14 +235,46 @@ impl Key {
 /// Encode a key event into the bytes to write to the PTY, under the given
 /// [`KeyEncoding`]. This is the winit-free entry point; the host maps its
 /// native keys/modifiers into [`Key`] + [`Modifiers`] first.
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::{Key, KeyEncoding, KeyEventKind, KeyModes, Modifiers, encode_key};
+///
+/// // A plain character key in legacy mode:
+/// assert_eq!(
+///     encode_key(
+///         &Key::Character('a'),
+///         Modifiers::empty(),
+///         KeyEncoding::Legacy,
+///         KeyEventKind::Press,
+///         KeyModes::default(),
+///         None,
+///     ),
+///     Some("a".into()),
+/// );
+///
+/// // Backspace follows the DECBKM backarrow mode:
+/// assert_eq!(
+///     encode_key(
+///         &Key::Backspace,
+///         Modifiers::empty(),
+///         KeyEncoding::Legacy,
+///         KeyEventKind::Press,
+///         KeyModes { backarrow: true, ..KeyModes::default() },
+///         None,
+///     ),
+///     Some("\x08".into()),
+/// );
+/// ```
 #[must_use]
 pub fn encode_key(
     key: &Key,
     mods: Modifiers,
     encoding: KeyEncoding,
     kind: KeyEventKind,
-    text: Option<&str>,
     modes: KeyModes,
+    text: Option<&str>,
 ) -> Option<CompactString> {
     if kind == KeyEventKind::Release {
         if let KeyEncoding::Kitty(flags) = encoding {
@@ -249,16 +283,12 @@ pub fn encode_key(
         return None;
     }
     match encoding {
-        KeyEncoding::Legacy => encode_legacy(key, mods, false, modes, text),
-        KeyEncoding::ApplicationCursorKeys => {
-            encode_legacy(key, mods, true, modes, text)
-        }
+        KeyEncoding::Legacy => encode_legacy(key, false, mods, modes, text),
+        KeyEncoding::ApplicationCursorKeys => encode_legacy(key, true, mods, modes, text),
         KeyEncoding::ModifyOtherKeys(mode) => {
-            encode_modify_other_keys(key, mods, mode, modes, text)
+            encode_modify_other_keys(key, mode, mods, modes, text)
         }
-        KeyEncoding::Kitty(flags) => {
-            encode_kitty(key, mods, flags, kind, text)
-        }
+        KeyEncoding::Kitty(flags) => encode_kitty(key, mods, flags, kind, text),
     }
 }
 
@@ -302,72 +332,29 @@ fn encode_kitty(
         _ => None,
     };
 
-    match key {
+    let encoded = match key {
         Key::Character(ch) => {
-            return encode_kitty_text(
-                ch,
-                flags,
-                mods,
-                has_mods,
-                encoded_mods,
-                event,
-                text,
-            );
+            encode_kitty_text(ch, flags, mods, has_mods, encoded_mods, event, text)?
         }
-        Key::Keypad { kitty, .. } => {
-            return Some(kitty_csi(*kitty, 'u', encoded_mods, event));
-        }
-        Key::Backspace => {
-            return Some(kitty_fallback(
-                127,
-                "\x7f",
-                has_mods,
-                event,
-                flags,
-                encoded_mods,
-            ));
-        }
-        Key::Tab => {
-            return Some(kitty_fallback(
-                9,
-                "\t",
-                has_mods,
-                event,
-                flags,
-                encoded_mods,
-            ));
-        }
+        Key::Keypad { kitty, .. } => kitty_csi(*kitty, 'u', encoded_mods, event),
+        Key::Backspace => kitty_fallback(127, "\x7f", has_mods, event, flags, encoded_mods),
+        Key::Tab => kitty_fallback(9, "\t", has_mods, event, flags, encoded_mods),
         Key::Named(KeySpec::Fallback { code, bytes }) => {
-            return Some(kitty_fallback(
-                *code,
-                bytes,
-                has_mods,
-                event,
-                flags,
-                encoded_mods,
-            ));
+            kitty_fallback(*code, bytes, has_mods, event, flags, encoded_mods)
         }
-        Key::Modifier { kitty, .. } => {
-            if flags & 8 != 0 {
-                return Some(kitty_csi(*kitty, 'u', encoded_mods, event));
-            }
+        Key::Modifier { kitty, .. } if flags & 8 != 0 => {
+            kitty_csi(*kitty, 'u', encoded_mods, event)
         }
-        Key::Named(spec) => {
-            if let Some((code, trailer)) = kitty_form(*spec) {
-                return Some(kitty_csi(code, trailer, encoded_mods, event));
-            }
+        Key::Named(spec) if let Some((code, trailer)) = kitty_form(*spec) => {
+            kitty_csi(code, trailer, encoded_mods, event)
         }
-    }
-    None
+        _ => return None,
+    };
+    Some(encoded)
 }
 
 /// kitty CSI formatter: `CSI <code>[;<mods>[:<event>]] <trailer>`.
-fn kitty_csi(
-    code: u32,
-    trailer: char,
-    encoded_mods: u32,
-    event: Option<u32>,
-) -> CompactString {
+fn kitty_csi(code: u32, trailer: char, encoded_mods: u32, event: Option<u32>) -> CompactString {
     let has_mods = encoded_mods != 1;
     let omit_code = code == 1 && !has_mods && event.is_none();
     match (has_mods, event, omit_code) {
@@ -398,7 +385,7 @@ fn encode_kitty_text(
     let cp = *ch as u32;
     let embed_text = flags & 16 != 0 && text.is_some_and(|t| !t.is_empty());
 
-    // A text key with only shift (or no modifier) stays TEXT.
+    // A text key with only shift (or no modifier) stays text.
     if flags & 8 == 0
         && !embed_text
         && event.is_none()
@@ -440,13 +427,10 @@ fn encode_kitty_text(
     }
 
     // report_text (flag 16): `;<codepoints>`.
-    if embed_text {
-        // `embed_text` is true only when `text` is `Some` and non-empty.
-        if let Some(text) = text {
-            for (i, c) in text.chars().enumerate() {
-                b.push(if i == 0 { ';' } else { ':' });
-                let _ = write!(b, "{}", c as u32);
-            }
+    if embed_text && let Some(text) = text {
+        for (i, c) in text.chars().enumerate() {
+            b.push(if i == 0 { ';' } else { ':' });
+            let _ = write!(b, "{}", c as u32);
         }
     }
 
@@ -457,21 +441,21 @@ fn encode_kitty_text(
 /// The shifted character of a Shift+key: the event `text`'s first char, else
 /// the uppercase base.
 fn shifted_char(ch: &char, text: Option<&str>) -> Option<char> {
-    text.and_then(|t| t.chars().next()).or_else(|| ch.to_uppercase().next())
+    text.and_then(|t| t.chars().next())
+        .or_else(|| ch.to_uppercase().next())
 }
 
 /// The shifted text of a Shift+key: the shifted char, else the base itself.
 fn shifted_text(ch: &char, text: Option<&str>) -> CompactString {
-    shifted_char(ch, text)
-        .map_or_else(|| ch.to_string().into(), |c| c.to_string().into())
+    shifted_char(ch, text).map_or_else(|| ch.to_string().into(), |c| c.to_string().into())
 }
 
 /// The kitty functional `(code, trailer)`, or `None` for fallback/legacy-only
 /// keys.
-fn kitty_form(spec: KeySpec) -> Option<(u32, char)> {
+const fn kitty_form(spec: KeySpec) -> Option<(u32, char)> {
     Some(match spec {
         KeySpec::Cursor(l) | KeySpec::CsiLetter(l) => (1, l),
-        KeySpec::Csi(n) => (u32::from(n), '~'),
+        KeySpec::Csi(n) => (n as u32, '~'),
         KeySpec::Fixed { kitty, .. } => kitty,
         KeySpec::Pua { kitty, .. } => (kitty, 'u'),
         KeySpec::KittyOnly(code) => (code, 'u'),
@@ -500,10 +484,7 @@ fn encode_keypad(
 }
 
 /// The unmodified legacy byte sequence for a [`KeySpec`].
-fn legacy_spec_bytes(
-    spec: &KeySpec,
-    app_cursor: bool,
-) -> Option<CompactString> {
+fn legacy_spec_bytes(spec: &KeySpec, app_cursor: bool) -> Option<CompactString> {
     Some(match spec {
         KeySpec::Cursor(letter) => legacy_arrow(*letter, app_cursor),
         KeySpec::CsiLetter(letter) => format_compact!("\x1b[{letter}"),
@@ -536,10 +517,11 @@ fn legacy_base(
             }
         }
         Key::Tab => "\t".into(),
-        Key::Named(_) | Key::Keypad { .. } => {
-            legacy_spec_bytes(key.legacy_spec()?, app_cursor)?
-        }
-        Key::Modifier { legacy: Some(bytes), .. } => (*bytes).into(),
+        Key::Named(_) | Key::Keypad { .. } => legacy_spec_bytes(key.legacy_spec()?, app_cursor)?,
+        Key::Modifier {
+            legacy: Some(bytes),
+            ..
+        } => (*bytes).into(),
         Key::Modifier { .. } => return None,
     })
 }
@@ -582,11 +564,7 @@ fn legacy_arrow(letter: char, app_cursor: bool) -> CompactString {
 }
 
 /// Apply legacy modifiers (Shift/Alt/Ctrl) to an unmodified base sequence.
-fn legacy_modified(
-    base: CompactString,
-    key: &Key,
-    mods: Modifiers,
-) -> Option<CompactString> {
+fn legacy_modified(base: CompactString, key: &Key, mods: Modifiers) -> Option<CompactString> {
     let ctrl = mods.ctrl();
     let alt = mods.alt();
 
@@ -642,12 +620,16 @@ fn legacy_modified(
 /// Alt → ESC prefix.
 fn encode_legacy(
     key: &Key,
-    mods: Modifiers,
     app_cursor: bool,
+    mods: Modifiers,
     modes: KeyModes,
     text: Option<&str>,
 ) -> Option<CompactString> {
-    if let Key::Keypad { legacy: Some((sym, plain)), .. } = key {
+    if let Key::Keypad {
+        legacy: Some((sym, plain)),
+        ..
+    } = key
+    {
         return encode_keypad(*sym, *plain, mods, modes);
     }
     let base = legacy_base(key, app_cursor, modes, text)?;
@@ -658,19 +640,23 @@ fn encode_legacy(
 /// editing keys as `CSI <code>;<mod>~`. Unmodified keys fall back to legacy.
 fn encode_modify_other_keys(
     key: &Key,
-    mods: Modifiers,
     mode: u8,
+    mods: Modifiers,
     modes: KeyModes,
     text: Option<&str>,
 ) -> Option<CompactString> {
-    if let Key::Keypad { legacy: Some((sym, plain)), .. } = key {
+    if let Key::Keypad {
+        legacy: Some((sym, plain)),
+        ..
+    } = key
+    {
         return encode_keypad(*sym, *plain, mods, modes);
     }
     // xterm modifier param: 1 (none), 2 shift, 3 alt, 4 shift+alt, 5 ctrl, …
     // xterm has no super bit, so mask it out.
     let xmod = mods.encoded() & 0b111;
     if xmod == 1 {
-        return encode_legacy(key, mods, false, modes, text);
+        return encode_legacy(key, false, mods, modes, text);
     }
     if mode == 2 {
         // Format 2 (`CSI 27;mod;code~`): the key's Unicode/control code, with
@@ -685,18 +671,18 @@ fn encode_modify_other_keys(
             // Delete is the only `Csi(3)`.
             Key::Named(KeySpec::Csi(3)) => 127,
             Key::Character(c) => *c as u32,
-            _ => return encode_modify_other_keys_mode1(key, mods, xmod, text),
+            _ => return encode_modify_other_keys_mode1(key, xmod, mods, text),
         };
         return Some(format_compact!("\x1b[27;{xmod};{code}~"));
     }
-    encode_modify_other_keys_mode1(key, mods, xmod, text)
+    encode_modify_other_keys_mode1(key, xmod, mods, text)
 }
 
 /// xterm modifyOtherKeys format 1 (`CSI 1;mod <letter>` / `CSI code;mod~`).
 fn encode_modify_other_keys_mode1(
     key: &Key,
-    mods: Modifiers,
     xmod: u8,
+    mods: Modifiers,
     text: Option<&str>,
 ) -> Option<CompactString> {
     match key.legacy_spec() {
@@ -708,7 +694,7 @@ fn encode_modify_other_keys_mode1(
         }
         _ => {}
     }
-    encode_legacy(key, mods, false, KeyModes::default(), text)
+    encode_legacy(key, false, mods, KeyModes::default(), text)
 }
 
 #[cfg(test)]

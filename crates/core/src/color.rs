@@ -4,12 +4,32 @@
 //! The palette index type used by reply formatting.
 
 use core::fmt;
-use core::ops::Deref;
 
 use compact_str::{CompactString, format_compact};
 
+/// Reserved palette index for the default foreground (SGR 39).
+pub const DEFAULT_FG_ID: ColorId = ColorId(256);
+
+/// Reserved palette index for the default background (SGR 49).
+pub const DEFAULT_BG_ID: ColorId = ColorId(257);
+
 /// A palette index: `0..=255` the 256-color table, `256`/`257` default
 /// fg/bg, `258+` RGB truecolors inserted on demand.
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, indexed_rgb};
+///
+/// let red = ColorId(1);
+/// assert_eq!(red.index(), 1);
+/// // Palette index 1 resolves to xterm red:
+/// assert_eq!(indexed_rgb(red.index() as u8), 0xcd0000);
+///
+/// // The two reserved default slots:
+/// assert_eq!(DEFAULT_FG_ID, ColorId(256));
+/// assert_eq!(DEFAULT_BG_ID, ColorId(257));
+/// ```
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ColorId(pub u16);
@@ -36,8 +56,7 @@ impl From<usize> for ColorId {
     }
 }
 
-/// SGR indexed-color parameters clamp to the 256-color table (xterm clamps
-/// out-of-range indexed colors; values ≥ 256 are malformed).
+/// SGR indexed-color parameters clamp to the 256-color table, as xterm does.
 impl From<i32> for ColorId {
     #[inline]
     fn from(v: i32) -> Self {
@@ -47,8 +66,8 @@ impl From<i32> for ColorId {
 
 impl fmt::Debug for ColorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Transparent: debug as the raw u16 so replay snapshots (which
-        // formatted the old `u16` alias) stay byte-identical.
+        // Debug as the raw `u16` so replay snapshots (which formatted the old
+        // `u16` alias) stay byte-identical.
         self.0.fmt(f)
     }
 }
@@ -73,6 +92,9 @@ macro_rules! impl_partial_eq {
     };
 }
 
+impl_partial_eq!(i32);
+impl_partial_eq!(usize);
+
 impl PartialEq<u16> for ColorId {
     #[inline]
     fn eq(&self, other: &u16) -> bool {
@@ -80,12 +102,8 @@ impl PartialEq<u16> for ColorId {
     }
 }
 
-impl_partial_eq!(i32);
-impl_partial_eq!(usize);
-
-/// `ColorId` derefs to its `u16` index so comparisons (`id == 4`, `id < 8`)
-/// and formatting keep reading naturally without `.0` everywhere.
-impl Deref for ColorId {
+/// Deref to the `u16` index so `id < 8`-style comparisons read naturally.
+impl core::ops::Deref for ColorId {
     type Target = u16;
 
     #[inline]
@@ -94,22 +112,12 @@ impl Deref for ColorId {
     }
 }
 
-/// Reserved palette index for the default foreground (SGR 39).
-pub const DEFAULT_FG_ID: ColorId = ColorId(256);
-/// Reserved palette index for the default background (SGR 49).
-pub const DEFAULT_BG_ID: ColorId = ColorId(257);
-
 /// Pack three 0..255 channels into RGB8 (`0x00RRGGBB`).
 #[inline]
 pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
     // Little-endian bytes lay out [B, G, R, 0] — a single `from_le_bytes`
     // (a native u32 bit-cast on LE targets) instead of two shifts + two ORs.
-    u32::from_le_bytes([
-        clamp_channel(b),
-        clamp_channel(g),
-        clamp_channel(r),
-        0,
-    ])
+    u32::from_le_bytes([clamp_channel(b), clamp_channel(g), clamp_channel(r), 0])
 }
 
 /// Clamp one 0..255 channel.
@@ -139,7 +147,11 @@ pub const fn u32_to_rgba(rgb: u32) -> [f32; 4] {
 /// counterpart of [`u32_to_rgba`], for luma/table math).
 #[inline]
 pub const fn u32_to_rgb(rgb: u32) -> [u8; 3] {
-    [((rgb >> 16) & 0xff) as u8, ((rgb >> 8) & 0xff) as u8, (rgb & 0xff) as u8]
+    [
+        ((rgb >> 16) & 0xff) as u8,
+        ((rgb >> 8) & 0xff) as u8,
+        (rgb & 0xff) as u8,
+    ]
 }
 
 /// Convert [R, G, B, A] (0..1 floats) to packed 0xRRGGBB.
@@ -226,7 +238,7 @@ fn decode_rgb(s: &str) -> Option<[u8; 3]> {
     <[u8; 3]>::try_from(bytes.as_slice()).ok()
 }
 
-/// Parse an RRGGBB / RGB hex string into [R, G, B, 1.0].
+/// Parse a six-digit `RRGGBB` hex string into `[R, G, B, 1.0]`.
 #[inline]
 pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
     let [r, g, b] = decode_rgb(s)?;
@@ -296,23 +308,18 @@ pub fn format_osc_palette_reply(index: usize, rgb: u32) -> CompactString {
 
 /// Format the full `OSC 11` background reply as a fixed 25-byte buffer:
 /// `\x1b]11;rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\`
-/// (8-bit channels repeated to 4 hex digits, the xterm convention
-/// lazygit/others expect).
+/// (8-bit channels repeated to 4 hex digits, the xterm convention).
 #[inline]
 #[must_use]
 pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {
     let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
     let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);
     let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0);
-    let [rh, rl] =
-        *const_hex::const_encode::<1, false>(&[r]).as_byte_array::<2>();
-    let [gh, gl] =
-        *const_hex::const_encode::<1, false>(&[g]).as_byte_array::<2>();
-    let [bh, bl] =
-        *const_hex::const_encode::<1, false>(&[b]).as_byte_array::<2>();
+    let [rh, rl, gh, gl, bh, bl] =
+        *const_hex::const_encode::<3, false>(&[r, g, b]).as_byte_array::<6>();
     [
-        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl,
-        b'/', gh, gl, gh, gl, b'/', bh, bl, bh, bl, 0x1b, b'\\',
+        0x1b, b']', b'1', b'1', b';', b'r', b'g', b'b', b':', rh, rl, rh, rl, b'/', gh, gl, gh, gl,
+        b'/', bh, bl, bh, bl, 0x1b, b'\\',
     ]
 }
 

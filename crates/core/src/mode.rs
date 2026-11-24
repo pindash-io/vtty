@@ -3,8 +3,48 @@
 
 //! Terminal mode flags: ANSI `CSI Ps h/l` (SM/RM) and DEC private `CSI ? Pm
 //! h/l` (DECSET/DECRST), plus `CSI ? Ps $ p` (DECRQM). Private-mode numbers
-//! follow the [DECronomicon table](https://vt100.net/emu/dec_private_modes.html)
-//! and [xterm's ctlseqs](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
+//! follow the [DECronomicon table] and [xterm's ctlseqs].
+//!
+//! [DECronomicon table]: https://vt100.net/emu/dec_private_modes.html
+//! [xterm's ctlseqs]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+
+/// Define the DEC private-mode mapping from one list of `Flag => number`
+/// pairs: [`TermFlags::PRIVATE_MODES`] plus both lookup functions, so the
+/// flag ↔ number mapping cannot drift apart.
+macro_rules! private_modes {
+    ($($flag:ident => $param:literal),+ $(,)?) => {
+        /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for
+        /// ANSI modes (insert, `CSI 4 h`) and for [`TermFlags::NONE`].
+        #[inline]
+        pub const fn private_param(self) -> i32 {
+            match self {
+                $(Self::$flag => $param,)+
+                _ => 0,
+            }
+        }
+
+        /// Reverse lookup for DECRQM's numeric parameter; unknown →
+        /// [`TermFlags::NONE`].
+        #[inline]
+        pub const fn from_private_param(param: i32) -> Self {
+            match param {
+                $($param => Self::$flag,)+
+                _ => Self::NONE,
+            }
+        }
+    };
+}
+
+/// Mouse-tracking + protocol modes; reset on alt-screen entry so pagers
+/// start clean.
+pub const MOUSE_MASK: TermFlags = TermFlags::MOUSE_X10
+    .union(TermFlags::MOUSE_NORMAL)
+    .union(TermFlags::MOUSE_BUTTON)
+    .union(TermFlags::MOUSE_ANY)
+    .union(TermFlags::MOUSE_SGR)
+    .union(TermFlags::MOUSE_PIXEL)
+    .union(TermFlags::MOUSE_URXVT)
+    .union(TermFlags::UTF8_MOUSE);
 
 bitflags::bitflags! {
     /// Settable terminal modes tracked by a screen, as a single flag set.
@@ -79,7 +119,7 @@ bitflags::bitflags! {
         const REVERSE_WRAP_EXTENDED = 1 << 30;
         /// DEC 1046 — alternate screen, save/restore cursor.
         const VI = 1 << 21;
-        /// DEC 1047 — alternate screen that clears on entry but does NOT
+        /// DEC 1047 — alternate screen that clears on entry but does not
         /// save/restore the cursor (unlike 1049).
         const ALT_SCREEN_1047 = 1 << 31;
         /// DEC 1049 — alternate screen that clears on entry and saves/
@@ -98,33 +138,6 @@ bitflags::bitflags! {
         /// the app relying on SIGWINCH.
         const IN_BAND_RESIZE = 1 << 29;
     }
-}
-
-/// Define the DEC private-mode mapping from one list of `Flag => number`
-/// pairs: [`TermFlags::PRIVATE_MODES`] plus both lookup functions, so the
-/// flag ↔ number mapping cannot drift apart.
-macro_rules! private_modes {
-    ($($flag:ident => $param:literal),+ $(,)?) => {
-        /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for
-        /// ANSI modes (insert, `CSI 4 h`) and for [`TermFlags::NONE`].
-        #[inline]
-        pub const fn private_param(self) -> i32 {
-            match self {
-                $(Self::$flag => $param,)+
-                _ => 0,
-            }
-        }
-
-        /// Reverse lookup for DECRQM's numeric parameter; unknown →
-        /// [`TermFlags::NONE`].
-        #[inline]
-        pub const fn from_private_param(param: i32) -> Self {
-            match param {
-                $($param => Self::$flag,)+
-                _ => Self::NONE,
-            }
-        }
-    };
 }
 
 impl TermFlags {
@@ -208,17 +221,6 @@ impl TermFlags {
     }
 }
 
-/// Mouse-tracking + protocol modes; reset on alt-screen entry so pagers
-/// start clean.
-pub const MOUSE_MASK: TermFlags = TermFlags::MOUSE_X10
-    .union(TermFlags::MOUSE_NORMAL)
-    .union(TermFlags::MOUSE_BUTTON)
-    .union(TermFlags::MOUSE_ANY)
-    .union(TermFlags::MOUSE_SGR)
-    .union(TermFlags::MOUSE_PIXEL)
-    .union(TermFlags::MOUSE_URXVT)
-    .union(TermFlags::UTF8_MOUSE);
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,15 +229,9 @@ mod tests {
     fn mode_private_param_roundtrip() {
         assert_eq!(TermFlags::from_private_param(1), TermFlags::CURSOR_KEYS);
         assert_eq!(TermFlags::from_private_param(6), TermFlags::ORIGIN);
-        assert_eq!(
-            TermFlags::from_private_param(25),
-            TermFlags::CURSOR_VISIBLE
-        );
+        assert_eq!(TermFlags::from_private_param(25), TermFlags::CURSOR_VISIBLE);
         assert_eq!(TermFlags::from_private_param(12), TermFlags::CURSOR_BLINK);
-        assert_eq!(
-            TermFlags::from_private_param(1000),
-            TermFlags::MOUSE_NORMAL
-        );
+        assert_eq!(TermFlags::from_private_param(1000), TermFlags::MOUSE_NORMAL);
         assert_eq!(TermFlags::from_private_param(1006), TermFlags::MOUSE_SGR);
         assert_eq!(
             TermFlags::from_private_param(1047),
@@ -293,10 +289,7 @@ mod tests {
             TermFlags::CURSOR_VISIBLE
         );
         assert_eq!(TermFlags::from_mode_code(25, false), TermFlags::NONE);
-        assert_eq!(
-            TermFlags::from_mode_code(1006, true),
-            TermFlags::MOUSE_SGR
-        );
+        assert_eq!(TermFlags::from_mode_code(1006, true), TermFlags::MOUSE_SGR);
         assert_eq!(TermFlags::from_mode_code(1006, false), TermFlags::NONE);
         // Unknown in both forms.
         assert_eq!(TermFlags::from_mode_code(999, false), TermFlags::NONE);
@@ -308,10 +301,7 @@ mod tests {
         // DECRQM/XTSAVE/XTRESTORE look up any tracked mode by code, ANSI or DEC.
         assert_eq!(TermFlags::from_any_mode_code(4), TermFlags::INSERT);
         assert_eq!(TermFlags::from_any_mode_code(20), TermFlags::LINEFEED);
-        assert_eq!(
-            TermFlags::from_any_mode_code(25),
-            TermFlags::CURSOR_VISIBLE
-        );
+        assert_eq!(TermFlags::from_any_mode_code(25), TermFlags::CURSOR_VISIBLE);
         assert_eq!(TermFlags::from_any_mode_code(1006), TermFlags::MOUSE_SGR);
         assert_eq!(TermFlags::from_any_mode_code(999), TermFlags::NONE);
     }

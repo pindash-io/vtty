@@ -51,89 +51,50 @@ pub enum CapValue {
     Tn,
 }
 
+/// Fixed text replies for terminfo string capabilities; each const is
+/// named after the capability it answers.
+#[allow(missing_docs, reason = "const name is the capability name")]
 impl CapValue {
-    /// Text value for `CO`.
     pub const TEXT_CO: Self = Self::Text(b"256");
-    /// Text value for `PA`.
     pub const TEXT_PA: Self = Self::Text(b"32767");
-    /// Text value for `RGB`.
     pub const TEXT_RGB: Self = Self::Text(b"8/8/8");
-    /// Text value for `IT`.
     pub const TEXT_IT: Self = Self::Text(b"8");
-    /// Text value for `KITTY`.
     pub const TEXT_KITTY: Self = Self::Text(b"yes");
-    /// Text value for `SETRGBF`.
     pub const TEXT_SETRGBF: Self = Self::Text(b"\x1b[38:2:%p1%d:%p2%d:%p3%dm");
-    /// Text value for `SETRGBB`.
     pub const TEXT_SETRGBB: Self = Self::Text(b"\x1b[48:2:%p1%d:%p2%d:%p3%dm");
-    /// Text value for `SETAF`.
     pub const TEXT_SETAF: Self = Self::Text(b"\x1b[38;5;%p1%dm");
-    /// Text value for `SETAB`.
     pub const TEXT_SETAB: Self = Self::Text(b"\x1b[48;5;%p1%dm");
-    /// Text value for `OP`.
     pub const TEXT_OP: Self = Self::Text(b"\x1b[39;49m");
-    /// Text value for `OC`.
     pub const TEXT_OC: Self = Self::Text(b"\x1b]104\x07");
-    /// Text value for `SMULX`.
     pub const TEXT_SMULX: Self = Self::Text(b"\x1b[4:%p1%dm");
-    /// Text value for `SETULC` (set underline color, one packed RGB param).
-    pub const TEXT_SETULC: Self = Self::Text(
-        b"\x1b[58:2:%p1%{65536}%/%d:%p1%{256}%/%{255}%&%d:%p1%{255}%&%dm",
-    );
-    /// Text value for `SS`.
+    pub const TEXT_SETULC: Self =
+        Self::Text(b"\x1b[58:2:%p1%{65536}%/%d:%p1%{256}%/%{255}%&%d:%p1%{255}%&%dm");
     pub const TEXT_SS: Self = Self::Text(b"\x1b[%p1%d q");
-    /// Text value for `SE`.
     pub const TEXT_SE: Self = Self::Text(b"\x1b[0 q");
-    /// Text value for `CS`.
     pub const TEXT_CS: Self = Self::Text(b"\x1b]12;%p1%s\x07");
-    /// Text value for `CR`.
     pub const TEXT_CR: Self = Self::Text(b"\x1b]112\x07");
-    /// Text value for `SYNC`.
     pub const TEXT_SYNC: Self = Self::Text(b"\x1b[?2026%?%p1%{1}%-%tl%eh");
-    /// Text value for `E3`.
     pub const TEXT_E3: Self = Self::Text(b"\x1b[3J");
-    /// Text value for `CLEAR`.
     pub const TEXT_CLEAR: Self = Self::Text(b"\x1b[H\x1b[2J");
-    /// Text value for `CUP`.
     pub const TEXT_CUP: Self = Self::Text(b"\x1b[%i%p1%d;%p2%dH");
-    /// Text value for `SMKX`.
     pub const TEXT_SMKX: Self = Self::Text(b"\x1b[?1h\x1b=");
-    /// Text value for `RMKX`.
     pub const TEXT_RMKX: Self = Self::Text(b"\x1b[?1l\x1b>");
-    /// Text value for `SMCUP`.
     pub const TEXT_SMCUP: Self = Self::Text(b"\x1b[?1049h");
-    /// Text value for `RMCUP`.
     pub const TEXT_RMCUP: Self = Self::Text(b"\x1b[?1049l");
-    /// Text value for `SMACS`.
     pub const TEXT_SMACS: Self = Self::Text(b"\x1b(0");
-    /// Text value for `RMACS`.
     pub const TEXT_RMACS: Self = Self::Text(b"\x1b(B");
-    /// Text value for `ACSC`.
-    pub const TEXT_ACSC: Self =
-        Self::Text(b"``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~");
-    /// Text value for `CIVIS`.
+    pub const TEXT_ACSC: Self = Self::Text(b"``aaffggiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~");
     pub const TEXT_CIVIS: Self = Self::Text(b"\x1b[?25l");
-    /// Text value for `CNORM`.
     pub const TEXT_CNORM: Self = Self::Text(b"\x1b[?25h");
-    /// Text value for `KBS`.
     pub const TEXT_KBS: Self = Self::Text(b"\x7f");
-    /// Text value for `KDCH1`.
     pub const TEXT_KDCH1: Self = Self::Text(b"\x1b[3~");
-    /// Text value for `KICH1`.
     pub const TEXT_KICH1: Self = Self::Text(b"\x1b[2~");
-    /// Text value for `KHOME`.
     pub const TEXT_KHOME: Self = Self::Text(b"\x1b[H");
-    /// Text value for `KEND`.
     pub const TEXT_KEND: Self = Self::Text(b"\x1b[F");
-    /// Text value for `KCUU1`.
     pub const TEXT_KCUU1: Self = Self::Text(b"\x1b[A");
-    /// Text value for `KCUD1`.
     pub const TEXT_KCUD1: Self = Self::Text(b"\x1b[B");
-    /// Text value for `KCUB1`.
     pub const TEXT_KCUB1: Self = Self::Text(b"\x1b[D");
-    /// Text value for `KCUF1`.
     pub const TEXT_KCUF1: Self = Self::Text(b"\x1b[C");
-    /// Text value for `INDN`.
     pub const TEXT_INDN: Self = Self::Text(b"\x1b[%p1%dS");
 }
 
@@ -240,12 +201,7 @@ impl crate::Reply {
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
     #[must_use]
-    pub fn termcap(
-        cap: &[u8],
-        cols: usize,
-        rows: usize,
-        tn: &[u8],
-    ) -> CompactString {
+    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
         let mut buf = CompactString::default();
@@ -286,9 +242,7 @@ mod tests {
 
         let (key, value) = Cap::parse(b"cl");
         assert_eq!(key, Cap::CLEAR);
-        assert!(
-            matches!(value, CapValue::Text(v) if v == &b"\x1b[H\x1b[2J"[..])
-        );
+        assert!(matches!(value, CapValue::Text(v) if v == &b"\x1b[H\x1b[2J"[..]));
 
         let (key, value) = Cap::parse(b"nope");
         assert_eq!(key, Cap::NONE);

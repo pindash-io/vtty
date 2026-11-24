@@ -7,24 +7,26 @@
 //! Reference: EK-VT520-RM §5.
 
 #[cfg(feature = "reply")]
+use core::fmt::Display;
+#[cfg(feature = "reply")]
 use core::fmt::Write as _;
 
 #[cfg(feature = "reply")]
 use compact_str::{CompactString, format_compact};
 
-#[cfg(feature = "reply")]
 /// DECTSR answer prefix — `DCS 1 $ s` (Terminal State Report). The final is
 /// a lowercase `s` (the EK-VT510-RM errata on vt100.net corrects the printed
 /// uppercase `S`).
+#[cfg(feature = "reply")]
 const DECTSR_PREFIX: &str = "\x1bP1$s";
-#[cfg(feature = "reply")]
 /// DECCTR answer prefix — `DCS 2 $ s` (Color Table Report).
+#[cfg(feature = "reply")]
 const DECCTR_PREFIX: &str = "\x1bP2$s";
-#[cfg(feature = "reply")]
 /// DECCIR answer prefix — `DCS 1 $ u` (Cursor Information Report).
-const DECCIR_PREFIX: &str = "\x1bP1$u";
 #[cfg(feature = "reply")]
+const DECCIR_PREFIX: &str = "\x1bP1$u";
 /// DECTABSR answer prefix — `DCS 2 $ u` (Tab Stop Report).
+#[cfg(feature = "reply")]
 const DECTABSR_PREFIX: &str = "\x1bP2$u";
 
 /// DECSCL conformance level. `Ps1` selects the VT operating level (the
@@ -58,25 +60,15 @@ impl ConformanceLevel {
     /// or any value outside `61..=65`.
     #[inline]
     pub const fn from_param(p: i32) -> Option<Self> {
-        match p {
-            61 => Some(Self::Vt100),
-            62 => Some(Self::Vt200),
-            63 => Some(Self::Vt300),
-            64 => Some(Self::Vt400),
-            65 => Some(Self::Vt500),
-            _ => None,
-        }
+        Some(match p {
+            61 => Self::Vt100,
+            62 => Self::Vt200,
+            63 => Self::Vt300,
+            64 => Self::Vt400,
+            65 => Self::Vt500,
+            _ => return None,
+        })
     }
-}
-
-#[cfg(feature = "reply")]
-/// Build `{prefix}{payload} ST` (a DCS/OSC string).
-fn dcs_string(prefix: &str, payload: &str) -> CompactString {
-    let mut buf = CompactString::default();
-    buf.push_str(prefix);
-    buf.push_str(payload);
-    buf.push_str(crate::reply::ST);
-    buf
 }
 
 #[cfg(feature = "reply")]
@@ -167,14 +159,19 @@ impl crate::reply::Reply {
     }
 }
 
+/// Build `{prefix}{payload} ST` (a DCS/OSC string).
 #[cfg(feature = "reply")]
+fn dcs_string(prefix: &str, payload: &str) -> CompactString {
+    let mut buf = CompactString::default();
+    buf.push_str(prefix);
+    buf.push_str(payload);
+    buf.push_str(crate::reply::ST);
+    buf
+}
+
 /// Build `{prefix}{items joined by sep}{suffix}` in a fresh buffer.
-fn join_wrapped<T: core::fmt::Display>(
-    prefix: &str,
-    items: &[T],
-    sep: char,
-    suffix: &str,
-) -> CompactString {
+#[cfg(feature = "reply")]
+fn join_wrapped<T: Display>(prefix: &str, items: &[T], sep: char, suffix: &str) -> CompactString {
     let mut buf = CompactString::default();
     buf.push_str(prefix);
     join_display(&mut buf, items, sep);
@@ -182,13 +179,9 @@ fn join_wrapped<T: core::fmt::Display>(
     buf
 }
 
-#[cfg(feature = "reply")]
 /// Append `items` to `buf`, separated by `sep`.
-fn join_display<T: core::fmt::Display>(
-    buf: &mut CompactString,
-    items: &[T],
-    sep: char,
-) {
+#[cfg(feature = "reply")]
+fn join_display<T: Display>(buf: &mut CompactString, items: &[T], sep: char) {
     for (i, item) in items.iter().enumerate() {
         if i > 0 {
             buf.push(sep);
@@ -197,9 +190,9 @@ fn join_display<T: core::fmt::Display>(
     }
 }
 
-#[cfg(feature = "reply")]
 /// Scale an 8-bit RGB channel (0-255) to the DEC 0-100 coordinate range used
 /// by DECCTR / DECAC / DECATC, rounding to nearest.
+#[cfg(feature = "reply")]
 #[inline]
 const fn dec_percent(v: u8) -> u32 {
     (v as u32 * 100 + 127) / 255

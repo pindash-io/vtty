@@ -11,9 +11,23 @@ use smallvec::SmallVec;
 use crate::perform::Perform;
 
 /// A parsed escape-sequence event: the dispatch as data instead of a
-/// [`crate::Perform`] callback. Params/intermediates use inline `SmallVec`s
-/// (≤6 params, ≤2 intermediates, no heap); only OSC bodies allocate.
-/// Mirrors `vtparse`'s `VTAction` for differential testing.
+/// [`crate::Perform`] callback.
+///
+/// Each variant mirrors one `Perform` method. This is the owned counterpart to
+/// the trait: parse bytes into a `Vec<Event>` via `Parser::parse_events` (or
+/// collect into a [`crate::Recording`]) rather than implementing callbacks.
+///
+/// # Allocation
+///
+/// Params/intermediates use inline `SmallVec`s (≤6 params, ≤2 intermediates,
+/// no heap); only OSC bodies allocate. This mirrors `vtparse`'s `VTAction`
+/// for differential testing.
+///
+/// # Round-tripping
+///
+/// [`Event::write_bytes`] writes the canonical escape-sequence bytes for an
+/// event, so re-parsing the output reproduces the original event (modulo the
+/// `-1` empty-param sentinel).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Event {
@@ -79,7 +93,12 @@ impl Event {
             }
             Self::PrintBytes(s) => out.extend_from_slice_copy(s),
             Self::Execute(b) => out.push(*b),
-            Self::CsiDispatch { params, sep, intermediates, final_byte } => {
+            Self::CsiDispatch {
+                params,
+                sep,
+                intermediates,
+                final_byte,
+            } => {
                 out.extend_from_slice_copy(b"\x1b[");
                 let (prefix, suffix) = split_intermediates(intermediates);
                 out.extend_from_slice_copy(&prefix);
@@ -87,12 +106,19 @@ impl Event {
                 out.extend_from_slice_copy(&suffix);
                 out.push(*final_byte);
             }
-            Self::EscDispatch { intermediates, byte } => {
+            Self::EscDispatch {
+                intermediates,
+                byte,
+            } => {
                 out.extend_from_slice_copy(b"\x1b");
                 out.extend_from_slice_copy(intermediates);
                 out.push(*byte);
             }
-            Self::DcsHook { params, intermediates, final_byte } => {
+            Self::DcsHook {
+                params,
+                intermediates,
+                final_byte,
+            } => {
                 out.extend_from_slice_copy(b"\x1bP");
                 let (prefix, suffix) = split_intermediates(intermediates);
                 out.extend_from_slice_copy(&prefix);
@@ -102,7 +128,10 @@ impl Event {
             }
             Self::DcsPut(b) => out.push(*b),
             Self::DcsUnhook => out.extend_from_slice_copy(b"\x1b\\"),
-            Self::OscDispatch { params, bell_terminated } => {
+            Self::OscDispatch {
+                params,
+                bell_terminated,
+            } => {
                 out.extend_from_slice_copy(b"\x1b]");
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
@@ -120,58 +149,25 @@ impl Event {
     }
 }
 
-/// Split CSI/DCS intermediates into the prefix markers (`? > = <`, emitted
-/// before the params) and the suffix bytes (`0x20..0x2f`, emitted after).
-fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
-    let mut prefix = SmallVec::new();
-    let mut suffix = SmallVec::new();
-    for &b in ints {
-        if matches!(b, b'?' | b'>' | b'=' | b'<') {
-            prefix.push(b);
-        } else {
-            suffix.push(b);
-        }
-    }
-    (prefix, suffix)
-}
-
-/// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
-/// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
-/// Only the first 16 parameters are tracked; later ones read as `false`.
-#[inline]
-pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
-    i < 16 && (sep & (1 << i)) != 0
-}
-
-/// Mark parameter `i` (0-based) as colon-followed in a `sep` bitfield.
-/// Parameters past the 16th are not tracked.
-#[inline]
-pub const fn set_param_colon_sep(sep: &mut u16, i: usize) {
-    if i < 16 {
-        *sep |= 1 << i;
-    }
-}
-
-fn push_params<const N: usize>(
-    out: &mut SmallVec<u8, N>,
-    params: &[i32],
-    sep: u16,
-) {
-    for (i, p) in params.iter().enumerate() {
-        if i > 0 {
-            // The separator before param `i` is "param `i - 1` followed by
-            // colon" — bit `i - 1` of the bitfield.
-            let colon = param_colon_sep(sep, i - 1);
-            out.push(if colon { b':' } else { b';' });
-        }
-        out.extend_from_slice_copy(p.to_string().as_bytes());
-    }
-}
-
-/// Records parser events into a `Vec<Event>` (the enum-based, trait-free API).
+/// Records parser events into a `Vec<Event>`: a [`crate::Perform`] sink that
+/// pushes one [`Event`](crate::Event) per dispatch into [`Recording::events`].
 ///
-/// The [`crate::Perform`] callback path is the zero-allocation hot path; this
-/// recording allocates one `Event` per dispatch, for tests and tooling.
+/// This allocates one `Event` per dispatch: use it for tests and tooling, not
+/// the hot path.
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::{Event, Recording};
+///
+/// let mut rec = Recording::new();
+/// rec.print_ascii(b"hi").control(b'\n');
+///
+/// assert_eq!(
+///     rec.events,
+///     vec![Event::PrintBytes(b"hi".to_vec()), Event::Execute(b'\n')],
+/// );
+/// ```
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Recording {
     /// Decoded events in dispatch order.
@@ -254,12 +250,7 @@ impl Recording {
     }
 
     /// Record a DCS header.
-    pub fn dcs_hook(
-        &mut self,
-        params: &[i32],
-        intermediates: &[u8],
-        final_byte: u8,
-    ) -> &mut Self {
+    pub fn dcs_hook(&mut self, params: &[i32], intermediates: &[u8], final_byte: u8) -> &mut Self {
         self.push(Event::DcsHook {
             params: SmallVec::from(params),
             intermediates: SmallVec::from(intermediates),
@@ -278,11 +269,7 @@ impl Recording {
     }
 
     /// Record a raw OSC command.
-    pub fn osc(
-        &mut self,
-        params: &[&[u8]],
-        bell_terminated: bool,
-    ) -> &mut Self {
+    pub fn osc(&mut self, params: &[&[u8]], bell_terminated: bool) -> &mut Self {
         self.push(Event::OscDispatch {
             params: SmallVec::from_iter(params.iter().map(|p| p.to_vec())),
             bell_terminated,
@@ -302,23 +289,27 @@ impl Recording {
                     sep,
                     intermediates,
                     final_byte,
-                } => target.csi_dispatch(
-                    params,
-                    *sep,
+                } => target.csi_dispatch(params, *sep, intermediates, *final_byte),
+                Event::EscDispatch {
                     intermediates,
-                    *final_byte,
-                ),
-                Event::EscDispatch { intermediates, byte } => {
+                    byte,
+                } => {
                     target.esc_dispatch(intermediates, *byte);
                 }
-                Event::DcsHook { params, intermediates, final_byte } => {
+                Event::DcsHook {
+                    params,
+                    intermediates,
+                    final_byte,
+                } => {
                     target.hook(params, intermediates, *final_byte);
                 }
                 Event::DcsPut(b) => target.put(*b),
                 Event::DcsUnhook => target.unhook(),
-                Event::OscDispatch { params, bell_terminated } => {
-                    let refs: Vec<&[u8]> =
-                        params.iter().map(|v| v.as_slice()).collect();
+                Event::OscDispatch {
+                    params,
+                    bell_terminated,
+                } => {
+                    let refs: Vec<&[u8]> = params.iter().map(|v| v.as_slice()).collect();
                     target.osc_dispatch(&refs, *bell_terminated);
                 }
             }
@@ -336,13 +327,7 @@ impl Perform for Recording {
     fn execute(&mut self, byte: u8) {
         self.control(byte);
     }
-    fn csi_dispatch(
-        &mut self,
-        params: &[i32],
-        sep: u16,
-        intermediates: &[u8],
-        final_byte: u8,
-    ) {
+    fn csi_dispatch(&mut self, params: &[i32], sep: u16, intermediates: &[u8], final_byte: u8) {
         self.csi(params, sep, intermediates, final_byte);
     }
     fn esc_dispatch(&mut self, intermediates: &[u8], byte: u8) {
@@ -359,6 +344,50 @@ impl Perform for Recording {
     }
     fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
         self.osc(params, bell_terminated);
+    }
+}
+
+/// Split CSI/DCS intermediates into the prefix markers (`? > = <`, emitted
+/// before the params) and the suffix bytes (`0x20..0x2f`, emitted after).
+fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
+    let mut prefix = SmallVec::new();
+    let mut suffix = SmallVec::new();
+    for &b in ints {
+        if matches!(b, b'?' | b'>' | b'=' | b'<') {
+            prefix.push(b);
+        } else {
+            suffix.push(b);
+        }
+    }
+    (prefix, suffix)
+}
+
+/// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
+/// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
+/// Only the first 16 parameters are tracked; later ones read as `false`.
+#[inline]
+pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
+    i < 16 && (sep & (1 << i)) != 0
+}
+
+/// Mark parameter `i` (0-based) as colon-followed in a `sep` bitfield.
+/// Parameters past the 16th are not tracked.
+#[inline]
+pub const fn set_param_colon_sep(sep: &mut u16, i: usize) {
+    if i < 16 {
+        *sep |= 1 << i;
+    }
+}
+
+fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u16) {
+    for (i, p) in params.iter().enumerate() {
+        if i > 0 {
+            // The separator before param `i` is "param `i - 1` followed by
+            // colon" — bit `i - 1` of the bitfield.
+            let colon = param_colon_sep(sep, i - 1);
+            out.push(if colon { b':' } else { b';' });
+        }
+        out.extend_from_slice_copy(p.to_string().as_bytes());
     }
 }
 

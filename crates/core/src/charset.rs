@@ -3,51 +3,17 @@
 
 //! G0/G1 charset designation (`ESC ( 0` = DEC Special Graphics).
 //!
-//! SCS (Select Character Set) follows ECMA-35 (ISO 2022); the GL/GR byte
-//! treatment follows the [DEC parser state
-//! diagram](https://vt100.net/emu/dec_ansi_parser). The DEC Special Graphics
-//! glyph table is from EK-VT520-RM (SCS).
-
-/// DEC Special Graphics translation for `0x5f..=0x7e`, used when G0/G1 is
-/// designated to charset `0` (`ESC ( 0` / `ESC ) 0`).
-#[inline]
-pub const fn dec_special_graphics(c: char) -> char {
-    match c {
-        '_' => ' ',
-        '`' => '◆',
-        'a' => '▒',
-        'b' => '␉',
-        'c' => '␌',
-        'd' => '␍',
-        'e' => '␊',
-        'f' => '°',
-        'g' => '±',
-        'h' => '␤',
-        'i' => '␋',
-        'j' => '┘',
-        'k' => '┐',
-        'l' => '┌',
-        'm' => '└',
-        'n' => '┼',
-        'o' => '⎺',
-        'p' => '⎻',
-        'q' => '─',
-        'r' => '⎼',
-        's' => '⎽',
-        't' => '├',
-        'u' => '┤',
-        'v' => '┴',
-        'w' => '┬',
-        'x' => '│',
-        'y' => '≤',
-        'z' => '≥',
-        '{' => 'π',
-        '|' => '≠',
-        '}' => '£',
-        '~' => '·',
-        _ => c,
-    }
-}
+//! SCS (Select Character Set) follows [ECMA-35] ([ISO 2022]); the GL/GR byte
+//! treatment follows the [DEC parser state diagram]. The DEC Special Graphics
+//! glyph table is from EK-VT520-RM.
+//!
+//! [`Charset`] is a single designated set, [`Charsets`] the four G0..=G3
+//! sets, and [`Scs`] the full SCS state; the raw glyph table is
+//! [`dec_special_graphics`].
+//!
+//! [ECMA-35]: https://www.ecma-international.org/publications-and-standards/standards/ecma-35/
+//! [ISO 2022]: https://en.wikipedia.org/wiki/ISO/IEC_2022
+//! [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
 
 /// A designated charset for G0/G1 (`ESC ( 0` = DEC Special Graphics).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -111,6 +77,12 @@ impl From<u8> for Charset {
 pub struct Charsets([Charset; 4]);
 
 impl Charsets {
+    /// Slot index, clamping a code past G3 to the last slot.
+    #[inline]
+    const fn slot(g: usize) -> usize {
+        if g < 4 { g } else { 3 }
+    }
+
     /// All slots designated to US-ASCII (the power-on state).
     pub const fn ascii() -> Self {
         Self([Charset::Ascii; 4])
@@ -118,15 +90,15 @@ impl Charsets {
 
     /// Designate slot `g` to `charset`; a code past the last slot clamps to
     /// G3 (the last slot).
-    pub fn designate(&mut self, g: usize, charset: Charset) {
-        self.0[g.min(3)] = charset;
+    pub const fn designate(&mut self, g: usize, charset: Charset) {
+        self.0[Self::slot(g)] = charset;
     }
 
     /// Read slot `g`; an out-of-range slot clamps to G3 (the last slot),
     /// mirroring [`Self::designate`].
     #[inline]
     pub const fn get(self, g: usize) -> Charset {
-        self.0[if g < 4 { g } else { 3 }]
+        self.0[Self::slot(g)]
     }
 
     /// The G0 set (the default, and `SI` `0x0F` target).
@@ -172,15 +144,27 @@ impl core::ops::IndexMut<usize> for Charsets {
 
 /// The full ISO 2022 SCS (Select Character Set) state: the four designated
 /// G-sets plus the GL locking-shift slot and the `SS2`/`SS3` single shift. One
-/// `Copy` value so the active-charset selection lives in ONE place (teken's
+/// `Copy` value so the active-charset selection lives in one place (teken's
 /// `t_scs_gl`/`t_curscs` over `t_scs`).
+///
+/// # Example
+///
+/// ```
+/// use vtty_core::{Charset, Scs};
+///
+/// let mut scs = Scs::ascii();
+/// // `ESC ( 0` designates G0 to DEC Special Graphics:
+/// scs.designate(0, Charset::Dec);
+/// // `q` maps to the horizontal-line glyph:
+/// assert_eq!(scs.map('q'), '─');
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Scs {
     /// The four designated G-sets (G0..=G3).
     pub charsets: Charsets,
     /// The GL locking-shift slot (ECMA-35 LS0..=LS3): 0..=3.
     pub gl: u8,
-    /// `SS2`/`SS3` single shift for the NEXT printable char only.
+    /// `SS2`/`SS3` single shift for the next printable char only.
     pub single_shift: Option<u8>,
     /// `single_shift.is_none() && locked() == Ascii` — cached so the bulk
     /// ASCII path reads one flag instead of the `Option` + the slot lookup.
@@ -199,28 +183,26 @@ impl Scs {
     }
 
     /// Designate slot `g` to `charset` (delegates to [`Charsets::designate`]).
-    pub fn designate(&mut self, g: usize, charset: Charset) {
-        let g = g.min(3);
+    pub const fn designate(&mut self, g: usize, charset: Charset) {
+        let g = Charsets::slot(g);
         self.charsets.designate(g, charset);
         if g == self.gl as usize {
-            self.ascii_fast =
-                self.single_shift.is_none() && charset == Charset::Ascii;
+            self.ascii_fast = self.single_shift.is_none() && matches!(charset, Charset::Ascii);
         }
     }
 
     /// Set the GL locking-shift slot (LS0..=LS3).
-    pub fn shift(&mut self, g: u8) {
-        self.gl = g.min(3);
+    pub const fn shift(&mut self, g: u8) {
+        self.gl = Charsets::slot(g as usize) as u8;
         self.ascii_fast = self.single_shift.is_none()
-            && self.charsets.get(self.gl as usize) == Charset::Ascii;
+            && matches!(self.charsets.get(self.gl as usize), Charset::Ascii);
     }
 
     /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
     /// SI (`0x0F`) = LS0, SS2 (`0x8E`) = single-shift G2, SS3 (`0x8F`) =
-    /// single-shift G3. Any other byte is a defensive no-op (the parser
-    /// dispatches only the four shift bytes).
+    /// single-shift G3. Any other byte is a no-op.
     #[inline]
-    pub fn apply_shift(&mut self, byte: u8) {
+    pub const fn apply_shift(&mut self, byte: u8) {
         match byte {
             0x0E => self.shift(1),
             0x0F => self.shift(0),
@@ -238,11 +220,15 @@ impl Scs {
 
     /// The active charset: an `SS2`/`SS3` single shift wins for one char, then the
     /// GL locking shift, otherwise G0.
-    pub fn active(&self) -> Charset {
-        self.charsets.get(self.single_shift.unwrap_or(self.gl) as usize)
+    pub const fn active(&self) -> Charset {
+        let gl = match self.single_shift {
+            Some(value) => value,
+            None => self.gl,
+        };
+        self.charsets.get(gl as usize)
     }
 
-    /// The LOCKED charset (the GL slot, ignoring any SS2/SS3 single shift) —
+    /// The locked charset (the GL slot, ignoring any SS2/SS3 single shift) —
     /// the bulk path where the caller has already verified `single_shift` is
     /// `None`.
     #[inline]
@@ -252,15 +238,14 @@ impl Scs {
 
     /// Translate a char through the active charset. An `SS2`/`SS3` single
     /// shift is consumed here, so it affects only this one char.
-    pub fn map(&mut self, c: char) -> char {
+    pub const fn map(&mut self, c: char) -> char {
         let charset = self.active();
         self.single_shift = None;
-        self.ascii_fast =
-            self.charsets.get(self.gl as usize) == Charset::Ascii;
+        self.ascii_fast = matches!(self.charsets.get(self.gl as usize), Charset::Ascii);
         charset.map(c)
     }
 
-    /// Translate a char through the LOCKED charset only — the bulk path where
+    /// Translate a char through the locked charset only — the bulk path where
     /// the caller has already verified `single_shift` is `None` (so `active()`
     /// would just read `gl`). Skips the `Option` unwrap and the `single_shift`
     /// write of [`Self::map`].
@@ -274,6 +259,49 @@ impl Scs {
 impl Default for Scs {
     fn default() -> Self {
         Self::ascii()
+    }
+}
+
+/// The DEC Special Graphics glyph table for `0x5f..=0x7e`.
+///
+/// Used when a G-set is designated to [`Charset::Dec`] (`ESC ( 0` /
+/// `ESC ) 0`). Bytes outside the range pass through unchanged.
+#[inline]
+pub const fn dec_special_graphics(c: char) -> char {
+    match c {
+        '_' => ' ',
+        '`' => '◆',
+        'a' => '▒',
+        'b' => '␉',
+        'c' => '␌',
+        'd' => '␍',
+        'e' => '␊',
+        'f' => '°',
+        'g' => '±',
+        'h' => '␤',
+        'i' => '␋',
+        'j' => '┘',
+        'k' => '┐',
+        'l' => '┌',
+        'm' => '└',
+        'n' => '┼',
+        'o' => '⎺',
+        'p' => '⎻',
+        'q' => '─',
+        'r' => '⎼',
+        's' => '⎽',
+        't' => '├',
+        'u' => '┤',
+        'v' => '┴',
+        'w' => '┬',
+        'x' => '│',
+        'y' => '≤',
+        'z' => '≥',
+        '{' => 'π',
+        '|' => '≠',
+        '}' => '£',
+        '~' => '·',
+        _ => c,
     }
 }
 
@@ -457,5 +485,40 @@ mod scs_tests {
         assert_eq!(s.gl, 0);
         s.single_shift = None;
         assert_eq!(s.active(), s.charsets.g0());
+    }
+
+    #[test]
+    fn scs_designate_and_shift_are_const() {
+        // Both run in a const block: a host can pre-bake a charset state
+        // instead of building it at startup.
+        const SCS: Scs = {
+            let mut s = Scs::ascii();
+            s.designate(0, Charset::Dec);
+            s.designate(9, Charset::British); // clamps to G3
+            s.shift(1);
+            s
+        };
+        // Designating a non-GL slot leaves the cached fast path alone;
+        // designating the GL slot refreshes it.
+        const AFTER_NON_GL: Scs = {
+            let mut s = SCS;
+            s.designate(0, Charset::Ascii);
+            s
+        };
+        const AFTER_GL: Scs = {
+            let mut s = SCS;
+            s.designate(1, Charset::Dec);
+            s
+        };
+
+        // Assert through locals so these stay runtime checks.
+        let scs = SCS;
+        assert_eq!(scs.charsets.g0(), Charset::Dec);
+        assert_eq!(scs.charsets.g3(), Charset::British);
+        assert_eq!(scs.gl, 1);
+        let after_non_gl = AFTER_NON_GL;
+        assert!(after_non_gl.ascii_fast);
+        let after_gl = AFTER_GL;
+        assert!(!after_gl.ascii_fast);
     }
 }
