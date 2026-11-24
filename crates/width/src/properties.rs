@@ -108,8 +108,8 @@ impl Properties {
         use icu_properties::CodePointSetData;
         use icu_properties::CodePointSetDataBorrowed;
         use icu_properties::props::{
-            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation,
-            ExtendedPictographic, RegionalIndicator,
+            Emoji, EmojiModifier, EmojiModifierBase, EmojiPresentation, ExtendedPictographic,
+            RegionalIndicator,
         };
         thread_local! {
             static EMOJI: CodePointSetDataBorrowed<'static> =
@@ -146,30 +146,6 @@ impl Properties {
         b |= (crate::icu::gcb_icu(ch) as u16) << Self::GCB_SHIFT;
         Self(b)
     }
-}
-
-/// The parley `EmojiSegmentationCategory` for a char, from the baked (or
-/// ICU4X) properties — the input to `parley_emoji`'s UTS #51 DFA.
-#[inline]
-pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
-    category_from(Properties::get(c), c)
-}
-
-/// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
-/// also need the width can do one table lookup instead of two.
-#[inline]
-pub(crate) const fn category_from(
-    p: Properties,
-    c: char,
-) -> EmojiSegmentationCategory {
-    EmojiSegmentationCategory::from_codepoint(
-        c as u32,
-        p.is_emoji(),
-        p.is_emoji_presentation(),
-        p.is_emoji_modifier(),
-        p.is_modifier_base(),
-        p.is_regional_indicator(),
-    )
 }
 
 /// Grapheme cluster break property (UAX #29), reduced to the symbols the
@@ -261,6 +237,27 @@ impl Gcb {
     }
 }
 
+/// The parley `EmojiSegmentationCategory` for a char, from the baked (or
+/// ICU4X) properties — the input to `parley_emoji`'s UTS #51 DFA.
+#[inline]
+pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
+    category_from(Properties::get(c), c)
+}
+
+/// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
+/// also need the width can do one table lookup instead of two.
+#[inline]
+pub(crate) const fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
+    EmojiSegmentationCategory::from_codepoint(
+        c as u32,
+        p.is_emoji(),
+        p.is_emoji_presentation(),
+        p.is_emoji_modifier(),
+        p.is_modifier_base(),
+        p.is_regional_indicator(),
+    )
+}
+
 /// Index of the first byte >= 0x80 (non-ASCII), or `bytes.len()` when the
 /// whole slice is ASCII. With the `simd` feature this is a 16-byte-at-a-time
 /// vectorized scan; otherwise a scalar fallback.
@@ -276,7 +273,7 @@ pub fn first_non_ascii(bytes: &[u8]) -> usize {
     }
 }
 
-/// Index of the first byte that is NOT printable ASCII (`0x20..=0x7e`), or
+/// Index of the first byte that is not printable ASCII (`0x20..=0x7e`), or
 /// `bytes.len()` when the whole slice is printable ASCII.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
@@ -299,85 +296,9 @@ pub fn is_printable_ascii(bytes: &[u8]) -> bool {
     first_non_printable_ascii(bytes) == bytes.len()
 }
 
-#[cfg(feature = "simd")]
-mod simd {
-    use std::sync::OnceLock;
-
-    use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16};
-
-    static LEVEL: OnceLock<Level> = OnceLock::new();
-
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    pub(crate) fn first_non_ascii(bytes: &[u8]) -> usize {
-        let level = *LEVEL.get_or_init(Level::new);
-        dispatch!(level, simd => scan(simd, bytes))
-    }
-
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    pub(crate) fn first_non_printable_ascii(bytes: &[u8]) -> usize {
-        let level = *LEVEL.get_or_init(Level::new);
-        dispatch!(level, simd => scan_printable(simd, bytes))
-    }
-
-    /// Shared SIMD scan: 16-byte chunks via `stop_mask(simd, v) -> u64`, then
-    /// a scalar `is_stop` tail. Returns the first stop index, or `bytes.len()`.
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    fn scan_first<S: Simd>(
-        simd: S,
-        bytes: &[u8],
-        stop_mask: impl Fn(S, u8x16<S>) -> u64,
-        is_stop: impl Fn(u8) -> bool,
-    ) -> usize {
-        let (chunks, tail) = bytes.as_chunks::<16>();
-        for (i, chunk) in chunks.iter().enumerate() {
-            let v = u8x16::from_slice(simd, chunk.as_slice());
-            let mask = stop_mask(simd, v);
-            if mask != 0 {
-                return i * 16 + mask.trailing_zeros() as usize;
-            }
-        }
-        // Scalar tail (< 16 bytes).
-        let off = bytes.len() - tail.len();
-        tail.iter()
-            .position(|&b| is_stop(b))
-            .map_or_else(|| bytes.len(), |p| off + p)
-    }
-
-    /// Non-ASCII ⇔ b >= 0x80 (the high bit is set).
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
-        scan_first(
-            simd,
-            bytes,
-            |simd, v| {
-                let high = simd.simd_gt_u8x16(v, simd.splat_u8x16(0x7f));
-                simd.to_bitmask_mask8x16(high)
-            },
-            |b| b >= 0x80,
-        )
-    }
-
-    /// Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
-    #[cfg_attr(feature = "perf-inline", inline(always))]
-    fn scan_printable<S: Simd>(simd: S, bytes: &[u8]) -> usize {
-        scan_first(
-            simd,
-            bytes,
-            |simd, v| {
-                let low = simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20));
-                let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f));
-                simd.to_bitmask_mask8x16(low | high)
-            },
-            |b| !(0x20..=0x7e).contains(&b),
-        )
-    }
-}
-
-/// Whether a char is a zero-width grapheme continuation in the terminal
-/// grid: a combining mark, VS15/VS16, ZWJ, skin-tone modifier, or tag char.
-/// These occupy no cell of their own (they extend the preceding cluster).
-/// A control char is also zero-width (`cell_width` is `None`), so this is the
-/// single "does it take a cell" predicate.
+/// Whether a char occupies no cell in the terminal grid: a combining mark,
+/// VS15/VS16, ZWJ, skin-tone modifier, tag char, or control (`cell_width` is
+/// `None` for controls). This is the single "does it take a cell" predicate.
 #[inline]
 pub fn is_zero_width(c: char) -> bool {
     !matches!(cell_width(c), Some(1) | Some(2))
@@ -414,7 +335,7 @@ pub const fn vs_width(selector: char) -> usize {
 }
 
 /// The common CJK/kana/fullwidth blocks: every char in these ranges is
-/// width 2, a standalone base (GCB Other), and NOT an emoji starter, so the
+/// width 2, a standalone base (GCB Other), and not an emoji starter, so the
 /// composite table lookup is pure overhead on the streaming hot path. Derived
 /// from the baked table (verified by `cjk_fast_width_matches_table`).
 #[cfg_attr(feature = "perf-inline", inline(always))]
@@ -422,18 +343,16 @@ pub const fn vs_width(selector: char) -> usize {
 pub const fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
     // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
-    // non-ASCII hot path (one range check).
-    // OK because `wrapping_sub` turns `cp < 0x329A` into a huge value (it
-    // wraps), so the single `<` tests the whole inclusive `0x329A..=0xA48C`
-    // range without a lower-bound branch.
+    // non-ASCII hot path (one range check). `wrapping_sub` turns `cp < 0x329A`
+    // into a huge value, so a single `<` tests the whole inclusive range
+    // without a lower-bound branch.
     if cp.wrapping_sub(0x329A) < (0xA48C - 0x329A + 1) {
         return Some(2);
     }
-    // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs,
-    // and the CJK extensions beyond the BMP. Split by plane so a
-    // supplementary codepoint (emoji, CJK extension) skips the BMP range
-    // scan and a BMP codepoint skips the supplementary scan — the halves are
-    // disjoint, so the split costs one plane compare.
+    // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs, and
+    // CJK extensions beyond the BMP. Split by plane so a supplementary
+    // codepoint skips the BMP scan and a BMP codepoint skips the supplementary
+    // scan — the halves are disjoint, so the split costs one plane compare.
     if cp < 0x10000 {
         if matches!(
             cp,
@@ -481,8 +400,8 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
 #[doc(hidden)]
 pub fn pua_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
-    // OK because each `wrapping_sub` range check wraps below its lower bound,
-    // so one `<` covers the inclusive range (see `cjk_fast_width`).
+    // Each `wrapping_sub` range check wraps below its lower bound, so one `<`
+    // covers the inclusive range (see `cjk_fast_width`).
     if cp.wrapping_sub(0xE000) < (0xF8FF - 0xE000 + 1)
         || cp.wrapping_sub(0xF0000) < (0xFFFFD - 0xF0000 + 1)
         || cp.wrapping_sub(0x100000) < (0x10FFFD - 0x100000 + 1)
@@ -506,11 +425,19 @@ pub fn emoji_fast_width(c: char) -> Option<usize> {
     }
     #[cfg(feature = "baked")]
     {
-        if crate::baked::ep_get(c as u32) != 0 { Some(2) } else { None }
+        if crate::baked::ep_get(c as u32) != 0 {
+            Some(2)
+        } else {
+            None
+        }
     }
     #[cfg(not(feature = "baked"))]
     {
-        if Properties::get(c).is_emoji_presentation() { Some(2) } else { None }
+        if Properties::get(c).is_emoji_presentation() {
+            Some(2)
+        } else {
+            None
+        }
     }
 }
 
@@ -558,7 +485,7 @@ pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
     let w = p.width() as usize;
     // Emoji_Presentation: a width-1 emoji-presentation char becomes 2 cells.
     // Text-default emoji like ❤ U+2764 (Emoji=Yes, Emoji_Presentation=No)
-    // stay ONE cell; only VS16 or a ZWJ-family membership widens them (the
+    // stay one cell; only VS16 or a ZWJ-family membership widens them (the
     // DFA's `presentation_style(Emoji)` handles that via `lead_ep`).
     if w <= 1 && p.is_emoji_presentation() {
         return Some(2);
@@ -569,4 +496,78 @@ pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
         return Some(2);
     }
     Some(w)
+}
+
+#[cfg(feature = "simd")]
+mod simd {
+    use std::sync::OnceLock;
+
+    use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16};
+
+    static LEVEL: OnceLock<Level> = OnceLock::new();
+
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    pub(crate) fn first_non_ascii(bytes: &[u8]) -> usize {
+        let level = *LEVEL.get_or_init(Level::new);
+        dispatch!(level, simd => scan(simd, bytes))
+    }
+
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    pub(crate) fn first_non_printable_ascii(bytes: &[u8]) -> usize {
+        let level = *LEVEL.get_or_init(Level::new);
+        dispatch!(level, simd => scan_printable(simd, bytes))
+    }
+
+    /// Shared SIMD scan: 16-byte chunks via `stop_mask(simd, v) -> u64`, then
+    /// a scalar `is_stop` tail. Returns the first stop index, or `bytes.len()`.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn scan_first<S: Simd>(
+        simd: S,
+        bytes: &[u8],
+        stop_mask: impl Fn(S, u8x16<S>) -> u64,
+        is_stop: impl Fn(u8) -> bool,
+    ) -> usize {
+        let (chunks, tail) = bytes.as_chunks::<16>();
+        for (i, chunk) in chunks.iter().enumerate() {
+            let v = u8x16::from_slice(simd, chunk.as_slice());
+            let mask = stop_mask(simd, v);
+            if mask != 0 {
+                return i * 16 + mask.trailing_zeros() as usize;
+            }
+        }
+        // Scalar tail (< 16 bytes).
+        let off = bytes.len() - tail.len();
+        tail.iter()
+            .position(|&b| is_stop(b))
+            .map_or(bytes.len(), |p| off + p)
+    }
+
+    /// Non-ASCII ⇔ b >= 0x80 (the high bit is set).
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn scan<S: Simd>(simd: S, bytes: &[u8]) -> usize {
+        scan_first(
+            simd,
+            bytes,
+            |simd, v| {
+                let high = simd.simd_gt_u8x16(v, simd.splat_u8x16(0x7f));
+                simd.to_bitmask_mask8x16(high)
+            },
+            |b| b >= 0x80,
+        )
+    }
+
+    /// Non-printable ASCII ⇔ b < 0x20 || b >= 0x7f.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn scan_printable<S: Simd>(simd: S, bytes: &[u8]) -> usize {
+        scan_first(
+            simd,
+            bytes,
+            |simd, v| {
+                let low = simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20));
+                let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f));
+                simd.to_bitmask_mask8x16(low | high)
+            },
+            |b| !(0x20..=0x7e).contains(&b),
+        )
+    }
 }

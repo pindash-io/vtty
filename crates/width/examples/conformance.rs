@@ -3,15 +3,22 @@
 
 //! Unified emoji conformance engine (see `CONFORMANCE.md`).
 //!
-//! Validates all four Unicode 17.0.0 emoji data files in one pass:
+//! Validates all four Unicode 17.0.0 emoji data files in one pass. The files
+//! download into `assets/emoji/` (git-ignored) and are the argument defaults:
+//!
+//! ```bash
+//! cargo run --release -p vtty_width --example conformance
+//! ```
+//!
+//! or with explicit paths, from the repository root:
 //!
 //! ```bash
 //! cargo run --release -p vtty_width --example conformance -- \
-//!   /tmp/emoji-test.txt /tmp/emoji-zwj-sequences.txt \
-//!   /tmp/emoji-variation-sequences.txt /tmp/emoji-sequences.txt
+//!   assets/emoji/emoji-test.txt assets/emoji/emoji-zwj-sequences.txt \
+//!   assets/emoji/emoji-variation-sequences.txt assets/emoji/emoji-sequences.txt
 //! ```
 
-/// A sequence collapses to ONE 2-cell grapheme: lead 2, every continuation 0.
+/// A sequence collapses to one 2-cell grapheme: lead 2, every continuation 0.
 fn collapse(w: &[usize]) -> bool {
     w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0)
 }
@@ -86,16 +93,18 @@ fn emoji_test(data: &str) -> (Tally, Tally, Tally, Tally, Vec<String>) {
         let s: String = chars.iter().collect();
         let ok = match qual {
             "fully-qualified" | "minimally-qualified" => {
-                let t =
-                    if qual == "fully-qualified" { &mut fq } else { &mut mq };
+                let t = if qual == "fully-qualified" {
+                    &mut fq
+                } else {
+                    &mut mq
+                };
                 let ok = collapse(&w);
                 t.bump(ok);
                 ok
             }
             "unqualified" => {
                 let ok = if chars.len() == 1 {
-                    let wide_cjk = w == [2]
-                        && vtty_width::cell_width(chars[0]) == Some(2);
+                    let wide_cjk = w == [2] && vtty_width::cell_width(chars[0]) == Some(2);
                     w == [1] || wide_cjk
                 } else if chars.contains(&'\u{200D}') {
                     collapse(&w)
@@ -107,8 +116,7 @@ fn emoji_test(data: &str) -> (Tally, Tally, Tally, Tally, Vec<String>) {
                 ok
             }
             "component" => {
-                let is_skin_tone =
-                    matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
+                let is_skin_tone = matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
                 let ok = if is_skin_tone { w == [1] } else { w == [2] };
                 comp.bump(ok);
                 ok
@@ -220,9 +228,7 @@ fn sequences(data: &str) -> (Tally, Tally, Tally, Tally, Tally, Vec<String>) {
         let w = widths(&chars);
         let s: String = chars.iter().collect();
         let ok = match kind {
-            "Basic_Emoji"
-            | "RGI_Emoji_Flag_Sequence"
-            | "RGI_Emoji_Modifier_Sequence" => {
+            "Basic_Emoji" | "RGI_Emoji_Flag_Sequence" | "RGI_Emoji_Modifier_Sequence" => {
                 let t = match kind {
                     "Basic_Emoji" => &mut basic,
                     "RGI_Emoji_Flag_Sequence" => &mut flag,
@@ -257,21 +263,18 @@ fn main() {
         args
     } else {
         vec![
-            "/tmp/emoji-test.txt".into(),
-            "/tmp/emoji-zwj-sequences.txt".into(),
-            "/tmp/emoji-variation-sequences.txt".into(),
-            "/tmp/emoji-sequences.txt".into(),
+            "assets/emoji/emoji-test.txt".into(),
+            "assets/emoji/emoji-zwj-sequences.txt".into(),
+            "assets/emoji/emoji-variation-sequences.txt".into(),
+            "assets/emoji/emoji-sequences.txt".into(),
         ]
     };
-    let read = |p: &str| {
-        std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}"))
-    };
+    let read = |p: &str| std::fs::read_to_string(p).unwrap_or_else(|e| panic!("{p}: {e}"));
 
     let (fq, mq, unq, comp, bad1) = emoji_test(&read(&paths[0]));
     let (zwj, bad2) = zwj_sequences(&read(&paths[1]));
     let (vtext, vemoji, vkeycap, bad3) = variation_sequences(&read(&paths[2]));
-    let (basic, keycap, flag, modifier, tag, bad4) =
-        sequences(&read(&paths[3]));
+    let (basic, keycap, flag, modifier, tag, bad4) = sequences(&read(&paths[3]));
 
     println!("emoji-test.txt");
     println!("  fully-qualified:     {}/{}", fq.ok, fq.ok + fq.bad);

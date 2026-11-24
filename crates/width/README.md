@@ -4,6 +4,11 @@
 
 Display cell width and emoji-sequence handling.
 
+The formal statement of the model — Layers 1–3, the symbol-to-code
+binding, and the invariants — is [`_documentation::width_model`](https://docs.rs/vtty_width/latest/vtty_width/_documentation/width_model/); the
+Unicode data-file counts and the deliberate terminal overrides are in
+[`_documentation::conformance`](https://docs.rs/vtty_width/latest/vtty_width/_documentation/conformance/).
+
 ## Usage
 
 ```rust
@@ -39,10 +44,24 @@ assert_eq!(cell_advance(16.0, 10.0), 20.0); // 1.6 cells snaps to 2 cells
   the packtab tables; not the default).
 
 With neither `baked` nor `icu`, the ASCII/CJK/PUA fast paths still
-resolve correctly; the composite emoji/width lookup degrades to width 1.
+resolve correctly; the composite emoji/width lookup degrades to width 1,
+and `Gcb` reports `Other` for every char, so grapheme segmentation falls
+back to one cluster per char.
 
 ## Credits
 
-The emoji DFA is provided by [`parley_emoji`](https://github.com/linebender/parley) (MIT).
+The emoji DFA is provided by [`parley_emoji`] (MIT).
+
+[`parley_emoji`]: https://github.com/linebender/parley
 
 <!-- cargo-rdme end -->
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.

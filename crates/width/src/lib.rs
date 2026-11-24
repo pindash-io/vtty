@@ -3,6 +3,11 @@
 
 //! Display cell width and emoji-sequence handling.
 //!
+//! The formal statement of the model — Layers 1–3, the symbol-to-code
+//! binding, and the invariants — is [`_documentation::width_model`]; the
+//! Unicode data-file counts and the deliberate terminal overrides are in
+//! [`_documentation::conformance`].
+//!
 //! ## Usage
 //!
 //! ```rust
@@ -41,11 +46,15 @@
 //!   the packtab tables; not the default).
 //!
 //! With neither `baked` nor `icu`, the ASCII/CJK/PUA fast paths still
-//! resolve correctly; the composite emoji/width lookup degrades to width 1.
+//! resolve correctly; the composite emoji/width lookup degrades to width 1,
+//! and `Gcb` reports `Other` for every char, so grapheme segmentation falls
+//! back to one cluster per char.
 //!
 //! ## Credits
 //!
-//! The emoji DFA is provided by [`parley_emoji`](https://github.com/linebender/parley) (MIT).
+//! The emoji DFA is provided by [`parley_emoji`] (MIT).
+//!
+//! [`parley_emoji`]: https://github.com/linebender/parley
 
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
@@ -67,41 +76,34 @@ pub mod write_order;
 
 /// Re-export the `parley_emoji` DFA + categories so callers don't depend
 /// on `parley_emoji` directly.
-pub use parley_emoji::{
-    EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory,
-};
+pub use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
 #[cfg(feature = "icu")]
 #[cfg_attr(docsrs, doc(cfg(feature = "icu")))]
 pub use icu::width_icu;
 
 pub use emoji::{
-    Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target,
-    mark_attaches, mark_is_stray,
+    Selector, is_keycap_base, is_vs_base, is_vs_target, is_zwj_target, mark_attaches, mark_is_stray,
 };
 pub use properties::{
-    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed,
-    emoji_fast_width, first_non_ascii, first_non_printable_ascii,
-    is_printable_ascii, is_zero_width, pua_fast_width, vs_width,
+    Gcb, Properties, cell_width, cjk_fast_width, composes_precomposed, emoji_fast_width,
+    first_non_ascii, first_non_printable_ascii, is_printable_ascii, is_zero_width, pua_fast_width,
+    vs_width,
 };
 pub use width::{
-    cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths,
-    cell_col_byte_widths, cell_col_char_ceil_from_widths,
-    cell_col_char_end_from_widths, cell_col_char_from_widths, cell_width_sum,
-    cell_widths, cell_widths_from_codepoints, grapheme_end_from_widths,
-    grapheme_tail_end_from_widths, width_and_standalone,
-    width_and_standalone_with,
+    cell_advance, cell_col_byte_ceil_from_widths, cell_col_byte_from_widths, cell_col_byte_widths,
+    cell_col_char_ceil_from_widths, cell_col_char_end_from_widths, cell_col_char_from_widths,
+    cell_width_sum, cell_widths, cell_widths_from_codepoints, grapheme_end_from_widths,
+    grapheme_tail_end_from_widths, width_and_standalone, width_and_standalone_with,
 };
 pub use write_order::{
-    EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths,
-    wrap_width,
+    EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths, wrap_width,
 };
 
 /// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
-/// (like `wcwidth` under a CJK locale). Off by
-/// default — Ambiguous chars stay 1 cell.
-static CJK_WIDTH: core::sync::atomic::AtomicBool =
-    core::sync::atomic::AtomicBool::new(false);
+/// (like `wcwidth` under a CJK locale). Off by default, so Ambiguous chars
+/// stay 1 cell.
+static CJK_WIDTH: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 /// Set whether Ambiguous chars are 2 cells wide.
 #[inline]
@@ -115,9 +117,29 @@ pub fn cjk_width() -> bool {
     CJK_WIDTH.load(core::sync::atomic::Ordering::Relaxed)
 }
 
+/// Longer-form documentation kept in the repository and mirrored here so it
+/// also appears on docs.rs.
+#[allow(
+    clippy::doc_markdown,
+    reason = "embedded repository markdown documents LaTeX formulas, not Rust items"
+)]
+pub mod _documentation {
+    #[doc = include_str!("../WIDTH-MODEL.md")]
+    pub mod width_model {}
+    #[doc = include_str!("../CONFORMANCE.md")]
+    pub mod conformance {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Serialises the tests that read or write the global `CJK_WIDTH` flag.
+    static CJK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn cjk_guard() -> std::sync::MutexGuard<'static, ()> {
+        CJK_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn vs_width_forces_emoji_or_text_presentation() {
@@ -126,6 +148,27 @@ mod tests {
         assert_eq!(vs_width('\u{FE0E}'), 1);
         assert_eq!(vs_width('x'), 0);
         assert_eq!(vs_width('\u{200D}'), 0);
+    }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn cjk_width_makes_ambiguous_wide() {
+        let _guard = cjk_guard();
+        // Enclosed Alphanumerics are EAW "Ambiguous": 1 cell by default.
+        assert!(!cjk_width());
+        assert_eq!(cell_width('\u{2469}'), Some(1)); // ⑩
+        assert_eq!(cell_width('\u{2460}'), Some(1)); // ①
+
+        // CJK mode promotes every width-1 Ambiguous char to 2 cells.
+        set_cjk_width(true);
+        assert_eq!(cell_width('\u{2469}'), Some(2));
+        assert_eq!(cell_width('\u{2460}'), Some(2));
+        // Unambiguous chars are unaffected.
+        assert_eq!(cell_width('a'), Some(1));
+        assert_eq!(cell_width('中'), Some(2));
+
+        set_cjk_width(false);
+        assert_eq!(cell_width('\u{2469}'), Some(1));
     }
 
     #[cfg(any(feature = "baked", feature = "icu"))]
@@ -185,7 +228,7 @@ mod tests {
         // Controls are zero-width too.
         assert!(is_zero_width('\n'));
         assert!(is_zero_width('\x1b'));
-        // Narrow and wide glyphs are NOT zero-width.
+        // Narrow and wide glyphs are not zero-width.
         assert!(!is_zero_width('a'));
         assert!(!is_zero_width('中'));
         assert!(!is_zero_width('👍'));
@@ -237,8 +280,9 @@ mod tests {
     #[cfg(feature = "baked")]
     #[test]
     fn cjk_fast_width_matches_table() {
+        let _guard = cjk_guard();
         // Every codepoint the CJK fast path classifies must be width 2, a
-        // standalone base (GCB Other), and NOT an emoji starter — the same
+        // standalone base (GCB Other), and not an emoji starter — the same
         // answer the baked composite table gives. Guards the hard-coded
         // ranges against Unicode table regeneration drift.
         for cp in 0x80_u32..=0x10_FFFF {
@@ -267,9 +311,10 @@ mod tests {
     #[cfg(feature = "baked")]
     #[test]
     fn pua_fast_width_matches_table() {
+        let _guard = cjk_guard();
         // Every codepoint the PUA fast path classifies must match the baked
         // composite table (width 1, or 2 under CJK-ambiguous mode), be a
-        // standalone base (GCB Other), and NOT an emoji starter.
+        // standalone base (GCB Other), and not an emoji starter.
         let cjk = cjk_width();
         for cp in 0xE000_u32..=0x10_FFFD {
             let Some(c) = char::from_u32(cp) else {
@@ -333,7 +378,7 @@ mod tests {
         // Outside the combining diacritical block (emoji selector / Hangul).
         assert!(!composes_precomposed('e', '\u{FE0F}'));
         // Hangul composes ALGORITHMICALLY (ljmo/vjmo/tjmo), not via the
-        // `ccmp` precomposed path — so it must NOT get a ZWSP break.
+        // `ccmp` precomposed path — so it must not get a ZWSP break.
         assert!(!composes_precomposed('\u{1100}', '\u{1161}')); // L + V
         assert!(!composes_precomposed('가', '\u{11A8}')); // LV + T
     }
@@ -341,14 +386,14 @@ mod tests {
     #[test]
     fn text_default_emoji_stay_one_cell() {
         // U+2764 ❤ is Emoji=Yes but Emoji_Presentation=No: text-default, so
-        // it is ONE cell alone. VS16 widens it to 2; a ZWJ-family membership
+        // it is one cell alone. VS16 widens it to 2; a ZWJ-family membership
         // also widens it (the DFA's `presentation_style(Emoji)`).
         assert_eq!(cell_width('❤'), Some(1));
         assert_eq!(cell_width('↕'), Some(1));
         assert_eq!(cell_widths("❤"), vec![1]);
         assert_eq!(cell_widths("❤\u{FE0F}"), vec![2, 0]);
         assert_eq!(cell_widths("↕\u{FE0F}"), vec![2, 0]);
-        // A combining mark attaches to the text-default base WITHOUT widening
+        // A combining mark attaches to the text-default base without widening
         // it — only VS16/VS15 or a ZWJ-family membership changes the width.
         assert_eq!(cell_widths("❤\u{301}"), vec![1, 0]);
         assert_eq!(cell_widths("↕\u{301}"), vec![1, 0]);
@@ -380,9 +425,9 @@ mod tests {
         assert_eq!(cell_widths("中ab"), vec![2, 1, 1]);
         // A skin-tone modifier stays zero-width, the base emoji stays 2.
         assert_eq!(cell_widths("👍🏽x"), vec![2, 0, 1]);
-        // A stray ZWJ outside an emoji sequence must NOT widen the base.
+        // A stray ZWJ outside an emoji sequence must not widen the base.
         assert_eq!(cell_widths("a\u{200D}b"), vec![1, 0, 1]);
-        // Regional-indicator pairs form ONE 2-cell flag; odd trailing RIs stay
+        // Regional-indicator pairs form one 2-cell flag; odd trailing RIs stay
         // lone (kitty: "🇮🇳" is one cell, "a🇮b" advances 4 cells).
         assert_eq!(cell_widths("🇮🇳"), vec![2, 0]);
         assert_eq!(cell_widths("🇮🇳🇺"), vec![2, 0, 2]);
@@ -406,18 +451,73 @@ mod tests {
         assert_eq!(cell_widths("1\u{FE0F}"), vec![1, 0]);
         // Tag characters and cancel tag contribute no cells.
         assert_eq!(
-            cell_widths(
-                "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}x"
-            ),
+            cell_widths("🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}x"),
             vec![2, 0, 0, 0, 0, 0, 0, 1]
         );
+    }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn vs15_breaks_a_zwj_family() {
+        // UTS #51 §2.7.1: a text presentation selector (VS15) applied to any
+        // element of an emoji ZWJ sequence breaks that sequence, so the
+        // partial sequences render separately, each with its own presentation
+        // style. The VS15 on the LAST member (👧) breaks the 👩👨👧 family
+        // into the 👩👨 couple (2 cells) + a text-presentation 👧 (1 cell).
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}"),
+            vec![2, 0, 0, 0, 1, 0]
+        );
+        // A trailing ASCII keeps its own cell after the broken family.
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}x"),
+            vec![2, 0, 0, 0, 1, 0, 1]
+        );
+        // VS15 on the SECOND member breaks the couple the same way.
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{FE0E}"),
+            vec![2, 0, 1, 0]
+        );
+        // A four-person family with VS15 on the last member: the first three
+        // stay a family (2 cells) + a text-presentation 👦 (1 cell).
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{200D}\u{1F466}\u{FE0E}"),
+            vec![2, 0, 0, 0, 0, 0, 1, 0]
+        );
+        // VS16 (emoji presentation) on the last member does NOT break the
+        // family — it is a valid emoji presentation sequence element.
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0F}"),
+            vec![2, 0, 0, 0, 0, 0]
+        );
+        // The unbroken family still collapses to one 2-cell glyph.
+        assert_eq!(
+            cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}"),
+            vec![2, 0, 0, 0, 0]
+        );
+    }
+
+    #[cfg(any(feature = "baked", feature = "icu"))]
+    #[test]
+    fn cell_col_byte_widths_steps_over_a_broken_family() {
+        // The broken family occupies 3 cells: the couple (2) + the text 👧
+        // (1). Column 1 lands inside the couple (byte 0); column 2 lands on
+        // the text 👧; column 3 is past the cluster.
+        let text = "\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}";
+        assert_eq!(cell_col_byte_widths(text, 0), 0);
+        assert_eq!(cell_col_byte_widths(text, 1), 0);
+        assert_eq!(
+            cell_col_byte_widths(text, 2),
+            "\u{1F469}\u{200D}\u{1F468}\u{200D}".len()
+        );
+        assert_eq!(cell_col_byte_widths(text, 3), text.len());
     }
 
     /// The fuzz-minimized fixture prefix: a halfwidth ideographic space
     /// (0), CJK (2), an emoji (2), a 2-emoji ZWJ family (2 — the `👩` joins
     /// at 0), a mahjong tile (1), and `👍` (2) — 9 cells total. Locks the
     /// ZWJ-family merge AND the mahjong-tile/halfwidth-space widths so the
-    /// cell and line screens agree on the cursor column.
+    /// cell-grid and line-based renderers agree on the cursor column.
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn zwj_family_plus_mahjong_and_halfwidth_space_widths() {
@@ -428,7 +528,7 @@ mod tests {
 
     /// Hangul Jamo + syllable widths: L jamo is wide (2), V/T jamo are
     /// zero-width continuations (they compose onto a preceding L / LV), and
-    /// precomposed syllables are 2 cells. A LONE V/T jamo occupies 1 cell
+    /// precomposed syllables are 2 cells. A lone V/T jamo occupies 1 cell
     /// (the lone-mark fix — it has no base, so it must stay visible).
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
@@ -446,7 +546,7 @@ mod tests {
         assert_eq!(cell_widths("\u{1100}\u{1161}\u{11A8}"), vec![2, 0, 0]); // L + V + T
         assert_eq!(cell_widths("가\u{11A8}"), vec![2, 0]); // LV + T
 
-        // A LONE V/T jamo has no base — the lone-mark fix gives it 1 cell.
+        // A lone V/T jamo has no base — the lone-mark fix gives it 1 cell.
         assert_eq!(cell_widths("\u{1161}"), vec![1]);
         assert_eq!(cell_widths("\u{11A8}"), vec![1]);
 
@@ -497,9 +597,9 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn mark_after_space_followed_by_mark_is_standalone() {
-        // A mark after a SPACE that is itself followed by ANOTHER mark must
-        // occupy its own cell, so the second mark has a VISIBLE base (the
-        // space is invisible). A SINGLE mark after a space still attaches to
+        // A mark after a space that is itself followed by another mark must
+        // occupy its own cell, so the second mark has a visible base (the
+        // space is invisible). A single mark after a space still attaches to
         // the space; a mark after a visible base attaches normally.
         assert_eq!(
             cell_widths("佞\u{1FE0F} \u{0320}\u{0320}\u{FF76}"),
@@ -507,9 +607,9 @@ mod tests {
         );
         // Single mark after a space attaches (existing behavior).
         assert_eq!(cell_widths("❤ \u{0301}"), vec![1, 1, 0]);
-        // Two marks after a VISIBLE base attach to it (the base is visible).
+        // Two marks after a visible base attach to it (the base is visible).
         assert_eq!(cell_widths("1\u{0323}\u{0323}0"), vec![1, 0, 0, 1]);
-        // Two marks after a space at the START: the first is lone, the
+        // Two marks after a space at the start: the first is lone, the
         // second attaches to it.
         assert_eq!(cell_widths("\u{0320}\u{0320}\u{FF76}"), vec![1, 0, 1]);
     }
@@ -520,8 +620,7 @@ mod tests {
         use unicode_width::UnicodeWidthChar;
         // Curated common cases must agree exactly.
         for c in [
-            'a', '中', 'ｱ', 'ア', '👍', '\u{0301}', '\u{200D}', '\u{AC00}',
-            '¡',
+            'a', '中', 'ｱ', 'ア', '👍', '\u{0301}', '\u{200D}', '\u{AC00}', '¡',
         ] {
             assert_eq!(
                 width_icu(c),
@@ -557,11 +656,7 @@ mod tests {
             let Some(c) = char::from_u32(cp) else {
                 continue;
             };
-            assert_eq!(
-                Properties::get(c).width(),
-                width_icu(c) as u8,
-                "U+{cp:04X}"
-            );
+            assert_eq!(Properties::get(c).width(), width_icu(c) as u8, "U+{cp:04X}");
         }
     }
 
@@ -617,7 +712,7 @@ mod tests {
             cell_col_byte_widths("👨\u{200D}👩\u{200D}👧\u{200D}👦x", 2),
             "👨\u{200D}👩\u{200D}👧\u{200D}👦".len(),
         );
-        // A column landing in the SECOND cell of a wide char maps back to
+        // A column landing in the second cell of a wide char maps back to
         // that wide char (not to the char after it).
         assert_eq!(cell_col_byte_widths("中ab", 1), 0);
         assert_eq!(cell_col_byte_widths("a中b", 2), 1);
@@ -661,7 +756,7 @@ mod tests {
     #[test]
     fn trie_matches_packtab_for_every_codepoint() {
         // The CodePointTrie-style two-level table must reproduce the packtab
-        // level-walk for the FULL codepoint space (not just the hot ranges).
+        // level-walk for the full codepoint space (not just the hot ranges).
         for cp in 0_u32..=0x10_FFFF {
             assert_eq!(
                 baked::composite_get_trie(cp),
@@ -682,8 +777,8 @@ fn tui_symbols_are_single_cell() {
     // The box-drawing / braille / half-block / shade / arrow / bullet
     // symbols ratatui and every TUI app draws are all width 1.
     for c in [
-        '─', '│', '┌', '┐', '└', '┘', '╭', '╮', '╰', '╯', '▀', '▄', '█', '▌',
-        '▐', '░', '▒', '▓', '⠿', '⣿', '•', '●', '○', '←', '→', '↑', '↓',
+        '─', '│', '┌', '┐', '└', '┘', '╭', '╮', '╰', '╯', '▀', '▄', '█', '▌', '▐', '░', '▒', '▓',
+        '⠿', '⣿', '•', '●', '○', '←', '→', '↑', '↓',
     ] {
         assert_eq!(
             cell_width(c),
@@ -693,8 +788,7 @@ fn tui_symbols_are_single_cell() {
         );
     }
     // Keycap / key symbols gitui uses for its keybinding hints.
-    for c in ['⌥', '⌦', '⌫', '⎋', '⏎', '⇥', '⇧', '⇞', '▸', '▾', '✓', '…']
-    {
+    for c in ['⌥', '⌦', '⌫', '⎋', '⏎', '⇥', '⇧', '⇞', '▸', '▾', '✓', '…'] {
         assert_eq!(
             cell_width(c),
             Some(1),
@@ -745,7 +839,7 @@ fn starship_glyph_widths() {
 #[cfg(any(feature = "baked", feature = "icu"))]
 #[test]
 fn stray_zwj_after_non_emoji_does_not_swallow_next() {
-    // A ZWJ after a CJK char is a STRAY joiner (DFA Start rejects it): the
+    // A ZWJ after a CJK char is a stray joiner (DFA Start rejects it): the
     // emoji after it is a fresh 2-cell glyph, not a 0-width continuation.
     assert_eq!(cell_widths("侞\u{200D}\u{200D}👍"), vec![2, 0, 0, 2]);
     assert_eq!(
@@ -791,7 +885,7 @@ fn col_byte_walkers_floor_and_ceil() {
     assert_eq!(cell_col_byte_from_widths(text, &w, 2), 3);
     assert_eq!(cell_col_byte_from_widths(text, &w, 3), 4);
     assert_eq!(cell_col_byte_from_widths(text, &w, 99), text.len());
-    // Ceil: a column on a wide glyph's SECOND cell returns the byte AFTER
+    // Ceil: a column on a wide glyph's second cell returns the byte after
     // the wide char, so a straddling boundary drops it whole.
     assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 0), 0);
     assert_eq!(cell_col_byte_ceil_from_widths(text, &w, 1), 3);
@@ -809,7 +903,7 @@ fn grapheme_end_and_tail_end_walkers() {
     // continuation (the VS16), stopping at the next width>0 char.
     assert_eq!(grapheme_end_from_widths(text, &w, 0), 6);
     assert_eq!(grapheme_end_from_widths(text, &w, 6), 7);
-    // Tail end from a byte already PAST the base extends only over the
+    // Tail end from a byte already past the base extends only over the
     // trailing zero-width marks.
     assert_eq!(grapheme_tail_end_from_widths(text, &w, 3), 6);
     assert_eq!(grapheme_tail_end_from_widths(text, &w, 6), 6);

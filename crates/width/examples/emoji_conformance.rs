@@ -16,12 +16,14 @@
 //! Run:
 //!
 //! ```bash
-//! curl -sL <https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt> -o /tmp/emtest.txt
-//! cargo run --release -p vtty_width --example emoji_conformance -- /tmp/emtest.txt
+//! curl -sL <https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt> \
+//!   -o assets/emoji/emoji-test.txt
+//! cargo run --release -p vtty_width --example emoji_conformance
 //! ```
 fn main() {
-    let path =
-        std::env::args().nth(1).unwrap_or_else(|| "/tmp/emtest.txt".into());
+    let path = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "assets/emoji/emoji-test.txt".into());
     let data = std::fs::read_to_string(&path).unwrap();
     let mut fq = 0_usize;
     let mut fq_ok = 0_usize;
@@ -47,9 +49,7 @@ fn main() {
         let qual = qual.trim();
         let chars: Vec<char> = cps
             .split_whitespace()
-            .filter_map(|h| {
-                u32::from_str_radix(h, 16).ok().and_then(char::from_u32)
-            })
+            .filter_map(|h| u32::from_str_radix(h, 16).ok().and_then(char::from_u32))
             .collect();
         if chars.is_empty() {
             continue;
@@ -57,8 +57,7 @@ fn main() {
         let s: String = chars.iter().collect();
         let w = vtty_width::cell_widths(&s);
         // A 2-cell lead with every continuation 0 — one collapsed grapheme.
-        let collapsed =
-            w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0);
+        let collapsed = w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0);
         let mut ok = true;
         let mut want = String::new();
         match qual {
@@ -86,8 +85,7 @@ fn main() {
                     // Unqualified means TEXT-default: width is the East Asian
                     // width, so wide CJK symbols (〰 〽 🈂 🈷 ㊗ ㊙ …) are 2,
                     // everything else 1.
-                    let wide_cjk = w == [2]
-                        && vtty_width::cell_width(chars[0]) == Some(2);
+                    let wide_cjk = w == [2] && vtty_width::cell_width(chars[0]) == Some(2);
                     want = "[1]".into();
                     if w == [1] || wide_cjk {
                         unq_ok += 1;
@@ -116,9 +114,8 @@ fn main() {
                 comp += 1;
                 // Hair components (1F9B0..=1F9B3) are emoji-presentation
                 // (2 cells); skin-tone modifiers are 0-width combining, so a
-                // LONE one is 1 cell.
-                let is_skin_tone =
-                    matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
+                // lone one is 1 cell.
+                let is_skin_tone = matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
                 want = if is_skin_tone { "[1]" } else { "[2]" }.into();
                 if (is_skin_tone && w == [1]) || (!is_skin_tone && w == [2]) {
                     comp_ok += 1;

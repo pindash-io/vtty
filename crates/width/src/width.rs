@@ -6,65 +6,11 @@
 //! width per char.
 
 use crate::emoji::{
-    Run, Selector, finalize_lead, fresh_emoji_continues_from,
-    is_emoji_starter_from, run_continues,
+    Run, Selector, finalize_lead, fresh_emoji_continues_from, is_emoji_starter_from, run_continues,
 };
 use crate::properties::{
-    Gcb, Properties, category_from, cell_width_from, cjk_fast_width,
-    is_printable_ascii,
+    Gcb, Properties, category_from, cell_width_from, cjk_fast_width, is_printable_ascii,
 };
-
-/// Number of leading printable-ASCII bytes that are NOT keycap bases
-/// (`#`, `*`, `0-9`). Keycap bases can start a keycap emoji sequence
-/// (e.g. `1 VS16 U+20E3`), so they must go through the DFA; every other
-/// printable-ASCII char is always a standalone width-1 base.
-#[inline]
-fn plain_ascii_run(bytes: &[u8]) -> usize {
-    let mut n = 0;
-    while let Some(&b) = bytes.get(n) {
-        if !(0x20..=0x7e).contains(&b)
-            || matches!(b, b'#' | b'*' | b'0'..=b'9')
-        {
-            break;
-        }
-        n += 1;
-    }
-    n
-}
-
-/// Decode one UTF-8 char at `pos` into `(char, byte_len)`. The input is a
-/// valid `&str`, so the manual decode needs no validation.
-#[inline]
-fn decode_at(bytes: &[u8], pos: usize) -> Option<(char, usize)> {
-    let b0 = *bytes.get(pos)?;
-    let (len, cp) = if b0 < 0x80 {
-        (1, b0 as u32)
-    } else if b0 < 0xe0 {
-        let b1 = *bytes.get(pos + 1)?;
-        (2, ((b0 as u32 & 0x1f) << 6) | (b1 as u32 & 0x3f))
-    } else if b0 < 0xf0 {
-        let b1 = *bytes.get(pos + 1)?;
-        let b2 = *bytes.get(pos + 2)?;
-        (
-            3,
-            ((b0 as u32 & 0x0f) << 12)
-                | ((b1 as u32 & 0x3f) << 6)
-                | (b2 as u32 & 0x3f),
-        )
-    } else {
-        let b1 = *bytes.get(pos + 1)?;
-        let b2 = *bytes.get(pos + 2)?;
-        let b3 = *bytes.get(pos + 3)?;
-        (
-            4,
-            ((b0 as u32 & 0x07) << 18)
-                | ((b1 as u32 & 0x3f) << 12)
-                | ((b2 as u32 & 0x3f) << 6)
-                | (b3 as u32 & 0x3f),
-        )
-    };
-    Some((char::from_u32(cp)?, len))
-}
 
 /// A char source for the width state machine: UTF-8 bytes (decoded on the
 /// fly) or raw codepoints (indexed directly).
@@ -104,15 +50,16 @@ impl Source for Codepoints<'_> {
     }
     #[inline]
     fn char_at(&self, pos: usize) -> Option<(char, usize)> {
-        self.0.get(pos).and_then(|&cp| char::from_u32(cp)).map(|c| (c, 1))
+        self.0
+            .get(pos)
+            .and_then(|&cp| char::from_u32(cp))
+            .map(|c| (c, 1))
     }
     #[inline]
     fn ascii_run(&self, pos: usize) -> usize {
         let mut n = 0;
         while let Some(&cp) = self.0.get(pos + n) {
-            if (0x20..=0x7e).contains(&cp)
-                && !matches!(cp, 0x30..=0x39 | 0x23 | 0x2A)
-            {
+            if (0x20..=0x7e).contains(&cp) && !matches!(cp, 0x30..=0x39 | 0x23 | 0x2A) {
                 n += 1;
             } else {
                 break;
@@ -141,7 +88,7 @@ struct Widths<S> {
     /// Hangul continuation bitmask: bit 0 = V may follow (after L/LV/V),
     /// bit 1 = T may follow (after LV/V/LVT/T) — UAX #29 GB6/GB7/GB8.
     hangul: u8,
-    /// The last width>0 base was a SPACE (a space is not a VISIBLE base).
+    /// The last width>0 base was a space (a space is not a visible base).
     space_base: bool,
     /// The open emoji run whose lead width is not yet finalized.
     run: Option<Run>,
@@ -178,7 +125,7 @@ impl<S: Source> Widths<S> {
         Some(c)
     }
 
-    /// Decode the next char WITHOUT advancing `pos` — the standalone-emoji
+    /// Decode the next char without advancing `pos` — the standalone-emoji
     /// lookahead.
     #[inline]
     fn peek_char(&self) -> Option<char> {
@@ -232,14 +179,11 @@ impl<S: Source> Widths<S> {
             let p = Properties::get(c);
             let w1 = cell_width_from(p, c);
             let starter = is_emoji_starter_from(p, c);
-            let w = if matches!(w1, Some(1) | Some(2))
-                && !starter
-                && p.gcb() == Gcb::Other
-            {
+            let w = if matches!(w1, Some(1) | Some(2)) && !starter && p.gcb() == Gcb::Other {
                 // Plain non-ASCII: a standalone width-1/2 base.
                 w1.unwrap()
             } else if matches!(w1, Some(1) | Some(2)) && starter {
-                // Standalone emoji: an emoji starter NOT followed by a
+                // Standalone emoji: an emoji starter not followed by a
                 // continuation (VS15/VS16/ZWJ/modifier/RI/tag).
                 let standalone = match self.src.char_at(self.pos + len) {
                     None => true,
@@ -376,8 +320,9 @@ impl<S: Source> Iterator for Widths<S> {
             // A pending emoji run: check continuation (the rare DFA path).
             if self.run.is_some() {
                 let cat = category_from(p, c);
+                let next_is_vs15 = self.peek_char() == Some('\u{FE0E}');
                 if let Some(r) = &mut self.run
-                    && run_continues(r, c, cat, p.gcb())
+                    && run_continues(r, c, cat, p.gcb(), next_is_vs15)
                 {
                     r.push(cat);
                     continue;
@@ -390,17 +335,14 @@ impl<S: Source> Iterator for Widths<S> {
             // merges (not an emoji starter, not a mark/selector/control, not
             // a Hangul jamo). Skip the DFA — only the base state a following
             // combining mark sees matters.
-            if matches!(w1, Some(1) | Some(2))
-                && !starter
-                && p.gcb() == Gcb::Other
-            {
+            if matches!(w1, Some(1) | Some(2)) && !starter && p.gcb() == Gcb::Other {
                 match self.emit_base(w1.unwrap()) {
                     Some(w) => return Some(w),
                     None => continue,
                 }
             }
 
-            // Standalone emoji: an emoji starter NOT followed by a
+            // Standalone emoji: an emoji starter not followed by a
             // continuation (VS15/VS16/ZWJ/modifier/RI/tag) is a fixed-width
             // base — skip the DFA and emit `w1` directly.
             if matches!(w1, Some(1) | Some(2)) && starter {
@@ -420,11 +362,10 @@ impl<S: Source> Iterator for Widths<S> {
             }
 
             // `c` starts a new run: close the previous one, then open the new.
-            // A mark followed by ANOTHER combining mark must be standalone
+            // A mark followed by another combining mark must be standalone
             // (its own cell) so the following mark has a visible base.
             let cat = category_from(p, c);
-            let followed_by_mark =
-                Selector::from_char(c).is_none() && w1 == Some(0);
+            let followed_by_mark = Selector::from_char(c).is_none() && w1 == Some(0);
             if let Some(r) = self.run.take() {
                 self.flush_lead = Some(finalize_lead(
                     &r,
@@ -446,6 +387,54 @@ impl<S: Source> Iterator for Widths<S> {
     }
 }
 
+/// Number of leading printable-ASCII bytes that are not keycap bases
+/// (`#`, `*`, `0-9`). Keycap bases can start a keycap emoji sequence
+/// (e.g. `1 VS16 U+20E3`), so they must go through the DFA; every other
+/// printable-ASCII char is always a standalone width-1 base.
+#[inline]
+fn plain_ascii_run(bytes: &[u8]) -> usize {
+    let mut n = 0;
+    while let Some(&b) = bytes.get(n) {
+        if !(0x20..=0x7e).contains(&b) || matches!(b, b'#' | b'*' | b'0'..=b'9') {
+            break;
+        }
+        n += 1;
+    }
+    n
+}
+
+/// Decode one UTF-8 char at `pos` into `(char, byte_len)`. The input is a
+/// valid `&str`, so the manual decode needs no validation.
+#[inline]
+fn decode_at(bytes: &[u8], pos: usize) -> Option<(char, usize)> {
+    let b0 = *bytes.get(pos)?;
+    let (len, cp) = if b0 < 0x80 {
+        (1, b0 as u32)
+    } else if b0 < 0xe0 {
+        let b1 = *bytes.get(pos + 1)?;
+        (2, ((b0 as u32 & 0x1f) << 6) | (b1 as u32 & 0x3f))
+    } else if b0 < 0xf0 {
+        let b1 = *bytes.get(pos + 1)?;
+        let b2 = *bytes.get(pos + 2)?;
+        (
+            3,
+            ((b0 as u32 & 0x0f) << 12) | ((b1 as u32 & 0x3f) << 6) | (b2 as u32 & 0x3f),
+        )
+    } else {
+        let b1 = *bytes.get(pos + 1)?;
+        let b2 = *bytes.get(pos + 2)?;
+        let b3 = *bytes.get(pos + 3)?;
+        (
+            4,
+            ((b0 as u32 & 0x07) << 18)
+                | ((b1 as u32 & 0x3f) << 12)
+                | ((b2 as u32 & 0x3f) << 6)
+                | (b3 as u32 & 0x3f),
+        )
+    };
+    Some((char::from_u32(cp)?, len))
+}
+
 /// Per-char display cell widths, with emoji sequences merged by the UTS #51
 /// DFA ([`crate::EmojiDFA`]) — the single structural source of truth
 /// (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15):
@@ -464,7 +453,7 @@ impl<S: Source> Iterator for Widths<S> {
 /// `char_indices()`; [`crate::cell_width`] is single-char and cannot see a
 /// following VS16/ZWJ.
 ///
-/// Spec: Layer 2 `w₂` in `docs/width-model-spec.md`.
+/// Spec: layer 2 (`w₂`) of the [width model](crate::_documentation::width_model).
 #[must_use]
 pub fn cell_widths(text: &str) -> Vec<usize> {
     let mut widths = Vec::with_capacity(text.len());
@@ -486,10 +475,7 @@ pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {
 /// lookahead.
 #[must_use]
 #[inline]
-pub fn width_and_standalone(
-    c: char,
-    next: Option<u32>,
-) -> (Option<usize>, bool) {
+pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool) {
     if c.is_ascii() {
         return (
             if c.is_ascii_control() { None } else { Some(1) },
@@ -497,7 +483,7 @@ pub fn width_and_standalone(
         );
     }
     // CJK/kana/fullwidth blocks are always width-2 standalone bases: skip the
-    // composite lookup AND the emoji lookahead (the dominant hot path).
+    // composite lookup and the emoji lookahead (the dominant hot path).
     if let Some(w) = cjk_fast_width(c) {
         return (Some(w), true);
     }
@@ -531,8 +517,7 @@ pub fn width_and_standalone_with(
                 None => true,
                 Some((cp2, _)) if cp2 < 0x80 => true,
                 Some((cp2, p2)) => {
-                    let c2 = char::from_u32(cp2)
-                        .unwrap_or(char::REPLACEMENT_CHARACTER);
+                    let c2 = char::from_u32(cp2).unwrap_or(char::REPLACEMENT_CHARACTER);
                     !fresh_emoji_continues_from(p, c, p2, c2, p2.gcb())
                 }
             }
@@ -624,12 +609,10 @@ pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
         return cell_col.min(text.len());
     }
     let mut cell = 0_usize;
-    for ((i, _c), w) in
-        text.char_indices().zip(Widths::new(Bytes(text.as_bytes())))
-    {
-        // Return the char that STARTS at (or contains) `cell_col`. A column
-        // landing in the SECOND cell of a wide char (cell_col == cell + 1)
-        // must map to that same wide char, not skip past it to `text.len()`.
+    for ((i, _c), w) in text.char_indices().zip(Widths::new(Bytes(text.as_bytes()))) {
+        // Return the char that starts at (or contains) `cell_col`. A column in
+        // the second cell of a wide char (`cell_col == cell + 1`) maps to that
+        // same char, not past it to `text.len()`.
         if w > 0 && cell_col >= cell && cell_col < cell + w {
             return i;
         }
@@ -642,11 +625,7 @@ pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
 /// precomputed `widths` (floor). Clamped to `text.len()`.
 #[must_use]
 #[inline]
-pub fn cell_col_byte_from_widths(
-    text: &str,
-    widths: &[usize],
-    cell_col: usize,
-) -> usize {
+pub fn cell_col_byte_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
     cell_col_byte_from_widths_impl(text, widths, cell_col, false)
 }
 
@@ -654,11 +633,7 @@ pub fn cell_col_byte_from_widths(
 /// second cell returns the byte after it.
 #[must_use]
 #[inline]
-pub fn cell_col_byte_ceil_from_widths(
-    text: &str,
-    widths: &[usize],
-    cell_col: usize,
-) -> usize {
+pub fn cell_col_byte_ceil_from_widths(text: &str, widths: &[usize], cell_col: usize) -> usize {
     cell_col_byte_from_widths_impl(text, widths, cell_col, true)
 }
 
@@ -672,7 +647,11 @@ fn cell_col_byte_from_widths_impl(
     let mut cell = 0_usize;
     for ((i, c), &w) in text.char_indices().zip(widths) {
         if w > 0 && cell_col < cell + w {
-            return if ceil && cell_col > cell { i + c.len_utf8() } else { i };
+            return if ceil && cell_col > cell {
+                i + c.len_utf8()
+            } else {
+                i
+            };
         }
         cell += w;
     }
@@ -683,11 +662,7 @@ fn cell_col_byte_from_widths_impl(
 /// `byte` (base + trailing zero-width marks). Never crosses `\n`.
 #[must_use]
 #[inline]
-pub fn grapheme_end_from_widths(
-    text: &str,
-    widths: &[usize],
-    byte: usize,
-) -> usize {
+pub fn grapheme_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {
     let mut end = byte;
     for ((i, c), &w) in text.char_indices().zip(widths) {
         if i < byte {
@@ -709,11 +684,7 @@ pub fn grapheme_end_from_widths(
 /// per-char `widths`. Stops at the first width>0 char or a newline.
 #[must_use]
 #[inline]
-pub fn grapheme_tail_end_from_widths(
-    text: &str,
-    widths: &[usize],
-    byte: usize,
-) -> usize {
+pub fn grapheme_tail_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {
     let mut end = byte;
     for ((i, c), &w) in text.char_indices().zip(widths) {
         if i < byte {
