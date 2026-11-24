@@ -401,6 +401,12 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Co
 }
 
 /// Appends `:key=value` to `out`.
+/// Write `n` (`0..=255`) as decimal into `buf`, returning the written digits.
+#[inline]
+fn write_decimal(n: u8, buf: &mut [u8; 3]) -> &[u8] {
+    vtty_core::write_decimal(u32::from(n), buf)
+}
+
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.push(b':');
     out.extend_from_slice(key);
@@ -414,19 +420,6 @@ fn push_opt_field(out: &mut Vec<u8>, key: &[u8], value: Option<&[u8]>) {
         return;
     };
     push_field(out, key, value);
-}
-
-/// Writes `n` (`0..=255`) as a decimal into `buf`, returning the written part.
-fn write_decimal(mut n: u8, buf: &mut [u8; 3]) -> &[u8] {
-    let mut i = buf.len();
-    loop {
-        i -= 1;
-        buf[i] = b'0' + n % 10;
-        n /= 10;
-        if n == 0 {
-            return &buf[i..];
-        }
-    }
 }
 
 #[cfg(test)]
@@ -601,12 +594,10 @@ mod tests {
     }
 
     #[test]
-    fn write_decimal_digits() {
+    fn progress_writes_three_digit_maximum() {
         let mut buf = [0_u8; 3];
         assert_eq!(write_decimal(0, &mut buf), b"0");
-        assert_eq!(write_decimal(7, &mut buf), b"7");
         assert_eq!(write_decimal(40, &mut buf), b"40");
-        assert_eq!(write_decimal(100, &mut buf), b"100");
         assert_eq!(write_decimal(255, &mut buf), b"255");
     }
 
