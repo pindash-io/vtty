@@ -15,9 +15,7 @@ use icu_segmenter::GraphemeClusterSegmenter;
 fn corpus(case: &str) -> String {
     const N: usize = 256 * 1024;
     let line = match case {
-        "ascii" => {
-            "the quick brown fox jumps over the lazy dog 0123456789\r\n"
-        }
+        "ascii" => "the quick brown fox jumps over the lazy dog 0123456789\r\n",
         "cjk" => "中文字日本語テキスト中文テスト\r\n",
         "emoji" => "👨‍👩‍👧 🚀✨🎯 👍🏽\r\n",
         "combining" => "e\u{301} a\u{308} n\u{303}\r\n",

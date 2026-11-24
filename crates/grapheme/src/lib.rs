@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! UAX #29 extended grapheme cluster segmentation, with per-cluster cell
-//! widths from [`vtty_width`]. Implements the GB1–GB13 rules over the baked
-//! [`Gcb`] property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`]).
+//! widths from [`vtty_width`]. Implements the GB1–GB13 rules over its [`Gcb`]
+//! property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`]).
 //!
 //! ## Example
 //!
@@ -82,79 +82,6 @@ enum Gb11 {
     Zwj,
 }
 
-/// Advance the GB11 state for a char being added to the current cluster.
-#[inline]
-fn step_gb11(prev: Gb11, gcb: Gcb) -> Gb11 {
-    match gcb {
-        // GB9: Extend always attaches; it does not change the chain.
-        Gcb::Extend => prev,
-        Gcb::ZWJ => {
-            if prev == Gb11::ExtPict {
-                Gb11::Zwj
-            } else {
-                Gb11::None
-            }
-        }
-        Gcb::ExtPict => Gb11::ExtPict,
-        _ => Gb11::None,
-    }
-}
-
-/// Whether there is a cluster boundary between `left` (already in the
-/// cluster) and `right` (the candidate), per UAX #29 GB3–GB13.
-#[inline]
-fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
-    // GB3: CR × LF.
-    if left == Gcb::CR && right == Gcb::LF {
-        return false;
-    }
-    // GB4: (Control | CR | LF) ÷.
-    if left.is_control() {
-        return true;
-    }
-    // GB5: ÷ (Control | CR | LF).
-    if right.is_control() {
-        return true;
-    }
-    // GB6: L × (L | V | LV | LVT).
-    if left == Gcb::L && matches!(right, Gcb::L | Gcb::V | Gcb::LV | Gcb::LVT)
-    {
-        return false;
-    }
-    // GB7: (LV | V) × (V | T).
-    if matches!(left, Gcb::LV | Gcb::V) && matches!(right, Gcb::V | Gcb::T) {
-        return false;
-    }
-    // GB8: (LVT | T) × T.
-    if matches!(left, Gcb::LVT | Gcb::T) && right == Gcb::T {
-        return false;
-    }
-    // GB9: × (Extend | ZWJ).
-    if matches!(right, Gcb::Extend | Gcb::ZWJ) {
-        return false;
-    }
-    // GB9a: × SpacingMark.
-    if right == Gcb::SpacingMark {
-        return false;
-    }
-    // GB9b: Prepend ×.
-    if left == Gcb::Prepend {
-        return false;
-    }
-    // GB11: Extended_Pictographic Extend* ZWJ × Extended_Pictographic.
-    if right == Gcb::ExtPict && gb11 == Gb11::Zwj {
-        return false;
-    }
-    // GB12/GB13: (RI RI)* RI × RI (odd-length runs keep their pair).
-    if left == Gcb::RegionalIndicator
-        && right == Gcb::RegionalIndicator
-        && ri % 2 == 1
-    {
-        return false;
-    }
-    true
-}
-
 /// Iterator over the grapheme clusters of a UTF-8 string.
 ///
 /// Yields [`Grapheme`] ranges in order; the first cluster starts at 0 and
@@ -180,33 +107,14 @@ pub struct Graphemes<'a> {
     finished: bool,
 }
 
-/// Segment `text` into extended grapheme clusters (UAX #29, rule-based).
-///
-/// Uses `vtty_width`'s baked GCB property; no runtime data loading or
-/// allocation on this path. Printable-ASCII runs take a per-byte fast path,
-/// including inside otherwise non-ASCII strings.
-pub const fn graphemes(text: &str) -> Graphemes<'_> {
-    Graphemes {
-        text,
-        pos: 0,
-        cluster_start: 0,
-        left: None,
-        gb11: Gb11::None,
-        ri: 0,
-        ascii: 0,
-        ascii_start: 0,
-        finished: text.is_empty(),
-    }
-}
-
 impl Graphemes<'_> {
     /// Start a new cluster at `idx` with `gcb` as its first char (GB1 and the
     /// break branch share this reset).
-    fn start_cluster(&mut self, idx: usize, gcb: Gcb) {
+    const fn start_cluster(&mut self, idx: usize, gcb: Gcb) {
         self.cluster_start = idx;
         self.left = Some(gcb);
         self.gb11 = step_gb11(Gb11::None, gcb);
-        self.ri = u32::from(gcb == Gcb::RegionalIndicator);
+        self.ri = matches!(gcb, Gcb::RegionalIndicator) as u32;
     }
 
     /// Emit the next pending printable-ASCII byte as a one-byte cluster.
@@ -251,13 +159,11 @@ impl Iterator for Graphemes<'_> {
         }
 
         // Detect a printable-ASCII run. Each byte is its own cluster (`Other`
-        // never joins with a following ASCII byte) unless the preceding char
-        // is `Prepend` (GB9b). The run's LAST byte is held as the open cluster
-        // so a following combining mark can still attach to it (GB9/GB9a).
+        // never joins) unless preceded by `Prepend` (GB9b). The run's last
+        // byte stays held as the open cluster so a combining mark can attach
+        // (GB9/GB9a).
         if self.left != Some(Gcb::Prepend) {
-            let run = vtty_width::first_non_printable_ascii(
-                &self.text.as_bytes()[self.pos..],
-            );
+            let run = vtty_width::first_non_printable_ascii(&self.text.as_bytes()[self.pos..]);
             if run > 0 {
                 // A complete open cluster precedes the run: emit it before the
                 // ASCII bytes are drained.
@@ -275,15 +181,10 @@ impl Iterator for Graphemes<'_> {
         }
 
         loop {
-            let Some(ch) =
-                self.text.get(self.pos..).and_then(|s| s.chars().next())
-            else {
+            let Some(ch) = self.text.get(self.pos..).and_then(|s| s.chars().next()) else {
                 // GB2: ÷ eot — emit the final open cluster.
                 self.finished = true;
-                return Some(Grapheme::new(
-                    self.cluster_start,
-                    self.text.len(),
-                ));
+                return Some(Grapheme::new(self.cluster_start, self.text.len()));
             };
             let idx = self.pos;
             self.pos += ch.len_utf8();
@@ -324,12 +225,6 @@ pub struct ClusterWidths<'a> {
     text: &'a str,
 }
 
-/// Per-cluster display cell width: [`vtty_width::cell_width_sum`] of each
-/// grapheme cluster in `text`.
-pub const fn cluster_widths(text: &str) -> ClusterWidths<'_> {
-    ClusterWidths { graphemes: graphemes(text), text }
-}
-
 impl Iterator for ClusterWidths<'_> {
     type Item = usize;
 
@@ -337,6 +232,103 @@ impl Iterator for ClusterWidths<'_> {
     fn next(&mut self) -> Option<usize> {
         let cluster = self.graphemes.next()?;
         Some(vtty_width::cell_width_sum(cluster.as_str(self.text)))
+    }
+}
+
+/// Advance the GB11 state for a char being added to the current cluster.
+#[inline]
+const fn step_gb11(prev: Gb11, gcb: Gcb) -> Gb11 {
+    match gcb {
+        // GB9: Extend always attaches; it does not change the chain.
+        Gcb::Extend => prev,
+        Gcb::ZWJ => match prev {
+            Gb11::ExtPict => Gb11::Zwj,
+            _ => Gb11::None,
+        },
+        Gcb::ExtPict => Gb11::ExtPict,
+        _ => Gb11::None,
+    }
+}
+
+/// Whether there is a cluster boundary between `left` (already in the
+/// cluster) and `right` (the candidate), per UAX #29 GB3–GB13.
+#[inline]
+const fn breaks_between(left: Gcb, right: Gcb, gb11: Gb11, ri: u32) -> bool {
+    // GB3: CR × LF.
+    if matches!(left, Gcb::CR) && matches!(right, Gcb::LF) {
+        return false;
+    }
+    // GB4: (Control | CR | LF) ÷.
+    if left.is_control() {
+        return true;
+    }
+    // GB5: ÷ (Control | CR | LF).
+    if right.is_control() {
+        return true;
+    }
+    // GB6: L × (L | V | LV | LVT).
+    if matches!(left, Gcb::L) && matches!(right, Gcb::L | Gcb::V | Gcb::LV | Gcb::LVT) {
+        return false;
+    }
+    // GB7: (LV | V) × (V | T).
+    if matches!(left, Gcb::LV | Gcb::V) && matches!(right, Gcb::V | Gcb::T) {
+        return false;
+    }
+    // GB8: (LVT | T) × T.
+    if matches!(left, Gcb::LVT | Gcb::T) && matches!(right, Gcb::T) {
+        return false;
+    }
+    // GB9: × (Extend | ZWJ).
+    if matches!(right, Gcb::Extend | Gcb::ZWJ) {
+        return false;
+    }
+    // GB9a: × SpacingMark.
+    if matches!(right, Gcb::SpacingMark) {
+        return false;
+    }
+    // GB9b: Prepend ×.
+    if matches!(left, Gcb::Prepend) {
+        return false;
+    }
+    // GB11: Extended_Pictographic Extend* ZWJ × Extended_Pictographic.
+    if matches!(right, Gcb::ExtPict) && matches!(gb11, Gb11::Zwj) {
+        return false;
+    }
+    // GB12/GB13: (RI RI)* RI × RI (odd-length runs keep their pair).
+    if matches!(left, Gcb::RegionalIndicator)
+        && matches!(right, Gcb::RegionalIndicator)
+        && ri % 2 == 1
+    {
+        return false;
+    }
+    true
+}
+
+/// Segment `text` into extended grapheme clusters (UAX #29, rule-based).
+///
+/// Uses `vtty_width`'s GCB property (the baked table by default) and
+/// allocates nothing. Printable-ASCII runs take a per-byte fast path, even
+/// inside otherwise non-ASCII strings.
+pub const fn graphemes(text: &str) -> Graphemes<'_> {
+    Graphemes {
+        text,
+        pos: 0,
+        cluster_start: 0,
+        left: None,
+        gb11: Gb11::None,
+        ri: 0,
+        ascii: 0,
+        ascii_start: 0,
+        finished: text.is_empty(),
+    }
+}
+
+/// Per-cluster display cell width: [`vtty_width::cell_width_sum`] of each
+/// grapheme cluster in `text`.
+pub const fn cluster_widths(text: &str) -> ClusterWidths<'_> {
+    ClusterWidths {
+        graphemes: graphemes(text),
+        text,
     }
 }
 
@@ -372,10 +364,7 @@ mod tests {
         // Tamil NA + vowel sign I is a single extended cluster.
         assert_eq!(clusters_vec("நி"), ["நி"]);
         // World map U+1F5FA is one 4-byte cluster.
-        assert_eq!(
-            clusters_vec("Hello 🗺"),
-            ["H", "e", "l", "l", "o", " ", "🗺"]
-        );
+        assert_eq!(clusters_vec("Hello 🗺"), ["H", "e", "l", "l", "o", " ", "🗺"]);
     }
 
     #[test]

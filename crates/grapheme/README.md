@@ -3,8 +3,8 @@
 <!-- cargo-rdme start -->
 
 UAX #29 extended grapheme cluster segmentation, with per-cluster cell
-widths from [`vtty_width`](https://docs.rs/vtty_width/latest/vtty_width/). Implements the GB1–GB13 rules over the baked
-[`Gcb`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html) property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html#variant.ExtPict)).
+widths from [`vtty_width`](https://docs.rs/vtty_width/latest/vtty_width/). Implements the GB1–GB13 rules over its [`Gcb`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html)
+property (`Extended_Pictographic` folded in as [`Gcb::ExtPict`](https://docs.rs/vtty_width/latest/vtty_width/properties/enum.Gcb.html#variant.ExtPict)).
 
 ## Example
 
@@ -38,3 +38,13 @@ conjunct breaks, Unicode 15.1+) and the newer emoji GCB values
 (`E_Base`/`E_Modifier`/`Glue_After_Zwj`) — the latter are unnecessary for
 width because `vtty_width`'s DFA already merges emoji sequences. If exact
 ICU4X parity is needed, add GB9c and bake `Indic_Conjunct_Break`.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
