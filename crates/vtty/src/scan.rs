@@ -55,53 +55,51 @@ macro_rules! scan_or_simd {
     }};
 }
 
-/// Index of the first ESC byte (`0x1b`) in the first `limit` bytes, or the
-/// scan length when none — the probe that bounds each multi-byte decode
-/// window. SWAR over 8-byte words; SIMD memchr pays alignment and dispatch
-/// setup for no gain on such a short window.
-#[cfg(feature = "simd")]
+/// SWAR scan over whole words: index of the first byte whose
+/// `stop_mask(word)` bit is set (one bit per byte, LSB = first byte), or
+/// `None` when every word is clear. Any trailing bytes are the caller's.
 #[cfg_attr(feature = "perf-inline", inline(always))]
-pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
-    let n = bytes.len().min(limit);
-    let (chunks, tail) = bytes[..n].as_chunks::<8>();
-    for (i, chunk) in chunks.iter().enumerate() {
-        let stop = swar_byte_eq(u64::from_le_bytes(*chunk), ESC);
+fn first_stop_word(bytes: &[u8], stop_mask: impl Fn(u64) -> u64) -> Option<usize> {
+    for (i, chunk) in bytes.as_chunks::<8>().0.iter().enumerate() {
+        let stop = stop_mask(u64::from_le_bytes(*chunk));
         if stop != 0 {
-            return i * 8 + (stop.trailing_zeros() / 8) as usize;
+            return Some(i * 8 + (stop.trailing_zeros() / 8) as usize);
         }
     }
-    let base = chunks.len() * 8;
-    for (j, b) in tail.iter().enumerate() {
-        if is_esc(b) {
-            return base + j;
-        }
-    }
-    n
+    None
 }
 
-/// SWAR scan: index of the first byte whose `stop_mask(word)` bit is set
-/// (one bit per byte, LSB = first byte), or `bytes.len()`. `is_stop` is the
-/// scalar predicate for the <8-byte tail.
+/// SWAR scan: [`first_stop_word`] over the whole words of `bytes`, then the
+/// <8-byte tail with the scalar `is_stop`, or `bytes.len()` when nothing hits.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_where(
     bytes: &[u8],
     stop_mask: impl Fn(u64) -> u64,
     is_stop: impl Fn(&u8) -> bool,
 ) -> usize {
-    let (chunks, tail) = bytes.as_chunks::<8>();
-    for (i, &chunk) in chunks.iter().enumerate() {
-        let stop = stop_mask(u64::from_le_bytes(chunk));
-        if stop != 0 {
-            return i * 8 + (stop.trailing_zeros() / 8) as usize;
-        }
+    let whole = bytes.len() & !7;
+    let (words, tail) = bytes.split_at(whole);
+    if let Some(i) = first_stop_word(words, stop_mask) {
+        return i;
     }
-    let base = chunks.len() * 8;
-    for (j, b) in tail.iter().enumerate() {
-        if is_stop(b) {
-            return base + j;
-        }
-    }
-    bytes.len()
+    whole + tail.iter().position(is_stop).unwrap_or(tail.len())
+}
+
+/// Index of the first ESC byte in the first `limit` bytes, or that length when
+/// none — the probe that bounds each multi-byte decode window. SWAR over 8-byte
+/// words; SIMD memchr pays alignment and dispatch setup for no gain on such a
+/// short window.
+#[cfg(feature = "simd")]
+#[cfg_attr(feature = "perf-inline", inline(always))]
+pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
+    let n = bytes.len().min(limit);
+    first_where(&bytes[..n], esc_mask, is_esc)
+}
+
+/// SWAR mask for `ESC` bytes.
+#[cfg(feature = "simd")]
+const fn esc_mask(w: u64) -> u64 {
+    swar_byte_eq(w, ESC)
 }
 
 /// SWAR mask for non-printable bytes (`b < 0x20 || b >= DEL`).
@@ -125,14 +123,7 @@ fn first_stop_in_word<const N: usize>(
     stop_mask: impl Fn(u64) -> u64,
 ) -> Option<usize> {
     debug_assert!(N > 0 && N % 8 == 0, "probe window is whole words");
-    let window = bytes.get(..N)?;
-    for (i, chunk) in window.as_chunks::<8>().0.iter().enumerate() {
-        let stop = stop_mask(u64::from_le_bytes(*chunk));
-        if stop != 0 {
-            return Some(i * 8 + (stop.trailing_zeros() / 8) as usize);
-        }
-    }
-    None
+    first_stop_word(bytes.get(..N)?, stop_mask)
 }
 
 /// [`first_stop_in_word`] for the ground state's printable-run scan.
