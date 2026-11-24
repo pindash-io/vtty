@@ -17,9 +17,9 @@ use crate::utils::{
     is_osc_boundary,
 };
 
-/// Payload bits of one byte in a transcode lane. The UTF-8 lead/continuation
-/// markers live above bit 6, so masking a lane keeps the code-point payload.
-#[cfg(feature = "simd-transcode")]
+/// One UTF-8 byte's seven payload bits: the lead and continuation markers sit
+/// above them. Ungated — the 3-byte decode path is built without
+/// `simd-transcode`.
 const PAYLOAD_MASK: u32 = 0x7f;
 
 /// What terminates the scan run.
