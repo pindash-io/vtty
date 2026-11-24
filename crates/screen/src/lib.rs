@@ -179,8 +179,8 @@ impl Screen {
             modes: ScreenFlags::DEFAULT,
             rgb: Vec::new(),
             palette: default_palette(),
-            default_fg: 0xffffff,
-            default_bg: 0x000000,
+            default_fg: 0xffff_ffff,
+            default_bg: 0x0000_00ff,
             title: String::new(),
             progress: Progress::default(),
             scrollback: Scrollback::new(1000),
@@ -482,7 +482,7 @@ impl Screen {
         }
     }
 
-    /// Resolve a [`ColorId`] to packed `0xRRGGBB`. The default fg/bg ids use
+    /// Resolve a [`ColorId`] to packed `0xRRGGBBAA`. The default fg/bg ids use
     /// the configured default colors; the 16 ANSI colors use the configured
     /// palette; `16..=255` use the xterm table; truecolor ids (`>= 258`) look
     /// up the screen's dynamic palette.

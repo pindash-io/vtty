@@ -12,6 +12,15 @@ use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
+use crate::utils::{
+    C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB, is_dcs_boundary, is_esc, is_non_printable,
+    is_osc_boundary,
+};
+
+/// One UTF-8 byte's seven payload bits: the lead and continuation markers sit
+/// above them. Ungated — the 3-byte decode path is built without
+/// `simd-transcode`.
+const PAYLOAD_MASK: u32 = 0x7f;
 
 /// What terminates the scan run.
 #[derive(Clone, Copy)]
@@ -26,27 +35,28 @@ enum ScanKind {
     DcsBoundary,
 }
 
+/// Two explicit byte checks, then the vector scan: 0- and 1-byte runs are the
+/// common shape (ANSI-dense input, `word\r\n` lines, a `;` right after an OSC
+/// separator), where dispatch and chunk setup cost more than the scan.
+macro_rules! scan_or_fast {
+    ($bytes:expr, $kind:ident, $is_stop:expr) => {{
+        if matches!($bytes.first(), Some(b) if $is_stop(b)) {
+            return 0;
+        }
+        if matches!($bytes.get(1), Some(b) if $is_stop(b)) {
+            return 1;
+        }
+        let level = Level::new();
+        dispatch!(level, simd => first_matching(simd, $bytes, ScanKind::$kind))
+    }};
+}
+
 /// Return the index of the first byte outside printable ASCII (`0x20..=0x7e`;
 /// `0x7f` DEL is dispatched via `execute`), or `bytes.len()` if every byte is
 /// printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
-    // Fast path: the first byte is usually the match, skipping SIMD dispatch
-    // and chunk setup on printable runs.
-    if let Some(&b) = bytes.first()
-        && !(0x20..=0x7e).contains(&b)
-    {
-        return 0;
-    }
-    // Second fast path: a one-byte printable run (the CSI-dense
-    // `ESC [ … m X ESC …` pattern) skips the 16-byte SIMD scan.
-    if let Some(&b) = bytes.get(1)
-        && !(0x20..=0x7e).contains(&b)
-    {
-        return 1;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::NonPrintable))
+    scan_or_fast!(bytes, NonPrintable, is_non_printable)
 }
 
 /// Index of the first `ESC` byte (`0x1b`), or `bytes.len()` if none. Caps the
@@ -58,43 +68,16 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
-/// Index of the first OSC payload boundary: a C0 byte (`< 0x20`), a raw C1
-/// byte (`0x80..=0x9f`), or the `;` param separator. The rest are `OSC_PUT`.
+/// Index of the first OSC payload boundary — see [`is_osc_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
-    // Fast path: OSC runs are often short — a `;` or terminator right after
-    // the introducer or a previous separator skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(is_osc_boundary) {
-        return i;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::OscBoundary))
+    scan_or_fast!(bytes, OscBoundary, is_osc_boundary)
 }
 
-/// Index of the first DCS passthrough boundary: a byte `>= 0x80`, or
-/// `CAN`/`SUB`/`ESC`/`DEL`. The put class is
-/// `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
+/// Index of the first DCS passthrough boundary — see [`is_dcs_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
-    // Fast path: a terminator (`CAN`/`SUB`/`ESC`/`DEL`/high-bit) right at the
-    // run start skips the SIMD dispatch.
-    if let Some(i) = bytes.iter().take(2).position(is_dcs_boundary) {
-        return i;
-    }
-    let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::DcsBoundary))
-}
-
-/// OSC payload boundary: C0 (`< 0x20`), C1 (`0x80..=0x9f`), or `;`.
-#[cfg_attr(feature = "perf-inline", inline(always))]
-const fn is_osc_boundary(b: &u8) -> bool {
-    (*b & 0x60) == 0 || *b == 0x3b
-}
-
-/// DCS passthrough boundary: `>= 0x80`, or `CAN`/`SUB`/`ESC`/`DEL`.
-#[cfg_attr(feature = "perf-inline", inline(always))]
-const fn is_dcs_boundary(b: &u8) -> bool {
-    *b >= 0x80 || matches!(*b, 0x18 | 0x1a | 0x1b | 0x7f)
+    scan_or_fast!(bytes, DcsBoundary, is_dcs_boundary)
 }
 
 /// Classify a 16-byte chunk: the lanes where `kind`'s scan terminator appears.
@@ -102,88 +85,54 @@ const fn is_dcs_boundary(b: &u8) -> bool {
 fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
     match kind {
         ScanKind::NonPrintable => {
-            // b < 0x20 (control) or b >= 0x7f (DEL + high-bit).
-            simd.simd_lt_u8x16(v, simd.splat_u8x16(0x20))
-                | simd.simd_ge_u8x16(v, simd.splat_u8x16(0x7f))
+            // b < SPACE (C0) or b >= DEL (DEL + high-bit).
+            simd.simd_lt_u8x16(v, simd.splat_u8x16(SPACE))
+                | simd.simd_ge_u8x16(v, simd.splat_u8x16(DEL))
         }
-        ScanKind::Esc => {
-            // b == 0x1b.
-            simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b))
-        }
+        ScanKind::Esc => simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC)),
         ScanKind::OscBoundary => {
-            // (b & 0x60) == 0 → C0 (< 0x20) or C1 (0x80..=0x9f); or b == ';'.
-            let c0c1 = simd.simd_eq_u8x16(v & simd.splat_u8x16(0x60), simd.splat_u8x16(0));
-            let semi = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x3b));
-            c0c1 | semi
+            // (b & C0_C1_MASK) == 0 → C0 or C1; or b == ';'.
+            simd.simd_eq_u8x16(v & simd.splat_u8x16(C0_C1_MASK), simd.splat_u8x16(0))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(SEMICOLON))
         }
         ScanKind::DcsBoundary => {
-            // b >= 0x80, or CAN/SUB/ESC/DEL.
-            let high = simd.simd_ge_u8x16(v, simd.splat_u8x16(0x80));
-            let can = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x18));
-            let sub = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1a));
-            let esc = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x1b));
-            let del = simd.simd_eq_u8x16(v, simd.splat_u8x16(0x7f));
-            high | can | sub | esc | del
+            // b > DEL, or CAN/SUB/ESC/DEL.
+            simd.simd_gt_u8x16(v, simd.splat_u8x16(DEL))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(CAN))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(SUB))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC))
+                | simd.simd_eq_u8x16(v, simd.splat_u8x16(DEL))
         }
     }
 }
 
-/// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans
-/// 4×16-byte chunks per iteration; the final (<16) tail uses the scalar
-/// predicate.
+/// Index of the first byte matching `kind`, or `bytes.len()` if none. Scans one
+/// 16-byte chunk per iteration; the final (<16) tail uses the scalar predicate.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_matching<S: Simd>(simd: S, bytes: &[u8], kind: ScanKind) -> usize {
     let (chunks, remainder) = bytes.as_chunks::<16>();
     let mut offset = 0;
-
-    // Unroll 4× (64 bytes/iter), classifying lazily so an early match skips
-    // later loads; long printable runs still pipeline through the not-taken
-    // checks.
-    let (quads, leftover) = chunks.as_chunks::<4>();
-    for quad in quads {
-        let m0 = classify_scan(simd, u8x16::from_slice(simd, &quad[0]), kind);
-        if simd.any_true_mask8x16(m0) {
-            return offset + first_set(m0.into());
-        }
-        let m1 = classify_scan(simd, u8x16::from_slice(simd, &quad[1]), kind);
-        if simd.any_true_mask8x16(m1) {
-            return offset + 16 + first_set(m1.into());
-        }
-        let m2 = classify_scan(simd, u8x16::from_slice(simd, &quad[2]), kind);
-        if simd.any_true_mask8x16(m2) {
-            return offset + 32 + first_set(m2.into());
-        }
-        let m3 = classify_scan(simd, u8x16::from_slice(simd, &quad[3]), kind);
-        if simd.any_true_mask8x16(m3) {
-            return offset + 48 + first_set(m3.into());
-        }
-        offset += 64;
-    }
-
-    // Leftover full chunks (0..=3).
-    for chunk in leftover {
+    for chunk in chunks {
         let m = classify_scan(simd, u8x16::from_slice(simd, chunk), kind);
         if simd.any_true_mask8x16(m) {
             return offset + first_set(m.into());
         }
         offset += 16;
     }
-
-    // Scalar tail (< 16 bytes).
-    if let Some(j) = remainder.iter().position(|&b| matches_kind(b, kind)) {
-        return offset + j;
+    match remainder.iter().position(|b| matches_kind(b, kind)) {
+        Some(j) => offset + j,
+        None => bytes.len(),
     }
-    bytes.len()
 }
 
 /// The scalar predicate for one byte.
 #[inline]
-fn matches_kind(b: u8, kind: ScanKind) -> bool {
+const fn matches_kind(b: &u8, kind: ScanKind) -> bool {
     match kind {
-        ScanKind::NonPrintable => !(0x20..=0x7e).contains(&b),
-        ScanKind::Esc => b == 0x1b,
-        ScanKind::OscBoundary => is_osc_boundary(&b),
-        ScanKind::DcsBoundary => is_dcs_boundary(&b),
+        ScanKind::NonPrintable => is_non_printable(b),
+        ScanKind::Esc => is_esc(b),
+        ScanKind::OscBoundary => is_osc_boundary(b),
+        ScanKind::DcsBoundary => is_dcs_boundary(b),
     }
 }
 
@@ -198,7 +147,7 @@ fn first_set(mask: [i8; 16]) -> usize {
 /// code points. Shared by [`decode_3byte`] and the 2/3-byte-mix table path.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
-    let ascii = p & simd.splat_u32x4(0x7f);
+    let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
     let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
     let high = simd.shr_u32x4(p & simd.splat_u32x4(0x0f0000), 4);
     ((ascii | middle) | high).into()
@@ -258,7 +207,7 @@ fn decode_utf8_12<S: Simd>(
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
         let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u16x8<S> = perm.bitcast();
-        let ascii = p & simd.splat_u16x8(0x7f);
+        let ascii = p & simd.splat_u16x8(PAYLOAD_MASK as u16);
         let high = simd.shr_u16x8(p & simd.splat_u16x8(0x1f00), 2);
         let composed = ascii | high;
         let (lo, hi) = composed.widen();
@@ -279,7 +228,7 @@ fn decode_utf8_12<S: Simd>(
         let sh = u8x16::from_slice(simd, &SHUFUTF8[idx]);
         let perm = simd.swizzle_dyn_precise_u8x16(v, sh);
         let p: u32x4<S> = perm.bitcast();
-        let ascii = p & simd.splat_u32x4(0x7f);
+        let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
         let middle = simd.shr_u32x4(p & simd.splat_u32x4(0x3f00), 2);
         let correct = simd.shr_u32x4(p & simd.splat_u32x4(0x400000), 1);
         let middlehigh = simd.shr_u32x4(correct ^ (p & simd.splat_u32x4(0x3f0000)), 4);
@@ -347,7 +296,7 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
-/// Whether any code point in `cps` is a control (`< 0x20`, `0x7f`, or
+/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
 /// `0x80..=0x9f`) — the ones the dispatch loop must split out via `execute`
 /// instead of a single `print_codepoints` run.
 #[cfg(feature = "simd-transcode")]
@@ -360,21 +309,29 @@ pub(crate) fn any_control(cps: &[u32]) -> bool {
 #[cfg(feature = "simd-transcode")]
 fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     let (chunks, tail) = cps.as_chunks::<4>();
-    // Branch-free accumulate: an early `return true` serializes the loop on
-    // the movemask dependency; `|=` lets the SIMD iterations pipeline.
-    let mut any = false;
+    // A control is below SPACE, or DEL and the C1 range above it.
+    let space = SPACE as u32;
+    let del = DEL as u32;
+    let c1_end = 0x9f;
+    // Return at the first chunk holding a control. Accumulating the masks and
+    // branching once is slower: printable text scans every chunk either way,
+    // and the accumulator adds a loop-carried dependency (2.2% on
+    // `utf8_mixed`).
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
-        let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(0x20));
-        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(0x7f))
-            & simd.simd_le_u32x4(v, simd.splat_u32x4(0x9f));
-        any |= simd.any_true_mask32x4(c0 | c1);
+        let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(space));
+        let c1 = simd.simd_ge_u32x4(v, simd.splat_u32x4(del))
+            & simd.simd_le_u32x4(v, simd.splat_u32x4(c1_end));
+        if simd.any_true_mask32x4(c0 | c1) {
+            return true;
+        }
     }
-    if any {
-        return true;
+    for cp in tail {
+        if *cp < space || (del..=c1_end).contains(cp) {
+            return true;
+        }
     }
-    tail.iter()
-        .any(|&cp| cp < 0x20 || (0x7f..=0x9f).contains(&cp))
+    false
 }
 
 #[cfg(test)]

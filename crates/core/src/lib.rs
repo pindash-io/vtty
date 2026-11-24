@@ -44,6 +44,7 @@ mod event;
 mod keyboard;
 mod mode;
 mod mouse;
+mod num;
 mod perform;
 #[cfg(feature = "reply")]
 mod reply;
@@ -55,8 +56,8 @@ mod termcap;
 pub use charset::{Charset, Charsets, Scs, dec_special_graphics};
 pub use color::{
     ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, blend_faint, format_osc_background,
-    format_osc_color_reply, format_osc_palette_reply, indexed_rgb, parse, parse_hex_color, rgb,
-    rgb_spec, rgba_to_u32, u32_to_rgb, u32_to_rgba,
+    format_osc_color_reply, format_osc_palette_reply, indexed_rgb, parse, parse_hex_color,
+    rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_rgb, u32_to_rgba,
 };
 pub use conformance::ConformanceLevel;
 pub use event::{Event, Recording, param_colon_sep, set_param_colon_sep};
@@ -66,6 +67,7 @@ pub use keyboard::{
 };
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
+pub use num::write_decimal;
 pub use perform::Perform;
 #[cfg(feature = "reply")]
 #[cfg_attr(docsrs, doc(cfg(feature = "reply")))]

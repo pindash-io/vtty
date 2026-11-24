@@ -285,7 +285,7 @@ pub fn first_non_printable_ascii(bytes: &[u8]) -> usize {
     {
         bytes
             .iter()
-            .position(|&b| !(0x20..=0x7e).contains(&b))
+            .position(|&b| !matches!(b, 0x20..=0x7e))
             .unwrap_or(bytes.len())
     }
 }
@@ -451,7 +451,7 @@ pub fn emoji_fast_width(c: char) -> Option<usize> {
 pub fn cell_width(c: char) -> Option<usize> {
     // ASCII fast path: printable = 1 cell, control = no width.
     if c.is_ascii() {
-        return if c.is_ascii_control() { None } else { Some(1) };
+        return (!c.is_ascii_control()).then_some(1);
     }
     if let Some(w) = cjk_fast_width(c) {
         return Some(w);

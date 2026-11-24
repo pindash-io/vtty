@@ -24,7 +24,7 @@ pub const DEFAULT_BG_ID: ColorId = ColorId(257);
 /// let red = ColorId(1);
 /// assert_eq!(red.index(), 1);
 /// // Palette index 1 resolves to xterm red:
-/// assert_eq!(indexed_rgb(red.index() as u8), 0xcd0000);
+/// assert_eq!(indexed_rgb(red.index() as u8), 0xcd0000ff);
 ///
 /// // The two reserved default slots:
 /// assert_eq!(DEFAULT_FG_ID, ColorId(256));
@@ -112,12 +112,13 @@ impl core::ops::Deref for ColorId {
     }
 }
 
-/// Pack three 0..255 channels into RGB8 (`0x00RRGGBB`).
+/// Pack three 0..255 channels into opaque RGBA8 (`0xRRGGBBFF`).
 #[inline]
-pub const fn rgb(r: i32, g: i32, b: i32) -> u32 {
-    // Little-endian bytes lay out [B, G, R, 0] — a single `from_le_bytes`
-    // (a native u32 bit-cast on LE targets) instead of two shifts + two ORs.
-    u32::from_le_bytes([clamp_channel(b), clamp_channel(g), clamp_channel(r), 0])
+pub const fn rgb_to_u32(r: i32, g: i32, b: i32) -> u32 {
+    // The array reads in channel order; `from_be_bytes` puts `R` in the top
+    // byte, so the packed value is 0xRRGGBBAA after a single `bswap` (a native
+    // bit-cast on big-endian targets) instead of three shifts + two ORs.
+    u32::from_be_bytes([clamp_channel(r), clamp_channel(g), clamp_channel(b), 0xff])
 }
 
 /// Clamp one 0..255 channel.
@@ -132,35 +133,14 @@ const fn clamp_channel(v: i32) -> u8 {
     }
 }
 
-/// Convert packed 0xRRGGBB to [R, G, B, 1.0].
-#[inline]
-pub const fn u32_to_rgba(rgb: u32) -> [f32; 4] {
-    [
-        ((rgb >> 16) & 0xff) as f32 / 255.0,
-        ((rgb >> 8) & 0xff) as f32 / 255.0,
-        (rgb & 0xff) as f32 / 255.0,
-        1.0,
-    ]
-}
-
-/// Convert packed 0xRRGGBB to its three 8-bit channels (the integer
-/// counterpart of [`u32_to_rgba`], for luma/table math).
-#[inline]
-pub const fn u32_to_rgb(rgb: u32) -> [u8; 3] {
-    [
-        ((rgb >> 16) & 0xff) as u8,
-        ((rgb >> 8) & 0xff) as u8,
-        (rgb & 0xff) as u8,
-    ]
-}
-
-/// Convert [R, G, B, A] (0..1 floats) to packed 0xRRGGBB.
+/// Pack `[R, G, B, A]` (0..1 floats) into `0xRRGGBBAA`.
 #[inline]
 pub const fn rgba_to_u32(c: [f32; 4]) -> u32 {
     let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0) as u32;
     let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0) as u32;
     let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0) as u32;
-    (r << 16) | (g << 8) | b
+    let a = round_channel(c[3].clamp(0.0, 1.0) * 255.0) as u32;
+    (r << 24) | (g << 16) | (b << 8) | a
 }
 
 /// Round a 0..255 float channel to its byte. `f32::round` is `std`-only, so
@@ -170,46 +150,64 @@ const fn round_channel(v: f32) -> u8 {
     (v + 0.5) as u8
 }
 
+/// Unpack `0xRRGGBBAA` into `[R, G, B]`, dropping alpha (the integer
+/// counterpart of [`u32_to_rgba`], for luma and table math).
+#[inline]
+pub const fn u32_to_rgb(c: u32) -> [u8; 3] {
+    [(c >> 24) as u8, (c >> 16) as u8, (c >> 8) as u8]
+}
+
+/// Unpack `0xRRGGBBAA` into `[R, G, B, A]`.
+#[inline]
+pub const fn u32_to_rgba(c: u32) -> [f32; 4] {
+    [
+        ((c >> 24) & 0xff) as f32 / 255.0,
+        ((c >> 16) & 0xff) as f32 / 255.0,
+        ((c >> 8) & 0xff) as f32 / 255.0,
+        (c & 0xff) as f32 / 255.0,
+    ]
+}
+
 /// Blend RGB `a` 50% toward RGB `b` per channel (the SGR 2 faint/dim effect).
 #[inline]
 pub const fn blend_faint(a: u32, b: u32) -> u32 {
     let [ar, ag, ab] = u32_to_rgb(a);
     let [br, bg, bb] = u32_to_rgb(b);
-    rgb(
+    rgb_to_u32(
         (ar as i32 + br as i32) / 2,
         (ag as i32 + bg as i32) / 2,
         (ab as i32 + bb as i32) / 2,
     )
 }
 
-/// Resolve an xterm 256-color index (`0..=255`) to packed `0xRRGGBB`: the 16
+/// Resolve an xterm 256-color index (`0..=255`) to packed `0xRRGGBBAA`: the 16
 /// ANSI colors, the 6×6×6 color cube (`16..=231`), and the grayscale ramp
 /// (`232..=255`).
 #[inline]
 pub const fn indexed_rgb(n: u8) -> u32 {
     match n {
-        0 => 0x000000,
-        1 => 0xcd0000,
-        2 => 0x00cd00,
-        3 => 0xcdcd00,
-        4 => 0x0000ee,
-        5 => 0xcd00cd,
-        6 => 0x00cdcd,
-        7 => 0xe5e5e5,
-        8 => 0x7f7f7f,
-        9 => 0xff0000,
-        10 => 0x00ff00,
-        11 => 0xffff00,
-        12 => 0x5c5cff,
-        13 => 0xff00ff,
-        14 => 0x00ffff,
-        15 => 0xffffff,
+        0 => 0x000000ff,
+        1 => 0xcd0000ff,
+        2 => 0x00cd00ff,
+        3 => 0xcdcd00ff,
+        4 => 0x0000eeff,
+        5 => 0xcd00cdff,
+        6 => 0x00cdcdff,
+        7 => 0xe5e5e5ff,
+        8 => 0x7f7f7fff,
+        9 => 0xff0000ff,
+        10 => 0x00ff00ff,
+        11 => 0xffff00ff,
+        12 => 0x5c5cffff,
+        13 => 0xff00ffff,
+        14 => 0x00ffffff,
+        15 => 0xffffffff,
         16..=231 => {
             let v = n - 16;
             let r = v / 36;
             let g = (v % 36) / 6;
             let b = v % 6;
-            rgb(
+            rgb_to_u32(
                 cube_level(r) as i32,
                 cube_level(g) as i32,
                 cube_level(b) as i32,
@@ -217,7 +215,7 @@ pub const fn indexed_rgb(n: u8) -> u32 {
         }
         232..=255 => {
             let v = 8 + (n - 232) * 10;
-            rgb(v as i32, v as i32, v as i32)
+            rgb_to_u32(v as i32, v as i32, v as i32)
         }
     }
 }
@@ -246,7 +244,7 @@ pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
 }
 
 /// Parse an OSC color (`rgb:RR/GG/BB`, `rgb:RRRR/GGGG/BBBB`, or
-/// `#RRGGBB`) into a 0xRRGGBB `u32`.
+/// `#RRGGBB`) into a packed `0xRRGGBBAA` `u32`.
 ///
 /// `rgb:` channels of 1..4 hex digits are scaled to 8 bits (`XParseColor`
 /// semantics).
@@ -258,7 +256,7 @@ pub fn parse(s: &[u8]) -> Option<u32> {
         if parts.next().is_some() {
             return None;
         }
-        return Some(rgb(
+        return Some(rgb_to_u32(
             scale_channel(a)? as i32,
             scale_channel(b)? as i32,
             scale_channel(c)? as i32,
@@ -266,22 +264,24 @@ pub fn parse(s: &[u8]) -> Option<u32> {
     }
     if s.starts_with('#') {
         let [r, g, b] = decode_rgb(s)?;
-        return Some(rgb(r as i32, g as i32, b as i32));
+        return Some(rgb_to_u32(r as i32, g as i32, b as i32));
     }
     None
 }
 
 /// Scale one `rgb:` channel of 1..=4 hex digits to 8 bits (`XParseColor`).
-fn scale_channel(part: &str) -> Option<u8> {
+const fn scale_channel(part: &str) -> Option<u8> {
     let len = part.len();
-    if !(1..=4).contains(&len) {
+    if !matches!(len, 1..=4) {
         return None;
     }
-    let v = u32::from_str_radix(part, 16).ok()?;
-    Some((v * 255 / ((1 << (4 * len)) - 1)) as u8)
+    match u32::from_str_radix(part, 16) {
+        Ok(v) => Some((v * 255 / ((1 << (4 * len)) - 1)) as u8),
+        Err(_) => None,
+    }
 }
 
-/// Format a bare xterm `rgb:RRRR/GGGG/BBBB` spec from a 0xRRGGBB value
+/// Format a bare xterm `rgb:RRRR/GGGG/BBBB` spec from a packed `0xRRGGBBAA`
 /// (8-bit channels repeated to 4 hex digits), without the OSC wrapper.
 #[inline]
 #[must_use]
@@ -291,7 +291,7 @@ pub fn rgb_spec(rgb: u32) -> CompactString {
 }
 
 /// Format an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
-/// 0xRRGGBB value (8-bit channels repeated to 4 hex digits, the xterm
+/// `0xRRGGBBAA` value (8-bit channels repeated to 4 hex digits, the xterm
 /// convention).
 #[inline]
 #[must_use]
@@ -329,43 +329,43 @@ mod tests {
 
     #[test]
     fn rgb_clamps_channels() {
-        assert_eq!(rgb(255, 0, 0), 0xff0000);
-        assert_eq!(rgb(0, 300, 0), 0x00ff00);
-        assert_eq!(rgb(-1, 0, 0), 0x000000);
+        assert_eq!(rgb_to_u32(255, 0, 0), 0xff0000ff);
+        assert_eq!(rgb_to_u32(0, 300, 0), 0x00ff00ff);
+        assert_eq!(rgb_to_u32(-1, 0, 0), 0x000000ff);
     }
 
     #[test]
     fn indexed_rgb_covers_ansi_cube_and_grayscale() {
         // The 16 ANSI colors.
-        assert_eq!(indexed_rgb(0), 0x000000);
-        assert_eq!(indexed_rgb(1), 0xcd0000);
-        assert_eq!(indexed_rgb(15), 0xffffff);
+        assert_eq!(indexed_rgb(0), 0x000000ff);
+        assert_eq!(indexed_rgb(1), 0xcd0000ff);
+        assert_eq!(indexed_rgb(15), 0xffffffff);
         // The 6×6×6 cube: 16 is black, 21 is blue, 196 is red.
-        assert_eq!(indexed_rgb(16), 0x000000);
-        assert_eq!(indexed_rgb(21), 0x0000ff);
-        assert_eq!(indexed_rgb(196), 0xff0000);
+        assert_eq!(indexed_rgb(16), 0x000000ff);
+        assert_eq!(indexed_rgb(21), 0x0000ffff);
+        assert_eq!(indexed_rgb(196), 0xff0000ff);
         // The grayscale ramp: 232 → 0x08, 255 → 0xee.
-        assert_eq!(indexed_rgb(232), 0x080808);
-        assert_eq!(indexed_rgb(255), 0xeeeeee);
+        assert_eq!(indexed_rgb(232), 0x080808ff);
+        assert_eq!(indexed_rgb(255), 0xeeeeeeff);
     }
 
     #[test]
     fn parse_color_forms() {
-        assert_eq!(parse(b"rgb:ff/00/00"), Some(0xff0000));
-        assert_eq!(parse(b"rgb:ffff/0000/0000"), Some(0xff0000));
-        assert_eq!(parse(b"#00ff00"), Some(0x00ff00));
+        assert_eq!(parse(b"rgb:ff/00/00"), Some(0xff0000ff));
+        assert_eq!(parse(b"rgb:ffff/0000/0000"), Some(0xff0000ff));
+        assert_eq!(parse(b"#00ff00"), Some(0x00ff00ff));
         assert_eq!(parse(b"nonsense"), None);
     }
 
     #[test]
     fn parse_scales_16bit_channels() {
         // 0x8080 = 128·257 → scales to 128, not the high byte (also 128).
-        assert_eq!(parse(b"rgb:8080/0000/0000"), Some(0x800000));
+        assert_eq!(parse(b"rgb:8080/0000/0000"), Some(0x800000ff));
         // 0x0100 ≈ 0.0039 → scales to 0 (high-byte would give 1).
-        assert_eq!(parse(b"rgb:0100/0000/0000"), Some(0x000000));
+        assert_eq!(parse(b"rgb:0100/0000/0000"), Some(0x000000ff));
         // 3-digit and 1-digit channels scale too.
-        assert_eq!(parse(b"rgb:fff/000/000"), Some(0xff0000));
-        assert_eq!(parse(b"rgb:f/0/0"), Some(0xff0000));
+        assert_eq!(parse(b"rgb:fff/000/000"), Some(0xff0000ff));
+        assert_eq!(parse(b"rgb:f/0/0"), Some(0xff0000ff));
         // Malformed channel length is rejected.
         assert_eq!(parse(b"rgb:fffff/0000/0000"), None);
     }
@@ -394,17 +394,19 @@ mod tests {
 
     #[test]
     fn rgba_round_trips_and_faint_blend() {
-        assert_eq!(u32_to_rgb(0x112233), [0x11, 0x22, 0x33]);
-        assert_eq!(u32_to_rgba(0x000000), [0.0, 0.0, 0.0, 1.0]);
-        assert_eq!(u32_to_rgba(0xffffff), [1.0, 1.0, 1.0, 1.0]);
-        assert_eq!(rgba_to_u32([1.0, 0.0, 0.0, 1.0]), 0xff0000);
-        assert_eq!(blend_faint(0x000000, 0xffffff), 0x7f7f7f);
+        assert_eq!(u32_to_rgb(0x1122_33ff), [0x11, 0x22, 0x33]);
+        assert_eq!(u32_to_rgba(0x0000_00ff), [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(u32_to_rgba(0xffffffff), [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(u32_to_rgba(0x0000_0080)[3], 128.0 / 255.0);
+        assert_eq!(rgba_to_u32([1.0, 0.0, 0.0, 1.0]), 0xff0000ff);
+        assert_eq!(rgba_to_u32([1.0, 0.0, 0.0, 0.0]), 0xff000000);
+        assert_eq!(blend_faint(0x000000ff, 0xffffffff), 0x7f7f7fff);
     }
 
     #[test]
     fn indexed_rgb_cube_mid_levels_and_gray() {
-        assert_eq!(indexed_rgb(16 + 2 * 36 + 2 * 6 + 2), 0x878787);
-        assert_eq!(indexed_rgb(243), 0x767676);
+        assert_eq!(indexed_rgb(16 + 2 * 36 + 2 * 6 + 2), 0x878787ff);
+        assert_eq!(indexed_rgb(243), 0x767676ff);
     }
 
     #[test]

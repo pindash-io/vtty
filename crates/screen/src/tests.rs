@@ -154,31 +154,31 @@ fn truecolor_sgr() {
     let mut s = Screen::new(4, 1);
     run(&mut s, b"\x1b[38;2;255;0;128mX");
     assert_eq!(s.cell(0, 0).map(|c| c.fg), Some(ColorId(258)));
-    assert_eq!(s.rgb, vec![vtty_core::rgb(255, 0, 128)]);
+    assert_eq!(s.rgb, vec![vtty_core::rgb_to_u32(255, 0, 128)]);
 }
 
 #[test]
 fn color_rgb_resolves_palette() {
     let mut s = Screen::new(4, 1);
     // Default fg/bg resolve to the configured defaults.
-    assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xffffff));
-    assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x000000));
+    assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xffff_ffff));
+    assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x0000_00ff));
     // Indexed colors: 0..=15 use the palette, 16..=255 the xterm table.
-    assert_eq!(s.color_rgb(ColorId(1)), Some(0xcd0000));
-    assert_eq!(s.color_rgb(ColorId(196)), Some(0xff0000));
+    assert_eq!(s.color_rgb(ColorId(1)), Some(0xcd0000ff));
+    assert_eq!(s.color_rgb(ColorId(196)), Some(0xff0000ff));
     // Truecolor ids resolve through the dynamic palette.
     run(&mut s, b"\x1b[38;2;0;128;255mX");
-    assert_eq!(s.color_rgb(ColorId(258)), Some(0x0080ff));
+    assert_eq!(s.color_rgb(ColorId(258)), Some(0x0080ffff));
 }
 
 #[test]
 fn set_palette_changes_colors() {
     let mut s = Screen::new(4, 1);
-    s.set_palette([0x123456; 16]);
-    s.set_default_colors(0xf0f0f0, 0x101010);
-    assert_eq!(s.color_rgb(ColorId(1)), Some(0x123456));
-    assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xf0f0f0));
-    assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x101010));
+    s.set_palette([0x123456ff; 16]);
+    s.set_default_colors(0xf0f0f0ff, 0x101010ff);
+    assert_eq!(s.color_rgb(ColorId(1)), Some(0x123456ff));
+    assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xf0f0f0ff));
+    assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x101010ff));
 }
 
 #[test]
@@ -873,7 +873,7 @@ fn sgr_indexed_and_rgb_bg_colors() {
     assert_eq!(s.cell(0, 0).map(|c| c.bg), Some(ColorId(21)));
     run(&mut s, b"\x1b[48;2;1;2;3mY"); // RGB background
     assert_eq!(s.cell(0, 1).map(|c| c.bg), Some(ColorId(258)));
-    assert_eq!(s.color_rgb(ColorId(258)), Some(0x010203));
+    assert_eq!(s.color_rgb(ColorId(258)), Some(0x010203ff));
 }
 
 #[test]
@@ -1211,7 +1211,7 @@ fn sgr_empty_colorspace_and_unknown_color_form() {
     let mut s = Screen::new(4, 1);
     run(&mut s, b"\x1b[38:2::255:0:0mX"); // empty colorspace is skipped
     assert_eq!(s.cell(0, 0).map(|c| c.fg), Some(ColorId(258)));
-    assert_eq!(s.color_rgb(ColorId(258)), Some(0xff0000));
+    assert_eq!(s.color_rgb(ColorId(258)), Some(0xff0000ff));
     run(&mut s, b"\x1b[0m\x1b[38;3;255mY"); // unknown sub-param: ignored
     assert_eq!(s.cell(0, 1).map(|c| c.fg), Some(DEFAULT_FG_ID));
 }

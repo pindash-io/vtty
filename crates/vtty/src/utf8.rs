@@ -43,8 +43,8 @@ impl PartialUtf8 {
     /// not a continuation — the partial is cleared and the caller must emit
     /// `U+FFFD` and reprocess the byte.
     #[cfg_attr(feature = "perf-inline", inline(always))]
-    pub(crate) fn feed(&mut self, b: u8) -> bool {
-        if (0x80..0xc0).contains(&b) {
+    pub(crate) const fn feed(&mut self, b: u8) -> bool {
+        if matches!(b, 0x80..0xc0) {
             // A code point needs at most 21 bits (3 lead + 3×6 continuation),
             // so `cp << 6` never overflows `u32`.
             self.cp = (self.cp << 6) | (b & 0x3f) as u32;
@@ -112,7 +112,7 @@ const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
 /// If `s` ends with a partial UTF-8 sequence, return
 /// `(valid_prefix_len, partial)`; the partial is carried to the next
 /// `advance` call.
-pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
+pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     let len = s.len();
     if len == 0 {
         return None;
@@ -121,7 +121,7 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     if last < 0x80 {
         return None; // complete ASCII
     }
-    if (0xc2..=0xf4).contains(&last) {
+    if matches!(last, 0xc2..=0xf4) {
         // A lead byte at the very end.
         let (expected, cp) = utf8_lead(last);
         return Some((
@@ -135,14 +135,14 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
     // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
     // main loop decodes it as U+FFFD.
-    if !(0x80..0xc0).contains(&last) {
+    if !matches!(last, 0x80..0xc0) {
         return None;
     }
     // Walk back over continuation bytes to the lead byte.
     let mut back = 1;
     while back < MAX_UTF8_CONTINUATIONS && len > back {
         let b = s[len - 1 - back];
-        if (0x80..0xc0).contains(&b) {
+        if matches!(b, 0x80..0xc0) {
             back += 1;
         } else {
             break;
@@ -166,8 +166,10 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
         return None;
     }
     let mut cp = lead_cp;
-    for &b in &s[lead_idx + 1..] {
-        cp = (cp << 6) | (b & 0x3f) as u32;
+    let mut idx = lead_idx + 1;
+    while idx < s.len() {
+        cp = (cp << 6) | (s[idx] & 0x3f) as u32;
+        idx += 1;
     }
     Some((
         lead_idx,
@@ -181,10 +183,11 @@ pub(crate) fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
 /// Flush `buf[..n]` via `print_codepoints` if non-empty, resetting `n`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn flush_cps<P: Perform>(p: &mut P, buf: &[u32], n: &mut usize) {
-    if *n > 0 {
-        p.print_codepoints(&buf[..*n]);
-        *n = 0;
+    if *n == 0 {
+        return;
     }
+    p.print_codepoints(&buf[..*n]);
+    *n = 0;
 }
 
 /// Push one code point into the batch, flushing via `print_codepoints` when
@@ -248,14 +251,14 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 let mut n = 0;
                 loop {
                     let b0 = s[i];
-                    if (0xe0..=0xef).contains(&b0) {
+                    if matches!(b0, 0xe0..=0xef) {
                         // 3-byte lead (CJK etc.) — never C1. Four consecutive
                         // 3-byte code points are SIMD-decoded (simdutf's
                         // `0x924` path).
                         if i + 16 <= s.len()
-                            && (0xe0..=0xef).contains(&s[i + 3])
-                            && (0xe0..=0xef).contains(&s[i + 6])
-                            && (0xe0..=0xef).contains(&s[i + 9])
+                            && matches!(s[i + 3], 0xe0..=0xef)
+                            && matches!(s[i + 6], 0xe0..=0xef)
+                            && matches!(s[i + 9], 0xe0..=0xef)
                             && n + 4 <= BATCH
                         {
                             let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
@@ -323,7 +326,7 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
             let mut start = 0;
             for k in 0..count {
                 let cp = buf[k];
-                if cp < 0x20 || cp == 0x7f || (0x80..=0x9f).contains(&cp) {
+                if matches!(cp, ..0x20 | 0x7f | 0x80..=0x9f) {
                     if start < k {
                         p.print_codepoints(&buf[start..k]);
                     }
