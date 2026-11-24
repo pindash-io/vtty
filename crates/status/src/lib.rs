@@ -7,7 +7,9 @@
 //! and the [`PerformProgramStatus`] hook, which a [`vtty_core::Perform`] sink
 //! implements to receive typed reports.
 //!
-//! Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
+//! Reference: [Program Status Protocol].
+//!
+//! [Program Status Protocol]: https://www.superlogical.com/rex/docs/build/program-status
 #![forbid(unsafe_code)]
 #![no_std]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -18,6 +20,4 @@ extern crate alloc;
 
 mod status;
 
-pub use status::{
-    PerformProgramStatus, ProgramStatus, StatusKind, StatusState,
-};
+pub use status::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};

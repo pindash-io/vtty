@@ -20,7 +20,9 @@
 //! [`ProgramStatus`] parses the body into a typed record;
 //! [`ProgramStatus::write_osc`] encodes one back into the full escape sequence.
 //!
-//! Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
+//! Reference: [Program Status Protocol].
+//!
+//! [Program Status Protocol]: https://www.superlogical.com/rex/docs/build/program-status
 
 use alloc::vec::Vec;
 
@@ -31,19 +33,28 @@ use vtty_core::Perform;
 
 /// Report body length limit (bytes).
 const MAX_SEQUENCE: usize = 4096;
+
 /// `key` length limit (bytes).
 const MAX_KEY: usize = 16;
+
 /// `msg` limits: on-wire base64, then decoded bytes.
 const MAX_MSG_ENCODED: usize = 2732;
+
 const MAX_MSG_DECODED: usize = 2048;
+
 /// `title` limits: on-wire base64, then decoded bytes.
 const MAX_TITLE_ENCODED: usize = 256;
+
 const MAX_TITLE_DECODED: usize = 192;
+
 /// `app` length limit (bytes).
 const MAX_APP: usize = 32;
+
 /// `id` limits: total length, per segment, and depth.
 const MAX_ID: usize = 128;
+
 const MAX_ID_SEGMENT: usize = 32;
+
 const MAX_ID_DEPTH: usize = 8;
 
 /// OSC program-status protocol number.
@@ -51,6 +62,7 @@ const OSC_NUM: &[u8] = b"7501";
 
 /// OSC introducer sequence: `ESC ]` (`0x1b 0x5d`).
 const SEQ_OSC: &[u8] = b"\x1b]";
+
 /// String terminator sequence: `ESC \` (`0x1b 0x5c`).
 const SEQ_ST: &[u8] = b"\x1b\\";
 
@@ -76,6 +88,25 @@ macro_rules! named_bytes {
             }
         }
     };
+}
+
+/// Extension for [`Perform`] sinks that want typed `OSC 7501` reports.
+pub trait PerformProgramStatus: Perform {
+    /// Called with each valid `OSC 7501` report.
+    fn program_status(&mut self, _status: ProgramStatus) {}
+
+    /// Routes one OSC dispatch.
+    ///
+    /// Call this first in [`Perform::osc_dispatch`]. Returns `true` when the
+    /// params were a valid `OSC 7501` report (and [`Self::program_status`] was
+    /// called).
+    fn route_osc_7501(&mut self, params: &[&[u8]]) -> bool {
+        let Some(status) = ProgramStatus::from_osc_params(params) else {
+            return false;
+        };
+        self.program_status(status);
+        true
+    }
 }
 
 /// The state a program reports.
@@ -176,18 +207,14 @@ impl ProgramStatus {
 
         // Malformed pairs are skipped (`split_pair` → `None`); a hard error in
         // a recognized field (`?`/`return None`) discards the whole report.
-        for (key, value) in
-            payload.split(|&b| b == b':').filter_map(split_pair)
-        {
+        for (key, value) in payload.split(|&b| b == b':').filter_map(split_pair) {
             match key {
                 b"state" => state = StatusState::parse(value),
                 b"id" => id = Some(parse_id(value)?),
                 b"kind" => kind = StatusKind::parse(value),
                 b"progress" => progress = parse_progress(value),
                 b"app" => {
-                    if value.is_empty()
-                        || !value.iter().all(|&b| is_ident_byte(b))
-                    {
+                    if value.is_empty() || !value.iter().all(|&b| is_ident_byte(b)) {
                         app = None; // outside the character set: treated as absent
                     } else if value.len() > MAX_APP {
                         return None; // limit exceeded
@@ -196,18 +223,10 @@ impl ProgramStatus {
                     }
                 }
                 b"title" => {
-                    title = Some(parse_text(
-                        value,
-                        MAX_TITLE_ENCODED,
-                        MAX_TITLE_DECODED,
-                    )?);
+                    title = Some(parse_text(value, MAX_TITLE_ENCODED, MAX_TITLE_DECODED)?);
                 }
                 b"msg" => {
-                    msg = Some(parse_text(
-                        value,
-                        MAX_MSG_ENCODED,
-                        MAX_MSG_DECODED,
-                    )?);
+                    msg = Some(parse_text(value, MAX_MSG_ENCODED, MAX_MSG_DECODED)?);
                 }
                 _ => {} // unknown key
             }
@@ -216,11 +235,18 @@ impl ProgramStatus {
         let state = state?;
         // `kind` only applies to blocked; `progress` only to working/blocked.
         let kind = kind.filter(|_| state == StatusState::Blocked);
-        let progress = progress.filter(|_| {
-            matches!(state, StatusState::Working | StatusState::Blocked)
-        });
+        let progress =
+            progress.filter(|_| matches!(state, StatusState::Working | StatusState::Blocked));
 
-        Some(Self { state, id, kind, progress, app, title, msg })
+        Some(Self {
+            state,
+            id,
+            kind,
+            progress,
+            app,
+            title,
+            msg,
+        })
     }
 
     /// Parses a report from an OSC dispatch's params (`params[0] == "7501"`).
@@ -249,27 +275,15 @@ impl ProgramStatus {
         out.extend_from_slice(OSC_NUM);
         out.push(b';'); // OSC parameter separator
         push_field(out, b"state", self.state.as_bytes());
-        push_opt_field(
-            out,
-            b"id",
-            self.id.as_ref().map(CompactString::as_bytes),
-        );
+        push_opt_field(out, b"id", self.id.as_ref().map(CompactString::as_bytes));
         push_opt_field(out, b"kind", self.kind.map(StatusKind::as_bytes));
         if let Some(progress) = self.progress {
             let mut buf = [0_u8; 3];
             push_field(out, b"progress", write_decimal(progress, &mut buf));
         }
-        push_opt_field(
-            out,
-            b"app",
-            self.app.as_ref().map(CompactString::as_bytes),
-        );
+        push_opt_field(out, b"app", self.app.as_ref().map(CompactString::as_bytes));
         if let Some(title) = &self.title {
-            push_field(
-                out,
-                b"title",
-                Base64::encode(title.as_bytes()).as_bytes(),
-            );
+            push_field(out, b"title", Base64::encode(title.as_bytes()).as_bytes());
         }
         if let Some(msg) = &self.msg {
             push_field(out, b"msg", Base64::encode(msg.as_bytes()).as_bytes());
@@ -278,29 +292,32 @@ impl ProgramStatus {
     }
 }
 
-/// Extension for [`Perform`] sinks that want typed `OSC 7501` reports.
-pub trait PerformProgramStatus: Perform {
-    /// Called with each valid `OSC 7501` report.
-    fn program_status(&mut self, _status: ProgramStatus) {}
+/// A control-character class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Control {
+    /// C0 controls: `U+0000..=U+001F`.
+    C0,
+    /// `DEL`: `U+007F`.
+    Del,
+    /// C1 controls: `U+0080..=U+009F`.
+    C1,
+}
 
-    /// Routes one OSC dispatch.
-    ///
-    /// Call this first in [`Perform::osc_dispatch`]. Returns `true` when the
-    /// params were a valid `OSC 7501` report (and [`Self::program_status`] was
-    /// called).
-    fn route_osc_7501(&mut self, params: &[&[u8]]) -> bool {
-        let Some(status) = ProgramStatus::from_osc_params(params) else {
-            return false;
-        };
-        self.program_status(status);
-        true
+impl Control {
+    /// Classifies `c` as a control character, or `None`.
+    fn of(c: char) -> Option<Self> {
+        Some(match u32::from(c) {
+            0x00..=0x1f => Self::C0,
+            0x7f => Self::Del,
+            0x80..=0x9f => Self::C1,
+            _ => return None,
+        })
     }
 }
 
 /// A byte allowed in a `value` (`[A-Za-z0-9_.,+/=-]`).
 const fn is_value_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric()
-        || matches!(b, b'_' | b'.' | b',' | b'+' | b'/' | b'=' | b'-')
+    b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b',' | b'+' | b'/' | b'=' | b'-')
 }
 
 /// A byte allowed in an `app` or `id` segment (`[A-Za-z0-9_.+-]`).
@@ -329,18 +346,15 @@ fn split_pair(pair: &[u8]) -> Option<(&[u8], &[u8])> {
 
 /// Parses a decimal `progress` value in `0..=100`.
 fn parse_progress(value: &[u8]) -> Option<u8> {
-    if value.is_empty()
-        || value.len() > 3
-        || !value.iter().all(u8::is_ascii_digit)
-    {
+    if value.is_empty() || value.len() > 3 || !value.iter().all(u8::is_ascii_digit) {
         return None;
     }
     // `value` is already all ASCII digits (the guard above), so it is valid
     // UTF-8; parse the decimal directly without the `str` round-trip. The
     // `checked_*` ops reject overflow the same way `parse::<u8>` does.
-    let n = value.iter().try_fold(0_u8, |acc, &b| {
-        acc.checked_mul(10)?.checked_add(b - b'0')
-    })?;
+    let n = value
+        .iter()
+        .try_fold(0_u8, |acc, &b| acc.checked_mul(10)?.checked_add(b - b'0'))?;
     (n <= 100).then_some(n)
 }
 
@@ -365,36 +379,9 @@ fn parse_id(value: &[u8]) -> Option<CompactString> {
     CompactString::from_utf8(value).ok()
 }
 
-/// A control-character class.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Control {
-    /// C0 controls: `U+0000..=U+001F`.
-    C0,
-    /// `DEL`: `U+007F`.
-    Del,
-    /// C1 controls: `U+0080..=U+009F`.
-    C1,
-}
-
-impl Control {
-    /// Classifies `c` as a control character, or `None`.
-    fn of(c: char) -> Option<Self> {
-        Some(match u32::from(c) {
-            0x00..=0x1f => Self::C0,
-            0x7f => Self::Del,
-            0x80..=0x9f => Self::C1,
-            _ => return None,
-        })
-    }
-}
-
 /// Decodes a base64 `title`/`msg` value, enforcing the encoded/decoded limits
 /// and rejecting control characters.
-fn parse_text(
-    value: &[u8],
-    max_encoded: usize,
-    max_decoded: usize,
-) -> Option<CompactString> {
+fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<CompactString> {
     if value.len() > max_encoded {
         return None;
     }
@@ -547,10 +534,7 @@ mod tests {
             Some((&b"state"[..], &b"idle"[..]))
         );
         // `=` in the value (base64 padding) stays in the value.
-        assert_eq!(
-            split_pair(b"msg=Zm9v="),
-            Some((&b"msg"[..], &b"Zm9v="[..]))
-        );
+        assert_eq!(split_pair(b"msg=Zm9v="), Some((&b"msg"[..], &b"Zm9v="[..])));
     }
 
     #[test]

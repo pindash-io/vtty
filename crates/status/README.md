@@ -8,7 +8,9 @@ The optional status extension: the [`ProgramStatus`](https://docs.rs/vtty_status
 and the [`PerformProgramStatus`](https://docs.rs/vtty_status/latest/vtty_status/status/trait.PerformProgramStatus.html) hook, which a [`vtty_core::Perform`](https://docs.rs/vtty_core/latest/vtty_core/perform/trait.Perform.html) sink
 implements to receive typed reports.
 
-Reference: <https://www.superlogical.com/rex/docs/build/program-status>.
+Reference: [Program Status Protocol].
+
+[Program Status Protocol]: https://www.superlogical.com/rex/docs/build/program-status
 
 <!-- cargo-rdme end -->
 
@@ -29,5 +31,12 @@ impl PerformProgramStatus for Screen {
 }
 ```
 
-Licensed under either of [Apache-2.0](../../LICENSE-APACHE) or
-[MIT](../../LICENSE-MIT) at your option.
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](../../LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](../../LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
