@@ -4,10 +4,9 @@
 
 Display cell width and emoji-sequence handling.
 
-The formal statement of the model — Layers 1–3, the symbol-to-code
-binding, and the invariants — is [`_documentation::width_model`](https://docs.rs/vtty_width/latest/vtty_width/_documentation/width_model/); the
-Unicode data-file counts and the deliberate terminal overrides are in
-[`_documentation::conformance`](https://docs.rs/vtty_width/latest/vtty_width/_documentation/conformance/).
+[`_documentation::width_model`](https://docs.rs/vtty_width/latest/vtty_width/_documentation/width_model/) carries the whole document: Layers 1–3, the
+symbol-to-code binding, the invariants, and the Unicode conformance counts
+with the deliberate terminal overrides.
 
 ## Usage
 

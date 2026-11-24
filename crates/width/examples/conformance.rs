@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Unified emoji conformance engine (see `CONFORMANCE.md`).
+//! Unified emoji conformance engine (see `WIDTH-MODEL.md`).
 //!
 //! Validates all four Unicode 17.0.0 emoji data files in one pass. The files
 //! download into `assets/emoji/` (git-ignored) and are the argument defaults:
