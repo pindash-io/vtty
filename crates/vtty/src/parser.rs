@@ -910,7 +910,7 @@ impl Parser {
     }
 
     /// DCS passthrough bulk run: dispatch the payload prefix via one
-    /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte >= 0x80. Same
+    /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte `> DEL`. Same
     /// inline-dispatch rationale as `advance_osc_run`.
     #[inline]
     fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {

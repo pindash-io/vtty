@@ -95,8 +95,8 @@ fn classify_scan<S: Simd>(simd: S, v: u8x16<S>, kind: ScanKind) -> mask8x16<S> {
                 | simd.simd_eq_u8x16(v, simd.splat_u8x16(SEMICOLON))
         }
         ScanKind::DcsBoundary => {
-            // b >= 0x80, or CAN/SUB/ESC/DEL.
-            simd.simd_ge_u8x16(v, simd.splat_u8x16(0x80))
+            // b > DEL, or CAN/SUB/ESC/DEL.
+            simd.simd_gt_u8x16(v, simd.splat_u8x16(DEL))
                 | simd.simd_eq_u8x16(v, simd.splat_u8x16(CAN))
                 | simd.simd_eq_u8x16(v, simd.splat_u8x16(SUB))
                 | simd.simd_eq_u8x16(v, simd.splat_u8x16(ESC))

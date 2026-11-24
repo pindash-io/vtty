@@ -104,13 +104,13 @@ fn first_where(
     bytes.len()
 }
 
-/// SWAR mask for non-printable bytes (`b < 0x20 || b >= 0x7f`).
+/// SWAR mask for non-printable bytes (`b < 0x20 || b >= DEL`).
 const fn non_printable_mask(w: u64) -> u64 {
     let lt_20 = w.wrapping_sub(SPLAT_20) & !w & SPLAT_80; // b < 0x20
-    let ge_80 = w & SPLAT_80; // b >= 0x80
+    let gt_del = w & SPLAT_80; // b > DEL
     let x = w ^ SPLAT_7F;
     let eq_7f = x.wrapping_sub(SPLAT_01) & !x & SPLAT_80; // b == DEL
-    lt_20 | ge_80 | eq_7f
+    lt_20 | gt_del | eq_7f
 }
 
 /// SWAR probe of the first `N` bytes (a multiple of 8): `Some(index)` of the
@@ -196,7 +196,7 @@ pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
     )
 }
 
-/// SWAR mask for DCS boundaries: `>= 0x80`, `CAN`, `SUB`, `ESC`, `DEL`.
+/// SWAR mask for DCS boundaries: `> DEL`, `CAN`, `SUB`, `ESC`, `DEL`.
 const fn dcs_stop_mask(w: u64) -> u64 {
     (w & SPLAT_80)
         | swar_byte_eq(w, CAN)

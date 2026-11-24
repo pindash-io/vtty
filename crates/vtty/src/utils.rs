@@ -58,5 +58,5 @@ pub(crate) const fn is_osc_boundary(&b: &u8) -> bool {
 /// put class is `0x00..=0x17 | 0x19 | 0x1c..=0x7e`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) const fn is_dcs_boundary(&b: &u8) -> bool {
-    b >= 0x80 || matches!(b, CAN | SUB | ESC | DEL)
+    b > DEL || matches!(b, CAN | SUB | ESC | DEL)
 }
