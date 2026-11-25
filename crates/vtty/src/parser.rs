@@ -635,6 +635,42 @@ impl Parser {
         i + run.len()
     }
 
+    /// Dispatch `CSI a;b;c… m` — three or more parameters, the truecolor and
+    /// multi-attribute SGR shapes. `k` points at the `;` after `second`.
+    /// Returns the bytes consumed, or `None` when the shape is not a plain
+    /// parameter list (an empty parameter, a `:` separator or an oversized
+    /// list belongs to the byte loop).
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_param_list<P: Perform>(
+        &mut self,
+        p: &mut P,
+        seq: &[u8],
+        mut k: usize,
+        first: i32,
+        second: i32,
+    ) -> Option<usize> {
+        self.params.values[0] = first;
+        self.params.values[1] = second;
+        let mut n = 2;
+        while n < MAX_PARAM_COUNT && seq.get(k) == Some(&b';') {
+            let mut next = k + 1;
+            if !seq.get(next).is_some_and(u8::is_ascii_digit) {
+                break;
+            }
+            self.params.values[n] = param_at(seq, &mut next);
+            n += 1;
+            k = next;
+        }
+        if seq.get(k) != Some(&b'm') {
+            return None;
+        }
+        p.csi_dispatch(&self.params.values[..n], 0, &[], b'm');
+        // Dispatch is the last thing this path does, so resetting the length
+        // restores the ground-state invariant without a full `clear_seq_state`.
+        self.params.len = 0;
+        Some(k + 1)
+    }
+
     /// Parse a `ESC [` CSI sequence from `seq`, dispatching inline. `seq` is
     /// the printable run that follows `ESC [`, so it can extend past the final
     /// byte; every read here is bounds-checked. Returns the number of bytes
@@ -651,16 +687,14 @@ impl Parser {
             return None;
         }
 
-        // Two shapes carry nearly every CSI, and both begin with a numeric
-        // parameter: a bare colour change (`CSI 31m`) and cursor addressing
-        // (`CSI r;c H` / `f`). Parse that parameter once, then prime the
-        // accumulator so the byte loop below resumes past the digits instead of
-        // re-parsing them. `38;`/`48;`/`58;` stay with the loop: they open
-        // multi-parameter colour sequences, which it handles in one pass.
+        // Nearly every CSI begins with a numeric parameter: a bare colour
+        // change (`CSI 31m`), cursor addressing (`CSI r;c H` / `f`) or a
+        // multi-parameter list (`CSI 1;31;44m`, `CSI 38;2;r;g;b m`). Parse the
+        // parameters once and dispatch inline; anything this path cannot model
+        // primes the accumulator so the byte loop below resumes past the digits
+        // instead of re-parsing them.
         let mut i = 0;
-        if seq[i].is_ascii_digit()
-            && !matches!(seq.first_chunk::<3>(), Some([b'3'..=b'5', b'8', b';']))
-        {
+        if seq[i].is_ascii_digit() {
             let first = param_at(seq, &mut i);
 
             if let Some(&next) = seq.get(i) {
@@ -673,14 +707,23 @@ impl Parser {
                     let col = param_at(seq, &mut j);
                     // A column needs at least one digit; `CSI r;H` reports
                     // the `-1` sentinel that the loop would push for it.
-                    if j > i + 1 && matches!(seq.get(j), Some(b'H' | b'f')) {
-                        self.params.values[0] = first;
-                        self.params.values[1] = col;
-                        self.params.len = 2;
-                        let ints = &self.intermediates.bytes[..self.intermediates.len];
-                        p.csi_dispatch(&self.params.values[..2], 0, ints, seq[j]);
-                        self.clear_seq_state();
-                        return Some(j + 1);
+                    if j > i + 1 {
+                        if matches!(seq.get(j), Some(b'H' | b'f')) {
+                            p.csi_dispatch(&[first, col], 0, &[], seq[j]);
+                            return Some(j + 1);
+                        }
+                        if seq.get(j) == Some(&b'm') {
+                            p.csi_dispatch(&[first, col], 0, &[], b'm');
+                            return Some(j + 1);
+                        }
+                        // `CSI a;b;… m`: the truecolor and multi-attribute
+                        // forms, where the byte loop costs ~1.5 ns per
+                        // parameter.
+                        if seq.get(j) == Some(&b';')
+                            && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, col)
+                        {
+                            return Some(consumed);
+                        }
                     }
                 }
             }
