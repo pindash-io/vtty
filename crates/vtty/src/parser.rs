@@ -730,6 +730,11 @@ impl Parser {
 
             self.params.param = first;
             self.params.empty = false;
+        } else if matches!(seq[i], 0x40..=0x7e) {
+            // `CSI <final>` with no parameters — `CSI m`, `CSI H`, `CSI J`,
+            // `CSI K`. Two byte compares beat the loop's per-byte dispatch.
+            p.csi_dispatch(&[], 0, &[], seq[i]);
+            return Some(1);
         }
 
         while i < seq.len() {
