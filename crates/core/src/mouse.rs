@@ -19,17 +19,17 @@ bitflags::bitflags! {
     /// screens map their flags into this and delegate to [`MouseButton::encode`].
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MouseTracking: u8 {
-    /// Any tracking enabled: X10, 1000, 1002 or 1003.
+        /// Any tracking enabled: X10, 1000, 1002 or 1003.
         const ENABLED = 1 << 0;
-    /// DEC 9, press-only reporting.
+        /// DEC 9, press-only reporting.
         const X10 = 1 << 1;
-    /// DEC 1006, SGR protocol (`CSI < b ; x ; y M/m`).
+        /// DEC 1006, SGR protocol (`CSI < b ; x ; y M/m`).
         const SGR = 1 << 2;
-    /// DEC 1003, any-motion tracking.
+        /// DEC 1003, any-motion tracking.
         const ANY_MOTION = 1 << 3;
-    /// DEC 1016, SGR-pixel protocol.
+        /// DEC 1016, SGR-pixel protocol.
         const PIXEL = 1 << 4;
-    /// DEC 1005, UTF-8 coordinates.
+        /// DEC 1005, UTF-8 coordinates.
         const UTF8 = 1 << 5;
     }
 }

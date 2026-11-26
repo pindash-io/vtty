@@ -107,9 +107,8 @@ impl SgrFlags {
 }
 
 bitflags::bitflags! {
-    /// The five SGR decorations a screen stores per span/cell (bold /
-    /// italic / underline / strikethrough / overline), bits ordered by SGR
-    /// code.
+    /// The five SGR decorations a screen stores per span/cell, bits ordered by
+    /// SGR code.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct StyleFlags: u8 {
         /// SGR 1 bold.

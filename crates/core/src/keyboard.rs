@@ -17,15 +17,15 @@ bitflags::bitflags! {
     /// by `CSI < count u`. Each bit enables a progressive feature tier.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct KittyFlags: u8 {
-    /// Disambiguate escape codes (`CSI u`).
+        /// Disambiguate escape codes (`CSI u`).
         const DISAMBIGUATE = 1;
-    /// Report press, repeat and release.
+        /// Report press, repeat and release.
         const REPORT_EVENT_TYPES = 2;
-    /// Report alternate keys.
+        /// Report alternate keys.
         const REPORT_ALTERNATE_KEYS = 4;
-    /// Report all keys as escape sequences.
+        /// Report all keys as escape sequences.
         const REPORT_ALL_KEYS = 8;
-    /// Report associated text.
+        /// Report associated text.
         const REPORT_ASSOCIATED_TEXT = 16;
     }
 }
@@ -132,18 +132,18 @@ pub enum KeySpec {
 }
 
 bitflags::bitflags! {
-    /// Keyboard modifier state (shift/alt/ctrl/super), winit-free. The bits
-    /// equal the xterm/kitty modifier contributions, so [`Modifiers::encoded`]
-    /// is the wire bitfield minus the leading `1` (no-modifiers) bit.
+    /// Keyboard modifier state, winit-free: the bits equal the xterm/kitty
+    /// modifier contributions, so [`Modifiers::encoded`] is the wire bitfield
+    /// minus the leading `1` (no-modifiers) bit.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Modifiers: u8 {
-    /// Shift.
+        /// Shift.
         const SHIFT = 0b0001;
-    /// Alt.
+        /// Alt.
         const ALT = 0b0010;
-    /// Control.
+        /// Control.
         const CTRL = 0b0100;
-    /// Super (OS).
+        /// Super (OS).
         const SUPER = 0b1000;
     }
 }
