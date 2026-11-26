@@ -63,16 +63,16 @@ use scrollback::Scrollback;
 /// `OSC 9;4` progress-bar state, as used by modern terminal emulators.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Progress {
-    /// No progress bar is shown.
+    /// No progress bar.
     #[default]
     Hidden,
-    /// `OSC 9;4;0` — begin, indeterminate; the terminal animates it.
+    /// OSC 9;4;0, begin indeterminate.
     Indeterminate,
-    /// `OSC 9;4;1;<n>` — determinate progress, percent `0..=100`.
+    /// OSC 9;4;1, determinate percent.
     Percent(u8),
-    /// `OSC 9;4;2` — completed.
+    /// OSC 9;4;2, completed.
     Done,
-    /// `OSC 9;4;3` — errored.
+    /// OSC 9;4;3, errored.
     Error,
 }
 
