@@ -31,15 +31,15 @@ assert_eq!(cell_advance(16.0, 10.0), 20.0); // 1.6 cells snaps to 2 cells
 
 ## Features
 
-- `baked` (default) — compile-time-generated emoji + width table
+- `baked` (default): compile-time-generated emoji + width table
   (produced by `build.rs`).
-- `icu` — runtime ICU4X property lookups, an alternative to `baked` (also
+- `icu`: runtime ICU4X property lookups, an alternative to `baked` (also
   used by the differential test).
-- `simd` (default) — vectorized first-non-ASCII scan in the width fast
+- `simd` (default): vectorized first-non-ASCII scan in the width fast
   paths.
-- `perf-inline` (default) — `#[inline(always)]` on the width hot paths;
+- `perf-inline` (default): `#[inline(always)]` on the width hot paths;
   opt out for smaller code at some throughput cost.
-- `trie` — experimental `CodePointTrie` two-level lookup (built alongside
+- `trie`: experimental `CodePointTrie` two-level lookup (built alongside
   the packtab tables; not the default).
 
 With neither `baked` nor `icu`, the ASCII/CJK/PUA fast paths still

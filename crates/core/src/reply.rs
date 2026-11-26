@@ -71,7 +71,7 @@ impl Reply {
     }
 
     /// Build an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
-    /// `=value`, per xterm — a bare name means "supported").
+    /// `=value`, per xterm, where a bare name means "supported").
     #[inline]
     #[must_use]
     pub fn xtgettcap_reply_bool(key: &[u8]) -> CompactString {

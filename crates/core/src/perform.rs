@@ -54,7 +54,7 @@ pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).
     fn print(&mut self, _c: char) {}
 
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — display text,
+    /// A contiguous run of printable ASCII (`0x20..=0x7e`), display text,
     /// the bulk hot path. Valid UTF-8 by construction, so implementations
     /// may `std::str::from_utf8_unchecked` without re-validating.
     fn print_bytes(&mut self, _s: &[u8]) {}
@@ -72,7 +72,7 @@ pub trait Perform {
     /// A C0/C1 control byte (e.g. `\n`, `\t`, `\x1b`).
     fn execute(&mut self, _byte: u8) {}
 
-    /// A printable ASCII run immediately followed by a bare `\n` — the
+    /// A printable ASCII run immediately followed by a bare `\n`, the
     /// raw-LF streaming hot path. Defaults to [`print_bytes`](Perform::print_bytes)
     /// then [`execute`](Perform::execute) of `\n`; screens may fuse them when
     /// the result is identical.
@@ -81,7 +81,7 @@ pub trait Perform {
         self.execute(b'\n');
     }
 
-    /// A printable ASCII run immediately followed by `\r\n` — the OPOST/PTY
+    /// A printable ASCII run immediately followed by `\r\n`, the OPOST/PTY
     /// streaming hot path. Defaults to print then CR then LF; screens may
     /// fuse them when the result is identical.
     fn print_crlf_line(&mut self, s: &[u8]) {
@@ -105,12 +105,12 @@ pub trait Perform {
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
     fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
 
-    /// A device-control string payload byte arrived. Raw — arbitrary, not
+    /// A device-control string payload byte arrived. Raw: arbitrary, not
     /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:
     /// ignore.
     fn put(&mut self, _byte: u8) {}
 
-    /// A contiguous DCS payload run — raw bytes. Defaults to per-byte
+    /// A contiguous DCS payload run, raw bytes. Defaults to per-byte
     /// [`put`](Perform::put); cross-byte decoders (e.g. sixel) can override.
     fn put_slice(&mut self, bytes: &[u8]) {
         for &byte in bytes {

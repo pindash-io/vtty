@@ -8,8 +8,8 @@
 //!
 //! ## Features
 //!
-//! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
-//! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
+//! - `reply`: DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
+//! - `termcap`: XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
 //!
 //! ## Stability

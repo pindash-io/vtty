@@ -9,8 +9,8 @@ owned [`Event`](https://docs.rs/vtty_core/latest/vtty_core/event/enum.Event.html
 
 ## Features
 
-- `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
-- `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
+- `reply`: DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
+- `termcap`: XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
   implies `reply`.
 
 ## Stability

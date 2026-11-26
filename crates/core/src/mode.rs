@@ -98,34 +98,34 @@ bitflags::bitflags! {
         const UTF8_MOUSE = 1 << 19;
         /// DEC 1006 (`CSI ?1006`) SGR mouse.
         const MOUSE_SGR = 1 << 12;
-        /// DEC 1007 — alternate scroll (wheel sends arrows).
+        /// DEC 1007: alternate scroll, the wheel sends arrows.
         const ALTERNATE_SCROLL = 1 << 20;
-        /// DEC 1015 — urxvt mouse protocol. Tracked for DECRQM fidelity;
+        /// DEC 1015: urxvt mouse protocol. Tracked for DECRQM fidelity;
         /// never emitted (SGR 1006 takes precedence when both are set).
         const MOUSE_URXVT = 1 << 28;
-        /// DEC 1016 — SGR-pixel mouse (pixel coordinates).
+        /// DEC 1016: SGR-pixel mouse, pixel coordinates.
         const MOUSE_PIXEL = 1 << 26;
-        /// DEC 1045 (`CSI ?1045 h/l`) — extended reverse wrap-around: like
+        /// DEC 1045 (`CSI ?1045 h/l`): extended reverse wrap-around, like
         /// DEC 45 but crosses NON-wrapped rows and wraps around the scroll
         /// region's top edge (xterm XTREVWRAP2).
         const REVERSE_WRAP_EXTENDED = 1 << 30;
-        /// DEC 1046 — alternate screen, save/restore cursor.
+        /// DEC 1046: alternate screen, save/restore cursor.
         const VI = 1 << 21;
-        /// DEC 1047 — alternate screen that clears on entry but does not
+        /// DEC 1047: alternate screen that clears on entry but does not
         /// save/restore the cursor (unlike 1049).
         const ALT_SCREEN_1047 = 1 << 31;
-        /// DEC 1049 — alternate screen that clears on entry and saves/
+        /// DEC 1049: alternate screen that clears on entry and saves/
         /// restores the main-screen cursor (1047 + 1048).
         const ALT_SCREEN_1049 = 1 << 15;
-        /// XTPUSHKEYS (`CSI ?2004 h/l`) — bracketed paste.
+        /// XTPUSHKEYS (`CSI ?2004 h/l`): bracketed paste.
         const BRACKETED_PASTE = 1 << 5;
-        /// DEC 2026 — synchronized output.
+        /// DEC 2026: synchronized output.
         const SYNC_OUTPUT = 1 << 16;
-        /// DEC 2027 — Unicode core mode (grapheme-cluster width).
+        /// DEC 2027: Unicode core mode, grapheme-cluster width.
         const UNICODE_CORE = 1 << 25;
-        /// XTCOLORMOD (`CSI ?2031 h/l`) — report color-scheme changes.
+        /// XTCOLORMOD (`CSI ?2031 h/l`): report color-scheme changes.
         const COLOR_SCHEME_UPDATES = 1 << 17;
-        /// DEC 2048 — in-band window resize: the terminal reports size
+        /// DEC 2048: in-band window resize, where the terminal reports size
         /// changes as `CSI 48;lines;cols;pixel_lines;pixel_cols t` instead of
         /// the app relying on SIGWINCH.
         const IN_BAND_RESIZE = 1 << 29;
@@ -183,7 +183,7 @@ impl TermFlags {
         }
     }
 
-    /// The ANSI/DEC mode number and `?` form for this flag — the inverse of
+    /// The ANSI/DEC mode number and `?` form for this flag, the inverse of
     /// [`Self::from_mode_code`]. `None` for [`Self::NONE`] and untracked
     /// flags.
     #[inline]

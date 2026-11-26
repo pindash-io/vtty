@@ -441,7 +441,7 @@ fn decode_at(bytes: &[u8], pos: usize) -> Option<(char, usize)> {
 ///
 /// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark
 ///   (skin tone / combining) occupies one cell.
-/// - A lone ZWJ (`U+200D`) is ignored — always zero cells.
+/// - A lone ZWJ (`U+200D`) is ignored: always zero cells.
 /// - A multi-char sequence is one glyph: 2 cells, except text presentation
 ///   (VS15), a bare keycap without VS16, and a ZWJ sequence with a
 ///   text-presentation leading char stay 1.

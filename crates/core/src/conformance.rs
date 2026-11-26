@@ -91,7 +91,7 @@ impl crate::reply::Reply {
     }
 
     /// Build a DA3 (Tertiary Device Attributes) answer:
-    /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
+    /// `DCS ! | {hex} ST`: the terminal unit ID as hex byte pairs
     /// (EK-VT520-RM §5-12).
     #[must_use]
     pub fn da3(unit_id: &[u8]) -> CompactString {

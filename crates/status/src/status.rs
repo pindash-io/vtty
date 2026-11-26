@@ -1,9 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Program Status Protocol (`OSC 7501`) — parse and encode.
+//! Program Status Protocol (`OSC 7501`): parse and encode.
 //!
-//! A program reports its state — idle, working, done, blocked, or error — to
+//! A program reports its state (idle, working, done, blocked, error) to
 //! the terminal, or clears a previously reported status:
 //!
 //! ```text
@@ -11,11 +11,11 @@
 //! ```
 //!
 //! The on-wire form is `ESC ] 7501 ; body ESC \`:
-//! - `ESC ]` (`0x1b 0x5d`) — the OSC introducer.
-//! - `7501` — the program-status protocol number.
-//! - `;` — the OSC parameter separator.
-//! - `body` — `key=value` pairs joined by `:`.
-//! - `ESC \` (`0x1b 0x5c`) — the string terminator.
+//! - `ESC ]` (`0x1b 0x5d`): the OSC introducer.
+//! - `7501`: the program-status protocol number.
+//! - `;`: the OSC parameter separator.
+//! - `body`: `key=value` pairs joined by `:`.
+//! - `ESC \` (`0x1b 0x5c`): the string terminator.
 //!
 //! [`ProgramStatus`] parses the body into a typed record;
 //! [`ProgramStatus::write_osc`] encodes one back into the full escape sequence.
@@ -183,7 +183,7 @@ pub struct ProgramStatus {
 }
 
 impl ProgramStatus {
-    /// Feature-detection query: `ESC ] 7501 ; ? ESC \` — the `?` asks the
+    /// Feature-detection query: `ESC ] 7501 ; ? ESC \`, where `?` asks the
     /// terminal whether it supports the protocol.
     pub const QUERY: &[u8] = b"\x1b]7501;?\x1b\\";
 

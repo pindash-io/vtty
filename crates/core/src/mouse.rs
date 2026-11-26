@@ -4,7 +4,7 @@
 //! Mouse event encoding (X10 / normal / SGR / urxvt / pixel).
 //!
 //! Mouse tracking is an xterm extension using DEC private modes
-//! 9/1000/1002/1003/1005/1006/1015/1016 — see [xterm ctlseqs, Mouse Tracking].
+//! 9/1000/1002/1003/1005/1006/1015/1016; see [xterm ctlseqs, Mouse Tracking].
 //!
 //! [xterm ctlseqs, Mouse Tracking]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking
 
@@ -99,7 +99,7 @@ impl MouseButton {
         SmallVec::from([0x1b, b'[', b'M', cb, cx as u8, cy as u8])
     }
 
-    /// Encode this event in DEC 1005 UTF-8 mouse style — X10's `CSI M Cb`
+    /// Encode this event in DEC 1005 UTF-8 mouse style: X10's `CSI M Cb`
     /// prefix, but `Cx`/`Cy` are UTF-8 encoded instead of truncated single
     /// bytes. Built inline (no heap `String`).
     #[inline]

@@ -79,10 +79,10 @@ pub enum KeyLocation {
 pub struct KeyModes {
     /// DECKPAM/DECNKM (`ESC =` / `CSI ?66h`) application keypad.
     pub application_keypad: bool,
-    /// DEC 1035 (`CSI ?1035h`) — ignore the numlock: the keypad is always
+    /// DEC 1035 (`CSI ?1035h`): ignore numlock, the keypad is always
     /// numeric, never application.
     pub numlock_ignored: bool,
-    /// DECBKM (`CSI ?67h`) — Backspace sends `\x08` instead of `\x7f`.
+    /// DECBKM (`CSI ?67h`): Backspace sends `\x08` instead of `\x7f`.
     pub backarrow: bool,
 }
 
@@ -177,7 +177,7 @@ impl Modifiers {
     }
 }
 
-/// A terminal key, winit-free — the single representation the encoders need.
+/// A terminal key, winit-free: the single representation the encoders need.
 #[derive(Clone, Copy, Debug)]
 pub enum Key {
     /// A character key.

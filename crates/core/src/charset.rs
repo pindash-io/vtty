@@ -161,7 +161,7 @@ pub struct Scs {
     pub gl: u8,
     /// `SS2`/`SS3` single shift for the next printable char only.
     pub single_shift: Option<u8>,
-    /// `single_shift.is_none() && locked() == Ascii` — cached so the bulk
+    /// Cached `single_shift.is_none() && locked() == Ascii`, so the bulk
     /// ASCII path reads one flag instead of the `Option` + the slot lookup.
     pub ascii_fast: bool,
 }
@@ -223,7 +223,7 @@ impl Scs {
         self.charsets.get(gl as usize)
     }
 
-    /// The locked charset (the GL slot, ignoring any SS2/SS3 single shift) —
+    /// The locked charset (the GL slot, ignoring any SS2/SS3 single shift),
     /// the bulk path where the caller has already verified `single_shift` is
     /// `None`.
     #[inline]
@@ -240,7 +240,7 @@ impl Scs {
         charset.map(c)
     }
 
-    /// Translate a char through the locked charset only — the bulk path where
+    /// Translate a char through the locked charset only: the bulk path where
     /// the caller has already verified `single_shift` is `None` (so `active()`
     /// would just read `gl`). Skips the `Option` unwrap and the `single_shift`
     /// write of [`Self::map`].

@@ -21,7 +21,7 @@ use crate::traits::{Decode, Encode};
 use crate::varint::{decode_varint, encode_varint};
 use crate::{impl_bitflags_codec, impl_tagged_codec};
 
-/// `Event` variant discriminant — the tag byte of the wire format, mirroring
+/// `Event` variant discriminant: the tag byte of the wire format, mirroring
 /// `Event`'s declaration order. Private on purpose: the tag is an
 /// implementation detail, not part of the public API.
 #[repr(u8)]

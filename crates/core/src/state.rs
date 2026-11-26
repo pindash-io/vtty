@@ -72,7 +72,7 @@ impl State {
     }
 
     /// 0-based byte column of the cursor within its line (offset from the
-    /// line start, not a terminal cell column — this byte-cursor state has no
+    /// line start, not a terminal cell column; this byte-cursor state has no
     /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
     /// [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {

@@ -78,7 +78,7 @@ pub enum Event {
 }
 
 impl Event {
-    /// Append the canonical escape-sequence bytes to `out` — the textual
+    /// Append the canonical escape-sequence bytes to `out`, the textual
     /// inverse of the parser, so re-parsing the appended bytes reproduces
     /// `self` (modulo the `-1` empty-param sentinel).
     pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
@@ -376,7 +376,7 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
     for (i, p) in params.iter().enumerate() {
         if i > 0 {
             // The separator before param `i` is "param `i - 1` followed by
-            // colon" — bit `i - 1` of the bitfield.
+            // colon": bit `i - 1` of the bitfield.
             let colon = param_colon_sep(sep, i - 1);
             out.push(if colon { b':' } else { b';' });
         }

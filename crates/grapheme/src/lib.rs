@@ -181,7 +181,7 @@ impl Iterator for Graphemes<'_> {
 
         loop {
             let Some(ch) = self.text.get(self.pos..).and_then(|s| s.chars().next()) else {
-                // GB2: ÷ eot — emit the final open cluster.
+                // GB2: ÷ eot, emit the final open cluster.
                 self.finished = true;
                 return Some(Grapheme::new(self.cluster_start, self.text.len()));
             };
@@ -191,7 +191,7 @@ impl Iterator for Graphemes<'_> {
 
             match self.left {
                 None => {
-                    // GB1: sot ÷ — the first char always starts a cluster.
+                    // GB1: sot ÷, the first char always starts a cluster.
                     self.start_cluster(idx, gcb);
                 }
                 Some(left) => {
@@ -435,7 +435,7 @@ mod tests {
             "❤\u{FE0F} vs16",
             "가나 hangul",
             // Controls/format chars break clusters but are zero-width, and
-            // Hangul V/T only attach to a Hangul base — the width model and
+            // Hangul V/T only attach to a Hangul base; the width model and
             // the grapheme model must agree on both.
             "¡\0",
             "a\0b",
