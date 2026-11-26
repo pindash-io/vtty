@@ -72,9 +72,8 @@ impl Grapheme {
     }
 }
 
-/// The GB11 lookahead state: whether the current cluster so far ends with
-/// `Extended_Pictographic Extend*` (awaiting `ZWJ`) or that plus `ZWJ`
-/// (awaiting the following `Extended_Pictographic`).
+/// GB11 lookahead: the cluster so far ends with `Extended_Pictographic Extend*`,
+/// awaiting `ZWJ`, or that plus `ZWJ`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Gb11 {
     None,

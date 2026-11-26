@@ -277,10 +277,9 @@ impl Screen {
         self.modes.contains(ScreenFlags::ALT_ACTIVE)
     }
 
-    /// Enter the alternate screen buffer, swapping the active and saved
-    /// per-buffer state. `clear` blanks the (newly active) alt grid, homes its
-    /// cursor, and resets its margins and styles (DEC 1047/1049); DEC 47
-    /// passes `false` to keep the previous alt content.
+    /// Enter the alternate screen buffer, swapping the active and saved per-buffer state.
+    /// `clear` also blanks the new alt grid, homes its cursor and resets its margins
+    /// and styles (DEC 1047/1049); DEC 47 passes `false` to keep the previous content.
     fn enter_alt(&mut self, clear: bool) {
         if self.modes.contains(ScreenFlags::ALT_ACTIVE) {
             return;
@@ -360,10 +359,9 @@ impl Screen {
         col < self.cols && self.tab_stops[col as usize]
     }
 
-    /// Assert the screen's structural invariants: cursor, saved cursor and
-    /// margins in bounds, ring-buffer offsets valid, and per-buffer vectors
-    /// sized to the grid. Panics on the first violation; called only from
-    /// tests and fuzzing.
+    /// Assert the screen's structural invariants: cursor, saved cursor and margins in
+    /// bounds, ring-buffer offsets valid, per-buffer vectors sized to the grid. Panics on
+    /// the first violation; test and fuzz only.
     pub fn check_invariants(&self) {
         assert!(
             self.active.cursor.row < self.rows,
@@ -464,10 +462,9 @@ impl Screen {
         self.check_cell_continuations(&self.inactive.cells);
     }
 
-    /// Assert that no continuation cell is orphaned: every double-width
-    /// continuation immediately follows a non-continuation lead cell. (The
-    /// lead's single-char width can be 1 for a grapheme cluster whose total
-    /// width is 2, so it is not checked here.)
+    /// Assert that no continuation cell is orphaned: every double-width continuation
+    /// immediately follows a non-continuation lead cell. The lead's own width may be 1
+    /// for a cluster that is 2 cells wide overall, so it is not checked.
     fn check_cell_continuations(&self, cells: &[Cell]) {
         for row in 0..self.rows as usize {
             let base = row * self.cols as usize;
@@ -482,10 +479,9 @@ impl Screen {
         }
     }
 
-    /// Resolve a [`ColorId`] to packed `0xRRGGBBAA`. The default fg/bg ids use
-    /// the configured default colors; the 16 ANSI colors use the configured
-    /// palette; `16..=255` use the xterm table; truecolor ids (`>= 258`) look
-    /// up the screen's dynamic palette.
+    /// Resolve a [`ColorId`] to packed `0xRRGGBBAA`. Default fg/bg use the configured
+    /// defaults, `0..=15` the configured palette, `16..=255` the xterm table, and
+    /// truecolor ids (`>= 258`) the screen's dynamic palette.
     #[must_use]
     pub fn color_rgb(&self, id: ColorId) -> Option<u32> {
         match id.0 {
@@ -587,9 +583,8 @@ impl Screen {
             .collect()
     }
 
-    /// Render every row to ANSI-styled text (for snapshots/tests): each row
-    /// `\r\n`-terminated, cells carrying their SGR attributes. Trailing blank
-    /// cells are trimmed; each line ends with an SGR reset.
+    /// Render every row to ANSI-styled text, for snapshots and tests: rows
+    /// `\r\n`-terminated, trailing blanks trimmed, each line closed with an SGR reset.
     #[must_use]
     pub fn render_ansi(&self) -> String {
         let mut out = String::new();
@@ -678,9 +673,8 @@ impl Screen {
         self.scrollback.set_max(n);
     }
 
-    /// Resize to `cols × rows`, reflowing soft-wrapped lines (in the screen
-    /// and its scrollback) at the new width. The cursor is reset to home.
-    /// Zero dimensions clamp to 1.
+    /// Resize to `cols x rows`, reflowing soft-wrapped lines in the screen and its
+    /// scrollback. The cursor homes; zero dimensions clamp to 1.
     pub fn resize(&mut self, cols: u32, rows: u32) {
         let cols = cols.max(1);
         let rows = rows.max(1);
@@ -745,10 +739,9 @@ impl Screen {
         self.scrollback.line(i).map(render_cells)
     }
 
-    /// Attach a zero-width glyph (combining mark, variation selector, skin
-    /// tone) to the base cell immediately left of the cursor, skipping a
-    /// double-width continuation cell. Marks beyond eight are dropped; a
-    /// leading mark with no base cell is dropped.
+    /// Attach a zero-width glyph (combining mark, variation selector, skin tone) to the
+    /// base cell left of the cursor, skipping a double-width continuation. Marks past
+    /// eight, and a leading mark with no base, are dropped.
     fn attach_mark(&mut self, c: char) {
         if self.active.cursor.col == 0 {
             return;

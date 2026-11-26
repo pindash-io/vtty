@@ -18,11 +18,8 @@
     reason = "module documents LaTeX math formulas, not Rust identifiers"
 )]
 
-/// The write-order boundary DATA for the split-DFA (spec §3.3): the per-byte
-/// flags where the emoji DFA restarts (`B`) and the byte offsets where a
-/// REP'd base was flushed (`F`). Pure data — the live automaton flags live in
-/// [`EmojiTrace`], which OWNS a `SplitBoundaries` alongside them.
-///
+/// Per-byte write-order boundary data for the split-DFA (spec §3.3): the DFA
+/// restart flags `B` and the flushed-base offsets `F`.
 /// $$B = \{ \mathsf{bytes}(s, k) : fb\lbrack{}k\rbrack \neq 0 \}, \qquad F = \mathsf{zwj\_flushes}$$
 #[derive(Debug, Default)]
 pub struct SplitBoundaries {
@@ -37,13 +34,8 @@ pub struct SplitBoundaries {
     pub zwj_flushes: Vec<usize>,
 }
 
-/// The live write-order emoji/ZWJ width automaton (spec §3.2/§3.3).
-///
-/// Tracks the open-ZWJ / fresh-base / flushed-base state and records the
-/// per-byte [`SplitBoundaries`] the segmented DFA ([`split_widths`]) consumes.
-/// Shared by terminal consumers so they use one width model.
-///
-/// State tuple (spec §3.2):
+/// The live write-order emoji/ZWJ width automaton (spec §3.2/§3.3). Records the
+/// [`SplitBoundaries`] that [`split_widths`] consumes.
 /// $$(\mathsf{zwj}, \mathsf{prev\_emoji}, \mathsf{drop\_next\_zwj}, \mathsf{grapheme\_open}) \in \mathbb{B}^4$$
 #[derive(Debug, Default)]
 pub struct EmojiTrace {
@@ -86,11 +78,8 @@ impl EmojiTrace {
         self.mark_bit(abs, Self::FB_FRESH);
     }
 
-    /// Relocate a fresh-base flag from `pos` to `pos + diff` — the ICH case:
-    /// the generic fb splice restores the flag at the insert point and clears
-    /// its shifted copy (the "pure insert" survive rule), but an ICH is a
-    /// shift: the fresh base (a standalone mark) moves right with the
-    /// content, past the inserted blanks.
+    /// Move a fresh-base flag from `pos` to `pos + diff`: an ICH shifts the content, so
+    /// the flag moves past the inserted blanks.
     pub fn shift_fresh_over_insert(&mut self, pos: usize, diff: usize) {
         if diff == 0 {
             return;
@@ -144,10 +133,8 @@ impl EmojiTrace {
         }
     }
 
-    /// Clear the fresh bits in `[start, end)` — an erase (ECH/ED/EL/DCH)
-    /// removes the chars, so their fresh-base markers must not survive the
-    /// generic `splice_fb` "edit at a boundary survives" rule (a stale
-    /// marker would re-classify the replacement blank/mark as a fresh base).
+    /// Clear the fresh bits in `[start, end)`; an erase removes the chars, so their
+    /// fresh-base markers must not survive the `splice_fb` boundary rule.
     #[inline]
     pub fn clear_fresh_range(&mut self, start: usize, end: usize) {
         if start >= end {
@@ -327,9 +314,8 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
     }
 }
 
-/// The sorted-offset splice map: keep `t < pos`, drop `[pos, end)`, and
-/// shift `t >= end` by `diff` (clamped to 0). `None` drops the offset — the
-/// pure arithmetic behind the byte-offset traces' edit splice (spec §3.3).
+/// Splice the sorted offsets through a `[pos, end) -> diff` byte edit: keep `t < pos`,
+/// drop `[pos, end)`, shift the rest by `diff`.
 #[inline]
 pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<usize> {
     if t < pos {
@@ -341,12 +327,8 @@ pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<us
     None
 }
 
-/// `W(s[a..b), B, F)` — the Layer-3 derived width:
-/// `correct_F(seg(B, s[a..b)))`. Pure function of the text slice and the
-/// write-order boundary data, so the spec's non-compositionality
-/// counterexamples are directly testable.
-///
-/// Spec §3.3:
+/// `W(s[a..b), B, F)`, the Layer-3 derived width. Pure in the text slice and the
+/// boundary data, so the spec's non-compositionality counterexamples are testable.
 /// $$W(s, a, b, B, F) = \mathsf{correct\_F}(\mathsf{seg}(B, s[a..b)), s, a, F)$$
 pub fn split_widths(text: &str, b: &SplitBoundaries, start: usize) -> Vec<usize> {
     if crate::first_non_ascii(text.as_bytes()) == text.len() {
@@ -415,11 +397,8 @@ pub const fn classify_cell(
     }
 }
 
-/// The row-wrap width of one printed char: the DFA width, but never less than
-/// the cursor advance (`cell`). A 0-cell ZWJ continuation still occupies its
-/// DFA width for the autowrap decision.
-///
-/// Spec §Corollary 8:
+/// Row-wrap width of one printed char: the DFA width, but never less than the cursor
+/// advance.
 /// $$\mathsf{wrap\_width}(\mathsf{cell}, \mathsf{dfa\_w}) = \max(\mathsf{cell}, \mathsf{dfa\_w})$$
 #[inline]
 pub fn wrap_width(cell: usize, dfa_w: Option<usize>) -> usize {
