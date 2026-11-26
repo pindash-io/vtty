@@ -607,7 +607,7 @@ impl Parser {
                             break;
                         }
                         b = run[pos];
-                        if b == 0x1b || !(b == 0x7f || b < 0x20) {
+                        if b == 0x1b || !matches!(b, 0x7f | ..0x20) {
                             break;
                         }
                     }
