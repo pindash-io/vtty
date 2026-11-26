@@ -17,9 +17,7 @@ use crate::utils::{
     is_osc_boundary,
 };
 
-/// One UTF-8 byte's seven payload bits: the lead and continuation markers sit
-/// above them. Ungated — the 3-byte decode path is built without
-/// `simd-transcode`.
+/// One UTF-8 byte's seven payload bits; the markers sit above them.
 const PAYLOAD_MASK: u32 = 0x7f;
 
 /// What terminates the scan run.
@@ -29,9 +27,9 @@ enum ScanKind {
     NonPrintable,
     /// The `ESC` byte.
     Esc,
-    /// OSC payload boundary.
+    /// An OSC payload boundary.
     OscBoundary,
-    /// DCS passthrough boundary.
+    /// A DCS passthrough boundary.
     DcsBoundary,
 }
 

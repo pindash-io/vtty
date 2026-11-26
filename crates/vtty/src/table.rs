@@ -66,7 +66,7 @@ bitflags::bitflags! {
     /// which the parser coalesces into `osc_dispatch`.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub(crate) struct Action: u16 {
-        /// No action.
+    /// No action.
         const NONE = 0;
         const PRINT = 1 << 0;
         const EXECUTE = 1 << 1;
