@@ -99,9 +99,8 @@ pub use write_order::{
     EmojiTrace, SplitBoundaries, classify_cell, splice_offset, split_widths, wrap_width,
 };
 
-/// CJK width mode: East Asian Width "Ambiguous" (A) chars become 2 cells
-/// (like `wcwidth` under a CJK locale). Off by default, so Ambiguous chars
-/// stay 1 cell.
+/// CJK width mode: East Asian Width "Ambiguous" chars become 2 cells, as
+/// `wcwidth` does under a CJK locale.
 static CJK_WIDTH: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 /// Set whether Ambiguous chars are 2 cells wide.
@@ -494,9 +493,8 @@ mod tests {
         assert_eq!(cell_col_byte_widths(text, 3), text.len());
     }
 
-    /// The fuzz-minimized fixture prefix: halfwidth space (0), CJK (2), an emoji (2),
-    /// a two-emoji ZWJ family (2), a mahjong tile (1), `👍` (2). Nine cells that lock
-    /// the ZWJ merge and the mahjong/halfwidth-space widths across both renderers.
+    /// The fuzz-minimized fixture prefix: halfwidth space, CJK, an emoji, a ZWJ
+    /// family, a mahjong tile and `👍`, nine cells in all.
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn zwj_family_plus_mahjong_and_halfwidth_space_widths() {

@@ -160,9 +160,8 @@ impl<S: Source> Widths<S> {
         }
     }
 
-    /// Bulk-fill consecutive standalone bases from the current position,
-    /// returning `true` if any were emitted. Only valid in the clean state
-    /// (no open emoji run, no pending flush); the caller guarantees it.
+    /// Bulk-fill consecutive standalone bases, returning `true` if any were
+    /// emitted; only valid in the clean state.
     fn fill_plain_run(&mut self, out: &mut Vec<usize>) -> bool {
         let mut n = 0;
         while self.pos < self.src.len() {
@@ -212,9 +211,8 @@ impl<S: Source> Widths<S> {
         true
     }
 
-    /// Emit a standalone width-1/2 base: set the base state, then either
-    /// return the width (no pending emoji run) or buffer it behind the
-    /// pending run's flush. `None` means "buffered, keep looping".
+    /// Emit a standalone width-1/2 base, buffering it behind a pending run when
+    /// there is one. `None` means "buffered, keep looping".
     #[inline]
     fn emit_base(&mut self, w: usize) -> Option<usize> {
         match self.run.take() {
@@ -460,9 +458,8 @@ pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {
     widths
 }
 
-/// The single-lookup print-handoff path: returns `(cell_width(c), standalone)`
-/// from one [`Properties`] lookup, using `next` for the standalone-emoji
-/// lookahead.
+/// The single-lookup print handoff: `(cell_width(c), standalone)` from one
+/// [`Properties`] lookup.
 #[must_use]
 #[inline]
 pub fn width_and_standalone(c: char, next: Option<u32>) -> (Option<usize>, bool) {
@@ -668,9 +665,8 @@ pub fn grapheme_end_from_widths(text: &str, widths: &[usize], byte: usize) -> us
     end
 }
 
-/// The byte offset (into `text`) just past the trailing zero-width marks
-/// (VS16/VS15/ZWJ/combining) that begin at `byte`, walking precomputed
-/// per-char `widths`. Stops at the first width>0 char or a newline.
+/// Byte offset just past the zero-width marks starting at `byte`, stopping at
+/// the first width>0 char or a newline.
 #[must_use]
 #[inline]
 pub fn grapheme_tail_end_from_widths(text: &str, widths: &[usize], byte: usize) -> usize {

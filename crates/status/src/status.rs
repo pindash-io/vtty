@@ -323,9 +323,7 @@ const fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'+' | b'-')
 }
 
-/// Splits a `key=value` pair at the first `=`. Returns `None` for a malformed
-/// pair: no `=`, an empty/over-long/non-lowercase key, or a forbidden value
-/// byte.
+/// Split a `key=value` pair at the first `=`; `None` for a malformed pair.
 fn split_pair(pair: &[u8]) -> Option<(&[u8], &[u8])> {
     let mut kv = pair.splitn(2, |&b| b == b'=');
     let key = kv.next()?;

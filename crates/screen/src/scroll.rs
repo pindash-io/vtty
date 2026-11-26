@@ -74,9 +74,8 @@ impl Screen {
         self.scroll(true);
     }
 
-    /// Scroll the region one line. `down` shifts content down (RI / SD) and
-    /// inserts a blank row at the top; otherwise content shifts up (LF / SU),
-    /// and a full-screen scroll pushes the top row into scrollback.
+    /// Scroll the region one line: `down` inserts a blank row at the top, else
+    /// content moves up and a full-screen scroll pushes into scrollback.
     pub(crate) fn scroll(&mut self, down: bool) {
         let width = self.cols as usize;
         let top = self.active.margins.top as usize;

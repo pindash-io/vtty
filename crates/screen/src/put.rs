@@ -152,9 +152,8 @@ impl Screen {
         self.active.cells[start..start + cols].copy_within(col..cols - shift, col + shift);
     }
 
-    /// Write a grapheme cluster as one cell: the first glyph is the base, the
-    /// rest are trailing marks. This is what makes a ZWJ emoji family
-    /// (`👨‍👩‍👧`) occupy one cell instead of separate glyphs.
+    /// Write a grapheme cluster as one cell (base plus trailing marks), so a ZWJ
+    /// family occupies one cell.
     pub(crate) fn put_cluster(&mut self, cluster: &str) {
         let mut chars = cluster.chars();
         let Some(base) = chars.next() else {

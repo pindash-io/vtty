@@ -65,9 +65,8 @@ impl Selector {
         true
     }
 
-    /// The base's target cell width when this selector applies, or `None`
-    /// for ZWJ (a joiner never changes the width) and for a VS whose base
-    /// is not a variation base.
+    /// The base's target width when this selector applies; `None` for ZWJ and
+    /// for a VS on a non-variation base.
     #[inline]
     pub fn target_width(self, base: char) -> Option<usize> {
         if !self.is_vs() || !is_vs_target(base) {
@@ -80,9 +79,8 @@ impl Selector {
     }
 }
 
-/// An open emoji run: the lead char plus its continuations, whose final cell
-/// width is only known once the run closes (a VS16/ZWJ that arrives later can
-/// widen or extend the lead).
+/// An open emoji run: the lead plus its continuations, whose width is known
+/// only once the run closes (a later VS16/ZWJ can change it).
 pub(crate) struct Run {
     dfa: EmojiDFA,
     lead: char,
@@ -228,9 +226,8 @@ pub(crate) const fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
     )
 }
 
-/// Whether `c` (with packed `p`) can start an emoji sequence: the direct
-/// packed-property form of `is_emoji_starter(category_from(p, c))`, avoiding
-/// the parley `from_codepoint` classification on the hot path.
+/// Whether `c` can start an emoji sequence, from its packed properties: the
+/// hot form of `is_emoji_starter(category_from(p, c))`.
 #[inline]
 pub(crate) const fn is_emoji_starter_from(p: Properties, c: char) -> bool {
     p.is_regional_indicator()
@@ -333,9 +330,8 @@ pub(crate) fn run_continues(
     }
 }
 
-/// The finalized width of the run's LEAD, with the lone-mark fix folded in: a
-/// lone 0-width mark occupies its own cell (1) unless it is a selector
-/// (invisible, 0) or a base precedes it (attaches, 0).
+/// The run lead's final width, with the lone-mark fix: a lone 0-width mark
+/// takes its own cell unless it is a selector.
 #[inline]
 pub(crate) fn finalize_lead(
     r: &Run,

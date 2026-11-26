@@ -6,9 +6,8 @@
 
 use parley_emoji::EmojiSegmentationCategory;
 
-/// Composite per-codepoint properties (parley-style): a single packed value
-/// holding the emoji flags and the display width, so one lookup serves the
-/// whole width/emoji pipeline.
+/// Composite per-codepoint properties: the emoji flags and the display width
+/// in one packed value.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Properties(u16);
 
@@ -25,9 +24,8 @@ impl Properties {
     const WIDTH_SHIFT: u16 = 5;
     const WIDTH_MASK: u16 = 0b11;
 
-    /// Resolve the composite properties for a char: the baked table when
-    /// `baked` is on, ICU4X runtime otherwise, degenerate width 1 when no
-    /// backend is compiled in.
+    /// Resolve a char's composite: the baked table, ICU4X runtime, or a
+    /// degenerate width 1 with no backend.
     #[inline]
     pub fn get(ch: char) -> Self {
         #[cfg(feature = "baked")]
@@ -258,9 +256,8 @@ pub(crate) const fn category_from(p: Properties, c: char) -> EmojiSegmentationCa
     )
 }
 
-/// Index of the first byte >= 0x80 (non-ASCII), or `bytes.len()` when the
-/// whole slice is ASCII. With the `simd` feature this is a 16-byte-at-a-time
-/// vectorized scan; otherwise a scalar fallback.
+/// Index of the first non-ASCII byte, or `bytes.len()`: a 16-byte vector scan
+/// with `simd`, a scalar fallback otherwise.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub fn first_non_ascii(bytes: &[u8]) -> usize {
     #[cfg(feature = "simd")]
@@ -296,9 +293,8 @@ pub fn is_printable_ascii(bytes: &[u8]) -> bool {
     first_non_printable_ascii(bytes) == bytes.len()
 }
 
-/// Whether a char occupies no cell in the terminal grid: a combining mark,
-/// VS15/VS16, ZWJ, skin-tone modifier, tag char, or control (`cell_width` is
-/// `None` for controls). This is the single "does it take a cell" predicate.
+/// Whether a char takes no cell: a combining mark, selector, ZWJ, skin tone,
+/// tag char or control.
 #[inline]
 pub fn is_zero_width(c: char) -> bool {
     !matches!(cell_width(c), Some(1) | Some(2))

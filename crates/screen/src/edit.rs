@@ -72,9 +72,8 @@ impl Screen {
         self.shift_chars(n, false);
     }
 
-    /// Insert (`insert = true`) or delete (`false`) cells at the cursor on
-    /// the current line, treating a double-width glyph (lead + continuation)
-    /// as an atomic unit so edits never split or orphan one.
+    /// Insert (`true`) or delete (`false`) cells at the cursor, treating a
+    /// double-width glyph as one unit.
     pub(crate) fn shift_chars(&mut self, n: u32, insert: bool) {
         let cols = self.cols as usize;
         let row = self.row_offset(self.active.cursor.row);

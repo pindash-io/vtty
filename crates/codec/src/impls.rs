@@ -221,9 +221,7 @@ macro_rules! impl_bitflags_codec {
     };
 }
 
-/// Encodes a fieldless enum as one discriminant byte. The tag is written
-/// next to each variant so the on-wire mapping is auditable in one place;
-/// decoding rejects unknown tags.
+/// Encode a fieldless enum as one discriminant byte; unknown tags fail to decode.
 #[macro_export]
 macro_rules! impl_tagged_codec {
     ($ty:ty, $($tag:literal => $variant:path),+ $(,)?) => {
