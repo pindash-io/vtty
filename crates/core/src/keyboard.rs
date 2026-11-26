@@ -49,12 +49,12 @@ pub enum KeyEncoding {
 /// Key press/repeat/release event type (for kitty `report_events`, flag 2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum KeyEventKind {
-    /// A key press.
+    /// A key press, the kitty `:1` event type.
     #[default]
     Press,
-    /// A held-key repeat.
+    /// A held-key repeat, the kitty `:2` event type.
     Repeat,
-    /// A key release.
+    /// A key release, the kitty `:3` event type.
     Release,
 }
 
@@ -180,29 +180,29 @@ impl Modifiers {
 /// A terminal key, winit-free: the single representation the encoders need.
 #[derive(Clone, Copy, Debug)]
 pub enum Key {
-    /// A character key.
+    /// A character key; the legacy encoder sends its UTF-8.
     Character(char),
-    /// Backspace.
+    /// Backspace, `0x7f` (or `0x08` under DECBKM); kitty key code 127.
     Backspace,
-    /// Tab.
+    /// Tab, `\t`; kitty key code 9.
     Tab,
     /// A functional key.
     Named(KeySpec),
     /// A keypad key. `legacy` is `Some` for the keys the legacy encoder sends as keypad.
     Keypad {
-        /// kitty keycode.
+        /// Kitty key code.
         kitty: u32,
-        /// legacy SS3 symbol + numerical-mode char, when legacy treats this
+        /// Legacy SS3 symbol + numerical-mode char, when legacy treats this
         /// key as keypad.
         legacy: Option<(char, char)>,
-        /// legacy fallback spec for functional keypad keys (arrows/editing).
+        /// Legacy fallback spec for functional keypad keys (arrows/editing).
         spec: Option<KeySpec>,
     },
     /// A modifier key under `report_all_keys`. `legacy` carries the bytes for keys that have them.
     Modifier {
-        /// kitty keycode.
+        /// Kitty key code.
         kitty: u32,
-        /// legacy byte sequence, when the key has one.
+        /// Legacy byte sequence, when the key has one.
         legacy: Option<&'static str>,
     },
 }

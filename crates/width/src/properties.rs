@@ -172,9 +172,9 @@ pub enum Gcb {
     ZWJ = 5,
     /// Regional indicator, a flag half.
     RegionalIndicator = 6,
-    /// `Prepend`.
+    /// `Prepend`, joins the following cluster (`GB9b`).
     Prepend = 7,
-    /// `SpacingMark`.
+    /// `SpacingMark`, joins the preceding cluster (`GB9a`).
     SpacingMark = 8,
     /// Hangul leading jamo `L`.
     L = 9,
