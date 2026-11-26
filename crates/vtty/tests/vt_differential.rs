@@ -1,15 +1,10 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Differential test: run a corpus of VT byte sequences through both `vtty`
-//! and the reference `vte` crate, normalize the action streams, and assert
-//! they match. Divergences mark sequences vtty does not yet handle.
+//! Differential test: the same corpus through `vtty` and the `vte` crate, with
+//! both action streams normalized to `vtty::Event` and compared.
 //!
-//! vtty's enum API (`vtty::Event` + `Parser::parse_events`) is compared
-//! against vte's `Perform` callbacks, both normalized to `vtty::Event`.
-//!
-//! Run with `--nocapture` to see the full difference report:
-//!   cargo test --test `vt_differential` -- --nocapture
+//! `cargo test --test vt_differential -- --nocapture` prints the divergences.
 
 mod common;
 

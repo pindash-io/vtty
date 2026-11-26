@@ -1,6 +1,5 @@
-// Robustness fuzz target: feed arbitrary bytes to every parser and ensure
-// none of them panic. This is the only meaningful check for `vt100`, which is
-// a full-screen emulator (no event stream to compare).
+// Robustness fuzz target: arbitrary bytes must never panic any parser. The
+// only check available for `vt100`, which has no event stream.
 
 #![no_main]
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]

@@ -1,7 +1,5 @@
-// Structured random fuzzing: generate VT-ish byte sequences from the fuzzer
-// seed and run the vtty-vs-vte differential check. Complements the byte-
-// mutation targets by biasing toward escape sequences and multi-byte UTF-8,
-// which pure mutation takes longer to discover.
+// Structured random fuzzing: VT-shaped sequences from the fuzzer seed through
+// the vtty-vs-vte check, biasing toward escapes and multi-byte UTF-8.
 
 #![no_main]
 #![allow(

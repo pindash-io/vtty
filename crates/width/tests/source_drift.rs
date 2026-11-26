@@ -1,10 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! The two width `Source` impls (`Bytes` and `Codepoints`) must agree: the
-//! same text decoded on the fly vs fed as pre-decoded code points must yield
-//! identical per-char widths. This guards against drift between the two
-//! copies of the scan/decode logic.
+//! The `Bytes` and `Codepoints` sources must agree: decoded on the fly or fed
+//! pre-decoded, the same text yields identical per-char widths.
 
 use vtty_width::{cell_widths, cell_widths_from_codepoints};
 

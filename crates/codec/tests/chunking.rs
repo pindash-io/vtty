@@ -1,11 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Chunking-invariance for the streaming codec: a value must decode to the
-//! same result no matter how its encoding is split across `Decoder::advance`
-//! calls. This is the observable contract of `Decoder`'s buffered, re-decode
-//! state machine (varint lengths + length-prefixed payloads arrive
-//! incrementally).
+//! Chunking-invariance for the streaming codec: a value decodes the same no
+//! matter how its encoding is split across `Decoder::advance` calls.
 
 use vtty_codec::{Decode, Decoder, Encode, decode_from_slice, encode_to_vec};
 use vtty_core::{Event, Recording};

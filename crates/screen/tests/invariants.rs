@@ -1,11 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Property test: feed curated and pseudo-random VT bytes through the parser
-//! into a `Screen`, asserting the screen's structural invariants after every
-//! chunk. Exercises the implicit state machines (autowrap, origin mode,
-//! insert/replace, scroll margins, alt-screen swap, the ring buffer) by
-//! driving them with a deterministic byte generator.
+//! Property test: curated and pseudo-random VT bytes through the parser into a
+//! `Screen`, asserting its structural invariants after every chunk.
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -79,9 +76,8 @@ fn screen_invariants_hold_under_vt_input() {
     let mut parser = Parser::new();
     let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
 
-    // Curated sequences that toggle the trickiest state machines: alt-screen
-    // swap, margins, origin mode, insert mode, wide/combining glyphs, OSC,
-    // DCS, DECALN, and soft reset.
+    // Sequences that toggle the trickiest machines: alt-screen, margins, ICH,
+    // wide glyphs, OSC, DCS, DECALN, soft reset.
     let curated: &[&[u8]] = &[
         b"hello world\r\n",
         "\u{1b}[?1049h".as_bytes(), // enter alt screen (clear)

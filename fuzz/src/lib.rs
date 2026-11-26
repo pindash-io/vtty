@@ -231,10 +231,8 @@ pub fn has_rio_utf8_simd_divergence(data: &[u8]) -> bool {
                 0x30..=0x7e => mode = Mode::Ground,
                 _ => {}
             },
-            // After an ESC intermediate (`0x20..=0x2f`) the introducers are
-            // no longer introducers: every `0x30..=0x7e` byte is an ESC final
-            // that dispatches and returns to ground (e.g. `ESC SP ]` is an
-            // EscDispatch, not OSC).
+            // After an ESC intermediate every `0x30..=0x7e` is an ESC final, so
+            // `ESC SP ]` is an EscDispatch, not OSC.
             Mode::EscapeIntermediate => match b {
                 0x1b => mode = Mode::Escape,
                 0x18 | 0x1a => mode = Mode::Ground,
@@ -387,9 +385,7 @@ pub fn has_osc_verbatim_divergence(data: &[u8]) -> bool {
         match s {
             S::Ground => {
                 if b == 0x1b {
-                    // `ESC` + any run of Escape-staying bytes + `]` is an OSC
-                    // introducer. `ESC <intermediate> ]` is an escape final,
-                    // not OSC, so only the direct run qualifies.
+                    // `ESC <intermediate> ]` is an escape final, not OSC.
                     let mut j = i + 1;
                     while data.get(j).is_some_and(|&c| stays_in_escape(c)) {
                         j += 1;
@@ -432,9 +428,7 @@ pub fn has_osc_verbatim_divergence(data: &[u8]) -> bool {
                     i += 1;
                 }
                 0x1b => {
-                    // ESC both ends the OSC and starts the next escape
-                    // sequence (e.g. `ESC ] ... ESC ] ...`). Reprocess it
-                    // from Ground so the following OSC is not missed.
+                    // ESC ends the OSC and starts the next: reprocess from Ground.
                     s = S::Ground;
                 }
                 0x00..=0x06 | 0x08..=0x17 | 0x19 | 0x1c..=0x1f => {
@@ -679,11 +673,8 @@ mod tests {
 
     #[test]
     fn esc_intermediate_final_returns_to_ground() {
-        // `ESC SP ]` is an EscDispatch (final `]`), not OSC, so the bytes
-        // after it are ground-state UTF-8 again. The truncated `D5` lead
-        // followed by `1` must be flagged. (This is the exact shape of a
-        // CI fuzz-smoke divergence that escaped the pre-EscapeIntermediate
-        // filter.)
+        // `ESC SP ]` is an EscDispatch, so the bytes after it are ground UTF-8
+        // again; the truncated `D5` lead must be flagged.
         assert!(has_rio_utf8_simd_divergence(b"\x1b\xc2\xc2 \x5d\xd5\x31"));
         // Without the `]` final, the escape sequence is still open: `D5 31`
         // are escape-payload/ignored bytes, not ground UTF-8.

@@ -1,6 +1,5 @@
-// Differential fuzz target: vtty vs rio-vt's standalone parser. Same shape as
-// `differential.rs` (vte); rio-vt is a fork of Alacritty's VTE, so the known
-// divergences are the same.
+// Differential fuzz target: vtty vs rio-vt, with the same known divergences
+// as `differential.rs`.
 
 #![no_main]
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]
