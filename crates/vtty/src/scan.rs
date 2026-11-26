@@ -31,15 +31,13 @@ const fn swar_byte_eq(w: u64, b: u8) -> u64 {
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
-/// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
-/// scan falls through to the same scalar tail loop anyway, so the SWAR path
-/// stays faster, and ANSI-dense input produces runs this short.
+/// Minimum run length that pays for the SIMD dispatch; below it the SWAR path
+/// is faster, and ANSI-dense input produces runs this short.
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
-/// Run the SWAR scan unless the `simd` feature is on, the parser opted in, and
-/// the first `SIMD_MIN_RUN` bytes hold no stop, the same probe the scalar path
-/// uses, so a run that ends early never pays for the vector dispatch.
+/// Run the SWAR scan unless `simd` is on, the parser opted in, and the first
+/// `SIMD_MIN_RUN` bytes hold no stop.
 macro_rules! scan_or_simd {
     ($bytes:expr, $simd:expr, $mask:expr, $scalar:expr, $vector:path) => {{
         #[cfg(feature = "simd")]
@@ -55,9 +53,8 @@ macro_rules! scan_or_simd {
     }};
 }
 
-/// SWAR scan over whole words: index of the first byte whose
-/// `stop_mask(word)` bit is set (one bit per byte, LSB = first byte), or
-/// `None` when every word is clear. Any trailing bytes are the caller's.
+/// SWAR scan over whole words: index of the first byte whose `stop_mask` bit
+/// is set, or `None` when every word is clear.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_stop_word(bytes: &[u8], stop_mask: impl Fn(u64) -> u64) -> Option<usize> {
     for (i, chunk) in bytes.as_chunks::<8>().0.iter().enumerate() {
@@ -131,9 +128,8 @@ pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
     first_stop_in_word::<8>(bytes, non_printable_mask)
 }
 
-/// Length of the leading printable-ASCII run (`0x20..=0x7e`), the ground
-/// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
-/// `DEL` (`0x7f`) is a C0 control, not printable.
+/// Length of the leading printable-ASCII run (`0x20..=0x7e`); `DEL` is a C0
+/// control, not printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     // ANSI-dense input and short lines leave 0- and 1-byte runs, where a full

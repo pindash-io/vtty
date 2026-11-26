@@ -33,9 +33,8 @@ enum ScanKind {
     DcsBoundary,
 }
 
-/// Two explicit byte checks, then the vector scan: 0- and 1-byte runs are the
-/// common shape (ANSI-dense input, `word\r\n` lines, a `;` right after an OSC
-/// separator), where dispatch and chunk setup cost more than the scan.
+/// Two byte checks, then the vector scan: 0- and 1-byte runs are the common
+/// shape, where dispatch and chunk setup cost more than the scan.
 macro_rules! scan_or_fast {
     ($bytes:expr, $kind:ident, $is_stop:expr) => {{
         if matches!($bytes.first(), Some(b) if $is_stop(b)) {
@@ -49,17 +48,15 @@ macro_rules! scan_or_fast {
     }};
 }
 
-/// Return the index of the first byte outside printable ASCII (`0x20..=0x7e`;
-/// `0x7f` DEL is dispatched via `execute`), or `bytes.len()` if every byte is
-/// printable.
+/// Index of the first byte outside printable ASCII (`0x7f` is `execute`), or
+/// `bytes.len()` when every byte is printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, NonPrintable, is_non_printable)
 }
 
-/// Index of the first `ESC` byte (`0x1b`), or `bytes.len()` if none. Caps the
-/// SIMD UTF-8 decode window at the next sequence introducer, which must
-/// reach the escape state rather than be dispatched as `execute`.
+/// Index of the first `ESC`, or `bytes.len()` if none: it caps the decode
+/// window at a sequence introducer.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = Level::new();
@@ -283,9 +280,8 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
-/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
-/// `0x80..=0x9f`), the ones the dispatch loop must split out via `execute`
-/// instead of a single `print_codepoints` run.
+/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, `0x80..=0x9f`),
+/// so the loop must split the run.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn any_control(cps: &[u32]) -> bool {

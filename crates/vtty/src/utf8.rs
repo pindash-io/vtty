@@ -105,9 +105,8 @@ const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     }
 }
 
-/// If `s` ends with a partial UTF-8 sequence, return
-/// `(valid_prefix_len, partial)`; the partial is carried to the next
-/// `advance` call.
+/// If `s` ends with a partial UTF-8 sequence, return its length and the
+/// partial to carry into the next call.
 pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     let len = s.len();
     if len == 0 {

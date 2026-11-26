@@ -29,9 +29,8 @@ const STATES: [ParseState; 14] = [
     ParseState::SosPmApcString,
 ];
 
-/// The DEC VT500 transition table expanded to a flat `[state][byte]` lookup
-/// table at compile time. 14 states × 256 bytes = 3584 × 4 bytes ≈ 14 KB,
-/// resident in `.rodata`; the runtime lookup is a single load.
+/// The DEC VT500 transition table as a flat `[state][byte]` array built at
+/// compile time: 3584 × 4 bytes ≈ 14 KB in `.rodata`, one load per lookup.
 static TABLE: [(Action, ParseState); 14 * 256] = build_table();
 
 /// The DEC VT500 parser states, named after their "State Definitions" entry
@@ -376,9 +375,8 @@ mod tests {
         }
     }
 
-    /// Deliberate deviations from the DEC diagram (modern protocol
-    /// extensions). `(state, byte)` pairs that intentionally behave
-    /// differently from DEC; everything else must match `dec_step` exactly.
+    /// Deliberate deviations from the DEC diagram (modern extensions); every
+    /// other pair must match `dec_step` exactly.
     fn vtty_deviation(state: ParseState, b: u8) -> Option<(Action, ParseState)> {
         Some(match (state, b) {
             // kitty colon sub-parameters: `:` separates (SGR `38:2::r:g:b`, `4:3`), not

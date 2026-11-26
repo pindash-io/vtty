@@ -25,9 +25,8 @@ use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
 /// and the colon-separator bits.
 #[derive(Debug, PartialEq, Eq)]
 struct Params {
-    /// Current parameter being accumulated. DEC VT500 params are 16-bit
-    /// (0..=65535); `i32` holds the clamped range plus the `-1` empty-param
-    /// sentinel.
+    /// Current parameter being accumulated: DEC's 16-bit range plus the `-1`
+    /// empty-param sentinel.
     param: i32,
     /// True while the current parameter has no digits. A colon-empty param is `-1`,
     /// keeping SGR colon forms distinct from a literal `0`.
@@ -130,14 +129,12 @@ pub struct Parser {
     /// A UTF-8 code point split across `advance` calls (lead + already-arrived
     /// continuation bytes held until the rest arrive).
     partial: PartialUtf8,
-    /// Runtime SIMD toggle: when `true`, the printable-run scan and UTF-8
-    /// validation use SIMD. Only present (and only settable, via
-    /// [`Parser::with_simd`]) when the `simd` feature is compiled in.
+    /// Runtime SIMD toggle for the printable-run scan and UTF-8 validation,
+    /// present only with the `simd` feature.
     #[cfg(feature = "simd")]
     simd: bool,
-    /// Test-only: route the escape-sequence states through the transition
-    /// table (skipping the inline hot-path handlers) so tests can
-    /// differential the table against the optimized paths.
+    /// Test-only: route the escape states through the table instead of the
+    /// inline handlers, so tests can differential the two.
     #[cfg(test)]
     cold: bool,
 }
@@ -162,8 +159,7 @@ impl OscBuffer {
 }
 
 /// Parse one decimal CSI parameter at `*i`, clamped to [`MAX_PARAM_VALUE`].
-/// Absent digits read as `0`, matching what the accumulator yields for an
-/// empty parameter.
+/// Absent digits read as `0`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 const fn param_at(seq: &[u8], i: &mut usize) -> i32 {
     let mut v = 0_i32;
@@ -621,9 +617,8 @@ impl Parser {
         Some(k + 1)
     }
 
-    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can extend
-    /// past the final byte, so every read is bounds-checked; returns the bytes
-    /// consumed, or `None` to bail to the state machine.
+    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can
+    /// extend past the final byte; returns the bytes consumed or `None`.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         if seq.is_empty() {
@@ -947,9 +942,8 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// Record the start of the next OSC param. `;` separators are not buffered
-    /// into `payload`, so consecutive ranges merge at their boundary. Params past
-    /// the 16th are dropped.
+    /// Record the start of the next OSC param. `;` separators are not buffered,
+    /// so adjacent ranges merge; params past the 16th are dropped.
     #[inline]
     const fn osc_param_boundary(&mut self, offset: u32) {
         if self.osc.num_starts > MAX_OSC_PARAMS {
@@ -1117,9 +1111,8 @@ impl Parser {
         self.params.empty = false;
     }
 
-    /// End a parameter on a `:` separator: push it (an empty one becomes the
-    /// `-1` sentinel so SGR colon forms like `38:2::r:g:b` survive) and mark
-    /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
+    /// End a parameter on a `:` separator, pushing it (empty becomes `-1`) and
+    /// marking the `sep` bit so `4:2` stays distinct from `4;2`.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_colon(&mut self) {
         self.push_param(if self.params.empty {
@@ -1171,9 +1164,8 @@ impl Parser {
         }
     }
 
-    /// Push the trailing parameter before a dispatch. A param-less sequence
-    /// stays empty; a trailing empty becomes the `-1` sentinel for CSI (so SGR
-    /// can ignore it) but the raw value for DCS.
+    /// Push the trailing parameter before a dispatch. A trailing empty becomes
+    /// `-1` for CSI (SGR ignores it) but stays raw for DCS.
     #[inline]
     const fn push_trailing_param(&mut self, sentinel: bool) {
         if !self.params.empty || self.params.len != 0 {

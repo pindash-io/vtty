@@ -16,14 +16,10 @@
 /// clipboard ≈ 128 KiB). On overflow the whole OSC is discarded.
 pub(crate) const MAX_OSC_PAYLOAD: usize = 1_048_576;
 
-/// Maximum number of OSC parameters.
-///
-/// Parameters beyond this cap are dropped.
+/// Maximum number of OSC parameters; extras are dropped.
 pub(crate) const MAX_OSC_PARAMS: usize = 16;
 
-/// Maximum number of CSI/DCS parameters.
-///
-/// Parameters beyond this cap are dropped.
+/// Maximum number of CSI/DCS parameters; extras are dropped.
 pub(crate) const MAX_PARAM_COUNT: usize = 32;
 
 /// Maximum CSI/DCS parameter value: DEC's 16-bit range plus the `-1` sentinel.
