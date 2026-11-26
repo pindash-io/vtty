@@ -23,7 +23,7 @@ impl vte::Perform for VteRec {
         self.acts.push(Event::Execute(b));
     }
     fn csi_dispatch(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 8> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::CsiDispatch {
             params: flat,
             sep: 0,
@@ -38,7 +38,7 @@ impl vte::Perform for VteRec {
         });
     }
     fn hook(&mut self, params: &vte::Params, int: &[u8], _ignore: bool, f: char) {
-        let flat: smallvec::SmallVec<i32, 6> = params.iter().flatten().map(|&v| v as i32).collect();
+        let flat: smallvec::SmallVec<i32, 8> = params.iter().flatten().map(|&v| v as i32).collect();
         self.acts.push(Event::DcsHook {
             params: flat,
             intermediates: int.iter().copied().collect(),

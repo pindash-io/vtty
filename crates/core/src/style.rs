@@ -374,10 +374,9 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
                     iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
                 } else {
                     None
-                };
-                out.push(SgrEffect::Underline(
-                    style.unwrap_or(UnderlineStyle::Single),
-                ));
+                }
+                .unwrap_or(UnderlineStyle::Single);
+                out.push(SgrEffect::Underline(style));
             }
             // The extended colors (38/48/58) — the multi-param forms.
             38 | 48 | 58 => {
@@ -390,7 +389,11 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
                 }
             }
             // Everything else — the single-code mapping.
-            _ => out.extend(single_code(code)),
+            _ => {
+                if let Some(style) = single_code(code) {
+                    out.push(style);
+                }
+            }
         }
     }
 }

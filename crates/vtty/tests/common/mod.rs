@@ -24,7 +24,7 @@ macro_rules! flat_params {
             .iter()
             .flatten()
             .map(|&v| v as i32)
-            .collect::<SmallVec<i32, 6>>()
+            .collect::<SmallVec<i32, 8>>()
     };
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn run_vtty(bytes: &[u8]) -> Vec<Event> {
     let mut p = vtty::Parser::new();
     let mut events = p.parse_events(bytes);
     for e in &mut events {
-        let params: &mut SmallVec<i32, 6> = match e {
+        let params: &mut SmallVec<i32, 8> = match e {
             Event::CsiDispatch { params, .. } | Event::DcsHook { params, .. } => params,
             _ => continue,
         };

@@ -39,8 +39,8 @@ pub enum Event {
     Execute(u8),
     /// A CSI sequence: `ESC [ <params> <intermediates> <final>`.
     CsiDispatch {
-        /// Collected numeric parameters (inline up to 6).
-        params: SmallVec<i32, 6>,
+        /// Collected numeric parameters (inline up to 8).
+        params: SmallVec<i32, 8>,
         /// Bit `i` is set when parameter `i` was followed by a colon (the
         /// `4:2` vs `4;2` distinction).
         sep: u16,
@@ -58,8 +58,8 @@ pub enum Event {
     },
     /// A DCS header: `ESC P <params> <intermediates> <final>`.
     DcsHook {
-        /// Collected numeric parameters (inline up to 6).
-        params: SmallVec<i32, 6>,
+        /// Collected numeric parameters (inline up to 8).
+        params: SmallVec<i32, 8>,
         /// Intermediate bytes: private markers + `0x20..0x2f`.
         intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
@@ -99,10 +99,10 @@ impl Event {
                 final_byte,
             } => {
                 out.extend_from_slice_copy(b"\x1b[");
-                let (prefix, suffix) = split_intermediates(intermediates);
-                out.extend_from_slice_copy(&prefix);
+                let (markers, rest) = split_intermediates(intermediates);
+                out.extend_from_slice_copy(markers);
                 push_params(out, params, *sep);
-                out.extend_from_slice_copy(&suffix);
+                out.extend_from_slice_copy(rest);
                 out.push(*final_byte);
             }
             Self::EscDispatch {
@@ -119,10 +119,10 @@ impl Event {
                 final_byte,
             } => {
                 out.extend_from_slice_copy(b"\x1bP");
-                let (prefix, suffix) = split_intermediates(intermediates);
-                out.extend_from_slice_copy(&prefix);
+                let (markers, rest) = split_intermediates(intermediates);
+                out.extend_from_slice_copy(markers);
                 push_params(out, params, 0);
-                out.extend_from_slice_copy(&suffix);
+                out.extend_from_slice_copy(rest);
                 out.push(*final_byte);
             }
             Self::DcsPut(b) => out.push(*b),
@@ -348,17 +348,13 @@ impl Perform for Recording {
 
 /// Split CSI/DCS intermediates into the prefix markers (`? > = <`, emitted
 /// before the params) and the suffix bytes (`0x20..0x2f`, emitted after).
-fn split_intermediates(ints: &[u8]) -> (SmallVec<u8, 2>, SmallVec<u8, 2>) {
-    let mut prefix = SmallVec::new();
-    let mut suffix = SmallVec::new();
-    for &b in ints {
-        if matches!(b, b'?' | b'>' | b'=' | b'<') {
-            prefix.push(b);
-        } else {
-            suffix.push(b);
-        }
-    }
-    (prefix, suffix)
+fn split_intermediates(ints: &[u8]) -> (&[u8], &[u8]) {
+    // Markers (`? > = <`) lead; the `0x20..=0x2f` bytes trail.
+    let split = ints
+        .iter()
+        .position(|b| !matches!(b, b'?' | b'>' | b'=' | b'<'))
+        .unwrap_or(ints.len());
+    ints.split_at(split)
 }
 
 /// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
