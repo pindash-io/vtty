@@ -427,14 +427,13 @@ pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
         return None;
     }
-    let value = match *params {
-        [] => SgrEffect::Reset,
-        [code] => return single_code(code),
-        [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
-        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
-        _ => return None,
-    };
-    Some(value)
+    match *params {
+        [] => Some(SgrEffect::Reset),
+        [code] => single_code(code),
+        [code @ (38 | 48 | 58), 5, n] => Some(extended_effect(code, ColorSpec::indexed(n))),
+        [code @ (38 | 48 | 58), 2, r, g, b] => Some(extended_effect(code, ColorSpec::rgb(r, g, b))),
+        _ => None,
+    }
 }
 
 /// The common two-effect SGR form — one attribute code followed by one
@@ -442,22 +441,19 @@ pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
 /// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
 /// for anything else; the caller falls back to [`parse_effects`].
 #[inline]
-pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
+pub const fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
-    let value = match *params {
-        [attr, code @ (38 | 48 | 58), 5, n] => (
-            single_code(attr)?,
-            extended_effect(code, ColorSpec::indexed(n)),
-        ),
-        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (
-            single_code(attr)?,
-            extended_effect(code, ColorSpec::rgb(r, g, b)),
-        ),
+    let (attr, code, spec) = match *params {
+        [attr, code @ (38 | 48 | 58), 5, n] => (attr, code, ColorSpec::indexed(n)),
+        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (attr, code, ColorSpec::rgb(r, g, b)),
         _ => return None,
     };
-    Some(value)
+    match single_code(attr) {
+        Some(effect) => Some((effect, extended_effect(code, spec))),
+        None => None,
+    }
 }
 
 /// The SGR effect for an extended color code (`38` fg / `48` bg / `58`
@@ -745,6 +741,38 @@ mod tests {
         out.clear();
         parse_effects(&[38, 2, 0, 1, 2, 3], 0b11111, &mut out);
         assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(1, 2, 3))]);
+    }
+
+    #[test]
+    fn effect_fast_paths_cover_only_complete_shapes() {
+        // Both are `const`: usable in a `const` item.
+        const RESET: Option<SgrEffect> = single_effect(&[], 0);
+        assert_eq!(RESET, Some(SgrEffect::Reset));
+        const PAIR: Option<(SgrEffect, SgrEffect)> = two_effects(&[1, 38, 5, 196], 0);
+        assert_eq!(
+            PAIR,
+            Some((
+                SgrEffect::Set(SgrFlags::BOLD),
+                SgrEffect::Fg(ColorSpec::Indexed(196))
+            ))
+        );
+
+        // Truncated extended forms are `parse_effects`' job.
+        assert_eq!(single_effect(&[38, 5], 0), None);
+        assert_eq!(single_effect(&[38, 2, 1, 2], 0), None);
+        // An empty `;`-parameter slot clamps like `parse_extended` does.
+        assert_eq!(
+            single_effect(&[38, 5, -1], 0),
+            Some(SgrEffect::Fg(ColorSpec::Indexed(0)))
+        );
+        // A second effect, a bad sub-command or a colon form falls back too.
+        assert_eq!(single_effect(&[1, 31], 0), None);
+        assert_eq!(single_effect(&[38, 3, 1], 0), None);
+        assert_eq!(single_effect(&[38, 5, 196], 0b1), None);
+        assert_eq!(two_effects(&[1, 38, 5], 0), None);
+        assert_eq!(two_effects(&[7, 48, 2, 1, 2, 3], 0b1), None);
+        // `two_effects` needs a leading attribute the single-code map knows.
+        assert_eq!(two_effects(&[99, 38, 5, 196], 0), None);
     }
 
     #[test]
