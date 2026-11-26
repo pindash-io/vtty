@@ -82,9 +82,8 @@ fn main() {
             "unqualified" => {
                 unq += 1;
                 if chars.len() == 1 {
-                    // Unqualified means TEXT-default: width is the East Asian
-                    // width, so wide CJK symbols (〰 〽 🈂 🈷 ㊗ ㊙ …) are 2,
-                    // everything else 1.
+                    // Unqualified means text-default: the East Asian width, so
+                    // wide CJK symbols are 2 and everything else 1.
                     let wide_cjk = w == [2] && vtty_width::cell_width(chars[0]) == Some(2);
                     want = "[1]".into();
                     if w == [1] || wide_cjk {
@@ -112,9 +111,8 @@ fn main() {
             }
             "component" => {
                 comp += 1;
-                // Hair components (1F9B0..=1F9B3) are emoji-presentation
-                // (2 cells); skin-tone modifiers are 0-width combining, so a
-                // lone one is 1 cell.
+                // Hair components are emoji-presentation (2 cells); a lone
+                // skin-tone modifier is 1 cell.
                 let is_skin_tone = matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
                 want = if is_skin_tone { "[1]" } else { "[2]" }.into();
                 if (is_skin_tone && w == [1]) || (!is_skin_tone && w == [2]) {
