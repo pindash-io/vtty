@@ -279,8 +279,8 @@ impl ColorSpec {
 
     /// Clamp an indexed color to the 256-color table and wrap it.
     #[inline]
-    pub fn indexed(n: i32) -> Self {
-        Self::Indexed(crate::ColorId::from(n).index())
+    pub const fn indexed(n: i32) -> Self {
+        Self::Indexed(crate::ColorId::from_index(n).index())
     }
 }
 
@@ -409,9 +409,9 @@ pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     }
     let value = match *params {
         [] => SgrEffect::Reset,
-        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
+        [code] => single_code(code)?,
         [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
-        [code] => return single_code(code),
+        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
         _ => return None,
     };
     Some(value)
@@ -427,13 +427,13 @@ pub fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
         return None;
     }
     let value = match *params {
-        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (
-            single_code(attr)?,
-            extended_effect(code, ColorSpec::rgb(r, g, b)),
-        ),
         [attr, code @ (38 | 48 | 58), 5, n] => (
             single_code(attr)?,
             extended_effect(code, ColorSpec::indexed(n)),
+        ),
+        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (
+            single_code(attr)?,
+            extended_effect(code, ColorSpec::rgb(r, g, b)),
         ),
         _ => return None,
     };
@@ -748,6 +748,15 @@ mod tests {
         out.clear();
         Sgr::default().write_bytes(&mut out);
         assert_eq!(out.as_ref(), b"\x1b[m");
+    }
+
+    #[test]
+    fn indexed_color_is_const_and_clamped() {
+        // Usable in a `const` item: no `From` trait call in the path.
+        const RED: ColorSpec = ColorSpec::indexed(196);
+        assert_eq!(RED, ColorSpec::Indexed(196));
+        assert_eq!(ColorSpec::indexed(-5), ColorSpec::Indexed(0));
+        assert_eq!(ColorSpec::indexed(300), ColorSpec::Indexed(255));
     }
 
     #[test]
