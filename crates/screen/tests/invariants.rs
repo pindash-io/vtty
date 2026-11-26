@@ -126,9 +126,8 @@ fn screen_invariants_hold_under_vt_input() {
     }
 }
 
-/// Small grids stress autowrap, wide-glyph, and margin edge cases that a
-/// large screen never reaches (e.g. a double-width glyph on a one-column
-/// grid).
+/// Small grids reach autowrap, wide-glyph and margin edges a large grid never
+/// does.
 #[test]
 fn small_screen_invariants_hold() {
     for (cols, rows) in [(1, 1), (2, 1), (1, 3), (3, 1), (2, 2)] {
@@ -143,8 +142,8 @@ fn small_screen_invariants_hold() {
     }
 }
 
-/// Focused regressions the property test surfaced:
-/// - DECSTBM with a `0` bottom must not panic (0 = default bottom).
+/// Regressions the property test surfaced:
+/// - DECSTBM with a `0` bottom does not panic; `0` means the last row.
 /// - Setting margins homes the cursor and clears a pending wrap.
 #[test]
 fn margin_regressions() {
@@ -162,8 +161,7 @@ fn margin_regressions() {
     assert_eq!(screen.cursor(), (1, 0));
 }
 
-/// Editing must never split or orphan a double-width glyph's lead/
-/// continuation pair.
+/// Editing never splits or orphans a double-width lead and continuation pair.
 #[test]
 fn wide_glyph_editing_keeps_cells_consistent() {
     let mut screen = Screen::new(4, 1);
@@ -195,8 +193,7 @@ fn wide_glyph_editing_keeps_cells_consistent() {
     assert_eq!(screen.render_line(0).as_deref(), Some("a"));
 }
 
-/// A cursor positioned on a double-width continuation acts on the glyph's
-/// lead, so erase/edit/write never touch half a glyph.
+/// A cursor on a continuation acts on the lead, so no edit touches half a glyph.
 #[test]
 fn cursor_on_continuation_acts_on_lead() {
     // Erase-to-end from the continuation erases the whole glyph.

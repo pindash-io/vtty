@@ -397,9 +397,8 @@ mod tests {
         })
     }
 
-    /// Exhaustive differential: every non-ground state x every byte in the
-    /// table's scope (`0x00..=0x7f`) must match the DEC diagram, except the
-    /// documented deviations. 13 x 128 = 1664 assertions.
+    /// Every non-ground state by every byte in scope (`0x00..=0x7f`), minus the
+    /// documented deviations.
     #[test]
     fn table_matches_dec_ansi_parser_diagram() {
         const STATES: [ParseState; 13] = [
@@ -430,8 +429,8 @@ mod tests {
         }
     }
 
-    /// Run the const builder at runtime so its arms are covered, and assert
-    /// the flat `TABLE` agrees with it entry for entry.
+    /// Run the const builder at runtime so its arms are covered, and compare it entry
+    /// for entry with `TABLE`.
     #[test]
     fn table_builder_matches_const_table() {
         assert_eq!(build_table(), TABLE);

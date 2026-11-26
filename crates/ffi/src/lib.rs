@@ -284,8 +284,7 @@ pub unsafe extern "C" fn vt_line_range(
 mod tests {
     use super::*;
 
-    /// Drive a state through printable text, a newline, a reset, and the
-    /// cursor/line accessors, verifying every accessor round-trips.
+    /// Drive text, a newline, a reset and every accessor, checking each round-trips.
     #[test]
     fn accessors_round_trip() {
         // SAFETY: `vt_new` returns a valid, owned state; inputs are valid.
@@ -326,7 +325,7 @@ mod tests {
         }
     }
 
-    /// Null pointers are a no-op / safe default, never UB.
+    /// A null pointer is a no-op, never undefined behaviour.
     #[test]
     fn null_state_is_safe() {
         unsafe {
@@ -348,8 +347,7 @@ mod tests {
         }
     }
 
-    /// CR returns to column 0; LF advances the line — so a CRLF pair is one
-    /// line break.
+    /// CR returns to column 0 and LF advances the line, so CRLF is one break.
     #[test]
     fn crlf_is_one_line_break() {
         unsafe {
@@ -363,8 +361,8 @@ mod tests {
         }
     }
 
-    /// The version constant, the flush path, the text pointer accessor, and
-    /// the null-state `vt_line_range` guard.
+    /// The version constant, the flush path, the text pointer and the null-state
+    /// line-range guard.
     #[test]
     fn version_flush_text_and_null_state_line_range() {
         unsafe {

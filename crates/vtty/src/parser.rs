@@ -1286,10 +1286,8 @@ mod tests {
         out.to_vec()
     }
 
-    /// The inline hot-path handlers (`advance_escape_byte`, the bulk CSI scan,
-    /// and the CSI final-byte shortcut) re-implement `transition()` table
-    /// entries. A parser with `cold = true` routes those states through the
-    /// table instead; both must produce identical events.
+    /// The inline handlers re-implement `transition()` rows; a `cold` parser must
+    /// produce identical events.
     #[test]
     fn hot_and_cold_paths_agree() {
         let corpus: &[&[u8]] = &[
@@ -1353,9 +1351,8 @@ mod tests {
         );
     }
 
-    /// Systematic form of [`hot_and_cold_paths_agree`]: every combination of
-    /// digits, both separators, the private marker, an intermediate and a final
-    /// byte, over 1..=4-byte runs with and without a tail.
+    /// Systematic form: every combination of digits, separators, the private marker,
+    /// an intermediate and a final byte, over 1..=4-byte runs.
     #[test]
     fn hot_and_cold_paths_agree_systematic() {
         let alphabet = b"018;:Hm ?fJ";
@@ -1382,8 +1379,8 @@ mod tests {
         }
     }
 
-    /// Random form of [`hot_and_cold_paths_agree`] across the escape alphabet,
-    /// plus chunk invariance: three-byte feeds must match one `parse_events`.
+    /// Random form across the escape alphabet, plus chunk invariance against one
+    /// `parse_events` call.
     #[test]
     fn hot_and_cold_paths_agree_random() {
         let alphabet = b"0123456789;:?>=< HfmrAJKhl\x00\x7f\x9b\x1b[";
@@ -1415,10 +1412,8 @@ mod tests {
         }
     }
 
-    /// Exhaustive form of [`hot_and_cold_paths_agree`]: every state with both
-    /// a hot inline handler and a cold table row, over every byte. `Ground`
-    /// is excluded — it is hot-only (UTF-8 decoding + SIMD), with a table
-    /// stub of `(NONE, Ground)` for every byte.
+    /// Exhaustive form: every state with a hot handler and a cold row, over every
+    /// byte. `Ground` is hot-only.
     #[test]
     fn hot_and_cold_paths_agree_exhaustive() {
         let states = [
@@ -1448,11 +1443,8 @@ mod tests {
         }
     }
 
-    /// DEC's "anywhere" invariant for 8-bit C1 controls
-    /// ([DEC parser state diagram]): introducers re-enter their state, `ST`
-    /// `0x9c` is a no-op, and every other C1 control executes and returns to
-    /// ground (a lone C1 byte is invalid UTF-8, so this is the correct
-    /// fallback for a UTF-8 terminal).
+    /// DEC's anywhere rule: introducers re-enter, `ST` is a no-op, every other C1
+    /// control executes and returns to ground.
     ///
     /// [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
     #[test]
@@ -1476,11 +1468,8 @@ mod tests {
         }
     }
 
-    /// End-to-end: a raw 8-bit C1 control interrupting an OSC string or DCS
-    /// passthrough fires the string's exit action (`osc_end` / `unhook`)
-    /// before the control is executed or an introducer re-enters its state —
-    /// DEC's "anywhere" rule. Regression test: the exit action was previously
-    /// dropped for every C1 control except `ST` (`0x9c`).
+    /// A C1 control interrupting an OSC or DCS string fires the exit action first.
+    /// Regression: only `ST` did.
     #[test]
     fn c1_interrupt_fires_string_exit_action() {
         use crate::Event;

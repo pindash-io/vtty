@@ -510,11 +510,9 @@ mod tests {
         assert_eq!(cell_col_byte_widths(text, 3), text.len());
     }
 
-    /// The fuzz-minimized fixture prefix: a halfwidth ideographic space
-    /// (0), CJK (2), an emoji (2), a 2-emoji ZWJ family (2 — the `👩` joins
-    /// at 0), a mahjong tile (1), and `👍` (2) — 9 cells total. Locks the
-    /// ZWJ-family merge AND the mahjong-tile/halfwidth-space widths so the
-    /// cell-grid and line-based renderers agree on the cursor column.
+    /// The fuzz-minimized fixture prefix: halfwidth space (0), CJK (2), an emoji (2),
+    /// a two-emoji ZWJ family (2), a mahjong tile (1), `👍` (2) — 9 cells, which locks
+    /// the ZWJ merge and the mahjong/halfwidth-space widths across both renderers.
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn zwj_family_plus_mahjong_and_halfwidth_space_widths() {
@@ -523,10 +521,8 @@ mod tests {
         assert_eq!(cell_width_sum(prefix), 9);
     }
 
-    /// Hangul Jamo + syllable widths: L jamo is wide (2), V/T jamo are
-    /// zero-width continuations (they compose onto a preceding L / LV), and
-    /// precomposed syllables are 2 cells. A lone V/T jamo occupies 1 cell
-    /// (the lone-mark fix — it has no base, so it must stay visible).
+    /// Hangul: L jamo is wide, V/T jamo are zero-width continuations, precomposed
+    /// syllables are 2 cells, and a lone V/T jamo keeps 1 cell.
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn hangul_jamo_and_syllable_widths() {

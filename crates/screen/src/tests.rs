@@ -1,6 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+//! Cell-grid behaviour, every case driven through the real `vtty::Parser`.
+
 use alloc::vec;
 use vtty::Parser;
 

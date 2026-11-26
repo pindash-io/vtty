@@ -17,7 +17,7 @@ fn assert_sources_agree(s: &str) {
     );
 }
 
-/// Every valid BMP char, fed as a lone char through both sources.
+/// Every valid BMP char as a lone char through both sources.
 #[test]
 fn every_bmp_char_matches_between_sources() {
     for cp in 0..=0xFFFF_u32 {
@@ -30,8 +30,8 @@ fn every_bmp_char_matches_between_sources() {
     }
 }
 
-/// Multi-char sequences that exercise the emoji DFA, Hangul, combining marks,
-/// and the printable-ASCII fast path — the cases a lone-char sweep cannot see.
+/// Multi-char sequences a lone-char sweep cannot see: the emoji DFA, Hangul,
+/// combining marks and the printable-ASCII fast path.
 #[test]
 fn sequences_match_between_sources() {
     for s in [

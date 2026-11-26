@@ -57,9 +57,8 @@ mod tests {
     use super::*;
     use alloc::string::String;
 
-    /// The "Resource limits" table in `ARCHITECTURE.md` must stay in lockstep
-    /// with this module. Every documented value is derived from a constant
-    /// here, so changing one without the other fails this test.
+    /// The `ARCHITECTURE.md` "Resource limits" table must match this module; every value
+    /// is derived from a constant here.
     #[test]
     fn resource_limits_match_architecture_table() {
         let doc = include_str!("../ARCHITECTURE.md");
