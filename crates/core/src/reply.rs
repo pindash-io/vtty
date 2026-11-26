@@ -238,7 +238,7 @@ mod tests {
     fn sgr_reply_format() {
         let pal = [0_u32; 256];
         assert_eq!(
-            Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::empty(), &pal),
+            Reply::sgr(DEFAULT_FG_ID, DEFAULT_BG_ID, SgrFlags::DEFAULT, &pal),
             "0;39;49"
         );
         assert_eq!(
@@ -249,7 +249,7 @@ mod tests {
         let mut pal = [0_u32; 259];
         pal[258] = 0x112233ff;
         assert_eq!(
-            Reply::sgr(ColorId(5), ColorId(258), SgrFlags::empty(), &pal),
+            Reply::sgr(ColorId(5), ColorId(258), SgrFlags::DEFAULT, &pal),
             "0;38;5;5;48;2;17;34;51"
         );
     }
@@ -258,7 +258,7 @@ mod tests {
     fn sgr_rgb_id_out_of_palette_falls_back_to_default() {
         let pal = [0_u32; 256];
         assert_eq!(
-            Reply::sgr(ColorId(258), DEFAULT_BG_ID, SgrFlags::empty(), &pal),
+            Reply::sgr(ColorId(258), DEFAULT_BG_ID, SgrFlags::DEFAULT, &pal),
             "0;39;49"
         );
     }
