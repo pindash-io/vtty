@@ -400,13 +400,7 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Co
     Some(text)
 }
 
-/// Appends `:key=value` to `out`.
-/// Write `n` (`0..=255`) as decimal into `buf`, returning the written digits.
-#[inline]
-fn write_decimal(n: u8, buf: &mut [u8; 3]) -> &[u8] {
-    vtty_core::write_decimal(u32::from(n), buf)
-}
-
+/// Append `:key=value` to `out`.
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.push(b':');
     out.extend_from_slice(key);
@@ -414,7 +408,13 @@ fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.extend_from_slice(value);
 }
 
-/// Appends `:key=value` to `out` when `value` is `Some`.
+/// Write `n` (`0..=255`) as decimal into `buf`, returning the written digits.
+#[inline]
+fn write_decimal(n: u8, buf: &mut [u8; 3]) -> &[u8] {
+    vtty_core::write_decimal(u32::from(n), buf)
+}
+
+/// Append `:key=value` when `value` is `Some`.
 fn push_opt_field(out: &mut Vec<u8>, key: &[u8], value: Option<&[u8]>) {
     let Some(value) = value else {
         return;
