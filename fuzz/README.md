@@ -12,6 +12,7 @@ Differential fuzzing against reference parsers, plus a robustness target.
 | `robustness` | no-panic for vtty/vte/vt100/vtparse/rio-vt | stable |
 | `random` | structured random VT bytes, vtty vs vte | stable |
 | `codec` | event/parser/state encode→decode round-trip + no-panic | stable |
+| `screen` | `Screen` invariants after every chunk | stable |
 
 ## Setup
 
@@ -29,6 +30,7 @@ cargo fuzz run differential-rio
 cargo fuzz run robustness
 cargo fuzz run random
 cargo fuzz run codec
+cargo fuzz run screen
 ```
 
 ## Seed corpus
