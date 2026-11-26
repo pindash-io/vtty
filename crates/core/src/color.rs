@@ -294,34 +294,74 @@ pub const fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
 ///
 /// `rgb:` channels of 1..4 hex digits are scaled to 8 bits (`XParseColor`
 /// semantics).
-pub fn parse(s: &[u8]) -> Option<u32> {
-    let s = core::str::from_utf8(s).ok()?;
-    if let Some(rest) = s.strip_prefix("rgb:") {
-        let mut parts = rest.split('/');
-        let (a, b, c) = (parts.next()?, parts.next()?, parts.next()?);
-        if parts.next().is_some() {
-            return None;
+pub const fn parse(s: &[u8]) -> Option<u32> {
+    // `rgb:RR/GG/BB` and `rgb:RRRR/GGGG/BBBB`: exactly three `/`-separated
+    // channels, each scaled by [`scale_channel`].
+    if let [b'r', b'g', b'b', b':', rest @ ..] = s {
+        let (a, rest) = match split_channel(rest) {
+            Some(parts) => parts,
+            None => return None,
+        };
+        let (b, c) = match split_channel(rest) {
+            Some(parts) => parts,
+            None => return None,
+        };
+        // A fourth channel is not an X11 colour.
+        let mut i = 0;
+        while i < c.len() {
+            if c[i] == b'/' {
+                return None;
+            }
+            i += 1;
         }
-        return Some(rgb_to_u32(
-            scale_channel(a)? as i32,
-            scale_channel(b)? as i32,
-            scale_channel(c)? as i32,
-        ));
+        let (a, b, c) = match (scale_channel(a), scale_channel(b), scale_channel(c)) {
+            (Some(a), Some(b), Some(c)) => (a, b, c),
+            _ => return None,
+        };
+        return Some(rgb_to_u32(a as i32, b as i32, c as i32));
     }
-    let [r, g, b] = decode_rgb(s)?;
-    Some(rgb_to_u32(r as i32, g as i32, b as i32))
+    let hex = match core::str::from_utf8(s) {
+        Ok(hex) => hex,
+        Err(_) => return None,
+    };
+    match decode_rgb(hex) {
+        Some([r, g, b]) => Some(rgb_to_u32(r as i32, g as i32, b as i32)),
+        None => None,
+    }
+}
+
+/// Split a byte slice at its first `/`, returning the two halves.
+const fn split_channel(part: &[u8]) -> Option<(&[u8], &[u8])> {
+    let mut i = 0;
+    while i < part.len() {
+        if part[i] == b'/' {
+            let (head, tail) = part.split_at(i);
+            let (_, rest) = tail.split_at(1);
+            return Some((head, rest));
+        }
+        i += 1;
+    }
+    None
 }
 
 /// Scale one `rgb:` channel of 1..=4 hex digits to 8 bits (`XParseColor`).
-const fn scale_channel(part: &str) -> Option<u8> {
+const fn scale_channel(part: &[u8]) -> Option<u8> {
     let len = part.len();
     if !matches!(len, 1..=4) {
         return None;
     }
-    match u32::from_str_radix(part, 16) {
-        Ok(v) => Some((v * 255 / ((1 << (4 * len)) - 1)) as u8),
-        Err(_) => None,
+    let mut v = 0_u32;
+    let mut i = 0;
+    while i < len {
+        let digit = match part[i] {
+            d @ b'0'..=b'9' => d - b'0',
+            d @ (b'a'..=b'f' | b'A'..=b'F') => d.to_ascii_lowercase() - b'a' + 10,
+            _ => return None,
+        };
+        v = v * 16 + digit as u32;
+        i += 1;
     }
+    Some((v * 255 / ((1 << (4 * len)) - 1)) as u8)
 }
 
 /// Format a bare xterm `rgb:RRRR/GGGG/BBBB` spec from a packed `0xRRGGBBAA`
@@ -398,6 +438,26 @@ mod tests {
         assert_eq!(parse(b"rgb:ffff/0000/0000"), Some(0xff0000ff));
         assert_eq!(parse(b"#00ff00"), Some(0x00ff00ff));
         assert_eq!(parse(b"nonsense"), None);
+    }
+
+    #[test]
+    fn parse_is_const_and_covers_osc_forms() {
+        const RED: Option<u32> = parse(b"rgb:ff/00/00");
+        assert_eq!(RED, Some(0xff00_00ff));
+        const HASH: Option<u32> = parse(b"#00ff00");
+        assert_eq!(HASH, Some(0x00ff_00ff));
+        // Uppercase hex and 1..=4 digit channels.
+        assert_eq!(parse(b"rgb:FF/0/00"), Some(0xff00_00ff));
+        // Wrong channel count, non-hex digits and empty channels.
+        assert_eq!(parse(b"rgb:ff/00"), None);
+        assert_eq!(parse(b"rgb:ff/00/00/00"), None);
+        assert_eq!(parse(b"rgb:ff/00/"), None);
+        assert_eq!(parse(b"rgb:/00/00"), None);
+        assert_eq!(parse(b"rgb:gg/00/00"), None);
+        assert_eq!(parse(b"rgb:fffff/00/00"), None);
+        // Anything else is not an OSC colour.
+        assert_eq!(parse(b"nonsense"), None);
+        assert_eq!(parse(b""), None);
     }
 
     #[test]
