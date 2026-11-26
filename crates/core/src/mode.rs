@@ -9,8 +9,8 @@
 //! [xterm's ctlseqs]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 
 /// Define the DEC private-mode mapping from one list of `Flag => number`
-/// pairs: [`TermFlags::PRIVATE_MODES`] plus both lookup functions, so the
-/// flag ↔ number mapping cannot drift apart.
+/// pairs: [`TermFlags::private_param`] and [`TermFlags::from_private_param`],
+/// so the flag ↔ number mapping cannot drift apart.
 macro_rules! private_modes {
     ($($flag:ident => $param:literal),+ $(,)?) => {
         /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for

@@ -18,7 +18,7 @@ use crate::perform::Perform;
 ///
 /// # Allocation
 ///
-/// Params/intermediates use inline `SmallVec`s (≤6 params, ≤2 intermediates,
+/// Params/intermediates use inline `SmallVec`s (≤8 params, ≤2 intermediates,
 /// no heap); only OSC bodies allocate. This mirrors `vtparse`'s `VTAction`
 /// for differential testing.
 ///
