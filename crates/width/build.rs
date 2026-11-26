@@ -77,11 +77,8 @@ fn main() {
     let eaw = CodePointMapData::<EastAsianWidth>::new();
     let gcb = CodePointMapData::<GraphemeClusterBreak>::new();
 
-    // Bit 0 = Emoji, bit 1 = Emoji_Presentation, bit 2 = Emoji_Modifier,
-    // bit 3 = Emoji_Modifier_Base, bit 4 = Regional_Indicator,
-    // bit 7 = Extended_Pictographic, bits 5-6 = display width (0/1/2,
-    // derived from ICU4X). Mirrors parley_data's
-    // `Properties` emoji flags.
+    // Bits: 0 Emoji, 1 Emoji_Presentation, 2 Emoji_Modifier, 3 _Base,
+    // 4 Regional_Indicator, 5-6 width, 7 Extended_Pictographic.
     let mut data = vec![0_i64; N];
     for (cp, slot) in data.iter_mut().enumerate() {
         if (0xD800..=0xDFFF).contains(&(cp as u32)) {
@@ -186,10 +183,8 @@ fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     fs::write(out_dir.join("emoji_packtab.rs"), wrappers).unwrap();
 
-    // A second, 1-bit table for the emoji-presentation property alone. The
-    // mixed-width print fast path consults it (instead of the 5-level
-    // composite table) for the ~1400 EP codepoints; the rest of Unicode is
-    // 0, so it packs much smaller and looks up faster.
+    // A 1-bit emoji-presentation table for the mixed-width fast path: ~1400
+    // codepoints, far smaller and faster than the 5-level composite.
     let mut data_ep = vec![0_i64; N];
     for (cp, slot) in data_ep.iter_mut().enumerate() {
         if (0xD800..=0xDFFF).contains(&(cp as u32)) {
@@ -220,10 +215,8 @@ fn main() {
     );
     fs::write(out_dir.join("ep_packtab.rs"), ep_wrappers).unwrap();
 
-    // A CodePointTrie-style two-level table (ICU4X's shape) as an alternative
-    // to the packtab level-walk: `index[cp >> 6] + (cp & 0x3f)` addresses the
-    // deduplicated 64-codepoint blocks in two reads. Split BMP/supplementary so
-    // each index stays `u16`. Gated on `trie`; packtab stays the default.
+    // A CodePointTrie-style two-level table: `index[cp >> 6] + (cp & 0x3f)` in
+    // two reads, split BMP/supplementary so each index stays `u16`. `trie` only.
     if env::var("CARGO_FEATURE_TRIE").is_ok() {
         let trie = gen_trie_tables("composite", &data, "ep", &data_ep);
         fs::write(out_dir.join("trie.rs"), trie).unwrap();
