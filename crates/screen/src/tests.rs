@@ -1036,7 +1036,7 @@ fn csi_question_r_is_decpcterm_and_ignored() {
     run(&mut s, b"\x1b[2;4r"); // DECSTBM: margins rows 2-4, cursor homes to row 1
     run(&mut s, b"\x1b[3;1H"); // move the cursor to row 2
     run(&mut s, b"\x1b[?r"); // DECPCTERM (PCTerm/Scancode mode): out of scope, ignored
-    assert_eq!(s.cursor(), (2, 0)); // cursor unchanged — margins were not reset
+    assert_eq!(s.cursor(), (2, 0)); // cursor unchanged: margins were not reset
 }
 
 #[test]
