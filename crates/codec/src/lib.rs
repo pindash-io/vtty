@@ -1,9 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! **Compact**, **`no_std`**, **panic-free** binary serialization.
+//! Compact, `no_std`, panic-free binary serialization.
 //!
-//! [`Encode`] turns a value into a **deterministic** byte stream and
+//! [`Encode`] turns a value into a canonical byte stream and
 //! [`Decode`] turns that stream back into a value.
 //!
 //! ## Wire format

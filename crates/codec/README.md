@@ -2,9 +2,9 @@
 
 <!-- cargo-rdme start -->
 
-**Compact**, **`no_std`**, **panic-free** binary serialization.
+Compact, `no_std`, panic-free binary serialization.
 
-[`Encode`](https://docs.rs/vtty_codec/latest/vtty_codec/traits/trait.Encode.html) turns a value into a **deterministic** byte stream and
+[`Encode`](https://docs.rs/vtty_codec/latest/vtty_codec/traits/trait.Encode.html) turns a value into a canonical byte stream and
 [`Decode`](https://docs.rs/vtty_codec/latest/vtty_codec/traits/trait.Decode.html) turns that stream back into a value.
 
 ## Wire format
