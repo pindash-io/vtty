@@ -49,31 +49,40 @@ impl SgrFlags {
 
     /// The decoration subset carried on a span/cell ([`StyleFlags`]).
     #[inline]
-    pub fn decorations(self) -> StyleFlags {
+    pub const fn decorations(self) -> StyleFlags {
         let mut d = StyleFlags::empty();
         if self.contains(Self::BOLD) {
-            d.insert(StyleFlags::BOLD);
+            d = d.union(StyleFlags::BOLD);
         }
         if self.contains(Self::ITALIC) {
-            d.insert(StyleFlags::ITALIC);
+            d = d.union(StyleFlags::ITALIC);
         }
         if self.contains(Self::UNDERLINE) {
-            d.insert(StyleFlags::UNDERLINE);
+            d = d.union(StyleFlags::UNDERLINE);
         }
         if self.contains(Self::STRIKETHROUGH) {
-            d.insert(StyleFlags::STRIKETHROUGH);
+            d = d.union(StyleFlags::STRIKETHROUGH);
         }
         if self.contains(Self::OVERLINE) {
-            d.insert(StyleFlags::OVERLINE);
+            d = d.union(StyleFlags::OVERLINE);
         }
         d
     }
 }
 
-/// The flags an SGR code affects. "Reset" codes (22/23/24/25/27/28/29/55)
-/// carry the [`SgrFlags::RESET`] mark so the caller can tell clear from set.
 impl From<i32> for SgrFlags {
+    #[inline]
     fn from(code: i32) -> Self {
+        Self::from_code(code)
+    }
+}
+
+impl SgrFlags {
+    /// The flags an SGR code affects. "Reset" codes (22/23/24/25/27/28/29/55)
+    /// carry the [`SgrFlags::RESET`] mark so the caller can tell clear from
+    /// set.
+    #[inline]
+    pub const fn from_code(code: i32) -> Self {
         match code {
             1 => Self::BOLD,
             2 => Self::FAINT,
@@ -86,14 +95,14 @@ impl From<i32> for SgrFlags {
             9 => Self::STRIKETHROUGH,
             53 => Self::OVERLINE,
             // Reset codes: the flags to clear, marked with RESET.
-            22 => Self::BOLD | Self::FAINT | Self::RESET,
-            23 => Self::ITALIC | Self::RESET,
-            24 => Self::UNDERLINE | Self::RESET,
-            25 => Self::BLINK | Self::BLINK_RAPID | Self::RESET,
-            27 => Self::INVERSE | Self::RESET,
-            28 => Self::INVISIBLE | Self::RESET,
-            29 => Self::STRIKETHROUGH | Self::RESET,
-            55 => Self::OVERLINE | Self::RESET,
+            22 => Self::BOLD.union(Self::FAINT).union(Self::RESET),
+            23 => Self::ITALIC.union(Self::RESET),
+            24 => Self::UNDERLINE.union(Self::RESET),
+            25 => Self::BLINK.union(Self::BLINK_RAPID).union(Self::RESET),
+            27 => Self::INVERSE.union(Self::RESET),
+            28 => Self::INVISIBLE.union(Self::RESET),
+            29 => Self::STRIKETHROUGH.union(Self::RESET),
+            55 => Self::OVERLINE.union(Self::RESET),
             _ => Self::DEFAULT,
         }
     }
@@ -573,6 +582,21 @@ mod tests {
 
         // BLINK is not a decoration and must not leak into the subset.
         assert_eq!((SgrFlags::BLINK).decorations(), StyleFlags::empty());
+    }
+
+    #[test]
+    fn decorations_and_code_map_are_const() {
+        // Both are usable in `const` items: no `From`/`BitOr` trait calls.
+        const DECORATED: StyleFlags = SgrFlags::BOLD.union(SgrFlags::OVERLINE).decorations();
+        assert_eq!(DECORATED, StyleFlags::BOLD.union(StyleFlags::OVERLINE));
+
+        const RESET_BOLD: SgrFlags = SgrFlags::from_code(22);
+        assert_eq!(
+            RESET_BOLD,
+            SgrFlags::BOLD.union(SgrFlags::FAINT).union(SgrFlags::RESET)
+        );
+        assert_eq!(SgrFlags::from_code(4), SgrFlags::UNDERLINE);
+        assert_eq!(SgrFlags::from_code(99), SgrFlags::DEFAULT);
     }
 
     #[test]
