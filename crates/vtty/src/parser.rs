@@ -123,7 +123,7 @@ struct Osc {
 /// After the final [`Parser::advance`], call [`Parser::flush`] once so a
 /// trailing incomplete code point is emitted as `U+FFFD`.
 ///
-/// # Panics
+/// # Panic safety
 ///
 /// The parser never panics on untrusted input: truncated sequences, invalid
 /// UTF-8 and overlong payloads are handled by maximal subpart substitution
