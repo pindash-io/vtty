@@ -31,39 +31,39 @@ use compact_str::CompactString;
 
 use vtty_core::Perform;
 
-/// Report body length limit (bytes).
+/// Report body limit, bytes.
 const MAX_SEQUENCE: usize = 4096;
 
-/// `key` length limit (bytes).
+/// Key limit, bytes.
 const MAX_KEY: usize = 16;
 
-/// `msg` limits: on-wire base64, then decoded bytes.
+/// Message limits: base64 on the wire, then decoded.
 const MAX_MSG_ENCODED: usize = 2732;
 
 const MAX_MSG_DECODED: usize = 2048;
 
-/// `title` limits: on-wire base64, then decoded bytes.
+/// Title limits: base64 on the wire, then decoded.
 const MAX_TITLE_ENCODED: usize = 256;
 
 const MAX_TITLE_DECODED: usize = 192;
 
-/// `app` length limit (bytes).
+/// App name limit, bytes.
 const MAX_APP: usize = 32;
 
-/// `id` limits: total length, per segment, and depth.
+/// Id limits: total, per segment, and depth.
 const MAX_ID: usize = 128;
 
 const MAX_ID_SEGMENT: usize = 32;
 
 const MAX_ID_DEPTH: usize = 8;
 
-/// OSC program-status protocol number.
+/// The protocol's OSC number.
 const OSC_NUM: &[u8] = b"7501";
 
-/// OSC introducer sequence: `ESC ]` (`0x1b 0x5d`).
+/// OSC introducer (`ESC ]`).
 const SEQ_OSC: &[u8] = b"\x1b]";
 
-/// String terminator sequence: `ESC \` (`0x1b 0x5c`).
+/// String terminator (`ESC \`).
 const SEQ_ST: &[u8] = b"\x1b\\";
 
 /// Implements `parse` (name → variant) and `as_bytes` (variant → name) for a
@@ -114,18 +114,18 @@ pub trait PerformProgramStatus: Perform {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum StatusState {
-    /// At rest, waiting for the user's next instruction.
+    /// At rest.
     #[default]
     Idle = 0,
-    /// Running. May carry `progress`.
+    /// Running, may carry progress.
     Working = 1,
-    /// Finished a piece of work; the user has not seen the result yet.
+    /// OSC 9;4;2, completed.
     Done = 2,
-    /// Cannot continue until the user does something.
+    /// Waiting on the user.
     Blocked = 3,
-    /// Failed and stopped.
+    /// OSC 9;4;3, errored.
     Error = 4,
-    /// Not a state: clears the addressed record (and its children).
+    /// Clears the addressed record.
     Clear = 5,
 }
 
@@ -144,12 +144,12 @@ named_bytes!(
 #[repr(u8)]
 #[non_exhaustive]
 pub enum StatusKind {
-    /// Approval to do something.
+    /// Approval needed.
     #[default]
     Permission = 0,
-    /// The user must type an answer.
+    /// An answer is needed.
     Question = 1,
-    /// A login, token, or credential.
+    /// A login or credential.
     Auth = 2,
 }
 
@@ -295,11 +295,11 @@ impl ProgramStatus {
 /// A control-character class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Control {
-    /// C0 controls: `U+0000..=U+001F`.
+    /// C0 controls, `U+0000..=U+001F`.
     C0,
-    /// `DEL`: `U+007F`.
+    /// `DEL`, `U+007F`.
     Del,
-    /// C1 controls: `U+0080..=U+009F`.
+    /// C1 controls, `U+0080..=U+009F`.
     C1,
 }
 
