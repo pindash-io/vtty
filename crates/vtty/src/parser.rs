@@ -1286,8 +1286,8 @@ mod tests {
         out.to_vec()
     }
 
-    /// The inline handlers re-implement `transition()` rows; a `cold` parser must
-    /// produce identical events.
+    /// The inline handlers re-implement `transition()` rows; [`Parser::force_cold`]
+    /// must produce identical events.
     #[test]
     fn hot_and_cold_paths_agree() {
         let corpus: &[&[u8]] = &[

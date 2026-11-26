@@ -19,7 +19,8 @@ screen-update pipeline rather than the parser floor.
 
 Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 `ansi_two_styles`, `ansi_bare_csi`, `sgr_churn`, `cursor_motion`, `sync_churn`,
-`truecolor_unique`, `bracketed_paste`, `osc_heavy`, `dcs_sixel`.
+`truecolor_unique`, `sgr_nvim`, `bracketed_paste`, `osc_heavy`, `dcs_sixel`,
+`tui_redraw`, `cli_color`.
 
 ## Results: `vt_input` (parser floor)
 
@@ -35,9 +36,12 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 | cursor_motion | 2.13 GiB/s | **2.14 GiB/s** | 617 MiB/s | 410 MiB/s | 776 MiB/s | 617 MiB/s | 464 MiB/s |
 | sync_churn | **1.99 GiB/s** | 1.80 GiB/s | 674 MiB/s | 461 MiB/s | 895 MiB/s | 501 MiB/s | 153 MiB/s |
 | truecolor_unique | **1.84 GiB/s** | 1.63 GiB/s | 599 MiB/s | 422 MiB/s | 941 MiB/s | 585 MiB/s | 520 MiB/s |
+| sgr_nvim | **1.86 GiB/s** | 1.81 GiB/s | 579 MiB/s | 408 MiB/s | 792 MiB/s | 585 MiB/s | 285 MiB/s |
 | bracketed_paste | **2.95 GiB/s** | 2.78 GiB/s | 1.37 GiB/s | 664 MiB/s | 1.42 GiB/s | 746 MiB/s | 217 MiB/s |
 | osc_heavy | 2.88 GiB/s | **2.91 GiB/s** | 659 MiB/s | 256 MiB/s | 2.67 GiB/s | 2.13 GiB/s | 252 MiB/s |
 | dcs_sixel | 7.91 GiB/s | **11.81 GiB/s** | 1.02 GiB/s | 974 MiB/s | 7.35 GiB/s | 4.62 GiB/s | 783 MiB/s |
+| tui_redraw | **2.76 GiB/s** | 2.73 GiB/s | 729 MiB/s | 439 MiB/s | 878 MiB/s | 682 MiB/s | 165 MiB/s |
+| cli_color | 3.16 GiB/s | **3.30 GiB/s** | 969 MiB/s | 528 MiB/s | 954 MiB/s | 488 MiB/s | 172 MiB/s |
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
