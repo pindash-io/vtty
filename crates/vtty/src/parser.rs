@@ -116,19 +116,15 @@ struct Osc {
 ///
 /// # Streaming and chunking
 ///
-/// `Parser` is incremental: bytes may arrive in arbitrarily small chunks, and
-/// sequences split across calls to [`Parser::advance`] are reassembled. A
-/// UTF-8 code point split across calls is held until the remaining bytes
-/// arrive; an unterminated OSC payload is buffered until its terminator.
-/// After the final [`Parser::advance`], call [`Parser::flush`] once so a
-/// trailing incomplete code point is emitted as `U+FFFD`.
+/// Chunks may split a code point or sequence at any boundary; both are
+/// reassembled. Call [`Parser::flush`] after the last chunk so a trailing
+/// partial code point becomes `U+FFFD`.
 ///
 /// # Panic safety
 ///
 /// The parser never panics on untrusted input: truncated sequences, invalid
-/// UTF-8 and overlong payloads are handled by maximal subpart substitution
-/// and the parser's hard caps. `unwrap`, `expect` and `panic` are denied
-/// crate-wide.
+/// UTF-8 and overlong payloads go through maximal-subpart substitution and the
+/// hard caps.
 ///
 /// [dec-parser]: https://vt100.net/emu/dec_ansi_parser
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -321,15 +317,10 @@ impl Parser {
     /// Feed a chunk of bytes to the parser, dispatching each decoded event to
     /// the sink `p`.
     ///
-    /// This is the zero-allocation hot path: events are delivered directly to
-    /// `p` without being materialized as [`Event`] values. See
-    /// [`Parser::parse_events`] for the owned enum API.
-    ///
-    /// `advance` is incremental. Bytes may be split across calls at arbitrary
-    /// boundaries: multi-byte UTF-8 code points and escape sequences that
-    /// straddle a chunk boundary are reassembled transparently. After the
-    /// final chunk, call [`Parser::flush`] once so that a trailing incomplete
-    /// UTF-8 code point is emitted as `U+FFFD`.
+    /// Events go straight to `p`, never materialized as [`Event`] values;
+    /// [`Parser::parse_events`] is the owned alternative. Chunks may split a
+    /// code point or sequence at any boundary; call [`Parser::flush`] after the
+    /// last chunk so a trailing partial code point becomes `U+FFFD`.
     ///
     /// # Example
     ///

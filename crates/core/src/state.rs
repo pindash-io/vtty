@@ -10,14 +10,10 @@ use crate::perform::Perform;
 
 /// A minimal byte-cursor terminal state.
 ///
-/// `State` is a reference [`Perform`](crate::Perform) sink that records printed
-/// text and moves a byte cursor on the control bytes a parser dispatches. It
-/// models just enough of a screen to report the cursor's line and column
-/// without a cell grid: text accumulates verbatim, and `\n`/`\r` move the
-/// cursor.
-///
-/// The invariant is `line_start <= cursor <= text.len()`; the row and column
-/// accessors clamp when the fields are inconsistent.
+/// A [`Perform`](crate::Perform) sink that records printed text and moves a
+/// byte cursor on control bytes: enough to report the line and column without a
+/// cell grid. `line_start <= cursor <= text.len()` holds after every dispatch;
+/// the accessors clamp when it does not.
 ///
 /// # Example
 ///

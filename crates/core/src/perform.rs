@@ -9,28 +9,17 @@
 
 /// A sink for the byte parser's decoded output.
 ///
-/// `Parser::advance` calls one method per dispatch: a printable code point or
-/// ASCII run, a C0/C1 control, or the parsed body of a CSI, OSC, DCS or ESC
-/// sequence. Every method has a no-op default, so a screen overrides only the
-/// callbacks it needs.
-///
-/// [`Event`](crate::Event) is the owned, trait-free alternative: parse into a
-/// `Vec<Event>` via `Parser::parse_events` instead of implementing this trait.
+/// Every method has a no-op default, so a sink overrides only the callbacks it
+/// needs. [`Event`](crate::Event) is the owned alternative: `parse_events`
+/// returns a `Vec<Event>` instead of calling back.
 ///
 /// # Fused callbacks
 ///
-/// Two defaults are composites rather than raw parser actions:
-///
-/// * [`print_line`](Perform::print_line) fuses a printable ASCII run with a
-///   following bare `\n`.
-/// * [`print_crlf_line`](Perform::print_crlf_line) fuses a printable ASCII
-///   run with a following `\r\n`.
-///
-/// Terminal output almost always arrives as LF- or CRLF-terminated lines, so
-/// one fused call avoids two or three callback round-trips. The defaults
-/// delegate to [`print_bytes`](Perform::print_bytes) and
-/// [`execute`](Perform::execute); a screen may override them to render the
-/// fused form directly.
+/// [`print_line`](Perform::print_line) and
+/// [`print_crlf_line`](Perform::print_crlf_line) fuse a printable ASCII run with
+/// the `\n` or `\r\n` after it. The defaults delegate to
+/// [`print_bytes`](Perform::print_bytes) and [`execute`](Perform::execute);
+/// override them to render the fused form.
 ///
 /// # Example
 ///

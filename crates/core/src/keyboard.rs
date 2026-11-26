@@ -218,8 +218,8 @@ impl Key {
 }
 
 /// Encode a key event into the bytes to write to the PTY, under the given
-/// [`KeyEncoding`]. This is the winit-free entry point; the host maps its
-/// native keys/modifiers into [`Key`] + [`Modifiers`] first.
+/// [`KeyEncoding`]. The host maps its native keys into [`Key`] + [`Modifiers`]
+/// first.
 ///
 /// # Example
 ///
