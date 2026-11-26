@@ -22,12 +22,12 @@ assert_eq!(cell_advance(16.0, 10.0), 20.0); // 1.6 cells snaps to 2 cells
 
 ## API
 
-- **Width** — `cell_width`, `cell_widths`, `cell_width_sum`,
+- Width: `cell_width`, `cell_widths`, `cell_width_sum`,
   `cell_col_byte_widths`, `cell_advance`.
-- **Predicates** — `vs_width`, `is_zero_width`.
-- **Emoji segmentation** — `mark_attaches`, `mark_is_stray`, `is_vs_base`,
+- Predicates: `vs_width`, `is_zero_width`.
+- Emoji segmentation: `mark_attaches`, `mark_is_stray`, `is_vs_base`,
   `is_vs_target`, `is_zwj_target`.
-- **`Properties`** — packed emoji flags + width in one lookup.
+- `Properties`: packed emoji flags and width in one lookup.
 
 ## Features
 
