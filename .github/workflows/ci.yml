@@ -150,22 +150,22 @@ jobs:
           cp fuzz/seeds/* fuzz/corpus/differential-rio/
           cp fuzz/seeds/* fuzz/corpus/codec/
 
-      - name: Fuzz smoke: vtty vs vte
+      - name: "Fuzz smoke: vtty vs vte"
         run: cargo fuzz run differential --target "$TRIPLE" -- -max_total_time=30
 
-      - name: Fuzz smoke: vtty-simd vs vte
+      - name: "Fuzz smoke: vtty-simd vs vte"
         run: cargo fuzz run differential-simd --target "$TRIPLE" -- -max_total_time=30
 
-      - name: Fuzz smoke: vtty vs rio-vt
+      - name: "Fuzz smoke: vtty vs rio-vt"
         run: cargo fuzz run differential-rio --target "$TRIPLE" -- -max_total_time=30
 
-      - name: Fuzz smoke: structured random
+      - name: "Fuzz smoke: structured random"
         run: cargo fuzz run random --target "$TRIPLE" -- -max_total_time=30
 
-      - name: Fuzz smoke: no-panic
+      - name: "Fuzz smoke: no-panic"
         run: cargo fuzz run robustness --target "$TRIPLE" -- -max_total_time=30
 
-      - name: Fuzz smoke: codec round-trip
+      - name: "Fuzz smoke: codec round-trip"
         run: cargo fuzz run codec --target "$TRIPLE" -- -max_total_time=30
 
   cross:
