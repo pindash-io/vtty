@@ -6,9 +6,9 @@
 //!
 //! - Every TEXT-STYLE sequence (`base + VS15`) must collapse to `[1, 0]`.
 //! - Every EMOJI-STYLE sequence (`base + VS16`) must collapse to `[2, 0]`,
-//!   EXCEPT the keycap bases (`#`, `*`, `0-9`) — a lone VS16 without the
-//!   trailing U+20E3 is an INCOMPLETE keycap and is dropped (a
-//!   VS16 after a keycap base because it is not `Extended_Pictographic`), so
+//!   except the keycap bases (`#`, `*`, `0-9`): a lone VS16 without the
+//!   trailing U+20E3 is an incomplete keycap and is dropped (a VS16 does not
+//!   attach to a keycap base because it is not `Extended_Pictographic`), so
 //!   those 12 stay `[1, 0]`. The complete `base VS16 U+20E3` keycap widens
 //!   normally.
 //!

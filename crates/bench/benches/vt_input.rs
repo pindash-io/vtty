@@ -10,14 +10,14 @@
 //! screen emulators are measured as-is.
 //!
 //! The `vtty` (scalar) and `vtty-simd` (`Parser::with_simd`) paths are both
-//! measured in one run — vtty is compiled with the `simd` feature and the
+//! measured in one run: vtty is compiled with the `simd` feature and the
 //! path is selected per-parser at runtime.
 //!
 //! `vt_input`/`vt_screen` use a 2 MiB working set (cache-resident, single
 //! core). `vt_bandwidth` re-runs a subset with `VTTY_BENCH_BYTES` (default
 //! 512 MiB) so the working set exceeds the last-level cache, and
 //! `vt_parallel` shards that input across `VTTY_BENCH_THREADS` (default:
-//! `available_parallelism()`) threads — the two knobs that separate memory
+//! `available_parallelism()`) threads, the two knobs that separate memory
 //! bandwidth from core scaling.
 
 // The `criterion_group!` macro emits public functions; a benchmark binary has

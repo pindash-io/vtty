@@ -1,8 +1,8 @@
 // Screen invariant fuzz target: feed arbitrary bytes through the parser into
 // a `Screen`, asserting the screen's structural invariants after every chunk.
-// This exercises the implicit state machines — autowrap, origin mode,
-// insert/replace, scroll margins, alt-screen swap, and the ring buffer — the
-// same way `check_invariants` does, but with libFuzzer's coverage guidance.
+// This exercises the implicit state machines (autowrap, origin mode,
+// insert/replace, scroll margins, alt-screen swap, the ring buffer) the same
+// way `check_invariants` does, but with libFuzzer's coverage guidance.
 
 #![no_main]
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]

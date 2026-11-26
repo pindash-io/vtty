@@ -5,7 +5,7 @@
 //!
 //! Reads the Unicode properties from ICU4X, packs the per-codepoint values
 //! with the `packtab` crate, and writes the generated Rust to `OUT_DIR`
-//! (included by `src/baked.rs`). `unicode-width` is not used here — it is the
+//! (included by `src/baked.rs`). `unicode-width` is not used here; it is the
 //! benchmark/reference table only.
 //!
 //! Env knobs:
@@ -131,8 +131,7 @@ fn main() {
         if eaw.get(c) == EastAsianWidth::Ambiguous {
             b |= 1 << 8;
         }
-        // GCB symbol (0-14), packed into bits 9-12 — one table instead of
-        // two. The emoji-specific GCB values (EBase, EBaseGAZ, EModifier,
+        // GCB symbol (0-14), packed into bits 9-12: one table instead of two. The emoji-specific GCB values (EBase, EBaseGAZ, EModifier,
         // GlueAfterZwj) fold into `Other`; GB11 uses `Extended_Pictographic`
         // directly, and emoji sequences are handled by the parley DFA.
         let gcb_sym = if extended_pictographic.contains(c) {

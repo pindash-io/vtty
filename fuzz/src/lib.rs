@@ -140,9 +140,9 @@ fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
 /// Known, intentional divergences between vtty and the vte-family parsers.
 /// Returns true when `data` triggers one, so the fuzzer skips it:
 ///
-/// - `0x7f` `DEL` — vtty executes it, vte prints it.
-/// - Raw 8-bit C1 — vtty follows DEC "anywhere"; vte drops it in sequences.
-/// - `ESC X`/`ESC ^`/`ESC _` (`SOS`/`PM`/`APC`) — vtty dispatches hook/put/unhook,
+/// - `0x7f` `DEL`: vtty executes it, vte prints it.
+/// - Raw 8-bit C1: vtty follows DEC "anywhere"; vte drops it in sequences.
+/// - `ESC X`/`ESC ^`/`ESC _` (`SOS`/`PM`/`APC`): vtty dispatches hook/put/unhook,
 ///   vte drops them.
 ///
 /// UTF-8 is deliberately *not* filtered: all three parsers share W3C
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn valid_utf8_is_not_flagged() {
-        // "a日b" — all well-formed.
+        // "a日b", all well-formed.
         assert!(!has_rio_utf8_simd_divergence(b"a\xe6\x97\xa5b"));
         // Emoji + combining mark.
         assert!(!has_rio_utf8_simd_divergence("🚀✨e\u{301}".as_bytes()));
@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn esc_intermediate_final_returns_to_ground() {
-        // `ESC SP ]` is an EscDispatch (final `]`), NOT OSC — so the bytes
+        // `ESC SP ]` is an EscDispatch (final `]`), not OSC, so the bytes
         // after it are ground-state UTF-8 again. The truncated `D5` lead
         // followed by `1` must be flagged. (This is the exact shape of a
         // CI fuzz-smoke divergence that escaped the pre-EscapeIntermediate

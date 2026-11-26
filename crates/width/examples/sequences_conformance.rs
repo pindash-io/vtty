@@ -34,7 +34,7 @@ fn main() {
     let mut tag_bad = 0_usize;
     let mut bad: Vec<String> = Vec::new();
     for line in data.lines() {
-        // `cps ; kind ; name # …` — three `;`-fields, then a comment.
+        // `cps ; kind ; name # …`: three `;`-fields, then a comment.
         let line = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() {
             continue;
@@ -68,7 +68,7 @@ fn main() {
         let ok = match kind {
             "Basic_Emoji" => {
                 // Single char (already presentation) → `[2]`, or a text-default
-                // char + VS16 → `[2, 0]` — both collapse to one 2-cell grapheme.
+                // char + VS16 → `[2, 0]`; both collapse to one 2-cell grapheme.
                 if w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0) {
                     basic_ok += 1;
                     true

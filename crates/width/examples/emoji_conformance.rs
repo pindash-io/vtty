@@ -7,9 +7,9 @@
 //!
 //! - FULLY-QUALIFIED entries collapse to `[2, 0, 0, ...]`.
 //! - MINIMALLY-QUALIFIED entries (a ZWJ sequence missing a VS16) collapse to
-//!   `[2, 0, 0, ...]` — the ZWJ family is still one 2-cell grapheme.
+//!   `[2, 0, 0, ...]`, since the ZWJ family is still one 2-cell grapheme.
 //! - UNQUALIFIED multi-codepoint entries (a ZWJ family whose base is
-//!   text-default) collapse to `[2, 0, 0, ...]` — the joiner still merges.
+//!   text-default) collapse to `[2, 0, 0, ...]`: the joiner still merges.
 //! - UNQUALIFIED single-codepoint entries are `[1]` (or `[2]` for wide CJK).
 //! - COMPONENT entries (hair components) are `[2]`.
 //!
@@ -56,7 +56,7 @@ fn main() {
         }
         let s: String = chars.iter().collect();
         let w = vtty_width::cell_widths(&s);
-        // A 2-cell lead with every continuation 0 — one collapsed grapheme.
+        // A 2-cell lead with every continuation 0: one collapsed grapheme.
         let collapsed = w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0);
         let mut ok = true;
         let mut want = String::new();
