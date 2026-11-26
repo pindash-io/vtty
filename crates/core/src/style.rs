@@ -128,22 +128,22 @@ bitflags::bitflags! {
 }
 
 /// SGR underline style (`4:0..5` / SGR 21).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 #[non_exhaustive]
 pub enum UnderlineStyle {
-    /// No underline (`SGR 24` / `4:0`).
+    /// SGR 24 / 4:0 no underline.
     #[default]
     None = 0,
-    /// A single underline (`SGR 4`).
+    /// SGR 4 / 4:1 single.
     Single = 1,
-    /// A double underline (`SGR 4:2` / `21`).
+    /// SGR 21 / 4:2 double.
     Double = 2,
-    /// A curly underline (`SGR 4:3`).
+    /// SGR 4:3 curly.
     Curly = 3,
-    /// A dotted underline (`SGR 4:4`).
+    /// SGR 4:4 dotted.
     Dotted = 4,
-    /// A dashed underline (`SGR 4:5`).
+    /// SGR 4:5 dashed.
     Dashed = 5,
 }
 
@@ -188,14 +188,14 @@ impl UnderlineStyle {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum CursorStyle {
-    /// No cursor drawn (DECTCEM `CSI ?25l`, or an invalid DECSCUSR code).
+    /// DECSCUSR 0 / DECTCEM off no cursor.
     #[default]
     None = 0,
-    /// Solid block covering the cell.
+    /// DECSCUSR 1-2 solid block.
     Block = 1,
-    /// Horizontal underline at the bottom of the cell.
+    /// DECSCUSR 3-4 horizontal underline.
     Underline = 2,
-    /// Vertical bar (I-beam) at the left of the cell.
+    /// DECSCUSR 5-6 vertical bar (I-beam).
     Bar = 3,
 }
 
