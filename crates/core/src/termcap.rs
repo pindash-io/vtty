@@ -3,33 +3,11 @@
 
 //! XTGETTCAP terminfo capability table.
 //!
-//! Answers the `DCS + q <hex cap> ST` capability query (xterm XTGETTCAP) with
-//! the terminal's advertised terminfo values. The reply formatting lives in
-//! [`Reply`](crate::Reply); this module maps each query name to a [`Cap`]
-//! variant (handling aliases) and that variant to its canonical reply key +
-//! value (the subset real apps probe: nvim `RGB`/`setrgbf`/`Smulx`/`Ss`/`sync`,
-//! fish
-//! `query-os-name`, tmux `setaf`/`setab`).
+//! Answers the xterm `DCS + q <hex cap> ST` query with the terminfo values a
+//! terminal advertises. [`Cap::parse`] maps a query name and its aliases to a
+//! [`Cap`], [`CapValue`] carries the reply, and [`Reply::termcap`] formats it.
 
 use compact_str::CompactString;
-
-/// OS name for the non-standard `query-os-name` capability. `cfg!` is
-/// `no_std`-safe (unlike `std::env::consts::OS`).
-const OS_NAME: &[u8] = if cfg!(target_os = "macos") {
-    b"macos"
-} else if cfg!(target_os = "linux") {
-    b"linux"
-} else if cfg!(target_os = "windows") {
-    b"windows"
-} else if cfg!(target_os = "freebsd") {
-    b"freebsd"
-} else if cfg!(target_os = "netbsd") {
-    b"netbsd"
-} else if cfg!(target_os = "openbsd") {
-    b"openbsd"
-} else {
-    b"unknown"
-};
 
 /// The reply value for a capability.
 #[derive(Clone, Copy, Debug)]
@@ -200,8 +178,19 @@ impl crate::Reply {
     /// The query may pack several capabilities, semicolon-separated (nvim/herdr
     /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
     /// order.
+    ///
+    /// `tn` is the `$TERM` name. `os_name` answers the non-standard
+    /// `query-os-name` capability (fish probes it); it is the caller's, since
+    /// only the application knows what OS it is running on — an empty slice
+    /// answers the query as unsupported.
     #[must_use]
-    pub fn termcap(cap: &[u8], cols: usize, rows: usize, tn: &[u8]) -> CompactString {
+    pub fn termcap(
+        cap: &[u8],
+        cols: usize,
+        rows: usize,
+        tn: &[u8],
+        os_name: &[u8],
+    ) -> CompactString {
         use crate::reply::{xtgettcap, xtgettcap_num_append};
 
         let mut buf = CompactString::default();
@@ -218,8 +207,11 @@ impl crate::Reply {
                 CapValue::Text(v) => xtgettcap(&mut buf, true, key, Some(v)),
                 CapValue::Cols => xtgettcap_num_append(&mut buf, key, cols),
                 CapValue::Rows => xtgettcap_num_append(&mut buf, key, rows),
+                CapValue::OsName if os_name.is_empty() => {
+                    xtgettcap(&mut buf, false, Cap::UNSUPPORTED, None);
+                }
                 CapValue::OsName => {
-                    xtgettcap(&mut buf, true, key, Some(OS_NAME));
+                    xtgettcap(&mut buf, true, key, Some(os_name));
                 }
                 CapValue::Tn => xtgettcap(&mut buf, true, key, Some(tn)),
             };
@@ -232,7 +224,6 @@ impl crate::Reply {
 mod tests {
     use super::*;
     use crate::Reply;
-    use alloc::string::String;
 
     #[test]
     fn parse_aliases_resolve_to_canonical() {
@@ -252,42 +243,44 @@ mod tests {
     #[test]
     fn termcap_replies_for_each_value_kind() {
         assert_eq!(
-            Reply::termcap(b"RGB", 80, 24, b"jetfish"),
+            Reply::termcap(b"RGB", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r524742=382f382f38\x1b\\"
         );
         assert_eq!(
-            Reply::termcap(b"am", 80, 24, b"jetfish"),
+            Reply::termcap(b"am", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r616d\x1b\\"
         );
         assert_eq!(
-            Reply::termcap(b"co", 80, 24, b"jetfish"),
+            Reply::termcap(b"co", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r636f=3830\x1b\\"
         );
         assert_eq!(
-            Reply::termcap(b"li", 80, 24, b"jetfish"),
+            Reply::termcap(b"li", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r6c69=3234\x1b\\"
         );
         assert_eq!(
-            Reply::termcap(b"nope", 80, 24, b"jetfish"),
+            Reply::termcap(b"nope", 80, 24, b"jetfish", b"macos"),
             "\x1bP0+r756e737570706f72746564\x1b\\"
         );
     }
 
     #[test]
     fn termcap_os_name_answers_hex_os() {
-        let mut expected = String::from("\x1bP1+r71756572792d6f732d6e616d65=");
-        expected.push_str(&const_hex::encode(OS_NAME));
-        expected.push_str("\x1b\\");
         assert_eq!(
-            Reply::termcap(b"query-os-name", 80, 24, b"jetfish"),
-            expected.as_str()
+            Reply::termcap(b"query-os-name", 80, 24, b"jetfish", b"macos"),
+            "\x1bP1+r71756572792d6f732d6e616d65=6d61636f73\x1b\\"
+        );
+        // No OS name to advertise: answer the capability as unsupported.
+        assert_eq!(
+            Reply::termcap(b"query-os-name", 80, 24, b"jetfish", b""),
+            "\x1bP0+r756e737570706f72746564\x1b\\"
         );
     }
 
     #[test]
     fn termcap_answers_packed_query_in_order() {
         assert_eq!(
-            Reply::termcap(b"RGB;am;co", 80, 24, b"jetfish"),
+            Reply::termcap(b"RGB;am;co", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r524742=382f382f38\x1b\\\x1bP1+r616d\x1b\\\x1bP1+r636f=3830\x1b\\"
         );
     }
@@ -295,7 +288,7 @@ mod tests {
     #[test]
     fn termcap_skips_empty_parts() {
         assert_eq!(
-            Reply::termcap(b";;RGB;;", 80, 24, b"jetfish"),
+            Reply::termcap(b";;RGB;;", 80, 24, b"jetfish", b"macos"),
             "\x1bP1+r524742=382f382f38\x1b\\"
         );
     }
