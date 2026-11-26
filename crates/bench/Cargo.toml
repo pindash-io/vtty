@@ -35,5 +35,9 @@ vtparse.workspace = true
 name = "vt_input"
 harness = false
 
+[[bench]]
+name = "csi_units"
+harness = false
+
 [lints]
 workspace = true

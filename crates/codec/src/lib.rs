@@ -152,7 +152,7 @@ mod tests {
         let text = alloc::string::String::from("héllo 世界");
         assert_eq!(roundtrip(&text), text);
 
-        let sv: SmallVec<i32, 6> = SmallVec::from([1, -2, 3]);
+        let sv: SmallVec<i32, 8> = SmallVec::from([1, -2, 3]);
         assert_eq!(roundtrip(&sv), sv);
 
         // ZST elements encode no bytes, so the length guard must not apply.
