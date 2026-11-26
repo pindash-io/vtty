@@ -236,10 +236,16 @@ const fn cube_level(v: u8) -> u8 {
 /// Decode an `RRGGBB` hex string (with or without a leading `#`) into three
 /// 8-bit channels.
 #[inline]
-fn decode_rgb(s: &str) -> Option<[u8; 3]> {
-    let s = s.strip_prefix('#').unwrap_or(s);
-    let bytes = const_hex::decode(s.as_bytes()).ok()?;
-    <[u8; 3]>::try_from(bytes.as_slice()).ok()
+const fn decode_rgb(s: &str) -> Option<[u8; 3]> {
+    // `str::strip_prefix(char)` is not const; slice patterns are.
+    let hex = match s.as_bytes() {
+        [b'#', rest @ ..] => rest,
+        bytes => bytes,
+    };
+    match const_hex::const_decode_to_array(hex) {
+        Ok(rgb) => Some(rgb),
+        Err(_) => None,
+    }
 }
 
 /// Parse a CSS hex color into `[R, G, B, A]`, with or without the leading `#`.
@@ -441,6 +447,22 @@ mod tests {
         let mut s = String::new();
         let _ = write!(&mut s, "{:?}", ColorId(7));
         assert_eq!(s, "7");
+    }
+
+    #[test]
+    fn decode_rgb_is_const_and_exact() {
+        // Accepts 6 hex digits with or without `#`, nothing else.
+        const RED: Option<[u8; 3]> = decode_rgb("#ff0000");
+        assert_eq!(RED, Some([0xff, 0, 0]));
+        const BARE: Option<[u8; 3]> = decode_rgb("00ff7f");
+        assert_eq!(BARE, Some([0, 0xff, 0x7f]));
+        assert_eq!(decode_rgb("#FF0000"), Some([0xff, 0, 0]));
+        assert_eq!(decode_rgb("#ff00"), None);
+        assert_eq!(decode_rgb("#ff000"), None);
+        assert_eq!(decode_rgb("#ff00000"), None);
+        assert_eq!(decode_rgb("#gg0000"), None);
+        assert_eq!(decode_rgb(""), None);
+        assert_eq!(decode_rgb("#"), None);
     }
 
     #[test]
