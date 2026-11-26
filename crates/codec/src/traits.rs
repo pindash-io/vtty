@@ -17,10 +17,8 @@ pub trait Encode {
     /// carries a variant this build does not know.
     fn encode<W: Write + ?Sized>(&self, writer: &mut W) -> Result<(), EncodeError>;
 
-    /// The exact number of bytes [`Encode::encode`] will write.
-    ///
-    /// The default encodes into a `CountWriter`; override it only when a
-    /// closed-form length is cheaper than re-running the encode logic.
+    /// The exact byte count [`Encode::encode`] will write. The default counts with
+    /// a `CountWriter`; override it when a closed form is cheaper.
     fn encoded_len(&self) -> usize {
         let mut counter = CountWriter::new();
         // `CountWriter` never fails, so the result is always `Ok`.

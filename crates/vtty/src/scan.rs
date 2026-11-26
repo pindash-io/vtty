@@ -86,10 +86,8 @@ fn first_where(
     whole + tail.iter().position(is_stop).unwrap_or(tail.len())
 }
 
-/// Index of the first ESC byte in the first `limit` bytes, or that length when
-/// none: the probe that bounds each multi-byte decode window. SWAR over 8-byte
-/// words; SIMD memchr pays alignment and dispatch setup for no gain on such a
-/// short window.
+/// Index of the first ESC in the first `limit` bytes, or `limit`: the probe that
+/// bounds a decode window. SWAR, since SIMD setup loses on a short window.
 #[cfg(feature = "simd")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {

@@ -33,10 +33,8 @@ impl Screen {
         self.put_base(c, width);
     }
 
-    /// Write a run of printable ASCII bytes as width-1 cells. `print_bytes`
-    /// only ever receives `0x20..=0x7e` (the parser bulk-dispatches printable
-    /// ASCII runs), so the per-byte width lookup and double-width branch of
-    /// [`Self::put_base`] are dead work here. This is the bulk text hot path.
+    /// Write a printable-ASCII run as width-1 cells: `print_bytes` only sees
+    /// `0x20..=0x7e`, so the width lookup is dead work. The bulk text hot path.
     pub(crate) fn put_ascii(&mut self, s: &[u8]) {
         // Insert mode writes one cell at a time so each glyph shifts the row
         // right; the bulk path below is the non-insert fast path.

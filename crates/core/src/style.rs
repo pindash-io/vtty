@@ -407,10 +407,8 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
     }
 }
 
-/// The effect of the common single-color / single-attribute SGR forms,
-/// avoiding the effects `SmallVec` + iteration on the per-cell redraw hot
-/// path. Returns `None` for anything else (colon forms, multi-param
-/// sequences), so the caller falls back to [`parse_effects`].
+/// The common single-color / single-attribute forms, avoiding the effects
+/// `SmallVec`; `None` falls back to [`parse_effects`].
 #[inline]
 pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
@@ -425,10 +423,8 @@ pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     }
 }
 
-/// The common two-effect SGR form, one attribute code followed by one
-/// extended color (`1;38;2;r;g;b`, `4;48;5;n`), avoiding the effects
-/// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
-/// for anything else; the caller falls back to [`parse_effects`].
+/// The common attribute-plus-extended-color form (`1;38;2;r;g;b`), avoiding
+/// the effects `SmallVec`; `None` falls back to [`parse_effects`].
 #[inline]
 pub const fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {

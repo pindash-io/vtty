@@ -81,10 +81,8 @@ enum Gb11 {
     Zwj,
 }
 
-/// Iterator over the grapheme clusters of a UTF-8 string.
-///
-/// Yields [`Grapheme`] ranges in order; the first cluster starts at 0 and
-/// the last ends at `text.len()`.
+/// Iterator over the grapheme clusters of a UTF-8 string: [`Grapheme`] ranges
+/// in order, covering `0..text.len()`.
 #[derive(Debug)]
 #[must_use]
 pub struct Graphemes<'a> {
@@ -124,10 +122,8 @@ impl Graphemes<'_> {
         Some(Grapheme::new(start, start + 1))
     }
 
-    /// Set up a detected printable-ASCII run starting at `self.pos`: hold the
-    /// last byte as the open cluster (so a following combining mark can still
-    /// attach), and queue the preceding bytes for emission. Returns the
-    /// number of queued bytes (`run - 1`).
+    /// Hold the last byte of the detected run as the open cluster and queue the
+    /// rest; returns the number of queued bytes (`run - 1`).
     const fn start_ascii_run(&mut self, run: usize) -> usize {
         let first = self.pos;
         let last = first + run - 1;

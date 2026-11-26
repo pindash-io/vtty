@@ -48,10 +48,8 @@ impl<T> Default for Decoder<T> {
 }
 
 impl<T: Decode> Decoder<T> {
-    /// Feeds `chunk`, returning the decoded value once it is complete.
-    ///
-    /// `Ok(None)` means more bytes are needed; truncation is not an error.
-    /// `Err` is returned only for an invalid encoding.
+    /// Feeds `chunk`, returning the value once complete. `Ok(None)` needs more
+    /// bytes; `Err` is only an invalid encoding.
     pub fn advance(&mut self, chunk: &[u8]) -> Result<Option<T>, DecodeError> {
         self.buf.extend_from_slice(chunk);
         let mut reader = SliceReader::new(&self.buf);

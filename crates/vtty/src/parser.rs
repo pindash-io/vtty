@@ -21,20 +21,16 @@ use crate::scan::{
 use crate::table::{Action, ParseState, transition};
 use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
 
-/// The byte-input VT parser: UTF-8 decoding plus per-codepoint dispatch.
-///
-/// CSI/DCS parameter accumulator: the current digit run, the collected
-/// parameters and the colon-separator bits.
+/// CSI/DCS parameter accumulator: the current digit run, the collected params
+/// and the colon-separator bits.
 #[derive(Debug, PartialEq, Eq)]
 struct Params {
     /// Current parameter being accumulated. DEC VT500 params are 16-bit
     /// (0..=65535); `i32` holds the clamped range plus the `-1` empty-param
     /// sentinel.
     param: i32,
-    /// True while the current parameter is empty (no digits seen since the
-    /// last `;`/`:`). An empty COLON parameter is pushed as `-1` so SGR colon
-    /// forms (`38:2::r:g:b`, empty colorspace) stay distinguishable from a
-    /// literal `0`.
+    /// True while the current parameter has no digits. A colon-empty param is `-1`,
+    /// keeping SGR colon forms distinct from a literal `0`.
     empty: bool,
     /// Collected parameters, capped at [`MAX_PARAM_COUNT`]. A fixed array plus
     /// a separate length makes clearing O(1).
@@ -74,10 +70,8 @@ struct Osc {
     /// Set when the payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
     /// then discarded.
     overflow: bool,
-    /// Start offset of each OSC param in `payload` (the params are contiguous
-    /// in the buffer, since `;` separators are not stored). `starts[0]` is always
-    /// 0; the extra slot holds the last param's end offset, so params 17+ are
-    /// dropped.
+    /// Start offset of each OSC param in `payload`; the extra slot holds the last
+    /// end, so params past the cap are dropped.
     starts: [u32; MAX_OSC_PARAMS + 1],
     num_starts: usize,
     /// Where the current payload lives: deferred in the `advance` input slice
@@ -188,10 +182,7 @@ const fn param_at(seq: &[u8], i: &mut usize) -> i32 {
 }
 
 impl Parser {
-    /// An empty parser in the ground state.
-    ///
-    /// This is equivalent to [`Parser::new`], but can be used in a `const`
-    /// context.
+    /// An empty parser in the ground state, usable in a `const` context.
     pub const DEFAULT: Self = Self {
         state: ParseState::Ground,
         params: Params {

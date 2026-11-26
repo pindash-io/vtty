@@ -334,10 +334,8 @@ pub const fn vs_width(selector: char) -> usize {
     }
 }
 
-/// The common CJK/kana/fullwidth blocks: every char in these ranges is
-/// width 2, a standalone base (GCB Other), and not an emoji starter, so the
-/// composite table lookup is pure overhead on the streaming hot path. Derived
-/// from the baked table (verified by `cjk_fast_width_matches_table`).
+/// The common CJK/kana/fullwidth blocks: width 2, a standalone base, not an
+/// emoji starter, so the table lookup is pure overhead. Baked-table derived.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 #[doc(hidden)]
 pub const fn cjk_fast_width(c: char) -> Option<usize> {
@@ -388,10 +386,8 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
     }
 }
 
-/// The Private Use Areas: EAW "Ambiguous", never emoji/combining, a
-/// standalone base (GCB Other): one range check + the CJK-ambiguous width
-/// instead of the composite table lookup (the tofu-fallback corpus). Derived
-/// from the baked table (verified by `pua_fast_width_matches_table`).
+/// The Private Use Areas: EAW ambiguous, never emoji or combining, a standalone
+/// base, so one range check replaces the table lookup.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 #[doc(hidden)]
 pub fn pua_fast_width(c: char) -> Option<usize> {
@@ -407,10 +403,8 @@ pub fn pua_fast_width(c: char) -> Option<usize> {
     None
 }
 
-/// The emoji-presentation blocks: width 2, an emoji starter, and (except
-/// when followed by a ZWJ or skin-tone modifier) standalone. One small
-/// 1-bit baked table instead of the 5-level composite lookup (the mixed-
-/// width print hot path). Verified by `emoji_fast_width_matches_table`.
+/// The emoji-presentation blocks: width 2 and a starter, standalone unless a ZWJ
+/// or modifier follows. A 1-bit table replaces the composite lookup.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 #[doc(hidden)]
 pub fn emoji_fast_width(c: char) -> Option<usize> {

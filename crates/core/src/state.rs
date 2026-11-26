@@ -67,20 +67,16 @@ impl State {
         self.text[..cursor].bytes().filter(|&b| b == b'\n').count()
     }
 
-    /// 0-based byte column of the cursor within its line (offset from the
-    /// line start, not a terminal cell column; this byte-cursor state has no
-    /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
-    /// [`Self::cursor_row`].
+    /// 0-based byte column within the line, not a cell column. Clamps to `0` when
+    /// the fields are inconsistent, mirroring [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {
         self.cursor
             .min(self.text.len())
             .saturating_sub(self.line_start)
     }
 
-    /// Byte range `[start, end)` of line `line` (0-based). `end` is exclusive:
-    /// it points at the line's `\n` byte, or at the buffer end for the last
-    /// line. Returns `None` when `line` is out of range (or the buffer is
-    /// empty).
+    /// Byte range `[start, end)` of line `line`; `end` points at its `\n`. `None`
+    /// when the line is out of range.
     pub fn line_range(&self, line: usize) -> Option<Range<usize>> {
         let bytes = self.text.as_bytes();
         if bytes.is_empty() {

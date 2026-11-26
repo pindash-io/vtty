@@ -160,10 +160,8 @@ named_bytes!(
     Auth => b"auth",
 );
 
-/// A parsed `OSC 7501` report.
-///
-/// A report without `id` addresses the root record; each report replaces its
-/// record completely.
+/// A parsed `OSC 7501` report. No `id` addresses the root; each report
+/// replaces its record.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProgramStatus {
     /// The reported state. Required by the protocol.

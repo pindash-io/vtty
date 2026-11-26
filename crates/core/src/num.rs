@@ -3,10 +3,8 @@
 
 //! Decimal formatting for the on-wire encoders.
 
-/// Write `v` as decimal into the tail of `buf`, returning those digits.
-///
-/// At most `buf.len()` low-order digits are written, so a buffer sized for the
-/// largest value a caller produces never truncates.
+/// Write `v` as decimal into the tail of `buf`, returning those digits. At most
+/// `buf.len()` low-order digits are written.
 #[inline]
 pub fn write_decimal(v: u32, buf: &mut [u8]) -> &[u8] {
     if buf.is_empty() {

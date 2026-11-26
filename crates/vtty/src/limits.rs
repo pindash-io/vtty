@@ -26,22 +26,14 @@ pub(crate) const MAX_OSC_PARAMS: usize = 16;
 /// Parameters beyond this cap are dropped.
 pub(crate) const MAX_PARAM_COUNT: usize = 32;
 
-/// Maximum CSI/DCS parameter value.
-///
-/// DEC VT500 params are 16-bit (`0..=65535`); `i32` holds the clamped range
-/// plus the `-1` empty-param sentinel.
+/// Maximum CSI/DCS parameter value: DEC's 16-bit range plus the `-1` sentinel.
 pub(crate) const MAX_PARAM_VALUE: i32 = 65535;
 
-/// Maximum number of CSI/DCS intermediates.
-///
-/// The DEC spec caps intermediates (private markers plus `0x20..0x2f`) at
-/// two; extras are dropped.
+/// Maximum CSI/DCS intermediates; DEC caps them at two, extras are dropped.
 pub(crate) const MAX_INTERMEDIATES: usize = 2;
 
-/// Maximum number of continuation bytes in a UTF-8 code point.
-///
-/// A full code point is at most `1 + MAX_UTF8_CONTINUATIONS = 4` bytes, the
-/// `UTF-8 partial` row in `ARCHITECTURE.md`.
+/// Maximum UTF-8 continuation bytes; a code point is at most four (see
+/// `ARCHITECTURE.md`).
 pub(crate) const MAX_UTF8_CONTINUATIONS: usize = 3;
 
 /// Maximum SIMD UTF-8 decode window, in bytes.

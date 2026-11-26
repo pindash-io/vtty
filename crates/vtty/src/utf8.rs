@@ -62,10 +62,8 @@ impl PartialUtf8 {
     }
 }
 
-/// Expected byte length and initial code-point bits for a UTF-8 lead byte,
-/// the two facts the partial-decoder needs, from one range dispatch. Returns
-/// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
-/// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
+/// Expected length and lead bits for a UTF-8 lead byte, from one range
+/// dispatch; `expected_len` is `0` for invalid and continuation bytes.
 #[inline]
 const fn utf8_lead(lead: u8) -> (usize, u32) {
     match lead {
@@ -94,10 +92,8 @@ pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
     }
 }
 
-/// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
-/// leads and unrestricted 3/4-byte leads accept any continuation; the four
-/// constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower ranges
-/// (UTF-8's non-shortest/non-surrogate/non-overlong rules).
+/// Whether `second` fits `lead`; the four constrained leads (`0xE0`, `0xED`,
+/// `0xF0`, `0xF4`) reject the non-shortest and surrogate ranges.
 #[inline]
 const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     match lead {

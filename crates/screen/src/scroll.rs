@@ -113,10 +113,8 @@ impl Screen {
         self.scroll_n(down, 1);
     }
 
-    /// Scroll the region `n` lines in one call. Full-screen scrolls rotate
-    /// the ring `n` times, each O(cols), so a loop over [`Self::scroll`] is
-    /// already optimal there. Region scrolls memmove `n` lines in one pass
-    /// instead of `n` passes.
+    /// Scroll the region `n` lines: a full-screen scroll rotates the ring `n` times
+    /// (already optimal), a region memmoves `n` lines in one pass.
     pub(crate) fn scroll_n(&mut self, down: bool, n: u32) {
         let top = self.active.margins.top as usize;
         let bottom = self.active.margins.bottom as usize;

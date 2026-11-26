@@ -64,10 +64,8 @@ impl From<u8> for Charset {
     }
 }
 
-/// The four ISO 2022 designated character sets (G0, G1, G2, G3), selected by
-/// the `ESC ( / ) / * / +` designation sequences and the `SO`/`SI`/`SS2`/`SS3` shift
-/// controls. A terminal carries these as one unit: DECSC/DECRC save and
-/// restore all four together.
+/// The four ISO 2022 designated sets (G0..=G3), selected by `ESC ( / ) / * / +`
+/// and the `SO`/`SI`/`SS2`/`SS3` shifts. DECSC/DECRC save all four together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Charsets([Charset; 4]);
 
@@ -240,10 +238,8 @@ impl Scs {
         charset.map(c)
     }
 
-    /// Translate a char through the locked charset only: the bulk path where
-    /// the caller has already verified `single_shift` is `None` (so `active()`
-    /// would just read `gl`). Skips the `Option` unwrap and the `single_shift`
-    /// write of [`Self::map`].
+    /// Translate a char through the locked charset only: the bulk path, where the
+    /// caller already checked `single_shift` is `None`.
     #[inline]
     pub const fn map_locked(&self, c: char) -> char {
         let charset = self.charsets.get(self.gl as usize);
@@ -257,10 +253,8 @@ impl Default for Scs {
     }
 }
 
-/// The DEC Special Graphics glyph table for `0x5f..=0x7e`.
-///
-/// Used when a G-set is designated to [`Charset::Dec`] (`ESC ( 0` /
-/// `ESC ) 0`). Bytes outside the range pass through unchanged.
+/// The DEC Special Graphics table for `0x5f..=0x7e`, used when a G-set is
+/// designated to [`Charset::Dec`]; bytes outside the range pass through.
 #[inline]
 pub const fn dec_special_graphics(c: char) -> char {
     match c {

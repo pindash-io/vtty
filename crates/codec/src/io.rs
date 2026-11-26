@@ -21,10 +21,8 @@ pub trait Write {
 
 /// A minimal byte source for decoding (a `no_std` subset of `std::io::Read`).
 pub trait Read {
-    /// Copies up to `buf.len()` bytes into `buf`, returning how many were
-    /// copied.
-    ///
-    /// `Ok(0)` means end of input.
+    /// Copies up to `buf.len()` bytes into `buf`, returning how many; `Ok(0)`
+    /// is end of input.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, DecodeError>;
 
     /// The total input length remaining, if known up front. Slice readers
@@ -59,9 +57,7 @@ pub trait Read {
     }
 }
 
-/// Encodes into a caller-provided fixed-size buffer.
-///
-/// Each [`Write::write`] is atomic: a write that would run past the end fails
+/// Encodes into a fixed-size buffer. A write that would run past the end fails
 /// with [`EncodeError::BufferTooSmall`] and leaves the buffer unchanged.
 #[derive(Debug)]
 pub struct SliceWriter<'a> {

@@ -54,10 +54,8 @@ impl Selector {
         matches!(self, Self::Zwj)
     }
 
-    /// Whether the selector attaches to `base`: the base's category must be
-    /// a valid target, otherwise the selector is a stray and is dropped.
-    /// VS15/VS16 use [`is_vs_base`] (`ExtPict`, the attach predicate); ZWJ
-    /// uses [`is_zwj_target`].
+    /// Whether the selector attaches to `base`; a stray selector is dropped.
+    /// VS15/VS16 use [`is_vs_base`], ZWJ uses [`is_zwj_target`].
     #[inline]
     pub fn attaches_to(self, base: char) -> bool {
         if self.is_zwj() {
@@ -202,10 +200,8 @@ pub fn is_zwj_target(c: char) -> bool {
     )
 }
 
-/// Whether a char is a halfwidth katakana sound mark (U+FF9E/U+FF9F).
-/// These are `Grapheme_Extend` (so unicode-width reports 0), but terminals
-/// render them as independent halfwidth cells (see [`crate::cell_width`]), so
-/// the emoji DFA must not treat them as zero-width continuations.
+/// U+FF9E/U+FF9F: `Grapheme_Extend`, but terminals render them as 1 halfwidth
+/// cell, so the DFA must not treat them as continuations.
 #[inline]
 pub const fn is_halfwidth_sound_mark(c: char) -> bool {
     matches!(c, '\u{FF9E}' | '\u{FF9F}')

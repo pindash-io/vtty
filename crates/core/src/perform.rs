@@ -61,10 +61,8 @@ pub trait Perform {
     /// A C0/C1 control byte (e.g. `\n`, `\t`, `\x1b`).
     fn execute(&mut self, _byte: u8) {}
 
-    /// A printable ASCII run immediately followed by a bare `\n`, the
-    /// raw-LF streaming hot path. Defaults to [`print_bytes`](Perform::print_bytes)
-    /// then [`execute`](Perform::execute) of `\n`; screens may fuse them when
-    /// the result is identical.
+    /// A printable ASCII run followed by a bare `\n`. Defaults to `print_bytes`
+    /// then `execute`; screens may fuse them when the result is identical.
     fn print_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\n');
