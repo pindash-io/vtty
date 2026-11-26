@@ -379,10 +379,8 @@ impl<S: Source> Iterator for Widths<S> {
     }
 }
 
-/// Number of leading printable-ASCII bytes that are not keycap bases
-/// (`#`, `*`, `0-9`). Keycap bases can start a keycap emoji sequence
-/// (e.g. `1 VS16 U+20E3`), so they must go through the DFA; every other
-/// printable-ASCII char is always a standalone width-1 base.
+/// Number of leading printable-ASCII bytes that are not keycap bases, which
+/// can start a keycap sequence and so must go through the DFA.
 #[inline]
 fn plain_ascii_run(bytes: &[u8]) -> usize {
     let mut n = 0;

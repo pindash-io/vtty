@@ -243,10 +243,8 @@ const fn decode_rgb(s: &str) -> Option<[u8; 3]> {
     }
 }
 
-/// Parse a CSS hex color into `[R, G, B, A]`, with or without the leading `#`.
-///
-/// Accepts `RGB`, `RGBA`, `RRGGBB` and `RRGGBBAA`; the shorthand forms repeat
-/// each nibble (`#ff0` is `#ffff00`), and a missing alpha channel is opaque.
+/// Parse a CSS hex color into `[R, G, B, A]`: `RGB`, `RGBA`, `RRGGBB` or
+/// `RRGGBBAA`, with or without `#`, shorthand repeating each nibble.
 #[inline]
 pub const fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
     let hex = match s.as_bytes() {

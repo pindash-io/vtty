@@ -8,10 +8,8 @@ use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
 use crate::properties::{Gcb, Properties, cjk_fast_width, emoji_category};
 
-/// A zero-width mark that can modify a base (UAX #29 GB9 + UTS #51): a
-/// variation selector or ZWJ. These change a base's emoji presentation
-/// (VS15/VS16) or join a ZWJ sequence. Combining marks are not selectors:
-/// they accept any non-space base instead of rejecting non-emoji bases.
+/// A zero-width mark that modifies a base (UAX #29 GB9 + UTS #51): a variation
+/// selector or ZWJ. Combining marks are not selectors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selector {
     /// VS16, emoji presentation.
@@ -174,10 +172,8 @@ pub fn mark_is_stray(mark: char, base: char) -> bool {
     !mark_attaches(mark, base)
 }
 
-/// Whether a char is a keycap base (`#`, `*`, `0-9`). A buffered VS16/VS15
-/// after it attaches (the DFA groups it into the keycap sequence, and the base
-/// widens to 2 cells only in the complete `base VS16 U+20E3`); a direct lone
-/// selector is still dropped.
+/// Whether a char is a keycap base (`#`, `*`, `0-9`): a buffered VS16/VS15
+/// after it attaches, but a lone one is dropped.
 #[inline]
 pub fn is_keycap_base(c: char) -> bool {
     emoji_category(c) == EmojiSegmentationCategory::KeycapBase
