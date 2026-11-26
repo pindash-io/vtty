@@ -14,18 +14,16 @@ use core::fmt::Write as _;
 #[cfg(feature = "reply")]
 use compact_str::{CompactString, format_compact};
 
-/// DECTSR answer prefix — `DCS 1 $ s` (Terminal State Report). The final is
-/// a lowercase `s` (the EK-VT510-RM errata on vt100.net corrects the printed
-/// uppercase `S`).
+/// DECTSR answer prefix (`DCS 1 $ s`). The final is lowercase, per the VT510 errata.
 #[cfg(feature = "reply")]
 const DECTSR_PREFIX: &str = "\x1bP1$s";
-/// DECCTR answer prefix — `DCS 2 $ s` (Color Table Report).
+/// DECCTR answer prefix (`DCS 2 $ s`).
 #[cfg(feature = "reply")]
 const DECCTR_PREFIX: &str = "\x1bP2$s";
-/// DECCIR answer prefix — `DCS 1 $ u` (Cursor Information Report).
+/// DECCIR answer prefix (`DCS 1 $ u`).
 #[cfg(feature = "reply")]
 const DECCIR_PREFIX: &str = "\x1bP1$u";
-/// DECTABSR answer prefix — `DCS 2 $ u` (Tab Stop Report).
+/// DECTABSR answer prefix (`DCS 2 $ u`).
 #[cfg(feature = "reply")]
 const DECTABSR_PREFIX: &str = "\x1bP2$u";
 
@@ -36,15 +34,15 @@ const DECTABSR_PREFIX: &str = "\x1bP2$u";
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ConformanceLevel {
-    /// VT100 mode (`CSI 61 " p`).
+    /// VT100 (`CSI 61 " p`).
     Vt100 = 61,
-    /// VT200 mode (`CSI 62 " p`).
+    /// VT200 (`CSI 62 " p`).
     Vt200 = 62,
-    /// VT300 mode (`CSI 63 " p`).
+    /// VT300 (`CSI 63 " p`).
     Vt300 = 63,
-    /// VT400 mode (`CSI 64 " p`).
+    /// VT400 (`CSI 64 " p`).
     Vt400 = 64,
-    /// VT500 mode (`CSI 65 " p`).
+    /// VT500 (`CSI 65 " p`).
     #[default]
     Vt500 = 65,
 }

@@ -50,61 +50,53 @@ bitflags::bitflags! {
     /// Settable terminal modes tracked by a screen, as a single flag set.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct TermFlags: u64 {
-        /// No mode — returned by [`TermFlags::from_private_param`] for
-        /// unknown codes.
+        /// No mode, from `from_private_param` for an unknown code.
         const NONE = 0;
-        /// IRM (`CSI 4 h/l`) — insert/replace mode.
+        /// IRM (`CSI 4`) insert/replace.
         const INSERT = 1 << 0;
-        /// LNM (`CSI 20 h/l`) — linefeed/newline mode.
+        /// LNM (`CSI 20`) linefeed/newline.
         const LINEFEED = 1 << 3;
-        /// DECCKM (`CSI ?1 h/l`) — application cursor keys (arrows send `SS3`).
+        /// DECCKM (`CSI ?1`) application cursor keys.
         const CURSOR_KEYS = 1 << 10;
-        /// DECCOLM (`CSI ?3 h/l`) — 132-column mode (tracked; the host owns
-        /// the real width).
+        /// DECCOLM (`CSI ?3`) 132 columns, tracked only.
         const DECCOLM = 1 << 13;
-        /// DECSCNM (`CSI ?5 h/l`) — reverse video (swap fg/bg at render time).
+        /// DECSCNM (`CSI ?5`) reverse video.
         const REVERSE_COLORS = 1 << 11;
-        /// DECOM (`CSI ?6 h/l`) — origin mode (positioning relative to the
-        /// scroll region).
+        /// DECOM (`CSI ?6`) origin at the scroll margin.
         const ORIGIN = 1 << 1;
-        /// DECAWM (`CSI ?7 h/l`) — autowrap.
+        /// DECAWM (`CSI ?7`) autowrap.
         const WRAPAROUND = 1 << 2;
-        /// DEC 9 — X10 mouse reporting.
+        /// X10 mouse reporting.
         const MOUSE_X10 = 1 << 6;
-        /// DEC 12 (`CSI ?12 h/l`) — cursor blinking (AT&T 610).
+        /// DEC 12 (`CSI ?12`) blinking cursor.
         const CURSOR_BLINK = 1 << 32;
-        /// DECTCEM (`CSI ?25 h/l`) — cursor visible.
+        /// DECTCEM (`CSI ?25`) cursor visible.
         const CURSOR_VISIBLE = 1 << 4;
-        /// DEC 45 (`CSI ?45 h/l`) — reverse wrap-around (BS at the left
-        /// margin wraps up to the previous row's right margin).
+        /// DEC 45 (`CSI ?45`) reverse wrap-around.
         const REVERSE_WRAP = 1 << 22;
-        /// DEC 47 — alternate screen buffer (persistent: re-entering restores
-        /// its content and cursor).
+        /// DEC 47 (`CSI ?47`) alternate screen buffer.
         const ALT_SCREEN = 1 << 14;
-        /// DEC 66 — application keypad mode (DECNKM).
+        /// DECNKM (`CSI ?66`) application keypad.
         const KEYPAD_KEYS = 1 << 24;
-        /// DEC 67 — backarrow key mode (DECBKM): Backspace sends `\x08`
-        /// instead of `\x7f`.
+        /// DECBKM (`CSI ?67`) Backspace sends 0x08.
         const BACKARROW_KEY_MODE = 1 << 33;
-        /// DEC 1035 (`CSI ?1035 h/l`) — ignore the numlock state for the
-        /// keypad (the keypad is always numeric, never application).
+        /// DEC 1035 (`CSI ?1035`) ignore numlock on the keypad.
         const NUMLOCK = 1 << 34;
-        /// DEC 69 — left/right margin mode (DECLRMM).
+        /// DECLRMM (`CSI ?69`) left/right margins.
         const ENABLE_LEFT_AND_RIGHT_MARGIN = 1 << 23;
-        /// DEC 80 — Sixel display mode (scrolling vs. fixed). Tracked only;
-        /// the image renderer owns the actual Sixel placement.
+        /// DEC 80 (`CSI ?80`) Sixel display mode, tracked only.
         const DECSDM = 1 << 27;
-        /// DEC 1000 — mouse press tracking.
+        /// DEC 1000 (`CSI ?1000`) press tracking.
         const MOUSE_NORMAL = 1 << 7;
-        /// DEC 1002 — mouse drag tracking.
+        /// DEC 1002 (`CSI ?1002`) drag tracking.
         const MOUSE_BUTTON = 1 << 8;
-        /// DEC 1003 — mouse any-motion tracking.
+        /// DEC 1003 (`CSI ?1003`) any-motion tracking.
         const MOUSE_ANY = 1 << 9;
-        /// DEC 1004 — focus in/out reporting.
+        /// DEC 1004 (`CSI ?1004`) focus in/out.
         const FOCUS = 1 << 18;
-        /// DEC 1005 — UTF-8 mouse reporting.
+        /// DEC 1005 (`CSI ?1005`) UTF-8 mouse.
         const UTF8_MOUSE = 1 << 19;
-        /// DEC 1006 — SGR mouse protocol (button codes are `CSI < b ; x ; y`).
+        /// DEC 1006 (`CSI ?1006`) SGR mouse.
         const MOUSE_SGR = 1 << 12;
         /// DEC 1007 — alternate scroll (wheel sends arrows).
         const ALTERNATE_SCROLL = 1 << 20;

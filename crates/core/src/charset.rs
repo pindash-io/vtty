@@ -7,10 +7,6 @@
 //! treatment follows the [DEC parser state diagram]. The DEC Special Graphics
 //! glyph table is from EK-VT520-RM.
 //!
-//! [`Charset`] is a single designated set, [`Charsets`] the four G0..=G3
-//! sets, and [`Scs`] the full SCS state; the raw glyph table is
-//! [`dec_special_graphics`].
-//!
 //! [ECMA-35]: https://www.ecma-international.org/publications-and-standards/standards/ecma-35/
 //! [ISO 2022]: https://en.wikipedia.org/wiki/ISO/IEC_2022
 //! [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
@@ -19,12 +15,11 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Charset {
-    /// US-ASCII (the default).
+    /// US-ASCII, the default.
     Ascii,
-    /// DEC Special Graphics — maps ASCII `0x5f..=0x7e` to line-drawing and
-    /// special glyphs (`─│┌┐└┘` etc.), which vim/tmux use to draw borders.
+    /// DEC Special Graphics, line drawing over `0x5f..=0x7e`.
     Dec,
-    /// British (`ESC ( A`) — maps `#` to `£`.
+    /// British, `#` as `£`.
     British,
 }
 

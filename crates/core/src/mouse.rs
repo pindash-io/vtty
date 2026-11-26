@@ -11,9 +11,7 @@
 use compact_str::{CompactString, format_compact};
 use smallvec::SmallVec;
 
-/// Inline capacity for a mouse sequence. SGR (`ESC [ < cb ; x ; y M/m`) is
-/// the longest at ≤ 19 bytes; X10 (6) and UTF-8 (≤ 11) are shorter. 24 keeps
-/// all three on the stack.
+/// Inline capacity for one mouse sequence; SGR is the longest at 19 bytes.
 const MOUSE_SEQ_INLINE: usize = 24;
 
 bitflags::bitflags! {
@@ -21,19 +19,17 @@ bitflags::bitflags! {
     /// screens map their flags into this and delegate to [`MouseButton::encode`].
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MouseTracking: u8 {
-        /// Any tracking enabled: DEC 9 (X10), 1000 (press), 1002 (drag), or
-        /// 1003 (any-motion).
+    /// Any tracking enabled: X10, 1000, 1002 or 1003.
         const ENABLED = 1 << 0;
-        /// DEC 9 — X10 press-only mode: report button presses, but not
-        /// releases (1000 and up report both).
+    /// DEC 9, press-only reporting.
         const X10 = 1 << 1;
-        /// DEC 1006 — SGR protocol (`CSI < b ; x ; y M/m`).
+    /// DEC 1006, SGR protocol (`CSI < b ; x ; y M/m`).
         const SGR = 1 << 2;
-        /// DEC 1003 — any-motion tracking. Required for X10 motion reports.
+    /// DEC 1003, any-motion tracking.
         const ANY_MOTION = 1 << 3;
-        /// DEC 1016 — SGR-pixel protocol (1-based pixel coordinates).
+    /// DEC 1016, SGR-pixel protocol.
         const PIXEL = 1 << 4;
-        /// DEC 1005 — UTF-8 mouse protocol (X10 with UTF-8 coordinates).
+    /// DEC 1005, UTF-8 coordinates.
         const UTF8 = 1 << 5;
     }
 }
@@ -48,25 +44,25 @@ impl MouseTracking {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum MouseButton {
-    /// Left button (button 0).
+    /// Button 0.
     Left = 0,
-    /// Middle button (button 1).
+    /// Button 1.
     Middle = 1,
-    /// Right button (button 2).
+    /// Button 2.
     Right = 2,
-    /// Button release (button code + 3).
+    /// Release, code plus 3.
     Release = 3,
-    /// Motion with the left button held (bit 5 | button 0) — a drag.
+    /// Left button held, bit 5.
     Motion = 32,
-    /// Motion with no button held (bit 5 | button 3) — pure hover.
+    /// No button held, bit 5 plus 3.
     MotionNoButton = 35,
-    /// Wheel scroll up (bit 6 set).
+    /// Wheel up, bit 6.
     WheelUp = 64,
-    /// Wheel scroll down (bit 6 + 1 set).
+    /// Wheel down, bit 6 plus 1.
     WheelDown = 65,
-    /// Wheel scroll left (bit 6 + 2 set).
+    /// Wheel left, bit 6 plus 2.
     WheelLeft = 66,
-    /// Wheel scroll right (bit 6 + 3 set).
+    /// Wheel right, bit 6 plus 3.
     WheelRight = 67,
 }
 
@@ -96,8 +92,6 @@ impl MouseButton {
     }
 
     /// Encode this event in X10 style (`CSI M Cb Cx Cy`, single bytes).
-    /// `Cx`/`Cy` are raw bytes (`32 + coord`, truncated) — they may be
-    /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
     #[must_use]
     pub fn encode_x10(self, x: u16, y: u16) -> SmallVec<u8, MOUSE_SEQ_INLINE> {

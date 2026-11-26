@@ -6,9 +6,6 @@
 //! `SgrFlags`, `Charset`, `TermFlags`, …), and the reference byte-cursor
 //! [`State`] sink.
 //!
-//! This crate is split out so the `vtty` parser facade and `vtty_codec` can
-//! share it without the codec depending on the parser.
-//!
 //! ## Features
 //!
 //! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).

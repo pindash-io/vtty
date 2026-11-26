@@ -60,8 +60,8 @@ pub trait Perform {
     fn print_bytes(&mut self, _s: &[u8]) {}
 
     /// A contiguous run of pre-decoded printable code points (never C0/C1).
-    /// Defaults to per-code-point [`print`](Perform::print); bulk writers
-    /// can specialize.
+    /// Defaults to per-code-point [`print`](Perform::print); bulk sinks can
+    /// specialize.
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         for &cp in codepoints {
             let c = char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER);

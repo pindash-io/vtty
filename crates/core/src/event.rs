@@ -30,14 +30,13 @@ use crate::perform::Perform;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Event {
-    /// A single printable code point (UTF-8 decoded).
+    /// One printable code point.
     Print(char),
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — the bulk hot
-    /// path, preserved as one event (not per-byte `Print`).
+    /// A printable ASCII run, kept as one event.
     PrintBytes(Vec<u8>),
-    /// A C0/C1 control byte.
+    /// A C0 or C1 control byte.
     Execute(u8),
-    /// A CSI sequence: `ESC [ <params> <intermediates> <final>`.
+    /// A CSI sequence (`ESC [ params intermediates final`).
     CsiDispatch {
         /// Collected numeric parameters (inline up to 8).
         params: SmallVec<i32, 8>,
@@ -49,14 +48,14 @@ pub enum Event {
         /// The final byte selecting the command.
         final_byte: u8,
     },
-    /// An escape sequence: `ESC <intermediates> <byte>`.
+    /// An escape sequence (`ESC intermediates byte`).
     EscDispatch {
         /// Intermediate bytes (`0x20..0x2f`).
         intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
         byte: u8,
     },
-    /// A DCS header: `ESC P <params> <intermediates> <final>`.
+    /// A DCS header (`ESC P params intermediates final`).
     DcsHook {
         /// Collected numeric parameters (inline up to 8).
         params: SmallVec<i32, 8>,
@@ -65,13 +64,11 @@ pub enum Event {
         /// The final byte selecting the command.
         final_byte: u8,
     },
-    /// A DCS payload byte.
+    /// One DCS payload byte.
     DcsPut(u8),
     /// The DCS string ended.
     DcsUnhook,
-    /// An OSC command ended: `ESC ] <params split on ';'> (BEL | ST)`. The
-    /// outer list is inline up to 8 params; each body is a heap `Vec<u8>`
-    /// (variable-length byte strings have to be owned).
+    /// A finished OSC command (`ESC ] params`, BEL or ST terminated).
     OscDispatch {
         /// Parameters split on `;`, each an owned byte string.
         params: SmallVec<Vec<u8>, 8>,

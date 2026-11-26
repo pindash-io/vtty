@@ -4,9 +4,8 @@
 //! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP and the
 //! `$`-family DCS reports).
 //!
-//! Query/response pairs follow the [DECronomicon CSI/DCS tables]; the
-//! individual report formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR)
-//! follow EK-VT520-RM §5.
+//! The query/response pairs follow the [DECronomicon CSI/DCS tables] and the
+//! report formats EK-VT520-RM §5.
 //!
 //! [DECronomicon CSI/DCS tables]: https://vt100.net/emu/ctrlseq_dec.html
 
@@ -20,14 +19,14 @@ use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
 /// DCS/OSC string terminator (`ESC \`).
 pub(crate) const ST: &str = "\x1b\\";
 
-/// XTGETTCAP answer prefix — `DCS 1 + r` (supported/valid).
+/// XTGETTCAP answer prefix (`DCS 1 + r`), valid.
 const XTGETTCAP_OK: &str = "\x1bP1+r";
-/// XTGETTCAP answer prefix — `DCS 0 + r` (unsupported/error).
+/// XTGETTCAP answer prefix (`DCS 0 + r`), unsupported.
 const XTGETTCAP_ERR: &str = "\x1bP0+r";
 
-/// DECRQSS answer prefix — `DCS 1 $ r` (valid).
+/// DECRQSS answer prefix (`DCS 1 $ r`), valid.
 const DECRQSS_OK: &str = "\x1bP1$r";
-/// DECRQSS answer prefix — `DCS 0 $ r` (invalid).
+/// DECRQSS answer prefix (`DCS 0 $ r`), invalid.
 const DECRQSS_ERR: &str = "\x1bP0$r";
 
 /// Namespace for VT query reply builders.
@@ -94,7 +93,6 @@ impl Reply {
     }
 
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
-    /// Starts with `0` (reset-all). `palette` resolves RGB ids.
     #[must_use]
     pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();

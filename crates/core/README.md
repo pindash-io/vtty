@@ -7,9 +7,6 @@ owned [`Event`](https://docs.rs/vtty_core/latest/vtty_core/event/enum.Event.html
 `SgrFlags`, `Charset`, `TermFlags`, …), and the reference byte-cursor
 [`State`](https://docs.rs/vtty_core/latest/vtty_core/state/struct.State.html) sink.
 
-This crate is split out so the `vtty` parser facade and `vtty_codec` can
-share it without the codec depending on the parser.
-
 ## Features
 
 - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
