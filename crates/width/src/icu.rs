@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! ICU4X runtime lookups (feature `icu`) — the width derivation used as the
+//! ICU4X runtime lookups (feature `icu`): the width derivation used as the
 //! runtime alternative to the baked table. The emoji property source for the
 //! segmentation DFA lives in [`crate::Properties::from_icu`].
 
@@ -18,7 +18,7 @@ use icu_properties::props::{
 #[cfg(feature = "icu")]
 use crate::properties::Gcb;
 
-/// ICU4X-backed display width — an alternative to `unicode-width`.
+/// ICU4X-backed display width: an alternative to `unicode-width`.
 ///
 /// - `GeneralCategory`: control/surrogate/unassigned and combining/format/
 ///   separator chars → `0`.
@@ -91,7 +91,7 @@ const fn is_curated_zero_width(cp: u32) -> bool {
     )
 }
 
-/// ICU4X-backed grapheme cluster break property lookup — the `icu`
+/// ICU4X-backed grapheme cluster break property lookup: the `icu`
 /// alternative to the baked table (also used by `Properties::from_icu`
 /// for the baked-vs-icu differential test).
 #[cfg(feature = "icu")]
@@ -125,7 +125,7 @@ pub(crate) fn gcb_icu(c: char) -> Gcb {
     })
 }
 
-/// ICU4X East Asian Width "Ambiguous" predicate — the runtime counterpart
+/// ICU4X East Asian Width "Ambiguous" predicate: the runtime counterpart
 /// of the baked AMBIGUOUS bit.
 pub(crate) fn ambiguous_icu(cp: char) -> bool {
     thread_local! {

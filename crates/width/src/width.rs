@@ -17,7 +17,7 @@ use crate::properties::{
 trait Source {
     /// Total length in source units (bytes or codepoints).
     fn len(&self) -> usize;
-    /// Decode the char at `pos`, returning `(char, unit_count)` — `1` for a
+    /// Decode the char at `pos`, returning `(char, unit_count)`: `1` for a
     /// codepoint, `1..=4` for a UTF-8 byte sequence.
     fn char_at(&self, pos: usize) -> Option<(char, usize)>;
     /// Count of leading printable-ASCII non-keycap chars from `pos`.
@@ -69,7 +69,7 @@ impl Source for Codepoints<'_> {
     }
 }
 
-/// The streaming width model — the single source of truth for
+/// The streaming width model: the single source of truth for
 /// [`cell_widths`], [`cell_width_sum`] and [`cell_col_byte_widths`].
 ///
 /// Yields one cell width per `char`, in char order. A multi-char emoji
@@ -86,7 +86,7 @@ struct Widths<S> {
     /// A base glyph precedes the current position (lone-mark attach rule).
     has_base: bool,
     /// Hangul continuation bitmask: bit 0 = V may follow (after L/LV/V),
-    /// bit 1 = T may follow (after LV/V/LVT/T) — UAX #29 GB6/GB7/GB8.
+    /// bit 1 = T may follow (after LV/V/LVT/T), per UAX #29 GB6/GB7/GB8.
     hangul: u8,
     /// The last width>0 base was a space (a space is not a visible base).
     space_base: bool,
@@ -117,7 +117,7 @@ impl<S: Source> Widths<S> {
     }
 
     /// Decode the next char and advance `pos` past it. Only reached for
-    /// non-ASCII or control chars — printable-ASCII runs take the fast path.
+    /// non-ASCII or control chars; printable-ASCII runs take the fast path.
     #[inline]
     fn next_char(&mut self) -> Option<char> {
         let (c, n) = self.src.char_at(self.pos)?;
@@ -125,7 +125,7 @@ impl<S: Source> Widths<S> {
         Some(c)
     }
 
-    /// Decode the next char without advancing `pos` — the standalone-emoji
+    /// Decode the next char without advancing `pos`: the standalone-emoji
     /// lookahead.
     #[inline]
     fn peek_char(&self) -> Option<char> {
@@ -147,7 +147,7 @@ impl<S: Source> Widths<S> {
                 continue;
             }
             // In the clean state (no open emoji run, no pending flush), a
-            // run of standalone bases needs no DFA state machine — bulk-fill
+            // run of standalone bases needs no DFA state machine: bulk-fill
             // it directly.
             if self.run.is_none()
                 && self.flush_lead.is_none()
@@ -164,7 +164,7 @@ impl<S: Source> Widths<S> {
 
     /// Bulk-fill consecutive standalone bases from the current position,
     /// returning `true` if any were emitted. Only valid in the clean state
-    /// (no open emoji run, no pending flush) — the caller guarantees it.
+    /// (no open emoji run, no pending flush); the caller guarantees it.
     fn fill_plain_run(&mut self, out: &mut Vec<usize>) -> bool {
         let mut n = 0;
         while self.pos < self.src.len() {
@@ -207,7 +207,7 @@ impl<S: Source> Widths<S> {
         if n == 0 {
             return false;
         }
-        // The last char is a visible base (never a space — spaces are ASCII).
+        // The last char is a visible base, never a space (spaces are ASCII).
         self.has_base = true;
         self.hangul = 0;
         self.space_base = false;
@@ -216,7 +216,7 @@ impl<S: Source> Widths<S> {
 
     /// Emit a standalone width-1/2 base: set the base state, then either
     /// return the width (no pending emoji run) or buffer it behind the
-    /// pending run's flush. `None` means "buffered — continue the loop".
+    /// pending run's flush. `None` means "buffered, keep looping".
     #[inline]
     fn emit_base(&mut self, w: usize) -> Option<usize> {
         match self.run.take() {
@@ -333,7 +333,7 @@ impl<S: Source> Iterator for Widths<S> {
             let starter = is_emoji_starter_from(p, c);
             // Plain non-ASCII char: a standalone width-1/2 base that never
             // merges (not an emoji starter, not a mark/selector/control, not
-            // a Hangul jamo). Skip the DFA — only the base state a following
+            // a Hangul jamo). Skip the DFA: only the base state a following
             // combining mark sees matters.
             if matches!(w1, Some(1) | Some(2)) && !starter && p.gcb() == Gcb::Other {
                 match self.emit_base(w1.unwrap()) {
@@ -344,7 +344,7 @@ impl<S: Source> Iterator for Widths<S> {
 
             // Standalone emoji: an emoji starter not followed by a
             // continuation (VS15/VS16/ZWJ/modifier/RI/tag) is a fixed-width
-            // base — skip the DFA and emit `w1` directly.
+            // base, so skip the DFA and emit `w1` directly.
             if matches!(w1, Some(1) | Some(2)) && starter {
                 let standalone = match self.peek_char() {
                     None => true,
@@ -436,7 +436,7 @@ fn decode_at(bytes: &[u8], pos: usize) -> Option<(char, usize)> {
 }
 
 /// Per-char display cell widths, with emoji sequences merged by the UTS #51
-/// DFA ([`crate::EmojiDFA`]) — the single structural source of truth
+/// DFA ([`crate::EmojiDFA`]): the single structural source of truth
 /// (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15):
 ///
 /// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark
@@ -461,7 +461,7 @@ pub fn cell_widths(text: &str) -> Vec<usize> {
     widths
 }
 
-/// [`cell_widths`] from already-decoded codepoints — the no-re-decode path
+/// [`cell_widths`] from already-decoded codepoints: the no-re-decode path
 /// for callers that hold `u32` code points (the SIMD-transcoded parser path).
 #[must_use]
 pub fn cell_widths_from_codepoints(cps: &[u32]) -> Vec<usize> {

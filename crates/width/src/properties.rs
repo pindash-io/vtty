@@ -25,7 +25,7 @@ impl Properties {
     const WIDTH_SHIFT: u16 = 5;
     const WIDTH_MASK: u16 = 0b11;
 
-    /// Resolve the composite properties for a char — the baked table when
+    /// Resolve the composite properties for a char: the baked table when
     /// `baked` is on, ICU4X runtime otherwise, degenerate width 1 when no
     /// backend is compiled in.
     #[inline]
@@ -76,7 +76,7 @@ impl Properties {
     }
 
     /// The `Extended_Pictographic` binary property (includes the reserved
-    /// emoji ranges — the VS15/VS16 base predicate).
+    /// emoji ranges, the VS15/VS16 base predicate).
     #[inline]
     pub const fn is_extended_pictographic(self) -> bool {
         self.0 & Self::EXTENDED_PICTOGRAPHIC != 0
@@ -88,20 +88,20 @@ impl Properties {
         ((self.0 >> Self::WIDTH_SHIFT) & Self::WIDTH_MASK) as u8
     }
 
-    /// East Asian Width "Ambiguous" (A) — 1 cell by default, 2 cells under
+    /// East Asian Width "Ambiguous" (A): 1 cell by default, 2 cells under
     /// CJK width mode.
     #[inline]
     pub const fn is_ambiguous(self) -> bool {
         self.0 & Self::AMBIGUOUS != 0
     }
 
-    /// The grapheme cluster break symbol (UAX #29, folded — see [`Gcb`]).
+    /// The grapheme cluster break symbol (UAX #29, folded: see [`Gcb`]).
     #[inline]
     pub const fn gcb(self) -> Gcb {
         Gcb::from_u8(((self.0 >> Self::GCB_SHIFT) & Self::GCB_MASK) as u8)
     }
 
-    /// Build the composite from ICU4X runtime data (feature `icu`) — the
+    /// Build the composite from ICU4X runtime data (feature `icu`): the
     /// runtime counterpart of the baked [`Properties::get`].
     #[cfg(feature = "icu")]
     pub fn from_icu(ch: char) -> Self {
@@ -153,7 +153,7 @@ impl Properties {
 /// symbol for GB11.
 ///
 /// The emoji-specific GCB values (`E_Base`, `E_Base_GAZ`, `E_Modifier`,
-/// `Glue_After_Zwj`) are folded into [`Gcb::Other`] — emoji sequences are
+/// `Glue_After_Zwj`) are folded into [`Gcb::Other`], since emoji sequences are
 /// handled by [`crate::emoji`]'s DFA.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -238,13 +238,13 @@ impl Gcb {
 }
 
 /// The parley `EmojiSegmentationCategory` for a char, from the baked (or
-/// ICU4X) properties — the input to `parley_emoji`'s UTS #51 DFA.
+/// ICU4X) properties: the input to `parley_emoji`'s UTS #51 DFA.
 #[inline]
 pub(crate) fn emoji_category(c: char) -> EmojiSegmentationCategory {
     category_from(Properties::get(c), c)
 }
 
-/// [`emoji_category`] from an already-looked-up [`Properties`] — callers that
+/// [`emoji_category`] from an already-looked-up [`Properties`]: callers that
 /// also need the width can do one table lookup instead of two.
 #[inline]
 pub(crate) const fn category_from(p: Properties, c: char) -> EmojiSegmentationCategory {
@@ -308,7 +308,7 @@ pub fn is_zero_width(c: char) -> bool {
 /// glyph (canonical NFC composition), so the renderer must insert a grapheme
 /// break (ZWSP) to keep the mark's separate glyph.
 ///
-/// Scoped to the combining diacritical marks U+0300..=U+036F — the block
+/// Scoped to the combining diacritical marks U+0300..=U+036F, the block
 /// where the `ccmp` precomposed composition happens (e + U+0301 → é). Emoji
 /// selectors, skin tones, and Hangul Jamo are excluded: they compose through
 /// other shaping features (VS/ZWJ/algorithmic Hangul), not `ccmp`.
@@ -323,7 +323,7 @@ pub fn composes_precomposed(base: char, mark: char) -> bool {
 /// The display width a VS15/VS16 selector forces onto an emoji base: 2
 /// (emoji presentation, VS16), 1 (text presentation, VS15), or 0 (not a
 /// variation selector). Mirrors [`crate::EmojiDFA::presentation_style`]'s
-/// selector arms — the single source of truth for which selector means which
+/// selector arms: the single source of truth for which selector means which
 /// presentation.
 #[inline]
 pub const fn vs_width(selector: char) -> usize {
@@ -352,7 +352,7 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
     // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs, and
     // CJK extensions beyond the BMP. Split by plane so a supplementary
     // codepoint skips the BMP scan and a BMP codepoint skips the supplementary
-    // scan — the halves are disjoint, so the split costs one plane compare.
+    // scan; the halves are disjoint, so the split costs one plane compare.
     if cp < 0x10000 {
         if matches!(
             cp,
@@ -393,7 +393,7 @@ pub const fn cjk_fast_width(c: char) -> Option<usize> {
 }
 
 /// The Private Use Areas: EAW "Ambiguous", never emoji/combining, a
-/// standalone base (GCB Other) — one range check + the CJK-ambiguous width
+/// standalone base (GCB Other): one range check + the CJK-ambiguous width
 /// instead of the composite table lookup (the tofu-fallback corpus). Derived
 /// from the baked table (verified by `pua_fast_width_matches_table`).
 #[cfg_attr(feature = "perf-inline", inline(always))]
@@ -463,10 +463,10 @@ pub fn cell_width(c: char) -> Option<usize> {
 }
 
 /// [`cell_width`] for a non-ASCII char from an already-looked-up
-/// [`Properties`] — the single-lookup path for the `Widths` iterator.
+/// [`Properties`]: the single-lookup path for the `Widths` iterator.
 #[inline]
 pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
-    // Terminal width overrides — where the Unicode tables disagree with the
+    // Terminal width overrides, where the Unicode tables disagree with the
     // terminal cell grid:
     match c {
         // Skin-tone modifiers (U+1F3FB..=U+1F3FF): zero-width Extend chars

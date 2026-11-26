@@ -215,7 +215,7 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn is_zero_width_covers_continuations_and_controls() {
-        // Combining, VS15/VS16, ZWJ, skin tone, tags — grapheme continuations.
+        // Combining, VS15/VS16, ZWJ, skin tone, tags: grapheme continuations.
         assert!(is_zero_width('\u{301}'));
         assert!(is_zero_width('\u{FE0F}'));
         assert!(is_zero_width('\u{FE0E}'));
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn combining_vs_spacing_acute() {
         // U+0301 COMBINING ACUTE ACCENT: zero-width, attaches to the base.
-        // U+00B4 ACUTE ACCENT: a spacing modifier — its own 1-cell glyph.
+        // U+00B4 ACUTE ACCENT: a spacing modifier, its own 1-cell glyph.
         // U+0060 GRAVE ACCENT (backtick): also a spacing modifier, 1 cell.
         assert_eq!(cell_width('\u{301}'), Some(0));
         assert_eq!(cell_width('\u{00B4}'), Some(1));
@@ -279,7 +279,7 @@ mod tests {
     fn cjk_fast_width_matches_table() {
         let _guard = cjk_guard();
         // Every codepoint the CJK fast path classifies must be width 2, a
-        // standalone base (GCB Other), and not an emoji starter — the same
+        // standalone base (GCB Other), and not an emoji starter, the same
         // answer the baked composite table gives. Guards the hard-coded
         // ranges against Unicode table regeneration drift.
         for cp in 0x80_u32..=0x10_FFFF {
@@ -368,14 +368,14 @@ mod tests {
         assert!(composes_precomposed('a', '\u{300}'));
         assert!(composes_precomposed('n', '\u{303}'));
         // Non-composing bases (◌ dotted circle, symbols) keep their GPOS
-        // anchor — no grapheme break needed.
+        // anchor: no grapheme break needed.
         assert!(!composes_precomposed('◌', '\u{301}'));
         assert!(!composes_precomposed('◌', '\u{341}'));
         assert!(!composes_precomposed(' ', '\u{301}'));
         // Outside the combining diacritical block (emoji selector / Hangul).
         assert!(!composes_precomposed('e', '\u{FE0F}'));
         // Hangul composes ALGORITHMICALLY (ljmo/vjmo/tjmo), not via the
-        // `ccmp` precomposed path — so it must not get a ZWSP break.
+        // `ccmp` precomposed path, so it must not get a ZWSP break.
         assert!(!composes_precomposed('\u{1100}', '\u{1161}')); // L + V
         assert!(!composes_precomposed('가', '\u{11A8}')); // LV + T
     }
@@ -391,7 +391,7 @@ mod tests {
         assert_eq!(cell_widths("❤\u{FE0F}"), vec![2, 0]);
         assert_eq!(cell_widths("↕\u{FE0F}"), vec![2, 0]);
         // A combining mark attaches to the text-default base without widening
-        // it — only VS16/VS15 or a ZWJ-family membership changes the width.
+        // it: only VS16/VS15 or a ZWJ-family membership changes the width.
         assert_eq!(cell_widths("❤\u{301}"), vec![1, 0]);
         assert_eq!(cell_widths("↕\u{301}"), vec![1, 0]);
         // An Emoji_Presentation base stays 2 cells with a combining mark.
@@ -404,7 +404,7 @@ mod tests {
         // VS16 widens a width-1 text-default base to 2 and stays zero-width.
         assert_eq!(cell_widths("⚠\u{FE0F}x"), vec![2, 0, 1]);
         assert_eq!(cell_widths("❤\u{FE0F}x"), vec![2, 0, 1]);
-        // VS16 after a plain LETTER is a defective sequence — the DFA rejects
+        // VS16 after a plain LETTER is a defective sequence: the DFA rejects
         // the selector (W is not an emoji base), so it stays zero-width.
         assert_eq!(cell_widths("W\u{FE0F}"), vec![1, 0]);
         assert_eq!(cell_widths("W\u{FE0F}x"), vec![1, 0, 1]);
@@ -440,7 +440,7 @@ mod tests {
         assert_eq!(cell_widths("ab中😀c"), vec![1, 1, 2, 2, 1]);
         // Keycap sequence crossing the ASCII boundary: `1` + VS16 + U+20E3 is
         // one 2-cell keycap emoji (the no-VS16 form stays text-default 1; an
-        // incomplete `1 VS16` without U+20E3 also stays 1 — the VS16 is a
+        // incomplete `1 VS16` without U+20E3 also stays 1, since the VS16 is a
         // stray on a keycap base).
         assert_eq!(cell_widths("1\u{FE0F}\u{20E3}"), vec![2, 0, 0]);
         assert_eq!(cell_widths("x1\u{FE0F}\u{20E3}y"), vec![1, 2, 0, 0, 1]);
@@ -482,7 +482,7 @@ mod tests {
             vec![2, 0, 0, 0, 0, 0, 1, 0]
         );
         // VS16 (emoji presentation) on the last member does NOT break the
-        // family — it is a valid emoji presentation sequence element.
+        // family: it is a valid emoji presentation sequence element.
         assert_eq!(
             cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0F}"),
             vec![2, 0, 0, 0, 0, 0]
@@ -511,7 +511,7 @@ mod tests {
     }
 
     /// The fuzz-minimized fixture prefix: halfwidth space (0), CJK (2), an emoji (2),
-    /// a two-emoji ZWJ family (2), a mahjong tile (1), `👍` (2) — 9 cells, which locks
+    /// a two-emoji ZWJ family (2), a mahjong tile (1), `👍` (2). Nine cells that lock
     /// the ZWJ merge and the mahjong/halfwidth-space widths across both renderers.
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(cell_widths("\u{1100}\u{1161}\u{11A8}"), vec![2, 0, 0]); // L + V + T
         assert_eq!(cell_widths("가\u{11A8}"), vec![2, 0]); // LV + T
 
-        // A lone V/T jamo has no base — the lone-mark fix gives it 1 cell.
+        // A lone V/T jamo has no base: the lone-mark fix gives it 1 cell.
         assert_eq!(cell_widths("\u{1161}"), vec![1]);
         assert_eq!(cell_widths("\u{11A8}"), vec![1]);
 
@@ -572,12 +572,12 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn lone_zwj_is_ignored() {
-        // A standalone ZWJ is a degenerate joiner — zero cells (the cell grid
+        // A standalone ZWJ is a degenerate joiner: zero cells (the cell grid
         // drops it), unlike a lone combining mark which occupies its own cell.
         assert_eq!(cell_widths("\u{200D}"), vec![0]);
         assert_eq!(cell_widths("\u{200D}\u{200D}"), vec![0, 0]);
         assert_eq!(cell_widths(" \u{200D}"), vec![1, 0]);
-        // A lone VS15/VS16 is a presentation selector with no base — invisible
+        // A lone VS15/VS16 is a presentation selector with no base: invisible
         // (zero cells), just like a lone ZWJ.
         assert_eq!(cell_widths("\u{FE0F}"), vec![0]);
         assert_eq!(cell_widths("\u{FE0E}"), vec![0]);
@@ -644,7 +644,7 @@ mod tests {
     #[test]
     fn baked_width_agrees_with_width_icu() {
         // The baked composite width is the ICU4X (EAW + GC) derivation computed
-        // at generation time — it must match `width_icu` exactly.
+        // at generation time, and must match `width_icu` exactly.
         for cp in 0..=0x10FFFF_u32 {
             let Some(c) = char::from_u32(cp) else {
                 continue;
@@ -698,7 +698,7 @@ mod tests {
         // 中 is 2 cells, so cell 2 is the byte after it (3 bytes).
         assert_eq!(cell_col_byte_widths("中ab", 0), 0);
         assert_eq!(cell_col_byte_widths("中ab", 2), 3);
-        // VS16 emoji merges to 2 cells: ⚠️ then 'x' — cell 2 is 'x' (byte 6).
+        // VS16 emoji merges to 2 cells: ⚠️ then 'x'; cell 2 is 'x' (byte 6).
         assert_eq!(cell_col_byte_widths("⚠\u{FE0F}x", 2), 6);
         // ZWJ family merges to 2 cells; cell 2 is 'x'.
         assert_eq!(
@@ -733,7 +733,7 @@ mod tests {
     fn halfwidth_sound_mark_does_not_attach_to_emoji_base() {
         // U+FF9E/U+FF9F are Grapheme_Extend, so the emoji DFA used to attach
         // them as 0-width continuations after an emoji base (`❤ﾞ` = [1, 0]).
-        // They must stay independent halfwidth cells (1) even there — the
+        // They must stay independent halfwidth cells (1) even there: the
         // seed-0 `瘀ｶﾞ👨 ZWJ … ❤ VS16 ECH` divergence.
         assert_eq!(cell_widths("❤ﾞ"), vec![1, 1]);
         assert_eq!(cell_widths("❤\u{fe0f}ﾞ"), vec![2, 0, 1]);
@@ -826,7 +826,7 @@ fn starship_glyph_widths() {
         assert_eq!(cell_width(c), Some(w), "U+{:04X} {c:?}", c as u32);
     }
     // `↕` + VS16 (emoji presentation) widens to 2; alone it is ALREADY 2
-    // (Emoji=Yes — parley renders it as a color emoji).
+    // (Emoji=Yes, so parley renders it as a color emoji).
     assert_eq!(cell_widths("\u{2195}\u{FE0F}"), vec![2, 0]);
 }
 #[cfg(any(feature = "baked", feature = "icu"))]

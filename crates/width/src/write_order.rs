@@ -6,8 +6,8 @@
 //! The whole-text [`crate::cell_widths`] DFA cannot see write order: a
 //! control resets its scope, so the same text can carry different widths.
 //! This module makes the write order explicit as pure functions of
-//! `(text, B, F)` — the text slice, the split-boundary flags `B`, and the
-//! flushed-base offsets `F` — plus the live [`EmojiTrace`] automaton that
+//! `(text, B, F)`: the text slice, the split-boundary flags `B`, and the
+//! flushed-base offsets `F`, plus the live [`EmojiTrace`] automaton that
 //! records those boundaries at print time.
 //!
 //! Spec: §3.2/§3.3 of the [width model](crate::_documentation::width_model),
@@ -26,8 +26,8 @@ pub struct SplitBoundaries {
     /// Sparse write-order flag set aligned to the logical text: a sorted
     /// `(byte_offset, flags)` list of the non-zero entries (bit 0 = fresh
     /// base, bit 1 = re-open boundary). Bytes not present are implicitly
-    /// zero. Sparse because the fresh bases are RARE (a few per screen) —
-    /// the old dense `Vec<u8>` was one byte per character and doubled the
+    /// zero. Sparse because the fresh bases are rare: the old dense `Vec<u8>`
+    /// was one byte per character and doubled the
     /// memory of emoji-bearing scrollback.
     pub fb: Vec<(usize, u8)>,
     /// Byte past each REP/direct-ZWJ flushed base (native width). `F`.
@@ -40,7 +40,7 @@ pub struct SplitBoundaries {
 #[derive(Debug, Default)]
 pub struct EmojiTrace {
     /// The previous print was the immediately-preceding char (no control
-    /// since) — a VS16/VS15 continuing that base attaches to it, not the
+    /// since), so a VS16/VS15 continuing that base attaches to it, not the
     /// char at the cursor.
     pub grapheme_open: bool,
     /// The previous printed char was a width-2 emoji.
@@ -59,7 +59,7 @@ pub struct EmojiTrace {
     /// within one print run, before any control/scroll can intervene).
     pub zwj_tail: usize,
     /// The recorded write-order boundary data (fresh bases / re-opens /
-    /// flushed bases) — `(B, F)` in the spec.
+    /// flushed bases): `(B, F)` in the spec.
     pub boundaries: SplitBoundaries,
 }
 
@@ -108,7 +108,7 @@ impl EmojiTrace {
     }
 
     /// Set `bit` on the trace at `abs`, recording a sparse entry (a byte
-    /// past the current end is a future marker — the spec's "set at write
+    /// past the current end is a future marker, the spec's "set at write
     /// time").
     #[inline]
     pub fn mark_bit(&mut self, abs: usize, bit: u8) {
@@ -190,7 +190,7 @@ impl EmojiTrace {
     }
 }
 
-/// `split(B, a, b)` — the relative byte offsets (inside `text`) where the
+/// `split(B, a, b)`: the relative byte offsets (inside `text`) where the
 /// emoji DFA restarts: markers that fall strictly inside and split a ZWJ from
 /// a following non-zero-width char. `fb` is the per-byte write-order flag
 /// aligned to the logical text (bit 0 = fresh base, bit 1 = re-open); `start`
@@ -241,7 +241,7 @@ pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec
     offs
 }
 
-/// `seg` — concatenate `cell_widths` per DFA segment (split at `offs`,
+/// `seg`: concatenate `cell_widths` per DFA segment (split at `offs`,
 /// relative to the text start).
 ///
 /// Spec §3.3:
@@ -257,14 +257,14 @@ pub(crate) fn segmented_widths(text: &str, offs: &[usize]) -> Vec<usize> {
     w
 }
 
-/// `correct_F` — a REP/direct-ZWJ flush writes its repeated base at NATIVE
+/// `correct_F`: a REP/direct-ZWJ flush writes its repeated base at native
 /// width, but the whole-text DFA widens a text-default emoji whose trailing
 /// ZWJ is a sequence element (e.g. `❤ ZWJ` → `Emoji_Presentation`, 2 cells).
-/// Override the flushed base's width back to native — the DFA's family
+/// Override the flushed base's width back to native; the DFA's family
 /// continuations after it are untouched. `zwj_flushes` holds ABSOLUTE byte
 /// offsets.
 ///
-/// Spec §3.3: `correct_F` — for each `f ∈ F, f ≥ a` with
+/// Spec §3.3: `correct_F`, for each `f ∈ F, f ≥ a` with
 /// `overridable(s, f)`, set `w[idx(c)] ← max(w₁⁰(c), 1)` when
 /// `w₁⁰(c) > 0 ∧ w[idx(c)] > w₁⁰(c)`.
 pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
@@ -285,7 +285,7 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
         // A ZWJ in the trailing zero-width run re-opens the family, which
         // `correct_F` undoes back to the flushed native width. But a VS16/VS15
         // in that run explicitly re-widens/narrows the base, so the
-        // flushed-native override must not apply — the selector wins.
+        // flushed-native override must not apply: the selector wins.
         let mut has_zwj = false;
         let mut has_vs = false;
         for c in text[flush..]
@@ -381,7 +381,7 @@ pub const fn classify_cell(
             }
             if raw == 0 {
                 // A combining mark: the DFA's width is 1 lone (own cell) or 0
-                // attached — trust it. `raw` is always 0 for marks, so
+                // attached, so trust it. `raw` is always 0 for marks, so
                 // returning it would attach every mark and lose the lone cell.
                 return w;
             }
