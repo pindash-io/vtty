@@ -237,7 +237,6 @@ const fn cube_level(v: u8) -> u8 {
 /// 8-bit channels.
 #[inline]
 const fn decode_rgb(s: &str) -> Option<[u8; 3]> {
-    // `str::strip_prefix(char)` is not const; slice patterns are.
     let hex = match s.as_bytes() {
         [b'#', rest @ ..] => rest,
         bytes => bytes,
@@ -253,22 +252,35 @@ const fn decode_rgb(s: &str) -> Option<[u8; 3]> {
 /// Accepts `RGB`, `RGBA`, `RRGGBB` and `RRGGBBAA`; the shorthand forms repeat
 /// each nibble (`#ff0` is `#ffff00`), and a missing alpha channel is opaque.
 #[inline]
-pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
-    let hex = s.strip_prefix('#').unwrap_or(s).as_bytes();
+pub const fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
+    let hex = match s.as_bytes() {
+        [b'#', rest @ ..] => rest,
+        bytes => bytes,
+    };
+    // Expand to `RRGGBBAA`: the shorthand repeats each nibble, and the alpha of
+    // the three- and six-digit forms stays `ff`.
     let mut color = [b'f'; 8];
+    let mut i = 0;
     match hex.len() {
         3 | 4 => {
-            for (i, &nibble) in hex.iter().enumerate() {
-                color[i * 2] = nibble;
-                color[i * 2 + 1] = nibble;
+            while i < hex.len() {
+                color[i * 2] = hex[i];
+                color[i * 2 + 1] = hex[i];
+                i += 1;
             }
         }
         6 | 8 => {
-            color[..hex.len()].copy_from_slice(hex);
+            while i < hex.len() {
+                color[i] = hex[i];
+                i += 1;
+            }
         }
         _ => return None,
+    }
+    let [r, g, b, a] = match const_hex::const_decode_to_array(&color) {
+        Ok(rgba) => rgba,
+        Err(_) => return None,
     };
-    let [r, g, b, a] = const_hex::const_decode_to_array(&color).ok()?;
     Some([
         r as f32 / 255.0,
         g as f32 / 255.0,
@@ -447,6 +459,19 @@ mod tests {
         let mut s = String::new();
         let _ = write!(&mut s, "{:?}", ColorId(7));
         assert_eq!(s, "7");
+    }
+
+    #[test]
+    fn parse_hex_color_is_const() {
+        const RED: Option<[f32; 4]> = parse_hex_color("#f00");
+        assert_eq!(RED, Some([1.0, 0.0, 0.0, 1.0]));
+        const SHORTHAND_ALPHA: Option<[f32; 4]> = parse_hex_color("#fff0");
+        assert_eq!(SHORTHAND_ALPHA, Some([1.0, 1.0, 1.0, 0.0]));
+        const FULL: Option<[f32; 4]> = parse_hex_color("00ff0080");
+        assert_eq!(FULL, Some([0.0, 1.0, 0.0, 128.0 / 255.0]));
+        // The six- and three-digit forms are opaque: alpha stays `ff`.
+        assert_eq!(parse_hex_color("#ff0").map(|c| c[3]), Some(1.0));
+        assert_eq!(parse_hex_color("#ff0000").map(|c| c[3]), Some(1.0));
     }
 
     #[test]
