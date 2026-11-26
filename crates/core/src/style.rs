@@ -145,9 +145,8 @@ pub enum UnderlineStyle {
 }
 
 impl From<u8> for UnderlineStyle {
-    /// Map an SGR `4:<n>` sub-parameter to a style: `0` → [`Self::None`],
-    /// `2..=5` → the specific style, anything else → [`Self::Single`] (the
-    /// plain-`4` default).
+    /// Map an SGR `4:<n>` sub-parameter to a style; an unknown sub-parameter is
+    /// [`Self::Single`], the plain-`4` default.
     #[inline]
     fn from(v: u8) -> Self {
         match v {
@@ -162,11 +161,9 @@ impl From<u8> for UnderlineStyle {
 }
 
 impl UnderlineStyle {
-    /// Decode a stored underline-style code (0 = off, 1..=5 = a style) into a
-    /// style, treating any out-of-range code as [`Self::None`]. The
-    /// stored-field counterpart of the SGR sub-parameter decoder ([`From`]):
-    /// a stored field holds only 0..=5 in practice, so an unknown code is the
-    /// "no underline" fallback, not the SGR "plain `4` = single" default.
+    /// The stored-byte decoder, the inverse of the `repr(u8)` discriminant:
+    /// out-of-range codes are [`Self::None`], where the SGR decoder reads plain
+    /// `4` as [`Self::Single`].
     #[inline]
     pub const fn from_stored(v: u8) -> Self {
         match v {
