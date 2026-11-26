@@ -1,4 +1,4 @@
-# vtty — C FFI example
+# vtty: C FFI example
 
 A minimal interactive terminal built on the `vtty_ffi` C ABI: keystrokes are
 forwarded to a shell running on a pseudo-terminal, and the shell's output is

@@ -47,15 +47,15 @@ cargo fuzz run differential
 
 Shared by the `vte`/`rio-vt` targets (`fuzz/src/lib.rs`):
 
-- `0x7f` `DEL` — vtty dispatches it as a C0 control, vte prints it.
-- Raw 8-bit C1 (`0x80..=0x9f`) — vtty follows DEC's "anywhere" rule; vte
+- `0x7f` `DEL`: vtty dispatches it as a C0 control, vte prints it.
+- Raw 8-bit C1 (`0x80..=0x9f`): vtty follows DEC's "anywhere" rule; vte
   drops them inside escape sequences (ground-state introducers diverge too).
-- `ESC X` / `ESC ^` / `ESC _` (`SOS`/`PM`/`APC`) — vtty dispatches hook/put/unhook
+- `ESC X` / `ESC ^` / `ESC _` (`SOS`/`PM`/`APC`): vtty dispatches hook/put/unhook
   (kitty graphics), vte drops them.
 - rio-vt allows four intermediates; vtty/vte cap at two (filtered only in the
   `differential-rio` target).
 - rio-vt's SIMD UTF-8 decoder (the C++ `simdutf` backend) decodes malformed
-  ground-state UTF-8 wrongly on x86_64 — it reports a wrong error offset,
+  ground-state UTF-8 wrongly on x86_64; it reports a wrong error offset,
   corrupting the decode of valid glyphs *before* the error. vtty and vte (and
   rio-vt's own scalar path) decode these correctly, so the `differential-rio`
   target skips inputs with malformed ground-state UTF-8

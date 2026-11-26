@@ -31,11 +31,11 @@
 
 ## Features
 
-- **Safety** — `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`.
-- **Zero-allocation** — bulk `print_bytes` / `print_codepoints`.
-- **`no_std`** — optional `simd` / `simd-transcode` features.
-- **UTF-8** — maximal-subpart substitution; 8-bit C1 controls.
-- **Serialization** — compact, `no_std`, zero-allocation `Encode`/`Decode` codec
+- **Safety**: `#![forbid(unsafe_code)]`, no `unwrap`/`expect`/`panic`.
+- **Zero-allocation**: bulk `print_bytes` / `print_codepoints`.
+- **`no_std`**: optional `simd` / `simd-transcode` features.
+- **UTF-8**: maximal-subpart substitution; 8-bit C1 controls.
+- **Serialization**: compact, `no_std`, zero-allocation `Encode`/`Decode` codec
   (`vtty_codec`) for events, replies, and terminal state.
 
 ## Install
@@ -90,14 +90,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Benchmarks
 
-Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt` — see
+Throughput vs `vte`/`vt100`/`vtparse`/`rio-vt`; see
 [`crates/bench`](crates/bench) for the full table.
 
 ## Documentation
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — parser design and layout.
-- [`CONFORMANCE.md`](CONFORMANCE.md) — escape-sequence conformance notes.
-- [`CHANGELOG.md`](CHANGELOG.md) — release history.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): parser design and layout.
+- [`CONFORMANCE.md`](CONFORMANCE.md): escape-sequence conformance notes.
+- [`CHANGELOG.md`](CHANGELOG.md): release history.
 
 ## Testing
 

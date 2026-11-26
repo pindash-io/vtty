@@ -21,7 +21,7 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 `ansi_two_styles`, `ansi_bare_csi`, `sgr_churn`, `cursor_motion`, `sync_churn`,
 `truecolor_unique`, `bracketed_paste`, `osc_heavy`, `dcs_sixel`.
 
-## Results — `vt_input` (parser floor)
+## Results: `vt_input` (parser floor)
 
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | fux-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
-## Results — `vt_screen` (parse + cell grid)
+## Results: `vt_screen` (parse + cell grid)
 
 | case | vtty | vtty-simd |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 
 Measured on Apple Silicon (aarch64). Numbers are medians of 20 Criterion
 samples from a full-suite run; throughput is sensitive to thermal throttling
-and CPU clock, so results vary run-to-run — treat as relative rankings rather
+and CPU clock, so results vary run-to-run; treat as relative rankings rather
 than absolute figures.
 
 ## License

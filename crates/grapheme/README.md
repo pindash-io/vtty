@@ -35,7 +35,7 @@ assert_eq!(widths, [2, 1, 1, 1, 2]);
 
 The rules implement the classic GB1–GB13 set. Not yet covered: GB9c (Indic
 conjunct breaks, Unicode 15.1+) and the newer emoji GCB values
-(`E_Base`/`E_Modifier`/`Glue_After_Zwj`) — the latter are unnecessary for
+(`E_Base`/`E_Modifier`/`Glue_After_Zwj`); the latter are unnecessary for
 width because `vtty_width`'s DFA already merges emoji sequences. If exact
 ICU4X parity is needed, add GB9c and bake `Indic_Conjunct_Break`.
 
