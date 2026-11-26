@@ -81,7 +81,7 @@
 #![cfg_attr(not(feature = "simd"), no_std)]
 #![expect(
     clippy::cast_possible_truncation,
-    reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
+    reason = "Terminal cell/pixel math truncates to fixed-size types where the range is known-safe"
 )]
 // The parser must never panic on untrusted input (a malformed PTY stream is
 // normal, not exceptional). These lints keep `unwrap`/`expect`/`panic` out.

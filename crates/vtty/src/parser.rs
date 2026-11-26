@@ -588,7 +588,8 @@ impl Parser {
         i + run.len()
     }
 
-    /// Dispatch `CSI a;b;c… m`, three or more parameters. `k` points at the `;` after `second`; returns the bytes consumed, or `None` to fall back to the loop.
+    /// Dispatch `CSI a;b;c… m`, three or more parameters. `k` points at the `;`
+    /// after `second`; returns the bytes consumed, or `None` to fall back.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn dispatch_param_list<P: Perform>(
         &mut self,
@@ -620,7 +621,9 @@ impl Parser {
         Some(k + 1)
     }
 
-    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can extend past the final byte, so every read is bounds-checked. Returns the bytes consumed, or `None` to bail to the state machine.
+    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can extend
+    /// past the final byte, so every read is bounds-checked; returns the bytes
+    /// consumed, or `None` to bail to the state machine.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         if seq.is_empty() {
@@ -796,7 +799,8 @@ impl Parser {
         i + 1
     }
 
-    /// Escape-state dispatch: introducers (`[` CSI, `]` OSC, `P` DCS, `X`/`^`/`_` strings), `ESC` finals, intermediates and C0 controls.
+    /// Escape-state dispatch: introducers (`[`, `]`, `P`, `X`/`^`/`_`), `ESC`
+    /// finals, intermediates and C0 controls.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_escape_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         match bytes[i] {
@@ -968,7 +972,8 @@ impl Parser {
         self.osc.overflow = take < run.len();
     }
 
-    /// Dispatch the collected OSC command and reset the OSC state; an oversized payload is dropped whole.
+    /// Dispatch the collected OSC command and reset the OSC state; an oversized
+    /// payload is dropped whole.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
         let n = self.osc.num_starts;

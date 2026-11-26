@@ -13,7 +13,7 @@
 //!   >= 10 = smallest table.
 #![expect(
     clippy::cast_possible_truncation,
-    reason = "Terminal cell/pixel math truncates widths and coordinates to fixed-size types where the range is known-safe"
+    reason = "Terminal cell/pixel math truncates to fixed-size types where the range is known-safe"
 )]
 
 use std::env;
@@ -131,9 +131,8 @@ fn main() {
         if eaw.get(c) == EastAsianWidth::Ambiguous {
             b |= 1 << 8;
         }
-        // GCB symbol (0-14), packed into bits 9-12: one table instead of two. The emoji-specific GCB values (EBase, EBaseGAZ, EModifier,
-        // GlueAfterZwj) fold into `Other`; GB11 uses `Extended_Pictographic`
-        // directly, and emoji sequences are handled by the parley DFA.
+        // GCB symbol (0-14) in bits 9-12: one table instead of two. The retired
+        // emoji values fold into `Other`; GB11 uses `Extended_Pictographic`.
         let gcb_sym = if extended_pictographic.contains(c) {
             14
         } else {

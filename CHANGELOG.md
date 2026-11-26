@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated `MSRV` to `1.100`. 
-- Updated `smallvec` to 2.0.0-beta.5. 
+- Updated `MSRV` to `1.100`.
+- Updated `smallvec` to 2.0.0-beta.5.
 
 ### Added
 
