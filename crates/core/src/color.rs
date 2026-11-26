@@ -40,6 +40,12 @@ impl ColorId {
     pub const fn index(self) -> u16 {
         self.0
     }
+
+    /// Clamp `n` to the xterm 256-colour range.
+    #[inline]
+    pub const fn from_index(n: i32) -> Self {
+        Self(clamp_channel(n) as u16)
+    }
 }
 
 impl From<u16> for ColorId {
@@ -60,7 +66,7 @@ impl From<usize> for ColorId {
 impl From<i32> for ColorId {
     #[inline]
     fn from(v: i32) -> Self {
-        Self(clamp_channel(v) as u16)
+        Self::from_index(v)
     }
 }
 
