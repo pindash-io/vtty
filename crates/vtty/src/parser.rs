@@ -85,23 +85,12 @@ struct Osc {
     buffer: OscBuffer,
 }
 
-/// A byte-input VT500 state machine that decodes terminal escape sequences
-/// and dispatches them to a [`Perform`] sink.
+/// A byte-input VT500 parser: UTF-8 decode plus inline dispatch to a [`Perform`]
+/// sink.
 ///
-/// `Parser` implements the DEC VT500 state machine from Paul Flo Williams'
-/// [A parser for DEC's ANSI-compatible video terminals][dec-parser]. It turns
-/// raw PTY bytes into a small set of typed callbacks: printable text, C0/C1
-/// controls, and the parsed bodies of CSI, OSC, DCS and ESC sequences.
-///
-/// Parsing state is inline, so [`Parser::new`] never allocates. Reuse one
-/// parser across calls; the only heap growth is an OSC payload past 56 bytes.
-///
-/// # Two dispatch styles
-///
-/// * [`Parser::advance`] feeds a [`Perform`] implementation — the
-///   zero-allocation hot path, with no intermediate [`Event`] values.
-/// * [`Parser::parse_events`] collects every dispatch into a `Vec<Event>` — the
-///   trait-free convenience API for tests and tooling.
+/// Parsing state is inline, so [`Parser::new`] never allocates; the only heap
+/// growth is an OSC payload past 56 bytes. [`Parser::advance`] feeds a sink
+/// directly, [`Parser::parse_events`] collects `Vec<Event>` instead.
 ///
 /// # Example
 ///
@@ -496,10 +485,7 @@ impl Parser {
         p.print(char::REPLACEMENT_CHARACTER);
     }
 
-    /// Ground state: SIMD-scan for the next non-printable byte (control OR
-    /// high-bit — which includes `ESC`), bulk-dispatch printable ASCII runs via
-    /// `print_bytes`, and decode multi-byte chars one at a time. The hot path —
-    /// kept inline.
+    /// Ground state: scan the printable run, then dispatch it in bulk.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_ground<P: Perform>(
         &mut self,
@@ -635,11 +621,7 @@ impl Parser {
         i + run.len()
     }
 
-    /// Dispatch `CSI a;b;c… m` — three or more parameters, the truecolor and
-    /// multi-attribute SGR shapes. `k` points at the `;` after `second`.
-    /// Returns the bytes consumed, or `None` when the shape is not a plain
-    /// parameter list (an empty parameter, a `:` separator or an oversized
-    /// list belongs to the byte loop).
+    /// Dispatch `CSI a;b;c… m`, three or more parameters. `k` points at the `;` after `second`; returns the bytes consumed, or `None` to fall back to the loop.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn dispatch_param_list<P: Perform>(
         &mut self,
@@ -671,16 +653,7 @@ impl Parser {
         Some(k + 1)
     }
 
-    /// Parse a `ESC [` CSI sequence from `seq`, dispatching inline. `seq` is
-    /// the printable run that follows `ESC [`, so it can extend past the final
-    /// byte; every read here is bounds-checked. Returns the number of bytes
-    /// consumed, or `None` to bail to the state machine (an intermediate, a
-    /// private marker after params, C0/DEL, or a high bit).
-    ///
-    /// The sequence state is already empty on entry (ground-state invariant:
-    /// any prior sequence cleared it on dispatch, and the caller clears on
-    /// bail), so there is no up-front clear — the success path's
-    /// `dispatch_csi` and the bail path's caller both reset it.
+    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can extend past the final byte, so every read is bounds-checked. Returns the bytes consumed, or `None` to bail to the state machine.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         if seq.is_empty() {
@@ -871,10 +844,7 @@ impl Parser {
         i + 1
     }
 
-    /// Escape-state byte dispatch: the sequence introducers (`[` CSI, `]` OSC,
-    /// `P` DCS, `X`/`^`/`_` `SOS`/`PM`/`APC`), `ESC` finals, intermediates and C0
-    /// controls are all handled inline; only the rare bytes (`ESC` restart, `DEL`,
-    /// raw C1/high bytes) fall through to the cold per-byte state machine.
+    /// Escape-state dispatch: introducers (`[` CSI, `]` OSC, `P` DCS, `X`/`^`/`_` strings), `ESC` finals, intermediates and C0 controls.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_escape_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         match bytes[i] {
@@ -932,8 +902,7 @@ impl Parser {
         }
     }
 
-    /// `DcsEntry` byte dispatch: the final byte (0x40..=0x7e) hooks inline;
-    /// digits/separators/intermediates fall through to the cold state machine.
+    /// `DcsEntry` dispatch: a final byte hooks inline, anything else takes the cold table.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_dcs_entry_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let b = bytes[i];
@@ -947,10 +916,7 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// OSC string bulk run: append the payload prefix (everything up to the
-    /// next C0/C1 boundary) in one `extend_from_slice`. Dispatched inline
-    /// from `advance` so the hot OSC copy path does not pay the cold
-    /// `advance_non_ground` call + prologue; boundary bytes fall through.
+    /// OSC bulk run: append everything up to the next C0/C1 boundary in one copy.
     #[inline]
     fn advance_osc_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
@@ -995,9 +961,7 @@ impl Parser {
         }
     }
 
-    /// DCS passthrough bulk run: dispatch the payload prefix via one
-    /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte `> DEL`. Same
-    /// inline-dispatch rationale as `advance_osc_run`.
+    /// DCS bulk run: dispatch everything up to the next passthrough boundary in one call.
     #[inline]
     fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
@@ -1016,9 +980,7 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// CSI/DCS param run: digits, `;` and `:` never dispatch, so consume the
-    /// whole run in a tight loop. Dispatched inline from `advance`; the
-    /// boundary byte falls through to `advance_non_ground`.
+    /// CSI/DCS parameter run: digits, `;` and `:` never dispatch, so consume them in one loop.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_param_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let mut j = i;
@@ -1056,10 +1018,7 @@ impl Parser {
         self.osc.overflow = take < run.len();
     }
 
-    /// Dispatch a collected OSC command and reset the OSC state. An oversized
-    /// payload is discarded wholesale (a truncated `OSC 52` would otherwise
-    /// decode into garbage). With `bytes`/`end_pos` the params are sliced
-    /// straight from the input when deferred; otherwise from `payload`.
+    /// Dispatch the collected OSC command and reset the OSC state; an oversized payload is dropped whole.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
         let n = self.osc.num_starts;
@@ -1096,9 +1055,7 @@ impl Parser {
         self.osc_reset();
     }
 
-    /// Reset the OSC accumulation/dispatch state. `osc.clear()` keeps the heap
-    /// allocation; `mem::take` would free it and force a malloc on the next
-    /// >56-byte payload.
+    /// Reset the OSC accumulation, keeping the payload allocation.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_reset(&mut self) {
         self.osc.payload.clear();
@@ -1107,9 +1064,7 @@ impl Parser {
         self.osc.buffer = OscBuffer::Accumulated;
     }
 
-    /// Flush a deferred OSC payload into `payload` (the string spans `advance`
-    /// calls or hits a cold terminator). The recorded `starts` offsets stay
-    /// valid — they become `payload`-relative instead of input-relative.
+    /// Copy a deferred OSC payload into `payload`.
     #[inline]
     fn osc_flush(&mut self, bytes: &[u8], end_pos: usize) {
         let base = match self.osc.buffer {

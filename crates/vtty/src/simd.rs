@@ -134,15 +134,13 @@ const fn matches_kind(b: &u8, kind: ScanKind) -> bool {
     }
 }
 
-/// Index of the first non-zero lane in a 16-lane mask (`0`/`-1`). Scalar
-/// early-return — the bitmask + `trailing_zeros` alternative was slower here.
+/// Index of the first non-zero lane in a 16-lane mask.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_set(mask: [i8; 16]) -> usize {
     mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
 
-/// Mask + shift + or a shuffled `u32x4` (the 3-byte `0x924` layout) into four
-/// code points. Shared by [`decode_3byte`] and the 2/3-byte-mix table path.
+/// Turn a shuffled `u32x4` into four code points.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
     let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
@@ -151,9 +149,7 @@ fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
     ((ascii | middle) | high).into()
 }
 
-/// Decode four consecutive 3-byte code points (12 bytes). The simdutf
-/// `0x924` fast path: one fixed shuffle gathers each 3-byte group into a u32
-/// lane, then mask + shift + or.
+/// Decode four consecutive 3-byte code points (12 bytes).
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     let v = u8x16::from_slice(simd, bytes);
@@ -176,10 +172,7 @@ pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
     dispatch!(level, simd => decode_3byte(simd, bytes))
 }
 
-/// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
-/// `end_mask` (bit `i` = byte `i` ends a code point). Returns
-/// `(code_points_written, bytes_consumed)`. Mirrors simdutf's
-/// `convert_masked_utf8_to_utf32` (`0x924` 3-byte fast path, then the table).
+/// Decode up to 12 bytes of validated UTF-8 from a per-byte end-of-code-point mask.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_utf8_12<S: Simd>(
@@ -240,11 +233,7 @@ fn decode_utf8_12<S: Simd>(
     }
 }
 
-/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (one end-of-code-
-/// point mask per block, then a 12-byte chunk loop).
-/// Returns `(code_points_written, bytes_consumed)`. A full block consumes
-/// 52..=63 bytes (the trailing ≤12 overlap into the next call); a sub-76-byte
-/// input falls back to scalar decode.
+/// Transcode one 64-byte block of validated UTF-8 to UTF-32.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {

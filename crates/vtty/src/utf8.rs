@@ -202,10 +202,7 @@ fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
     }
 }
 
-/// The scalar mixed-window loop: ASCII runs via `print_bytes`, multi-byte via
-/// `print_codepoints`, C0/C1 via `execute`; `ESC` ends the chunk. `s` is
-/// validated UTF-8. Returns the consumed byte count (the index of an `ESC`, or
-/// `s.len()`).
+/// Scalar mixed-window loop: ASCII runs via `print_bytes`, multi-byte via `print_codepoints`.
 #[cfg(all(feature = "simd", not(feature = "simd-transcode")))]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
@@ -301,11 +298,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     i
 }
 
-/// Unified SIMD transcode dispatch: decode validated UTF-8 `s` in 64-byte
-/// blocks (one end-of-code-point mask each, 12-byte chunks with the `0x924`
-/// fast path), then one `print_codepoints` call per control-free block. C0/C1
-/// are split out via `execute`; a mixed window (ASCII + multi-byte) is one
-/// `print_codepoints` run. Returns `s.len()`.
+/// Decode validated UTF-8 in blocks, dispatching a control-free run with one call.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
