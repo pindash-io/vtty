@@ -41,7 +41,7 @@ pub(crate) const MAX_INTERMEDIATES: usize = 2;
 /// Maximum number of continuation bytes in a UTF-8 code point.
 ///
 /// A full code point is at most `1 + MAX_UTF8_CONTINUATIONS = 4` bytes, the
-/// "UTF-8 partial: 4 bytes" row in `ARCHITECTURE.md`.
+/// `UTF-8 partial` row in `ARCHITECTURE.md`.
 pub(crate) const MAX_UTF8_CONTINUATIONS: usize = 3;
 
 /// Maximum SIMD UTF-8 decode window, in bytes.
