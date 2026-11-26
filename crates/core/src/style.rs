@@ -462,7 +462,7 @@ const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
 
 /// The effect of a single SGR attribute code.
 #[inline]
-pub fn single_code(code: i32) -> Option<SgrEffect> {
+pub const fn single_code(code: i32) -> Option<SgrEffect> {
     let value = match code {
         // `-2` is the parser's `;`-separated empty sentinel; in SGR an empty
         // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is not a
@@ -478,12 +478,12 @@ pub fn single_code(code: i32) -> Option<SgrEffect> {
         90..=97 => SgrEffect::Fg(ColorSpec::Ansi((code - 90 + 8) as u16)),
         100..=107 => SgrEffect::Bg(ColorSpec::Ansi((code - 100 + 8) as u16)),
         _ => {
-            let mut flags = SgrFlags::from(code);
+            let mut flags = SgrFlags::from_code(code);
             if flags.is_empty() {
                 return None;
             }
             if flags.contains(SgrFlags::RESET) {
-                flags.remove(SgrFlags::RESET);
+                flags = flags.difference(SgrFlags::RESET);
                 SgrEffect::Clear(flags)
             } else {
                 SgrEffect::Set(flags)
@@ -781,6 +781,20 @@ mod tests {
         assert_eq!(RED, ColorSpec::Indexed(196));
         assert_eq!(ColorSpec::indexed(-5), ColorSpec::Indexed(0));
         assert_eq!(ColorSpec::indexed(300), ColorSpec::Indexed(255));
+    }
+
+    #[test]
+    fn single_code_is_const() {
+        // Usable in a `const` item: no `From`/mutator trait calls.
+        const BOLD: Option<SgrEffect> = single_code(1);
+        assert_eq!(BOLD, Some(SgrEffect::Set(SgrFlags::BOLD)));
+        const CLEAR_FAINT: Option<SgrEffect> = single_code(22);
+        assert_eq!(
+            CLEAR_FAINT,
+            Some(SgrEffect::Clear(SgrFlags::BOLD.union(SgrFlags::FAINT)))
+        );
+        const RED: Option<SgrEffect> = single_code(31);
+        assert_eq!(RED, Some(SgrEffect::Fg(ColorSpec::Ansi(1))));
     }
 
     #[test]
