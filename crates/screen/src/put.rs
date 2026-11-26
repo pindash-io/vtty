@@ -87,9 +87,8 @@ impl Screen {
 
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
     pub(crate) fn put_base(&mut self, c: char, mut width: u32) {
-        // A double-width glyph needs two cells; a one-column grid can't hold
-        // it, so clamp to the grid width (otherwise the `cells[idx + 1]`
-        // continuation write goes out of bounds).
+        // A wide glyph needs two cells; on a one-column grid clamp to the width
+        // so the continuation write stays in bounds.
         if width > self.cols {
             width = self.cols;
         }

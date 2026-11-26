@@ -421,9 +421,8 @@ mod tests {
 
     #[test]
     fn cluster_width_sum_equals_per_char_sum() {
-        // The invariant this crate is built on: cluster boundaries never
-        // split a vtty_width width sequence, so the per-cluster sum equals
-        // the per-char sum.
+        // The invariant: cluster boundaries never split a `vtty_width` sequence, so
+        // the per-cluster sum equals the per-char sum.
         for text in [
             "hello",
             "中文字",
@@ -432,9 +431,8 @@ mod tests {
             "🇺🇸🇨🇦 flags",
             "❤\u{FE0F} vs16",
             "가나 hangul",
-            // Controls/format chars break clusters but are zero-width, and
-            // Hangul V/T only attach to a Hangul base; the width model and
-            // the grapheme model must agree on both.
+            // Controls break clusters but are zero-width; Hangul V/T attach only to a
+            // Hangul base. Both models must agree.
             "¡\0",
             "a\0b",
             "\u{200B}",

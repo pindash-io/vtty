@@ -468,8 +468,7 @@ pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
         // Skin-tone modifiers (U+1F3FB..=U+1F3FF): zero-width Extend chars
         // that combine with the preceding emoji; Unicode reports them wide.
         '\u{1F3FB}'..='\u{1F3FF}' => return Some(0),
-        // Halfwidth katakana dakuten/handakuten (U+FF9E/U+FF9F): independent
-        // halfwidth chars (1 cell); Grapheme_Extend makes them zero in
+        // U+FF9E/U+FF9F: 1 halfwidth cell, though Grapheme_Extend makes them 0 in
         // Unicode.
         '\u{FF9E}' | '\u{FF9F}' => return Some(1),
         // Tag chars + cancel tag (U+E0020..=U+E007F): only appear inside a

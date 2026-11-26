@@ -84,9 +84,7 @@ impl fmt::Display for ColorId {
     }
 }
 
-// Comparisons against raw integer literals (`id == 4`, `id == 4u16`) so call
-// sites read naturally. Only the forward direction: reverse impls would
-// collide with `core`'s `u16 == u16` and make inference ambiguous.
+// Forward only: a reverse impl would collide with `u16 == u16`.
 macro_rules! impl_partial_eq {
     ($t:ty) => {
         impl PartialEq<$t> for ColorId {

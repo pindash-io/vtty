@@ -85,9 +85,8 @@ impl MouseButton {
     pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> CompactString {
         let final_byte = if pressed { 'M' } else { 'm' };
         let (x, y) = (x + 1, y + 1);
-        // `Motion` = motion + left button (a drag, `cb=32`);
-        // `MotionNoButton` = pure hover (`cb=35`). The button code is used
-        // verbatim so ratatui/crossterm can tell Drag(Left) from Moved.
+        // `Motion` is a drag (`cb=32`), `MotionNoButton` a hover (`cb=35`); the
+        // code is used verbatim so drag and move stay distinguishable.
         format_compact!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
     }
 

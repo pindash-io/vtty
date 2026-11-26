@@ -233,9 +233,7 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn combining_vs_spacing_acute() {
-        // U+0301 COMBINING ACUTE ACCENT: zero-width, attaches to the base.
-        // U+00B4 ACUTE ACCENT: a spacing modifier, its own 1-cell glyph.
-        // U+0060 GRAVE ACCENT (backtick): also a spacing modifier, 1 cell.
+        // U+0301 attaches (0); U+00B4 and U+0060 are spacing modifiers (1 each).
         assert_eq!(cell_width('\u{301}'), Some(0));
         assert_eq!(cell_width('\u{00B4}'), Some(1));
         assert_eq!(cell_width('\u{60}'), Some(1));
@@ -249,9 +247,7 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn cell_widths_from_codepoints_matches_str() {
-        // The codepoint path (SIMD parser handoff) must agree exactly with
-        // the `&str` path across ASCII, CJK, emoji, ZWJ, VS16, keycap, and
-        // combining-mark runs.
+        // The codepoint path must agree with the `&str` path on every shape below.
         let samples = [
             "plain ascii",
             "中ab👍🏽x",
@@ -307,9 +303,8 @@ mod tests {
     #[test]
     fn pua_fast_width_matches_table() {
         let _guard = cjk_guard();
-        // Every codepoint the PUA fast path classifies must match the baked
-        // composite table (width 1, or 2 under CJK-ambiguous mode), be a
-        // standalone base (GCB Other), and not an emoji starter.
+        // The PUA fast path must match the baked table: width 1 (or 2 under CJK
+        // width), standalone base, not an emoji starter.
         let cjk = cjk_width();
         for cp in 0xE000_u32..=0x10_FFFD {
             let Some(c) = char::from_u32(cp) else {
@@ -334,9 +329,8 @@ mod tests {
     #[cfg(feature = "baked")]
     #[test]
     fn emoji_fast_width_matches_table() {
-        // Every codepoint the emoji-presentation fast path classifies must
-        // be width 2 and an emoji starter per the baked composite table
-        // (guards the generated 1-bit EP table against drift).
+        // The emoji fast path must match the baked table: width 2 and an emoji
+        // starter.
         for cp in 0x80_u32..=0x10_FFFF {
             let Some(c) = char::from_u32(cp) else {
                 continue;
@@ -380,9 +374,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn text_default_emoji_stay_one_cell() {
-        // U+2764 ❤ is Emoji=Yes but Emoji_Presentation=No: text-default, so
-        // it is one cell alone. VS16 widens it to 2; a ZWJ-family membership
-        // also widens it (the DFA's `presentation_style(Emoji)`).
+        // ❤ U+2764 is Emoji=Yes but Emoji_Presentation=No: one cell until VS16 or
+        // a ZWJ family widens it.
         assert_eq!(cell_width('❤'), Some(1));
         assert_eq!(cell_width('↕'), Some(1));
         assert_eq!(cell_widths("❤"), vec![1]);
@@ -490,9 +483,7 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn cell_col_byte_widths_steps_over_a_broken_family() {
-        // The broken family occupies 3 cells: the couple (2) + the text 👧
-        // (1). Column 1 lands inside the couple (byte 0); column 2 lands on
-        // the text 👧; column 3 is past the cluster.
+        // The broken family is 3 cells: the couple (2) + the text member (1).
         let text = "\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}";
         assert_eq!(cell_col_byte_widths(text, 0), 0);
         assert_eq!(cell_col_byte_widths(text, 1), 0);
@@ -613,9 +604,8 @@ mod tests {
                 c as u32
             );
         }
-        // The derivation matches `unicode-width` on every scalar except the 5
-        // skin-tone modifiers (intentional: treated as combining, width 0) and
-        // U+17D8 Khmer Sign Beyyal (width 3, unrepresentable in 0/1/2).
+        // Matches `unicode-width` except the 5 skin-tone modifiers and U+17D8
+        // (width 3).
         let mut diffs = 0_u32;
         for cp in 0..=0x10FFFF_u32 {
             let Some(c) = char::from_u32(cp) else {
@@ -705,16 +695,14 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn halfwidth_katakana_sound_marks_are_one_cell() {
-        // U+FF9E/U+FF9F are Grapheme_Extend (unicode-width says 0), but
-        // terminals render them as independent halfwidth chars (1 cell).
-        // The combining variants U+3099/U+309A stay combining (0 cells).
+        // U+FF9E/U+FF9F are Grapheme_Extend but render as 1 halfwidth cell; the
+        // combining U+3099/U+309A stay 0.
         assert_eq!(cell_width('\u{FF9E}'), Some(1));
         assert_eq!(cell_width('\u{FF9F}'), Some(1));
         assert_eq!(cell_width('\u{3099}'), Some(0));
         assert_eq!(cell_width('\u{309A}'), Some(0));
-        // Halfwidth katakana + dakuten renders as two halfwidth cells
-        // (ratatui: "ｶﾞ" == 2), while fullwidth ka + combining dakuten
-        // "が" stays one wide cell.
+        // Halfwidth katakana + dakuten is two cells; fullwidth ka + combining
+        // dakuten is one.
         assert_eq!(cell_widths("ｶﾞ"), vec![1, 1]);
         assert_eq!(cell_widths("か\u{3099}"), vec![2, 0]);
     }

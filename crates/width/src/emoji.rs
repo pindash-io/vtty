@@ -115,9 +115,8 @@ impl Run {
             dfa,
             lead: c,
             lead_w1,
-            // `presentation_style` uses this only for the basic case (lead +
-            // combining marks); a text-default ❤ must stay 1 cell. VS16/ZWJ
-            // sequences are decided by the DFA, independent of this flag.
+            // Used only for the basic case (lead + combining marks); VS16/ZWJ
+            // sequences are decided by the DFA.
             lead_ep,
             lead_cat: cat,
             lead_gcb,
@@ -361,9 +360,8 @@ pub(crate) fn finalize_lead(
     let gcb = r.lead_gcb;
     let w = if lead_w == 0 {
         let sel = Selector::from_char(r.lead);
-        // A selector, control, or format char is invisible even when lone;
-        // only a lone combining MARK occupies its own cell (see the else
-        // branch). Hangul V/T attach only per GB6/GB7/GB8.
+        // Only a lone combining mark takes its own cell; selectors, controls and
+        // format chars stay invisible.
         let attaches = match gcb {
             Gcb::V => *hangul & 1 != 0, // after L/LV/V
             Gcb::T => *hangul & 2 != 0, // after LV/V/LVT/T
@@ -375,9 +373,8 @@ pub(crate) fn finalize_lead(
         {
             0
         } else {
-            // A lone mark, or a mark after a space followed by another mark,
-            // must occupy its own cell so the next mark has a visible base. A
-            // visible base already provides one.
+            // A lone mark, or a mark after a space that another mark follows, needs
+            // its own cell to be a visible base.
             1
         }
     } else {

@@ -36,9 +36,8 @@ impl Screen {
         let start = c * width;
         let end = (b + 1) * width;
 
-        // Shift content and soft-wrap flags by `n` rows in one pass; the
-        // vacated rows go blank. The ranges overlap, and `copy_within` moves
-        // them in the right order.
+        // Shift content and soft-wrap flags in one pass; `copy_within` handles
+        // the overlapping ranges, and the vacated rows go blank.
         let (src, dst, blank, c_src, c_dst, c_blank) = if insert {
             (
                 start..end - n * width,
@@ -104,9 +103,8 @@ impl Screen {
         let mut glyphs = 0_usize;
         let mut col = start;
         while col < cols && glyphs < n as usize {
-            // `start` is never a continuation (it was adjusted to the lead),
-            // and each iteration advances past a whole glyph, so `col` always
-            // lands on a lead or a plain cell, never mid-pair.
+            // `start` is a lead cell and each step skips a whole glyph, so `col`
+            // never lands mid-pair.
             let wide = col + 1 < cols && self.active.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             del += width;

@@ -204,9 +204,8 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::SosPmApcString),
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
-            // SOS/PM/APC: the first content byte is the "action" (e.g. `G`
-            // for kitty graphics APC `_G`); dispatch it as a hook and reuse
-            // the DCS string state for put/unhook.
+            // SOS/PM/APC: the first content byte is the action (kitty's `G`), so
+            // dispatch it as a hook and reuse the DCS state for put/unhook.
             0x20..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
             0x9c => (Action::NONE, ParseState::Ground),
             _ => (Action::NONE, ParseState::SosPmApcString),
@@ -382,16 +381,14 @@ mod tests {
     /// differently from DEC; everything else must match `dec_step` exactly.
     fn vtty_deviation(state: ParseState, b: u8) -> Option<(Action, ParseState)> {
         Some(match (state, b) {
-            // kitty colon sub-parameters: `:` is a param separator (SGR
-            // `38:2::r:g:b`, `4:3` curly underline), not "ignore the whole
-            // sequence" as DEC specified.
+            // kitty colon sub-parameters: `:` separates (SGR `38:2::r:g:b`, `4:3`), not
+            // ignore the sequence as DEC specified.
             (ParseState::CsiEntry, 0x3a) => (Action::NONE, ParseState::CsiParam),
             (ParseState::CsiParam, 0x3a) => (Action::NONE, ParseState::CsiParam),
             (ParseState::DcsEntry, 0x3a) => (Action::NONE, ParseState::DcsParam),
             (ParseState::DcsParam, 0x3a) => (Action::NONE, ParseState::DcsParam),
-            // kitty APC graphics `_G`: SOS/PM/APC content bytes dispatch
-            // `hook` (and reuse the DCS passthrough state for put/unhook)
-            // instead of being ignored as DEC specified.
+            // kitty APC `_G`: content bytes dispatch hook/put/unhook instead of being
+            // ignored as DEC specified.
             (ParseState::SosPmApcString, 0x20..=0x7e) => (Action::HOOK, ParseState::DcsPassthrough),
             _ => return None,
         })

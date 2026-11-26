@@ -134,9 +134,8 @@ impl Reply {
     #[inline]
     #[must_use]
     pub fn osc_background(c: [f32; 4]) -> CompactString {
-        // Pure ASCII (ESC + hex digits + ST), so validation cannot fail. Stay
-        // strict rather than lossy: a broken invariant should drop the reply,
-        // not splice U+FFFD into it.
+        // Pure ASCII, so validation cannot fail: stay strict rather than splice
+        // U+FFFD into a broken reply.
         CompactString::from_utf8(crate::color::format_osc_background(c)).unwrap_or_default()
     }
 

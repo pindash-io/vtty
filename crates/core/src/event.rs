@@ -434,9 +434,7 @@ mod tests {
             (SmallVec::from([-2, -2, -1]), &b"\x1b[;;m"[..]),
             (SmallVec::from([-1]), &b"\x1b[m"[..]),
             (SmallVec::from([0, 65535]), &b"\x1b[0;65535m"[..]),
-            // Hand-built params are not clamped; `i32::MAX` is the widest
-            // value `push_param` can see, and it needs every one of the ten
-            // buffer bytes.
+            // Hand-built params are not clamped; `i32::MAX` needs every buffer byte.
             (SmallVec::from([i32::MAX]), &b"\x1b[2147483647m"[..]),
         ] {
             let mut out = SmallVec::<u8, 16>::new();

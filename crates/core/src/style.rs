@@ -460,9 +460,8 @@ const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
 #[inline]
 pub const fn single_code(code: i32) -> Option<SgrEffect> {
     let value = match code {
-        // `-2` is the parser's `;`-separated empty sentinel; in SGR an empty
-        // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is not a
-        // reset; it is ignored by the callers.
+        // `-2` (a `;`-empty) and `0` are resets in SGR; `-1` (trailing or colon
+        // empty) is not, and the callers ignore it.
         0 | -2 => SgrEffect::Reset,
         4 => SgrEffect::Underline(UnderlineStyle::Single),
         21 => SgrEffect::Underline(UnderlineStyle::Double),
@@ -634,9 +633,7 @@ mod tests {
 
     #[test]
     fn cursor_style_decscusr_round_trip_and_blink() {
-        // For the explicit shape+blink codes (1..=6), decode then encode is
-        // the identity. Code 0 is the "default" (a steady block, re-encoded
-        // as 2) so it is excluded from the round trip.
+        // Codes 1..=6 round-trip; 0 is the default (steady block, re-encoded as 2).
         for code in 1..=6 {
             let shape = CursorStyle::from_decscusr(code);
             assert_eq!(
@@ -677,9 +674,7 @@ mod tests {
 
     #[test]
     fn underline_style_from_stored_differs_from_wire() {
-        // The stored-field decoder treats an out-of-range code as None (the
-        // stored field is never corrupt in practice), unlike the wire decoder
-        // which defaults an unknown sub-param to Single.
+        // Out-of-range is `None` here, `Single` in the wire decoder.
         assert_eq!(UnderlineStyle::from_stored(9), UnderlineStyle::None);
         // The valid codes agree.
         for v in 0..=5 {

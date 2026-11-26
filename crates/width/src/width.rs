@@ -146,9 +146,7 @@ impl<S: Source> Widths<S> {
                 out.resize(out.len() + n, 1);
                 continue;
             }
-            // In the clean state (no open emoji run, no pending flush), a
-            // run of standalone bases needs no DFA state machine: bulk-fill
-            // it directly.
+            // In the clean state a run of standalone bases needs no DFA: bulk-fill it.
             if self.run.is_none()
                 && self.flush_lead.is_none()
                 && self.flush_zeros == 0
@@ -338,9 +336,8 @@ impl<S: Source> Iterator for Widths<S> {
                 }
             }
 
-            // Standalone emoji: an emoji starter not followed by a
-            // continuation (VS15/VS16/ZWJ/modifier/RI/tag) is a fixed-width
-            // base, so skip the DFA and emit `w1` directly.
+            // An emoji starter with no continuation is a fixed-width base: emit `w1`
+            // directly.
             if matches!(w1, Some(1) | Some(2)) && starter {
                 let standalone = match self.peek_char() {
                     None => true,
@@ -357,9 +354,8 @@ impl<S: Source> Iterator for Widths<S> {
                 }
             }
 
-            // `c` starts a new run: close the previous one, then open the new.
-            // A mark followed by another combining mark must be standalone
-            // (its own cell) so the following mark has a visible base.
+            // `c` starts a new run: close the previous one, then open the new. A mark
+            // followed by another must stand alone so the second has a base.
             let cat = category_from(p, c);
             let followed_by_mark = Selector::from_char(c).is_none() && w1 == Some(0);
             if let Some(r) = self.run.take() {
@@ -606,9 +602,8 @@ pub fn cell_col_byte_widths(text: &str, cell_col: usize) -> usize {
     }
     let mut cell = 0_usize;
     for ((i, _c), w) in text.char_indices().zip(Widths::new(Bytes(text.as_bytes()))) {
-        // Return the char that starts at (or contains) `cell_col`. A column in
-        // the second cell of a wide char (`cell_col == cell + 1`) maps to that
-        // same char, not past it to `text.len()`.
+        // The char containing `cell_col`; a wide glyph's second cell maps to the
+        // same char.
         if w > 0 && cell_col >= cell && cell_col < cell + w {
             return i;
         }

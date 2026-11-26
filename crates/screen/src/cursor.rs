@@ -134,8 +134,7 @@ impl Screen {
     }
 
     pub(crate) fn set_margins(&mut self, params: &[i32]) {
-        // DECSTBM: 0 (or negative) means the default; row 1 for the top, the
-        // last row for the bottom. Non-positive values must not reach the
+        // DECSTBM: 0 or negative means the default row, and must not reach the
         // `- 1` below (a `0` param would underflow).
         let top = params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;
         let bottom = params

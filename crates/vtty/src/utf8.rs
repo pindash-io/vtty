@@ -132,9 +132,7 @@ pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
             },
         ));
     }
-    // `last` is neither ASCII, a valid lead, nor a continuation byte: it is
-    // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
-    // main loop decodes it as U+FFFD.
+    // Not a valid lead nor a continuation: the main loop decodes it as U+FFFD.
     if !matches!(last, 0x80..0xc0) {
         return None;
     }
@@ -247,9 +245,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 loop {
                     let b0 = s[i];
                     if matches!(b0, 0xe0..=0xef) {
-                        // 3-byte lead (CJK etc.), never C1. Four consecutive
-                        // 3-byte code points are SIMD-decoded (simdutf's
-                        // `0x924` path).
+                        // 3-byte lead, never C1; four in a row take simdutf's `0x924` path.
                         if i + 16 <= s.len()
                             && matches!(s[i + 3], 0xe0..=0xef)
                             && matches!(s[i + 6], 0xe0..=0xef)
@@ -259,9 +255,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
                             buf[n..n + 4].copy_from_slice(&cps);
                             n += 4;
-                            // The 4-wide SIMD fill bypasses `push_cp` (whose
-                            // flush-at-32 guard the next `push_cp` relies on),
-                            // so flush here when full.
+                            // The 4-wide fill bypasses `push_cp`'s flush-at-32 guard, so flush here.
                             if n == BATCH {
                                 p.print_codepoints(&buf[..n]);
                                 n = 0;
@@ -300,17 +294,13 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
-    // Buffer holds the max code points one `decode_block` call can emit: the
-    // sub-76-byte scalar tail decodes 1 code point/byte (≤ 75), and the
-    // 64-byte block emits ≤ 54.
+    // Worst case: a 64-byte block emits <= 54 and the scalar tail 1 per byte.
     const BATCH: usize = 76;
     let mut buf = [0_u32; BATCH];
     let mut i = 0;
     while i < s.len() {
         let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
-        // Fast path: when the block has no controls, dispatch the whole run
-        // with one `print_codepoints` call instead of the per-code-point
-        // split scan.
+        // A control-free block dispatches the whole run in one call.
         if !crate::simd::any_control(&buf[..count]) {
             p.print_codepoints(&buf[..count]);
         } else {
@@ -387,9 +377,8 @@ pub(crate) fn decode_utf8<P: Perform>(
         };
         if let Ok(s) = simdutf8::basic::from_utf8(&bytes[pos..end]) {
             let s = s.as_bytes();
-            // One-pass dispatch: the SIMD transcode batches a mixed window
-            // (ASCII + multi-byte) into a single `print_codepoints` run; the
-            // scalar mixed loop keeps the print_bytes/print_codepoints split.
+            // SIMD batches a mixed window into one `print_codepoints`; the scalar mixed
+            // loop keeps the `print_bytes`/`print_codepoints` split.
             #[cfg(feature = "simd-transcode")]
             {
                 return transcode_dispatch(p, s).max(1);
@@ -403,9 +392,8 @@ pub(crate) fn decode_utf8<P: Perform>(
     }
     #[cfg(not(feature = "simd"))]
     let _ = simd;
-    // Scalar decode: batch a run of consecutive non-ASCII code points into a
-    // single `print_codepoints` call. Stops at the first byte below `0xa0`
-    // (ASCII, C0/C1, ESC), which the caller's dispatch arms handle.
+    // Scalar: batch consecutive non-ASCII code points into one
+    // `print_codepoints`; stop below `0xa0` for the caller's dispatch.
     const BATCH: usize = 32;
     let mut buf = [0_u32; BATCH];
     let mut n = 0;
@@ -474,8 +462,7 @@ mod tests {
         assert!(sink.execs.is_empty());
         assert!(sink.bytes.is_empty());
 
-        // An ESC within the probe window bounds the decode: it stops before
-        // the ESC (consumed == the mixed prefix), leaving the ESC for the
+        // An ESC inside the probe window bounds the decode, leaving the ESC for the
         // state machine.
         let mut input = "日本語 🚀 ".as_bytes().to_vec();
         input.extend_from_slice(b"\x1b[31m");

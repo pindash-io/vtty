@@ -349,9 +349,8 @@ fn parse_progress(value: &[u8]) -> Option<u8> {
     if value.is_empty() || value.len() > 3 || !value.iter().all(u8::is_ascii_digit) {
         return None;
     }
-    // `value` is already all ASCII digits (the guard above), so it is valid
-    // UTF-8; parse the decimal directly without the `str` round-trip. The
-    // `checked_*` ops reject overflow the same way `parse::<u8>` does.
+    // `value` is all ASCII digits (guarded above), so parse the decimal directly
+    // and let `checked_*` reject overflow like `parse::<u8>`.
     let n = value
         .iter()
         .try_fold(0_u8, |acc, &b| acc.checked_mul(10)?.checked_add(b - b'0'))?;

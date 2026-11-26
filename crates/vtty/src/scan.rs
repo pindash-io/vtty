@@ -138,8 +138,7 @@ pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
 /// `DEL` (`0x7f`) is a C0 control, not printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
-    // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
-    // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
+    // ANSI-dense input and short lines leave 0- and 1-byte runs, where a full
     // 8-byte SWAR word is overkill.
     if matches!(bytes.first(), Some(b) if is_non_printable(b)) {
         return 0;

@@ -139,9 +139,8 @@ impl Screen {
         let start = top * width;
         let end = (bottom + 1) * width;
 
-        // Shift content and soft-wrap flags by `n` rows in one pass; the
-        // vacated rows go blank. The ranges overlap, and `copy_within` moves
-        // them in the right order.
+        // Shift content and soft-wrap flags in one pass; `copy_within` handles the
+        // overlapping ranges, and the vacated rows go blank.
         let (src, dst, blank, c_src, c_dst, c_blank) = if down {
             (
                 start..end - n * width,

@@ -484,8 +484,7 @@ impl Parser {
         valid_end: usize,
     ) -> usize {
         let run = &bytes[i..];
-        // `valid` is the prefix before the trailing partial; an escape
-        // sequence can consume past `valid_end` (raw bytes), so a later ground
+        // An escape sequence can consume past `valid_end`, so a later ground
         // re-entry clears the stale partial.
         let valid = if i <= valid_end {
             valid_end - i
@@ -498,9 +497,8 @@ impl Parser {
             // SIMD: find the leading printable-ASCII run.
             let n = first_non_printable(&run[pos..valid], self.simd_enabled());
             if n > 0 {
-                // Printable ASCII is valid UTF-8 by construction (the SIMD
-                // classifier already rejected control/high-bit bytes), so no
-                // `from_utf8` re-validation is needed here.
+                // The SIMD classifier already rejected control and high-bit bytes, so
+                // this ASCII is valid UTF-8: no re-validation.
                 let mut end = pos + n;
                 // Fused print+LF: `printable\n` or `printable\r\n` dispatch
                 // one `print_line`/`print_crlf_line` call, not print+execute.
@@ -510,9 +508,8 @@ impl Parser {
                     continue;
                 }
                 if end + 1 < valid && run[end] == b'\r' && run[end + 1] == b'\n' {
-                    // CRLF storm (`printable\r\n` repeated): SWAR-scan one
-                    // 8-byte word per line and dispatch `print_crlf_line`
-                    // without re-entering the general ground loop.
+                    // CRLF storm: SWAR-scan one word per line and dispatch `print_crlf_line`
+                    // without re-entering the ground loop.
                     loop {
                         p.print_crlf_line(&run[pos..end]);
                         pos = end + 2;
@@ -550,9 +547,8 @@ impl Parser {
             // Bulk CSI: scan the final byte and the params (plus a private
             // marker) in one pass; anything else bails to the state machine.
             if !self.force_cold() && b == 0x1b && matches!(run.get(pos + 1), Some(&b'[')) {
-                // Keep scanning on success: a re-entry costs a fresh
-                // `first_non_printable` scan per sequence on CSI-dense input
-                // (SGR churn, cursor motion).
+                // Keep scanning on success: a re-entry costs a fresh scan per sequence on
+                // CSI-dense input.
                 if let Some(consumed) = self.try_dispatch_csi(p, &run[pos + 2..valid]) {
                     pos += 2 + consumed;
                     continue;
@@ -566,9 +562,8 @@ impl Parser {
                     return i + pos + 1;
                 }
                 0x00..=0x1f | 0x7f => {
-                    // C0 controls (and DEL) often cluster (`\r\n`, `\t\t`):
-                    // execute the run in a tight loop without re-scanning.
-                    // ESC breaks out so the outer loop enters the escape state.
+                    // C0 clusters (`\r\n`, `\t\t`): execute the run in one loop; ESC breaks
+                    // out to the escape state.
                     loop {
                         p.execute(b);
                         pos += 1;
@@ -641,9 +636,8 @@ impl Parser {
             return None;
         }
 
-        // `CSI ? <digits> h|l`: DEC private mode set/reset, the shape shells
-        // and TUIs emit around every prompt. The marker byte otherwise forces
-        // the general parameter loop.
+        // `CSI ? <digits> h|l`: the private-mode shape shells and TUIs emit; the
+        // marker would otherwise force the general param loop.
         if seq[0] == b'?' {
             let mut i = 1;
             if seq.get(i).is_some_and(u8::is_ascii_digit) {
@@ -703,9 +697,8 @@ impl Parser {
                     i += 1;
                 }
                 0x40..=0x7e => {
-                    // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
-                    // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
-                    // is pushed as `-1`.
+                    // A param-less CSI dispatches `[]`; a trailing empty param (ConPTY's
+                    // `SGR …;m`) is pushed as `-1`.
                     self.dispatch_csi(p, seq[i]);
                     return Some(i + 1);
                 }
@@ -759,13 +752,10 @@ impl Parser {
             return i + 1;
         }
 
-        // String runs, ESC introducers, and CSI/DCS param runs are dispatched
-        // inline from `advance`; this cold path only sees rare and boundary
-        // bytes.
+        // String runs, ESC introducers and param runs go inline; this cold path
+        // only sees rare bytes.
 
-        // CSI final-byte fast path: `0x40..=0x7e` from CsiEntry/CsiParam/
-        // CsiIntermediate always dispatches (CSI_DISPATCH → Ground). Skip the
-        // transition() table lookup for the one dispatch byte per sequence.
+        // A final byte from Csi* always dispatches, so skip the table lookup for it.
         if !self.force_cold()
             && matches!(b, 0x40..=0x7e)
             && matches!(
@@ -1077,8 +1067,7 @@ impl Parser {
             self.osc_extend(&[byte]);
         }
         if action.contains(Action::OSC_END) {
-            // Cold terminator (C1 ST / CAN / SUB): the deferred payload was
-            // already flushed by the `advance_osc_run` fallback, so dispatch
+            // The deferred payload was already flushed by the run fallback, so dispatch
             // from `payload`.
             self.osc_end(p, byte == 0x07, &[], 0);
         }
@@ -1569,9 +1558,8 @@ mod tests {
 
     #[test]
     fn ignored_csi_clears_state_before_next_sequence() {
-        // `? ) 5 h` collects `?`+`)`, then the digit pushes it into CsiIgnore
-        // (no dispatch). The ignored sequence must not leak its collected
-        // intermediates into the next CSI's dispatch (fuzz regression).
+        // A dropped CSI must not leak its intermediates into the next dispatch
+        // (fuzz regression).
         let events = Parser::new().parse_events(b"\x1b[?)5h\x1b[1;1H");
         assert_eq!(events.len(), 1, "{events:?}");
         let Event::CsiDispatch {

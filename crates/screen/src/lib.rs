@@ -605,9 +605,8 @@ impl Screen {
         let cells = &self.active.cells[self.row_range(row)];
         let last = cells.len() - trailing_blanks(cells);
         let reverse = self.modes.contains(ScreenFlags::REVERSE);
-        // `current` is the emitted style; `None` means "default, no SGR
-        // emitted yet". Default-styled cells add no escape sequences (unless
-        // reverse video forces explicit colors).
+        // `current` is the emitted style; `None` means nothing emitted yet. Default
+        // cells add no escapes unless reverse video forces colors.
         let mut current: Option<(SgrFlags, ColorId, ColorId)> = None;
         let mut current_rgb: Option<(SgrFlags, u32, u32)> = None;
         for cell in &cells[..last] {
@@ -615,9 +614,7 @@ impl Screen {
                 continue;
             }
             if reverse {
-                // Reverse video swaps foreground/background. Default colors
-                // are resolved to RGB so the swap is visible (a snapshot is
-                // rendered on a non-reversed terminal).
+                // Reverse video swaps fg/bg; defaults resolve to RGB so the swap is visible.
                 let fg = self.color_rgb(cell.bg).unwrap_or(self.default_fg);
                 let bg = self.color_rgb(cell.fg).unwrap_or(self.default_bg);
                 let state = (cell.sgr, fg, bg);

@@ -64,10 +64,8 @@ pub struct EmojiTrace {
 }
 
 impl EmojiTrace {
-    // Per-byte fresh-base flags (`fb`): bit 0 = fresh base (DFA restarts), bit
-    // 1 = re-open boundary (print-time only). The trace is aligned to logical
-    // text; a marker past the end is a future marker.
-
+    // `fb`: bit 0 = fresh base (DFA restarts), bit 1 = re-open boundary
+    // (print time). A marker past the end is a future marker.
     const FB_FRESH: u8 = 0x01;
     const FB_REOPEN: u8 = 0x02;
     const FB_ICH: u8 = 0x04;
@@ -375,9 +373,8 @@ pub const fn classify_cell(
                 return w;
             }
             if raw == 0 {
-                // A combining mark: the DFA's width is 1 lone (own cell) or 0
-                // attached, so trust it. `raw` is always 0 for marks, so
-                // returning it would attach every mark and lose the lone cell.
+                // A mark is 1 cell lone, 0 attached; trust the DFA, since `raw` is
+                // always 0 for marks.
                 return w;
             }
             raw
@@ -425,9 +422,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn split_widths_breaks_a_zwj_family_on_vs15() {
-        // Layer 3 (write order) agrees with the whole-text DFA: a VS15 on
-        // the last family member breaks the ZWJ sequence into the couple
-        // (2 cells) + a text-presentation 👧 (1 cell).
+        // Layer 3 agrees with the DFA: a VS15 on the last member splits the family
+        // into the couple + a text member.
         let text = "\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}";
         assert_eq!(
             split_widths(text, &SplitBoundaries::default(), 0),

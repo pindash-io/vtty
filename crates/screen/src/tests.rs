@@ -700,9 +700,8 @@ fn resize_keeps_content_in_tall_screen() {
 
 #[test]
 fn resize_does_not_multiply_blank_lines() {
-    // One intentional blank line must stay one blank line when the width
-    // shrinks (a blank row stores `cols` blank cells, which would
-    // otherwise re-wrap into `ceil(old/new)` rows).
+    // A blank line stays one line when the width shrinks: a blank row stores
+    // `cols` cells, which would otherwise re-wrap into more rows.
     let mut s = Screen::new(20, 4);
     run(&mut s, b"a\r\n\r\nb");
     assert_eq!(s.render_line(0).as_deref(), Some("a"));
@@ -1057,9 +1056,8 @@ fn vt_and_ff_linefeed() {
 
 #[test]
 fn ignored_csi_finals_are_noop() {
-    // The exact CSI finals the screen dispatches. Everything else in
-    // `0x40..=0x7e` (the DEC/ANSI final range) must be a no-op, so a new
-    // handler cannot slip in without updating this pin.
+    // The CSI finals the screen dispatches; everything else in `0x40..=0x7e`
+    // must be a no-op, so a new handler cannot slip in unpinned.
     let handled = b"@ABCDEFGHJKLMPSTXdfghlmr";
     for f in 0x40..=0x7e {
         if handled.contains(&f) {
