@@ -378,6 +378,51 @@ fn cursor_motion(total: usize) -> Vec<u8> {
     line.repeat(total / line.len() + 1).into_bytes()
 }
 
+/// A full-screen TUI repaint frame, weighted by what real programs emit
+/// (measured over `tmux`, `vim`, `nvim`, `htop`, `btop`, `gitui`, `yazi`):
+/// cursor addressing dominates, then scroll margins and DEC private modes.
+///
+/// Per frame: `CSI ?2026h` … `CSI ?2026l`, with `CSI r;1H` + SGR + text + `CSI K`
+/// per changed row, `CSI 1;<rows> r` scroll margins, and a `?1049`/`?25` pair.
+fn tui_redraw(total: usize) -> Vec<u8> {
+    let mut frame = String::new();
+    frame += "\x1b[?2026h";
+    frame += "\x1b[1;24r";
+    frame += "\x1b[?1049h\x1b[?25l";
+    for row in 1..=ROWS {
+        frame += &format!("\x1b[{row};1H");
+        frame += if row.is_multiple_of(2) {
+            "\x1b[1;32m"
+        } else {
+            "\x1b[1;36m"
+        };
+        frame += &format!("row {row:<4} status ok\x1b[0m");
+        frame += "\x1b[K";
+        frame += "\r\n";
+    }
+    frame += "\x1b[1;1H\x1b[J";
+    frame += "\x1b[?25h\x1b[?1049l";
+    frame += "\x1b[?2026l";
+    frame.repeat(total / frame.len() + 1).into_bytes()
+}
+
+/// Colored CLI output, the shape of `git`/`ls`/`rg`/`grep`: two thirds of the
+/// escapes are SGR with zero or one parameter, and the newline rate is high.
+fn cli_color(total: usize) -> Vec<u8> {
+    let mut line = String::new();
+    for i in 0_u32..12 {
+        line += "\x1b[m";
+        line += if i.is_multiple_of(2) {
+            "\x1b[32m"
+        } else {
+            "\x1b[31m"
+        };
+        line += "modified file.rs\x1b[0m\n";
+        line += "\x1b[33mwarning\x1b[m: something\n";
+    }
+    line.repeat(total / line.len() + 1).into_bytes()
+}
+
 /// DEC 2026 Synchronized Output: escape-heavy repaint frames wrapped in
 /// `\x1b[?2026h` / `\x1b[?2026l` (begin/end sync).
 fn sync_churn(total: usize) -> Vec<u8> {
@@ -411,6 +456,8 @@ fn corpus() -> Vec<(&'static str, Vec<u8>)> {
         ("bracketed_paste", bracketed_paste(BYTES)),
         ("osc_heavy", osc_heavy(BYTES)),
         ("dcs_sixel", dcs_sixel(BYTES)),
+        ("tui_redraw", tui_redraw(BYTES)),
+        ("cli_color", cli_color(BYTES)),
     ]
 }
 
