@@ -11,10 +11,8 @@ use smallvec::SmallVec;
 use crate::event::param_colon_sep;
 
 bitflags::bitflags! {
-    /// SGR attribute state: bold/faint/italic/underline/strikethrough/
-    /// overline/inverse/invisible/blink. The nine stored attributes occupy
-    /// bits 0..8 in SGR-code order; [`Self::BLINK_RAPID`] and [`Self::RESET`]
-    /// are parse-only marks above them.
+    /// SGR attributes as flags: the stored ones in SGR-code order, plus the
+    /// parse-only [`Self::BLINK_RAPID`] and [`Self::RESET`] marks.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SgrFlags: u16 {
         /// SGR 1 bold.
