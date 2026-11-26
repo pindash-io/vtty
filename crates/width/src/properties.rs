@@ -342,17 +342,13 @@ pub const fn vs_width(selector: char) -> usize {
 #[doc(hidden)]
 pub const fn cjk_fast_width(c: char) -> Option<usize> {
     let cp = c as u32;
-    // CJK Unified + CJK Extension A + Yi + enclosed/compat CJK: the dominant
-    // non-ASCII hot path (one range check). `wrapping_sub` turns `cp < 0x329A`
-    // into a huge value, so a single `<` tests the whole inclusive range
-    // without a lower-bound branch.
+    // CJK Unified + Ext A + Yi + enclosed/compat: the dominant non-ASCII hot
+    // path. `wrapping_sub` makes one `<` test the whole range, no branch.
     if cp.wrapping_sub(0x329A) < (0xA48C - 0x329A + 1) {
         return Some(2);
     }
-    // Kana, CJK radicals/punctuation, fullwidth, compatibility ideographs, and
-    // CJK extensions beyond the BMP. Split by plane so a supplementary
-    // codepoint skips the BMP scan and a BMP codepoint skips the supplementary
-    // scan; the halves are disjoint, so the split costs one plane compare.
+    // Kana, radicals, fullwidth, compat ideographs and the supplementary CJK
+    // planes: split by plane so each lookup costs one compare plus its scan.
     if cp < 0x10000 {
         if matches!(
             cp,
@@ -483,10 +479,8 @@ pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
     }
 
     let w = p.width() as usize;
-    // Emoji_Presentation: a width-1 emoji-presentation char becomes 2 cells.
-    // Text-default emoji like ❤ U+2764 (Emoji=Yes, Emoji_Presentation=No)
-    // stay one cell; only VS16 or a ZWJ-family membership widens them (the
-    // DFA's `presentation_style(Emoji)` handles that via `lead_ep`).
+    // Emoji_Presentation chars are 2 cells; text-default emoji like ❤ U+2764
+    // stay 1 until a VS16 or a ZWJ family widens them.
     if w <= 1 && p.is_emoji_presentation() {
         return Some(2);
     }

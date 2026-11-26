@@ -147,10 +147,8 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     if matches!(bytes.get(1), Some(b) if is_non_printable(b)) {
         return 1;
     }
-    // One SWAR word over the first 8 bytes catches the short-run pattern (a
-    // word followed by ESC or CR/LF) without paying for the SIMD dispatch.
-    // Long printable runs fall through; the word scan is ~9 ops against a
-    // 32 KiB run, so the overlap with the SIMD pass is negligible.
+    // One SWAR word over the first 8 bytes catches short runs (a word then ESC
+    // or CR/LF) without the SIMD dispatch; long runs fall through to it.
     if let Some(n) = first_non_printable_word(bytes) {
         return n;
     }

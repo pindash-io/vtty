@@ -285,10 +285,8 @@ impl<S: Source> Iterator for Widths<S> {
                 return None;
             }
 
-            // A printable-ASCII run anywhere in the stream: each char is
-            // width 1 and never merges, so skip the emoji DFA entirely. The
-            // state a following combining mark sees is just the last char (a
-            // base, or a space).
+            // A printable-ASCII run: each char is width 1 and never merges, so
+            // skip the DFA; the last char is the base a following mark sees.
             let ascii_run = self.src.ascii_run(self.pos);
             if ascii_run > 0 {
                 if let Some(r) = self.run.take() {
@@ -331,10 +329,8 @@ impl<S: Source> Iterator for Widths<S> {
 
             let w1 = cell_width_from(p, c);
             let starter = is_emoji_starter_from(p, c);
-            // Plain non-ASCII char: a standalone width-1/2 base that never
-            // merges (not an emoji starter, not a mark/selector/control, not
-            // a Hangul jamo). Skip the DFA: only the base state a following
-            // combining mark sees matters.
+            // A plain non-ASCII base never merges, so skip the DFA; only the
+            // base state a following mark sees matters.
             if matches!(w1, Some(1) | Some(2)) && !starter && p.gcb() == Gcb::Other {
                 match self.emit_base(w1.unwrap()) {
                     Some(w) => return Some(w),

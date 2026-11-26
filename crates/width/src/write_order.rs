@@ -279,10 +279,8 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
         if matches!(marks.next(), Some('\u{FE0F}' | '\u{FE0E}')) {
             continue;
         }
-        // A ZWJ in the trailing zero-width run re-opens the family, which
-        // `correct_F` undoes back to the flushed native width. But a VS16/VS15
-        // in that run explicitly re-widens/narrows the base, so the
-        // flushed-native override must not apply: the selector wins.
+        // A VS16/VS15 in the trailing zero-width run re-widens or narrows the
+        // base, so the flushed-native override must not apply.
         let mut has_zwj = false;
         let mut has_vs = false;
         for c in text[flush..]

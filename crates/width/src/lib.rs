@@ -278,10 +278,8 @@ mod tests {
     #[test]
     fn cjk_fast_width_matches_table() {
         let _guard = cjk_guard();
-        // Every codepoint the CJK fast path classifies must be width 2, a
-        // standalone base (GCB Other), and not an emoji starter, the same
-        // answer the baked composite table gives. Guards the hard-coded
-        // ranges against Unicode table regeneration drift.
+        // The CJK fast path must agree with the baked table: width 2, a
+        // standalone base, not an emoji starter.
         for cp in 0x80_u32..=0x10_FFFF {
             let Some(c) = char::from_u32(cp) else {
                 continue;
@@ -438,10 +436,8 @@ mod tests {
         );
         // ASCII prefix + non-ASCII tail (exercises the SIMD ASCII split).
         assert_eq!(cell_widths("ab中😀c"), vec![1, 1, 2, 2, 1]);
-        // Keycap sequence crossing the ASCII boundary: `1` + VS16 + U+20E3 is
-        // one 2-cell keycap emoji (the no-VS16 form stays text-default 1; an
-        // incomplete `1 VS16` without U+20E3 also stays 1, since the VS16 is a
-        // stray on a keycap base).
+        // `1` + VS16 + U+20E3 is one 2-cell keycap; without the U+20E3 the
+        // VS16 is a stray, so both partial forms stay text-default 1.
         assert_eq!(cell_widths("1\u{FE0F}\u{20E3}"), vec![2, 0, 0]);
         assert_eq!(cell_widths("x1\u{FE0F}\u{20E3}y"), vec![1, 2, 0, 0, 1]);
         assert_eq!(cell_widths("1\u{20E3}"), vec![1, 0]);
@@ -587,10 +583,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn mark_after_space_followed_by_mark_is_standalone() {
-        // A mark after a space that is itself followed by another mark must
-        // occupy its own cell, so the second mark has a visible base (the
-        // space is invisible). A single mark after a space still attaches to
-        // the space; a mark after a visible base attaches normally.
+        // A mark after a space attaches to it, unless another mark follows: the
+        // first mark then needs its own cell to give the second a base.
         assert_eq!(
             cell_widths("佞\u{1FE0F} \u{0320}\u{0320}\u{FF76}"),
             vec![2, 1, 1, 1, 0, 1]
@@ -728,10 +722,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn halfwidth_sound_mark_does_not_attach_to_emoji_base() {
-        // U+FF9E/U+FF9F are Grapheme_Extend, so the emoji DFA used to attach
-        // them as 0-width continuations after an emoji base (`❤ﾞ` = [1, 0]).
-        // They must stay independent halfwidth cells (1) even there: the
-        // seed-0 `瘀ｶﾞ👨 ZWJ … ❤ VS16 ECH` divergence.
+        // U+FF9E/U+FF9F are Grapheme_Extend but stay independent halfwidth
+        // cells, even after an emoji base.
         assert_eq!(cell_widths("❤ﾞ"), vec![1, 1]);
         assert_eq!(cell_widths("❤\u{fe0f}ﾞ"), vec![2, 0, 1]);
         // The whole-text DFA still ZWJ-joins `❤` into the `👨` family

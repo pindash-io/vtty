@@ -217,10 +217,8 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 p.execute(b);
                 i += 1;
             }
-            // Printable ASCII run (0x20..=0x7e), SIMD-scanned.
-            // Same print+LF fusion as `advance_ground`: `\n`/`\r\n` after a
-            // run dispatches the fused `print_line`/`print_crlf_line` instead
-            // of `print_bytes` + two `execute`s.
+            // Printable ASCII run (0x20..=0x7e), SIMD-scanned, with the same
+            // print+LF fusion as `advance_ground`.
             0x20..=0x7e => {
                 let n = crate::simd::first_non_printable(&s[i..]);
                 let end = i + n;
@@ -359,18 +357,14 @@ pub(crate) fn decode_utf8<P: Perform>(
 ) -> usize {
     #[cfg(feature = "simd")]
     if simd {
-        // A lone char before the next ESC (truecolor SGR) is cheaper on the
-        // scalar path: probe for a nearby ESC before paying for SIMD setup.
-        // The probe also bounds the window so `from_utf8` validates at most
-        // `PROBE` bytes.
+        // Probe for a nearby ESC before paying for SIMD setup; the probe also
+        // bounds `from_utf8` to `PROBE` bytes.
         const PROBE: usize = 32;
         let remaining = valid - pos;
         let esc = crate::scan::first_esc_bounded(&bytes[pos..valid], PROBE);
         let short = esc < remaining.min(PROBE) || remaining < PROBE;
         // The window ends at the next ESC (it must reach the escape state, not
-        // `execute`) or at the input end. Short windows stop at the probe
-        // bound; long windows cap at the next ESC / 4096 / a char boundary and
-        // decode via SIMD transcode.
+        // `execute`) or at the input end; long windows cap at 4096.
         let end = if short {
             if esc < remaining { pos + esc } else { valid }
         } else {

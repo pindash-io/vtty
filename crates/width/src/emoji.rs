@@ -329,10 +329,8 @@ pub(crate) fn run_continues(
             cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1
         }
         _ => {
-            // A VS15 on the next char breaks the ZWJ sequence at `c`: `c` is
-            // the last family element, so it must not merge: it closes the
-            // run and starts fresh as the `c VS15` text presentation
-            // sequence (👩 ZWJ 👨 ZWJ 👧 VS15 = couple + text 👧).
+            // A VS15 on the next char breaks the sequence: `c` stays the last
+            // family element and starts its own `c VS15` text presentation.
             if next_is_vs15 && r.prev_zwj && is_zwj_target(c) {
                 return false;
             }

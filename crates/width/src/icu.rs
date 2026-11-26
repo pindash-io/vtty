@@ -43,10 +43,8 @@ pub fn width_icu(cp: char) -> usize {
         0x2D7F => 1,
         0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => 0,
         _ => match gc.get(cp) {
-            // Control and surrogate have no width; default-ignorable and
-            // grapheme-extend chars are zero-width (matching unicode-width's
-            // zero-width rule). Everything else falls through to East Asian
-            // Width.
+            // Control and surrogate have no width; default-ignorable and extend
+            // chars are zero-width. The rest use East Asian Width.
             GeneralCategory::Control | GeneralCategory::Surrogate => 0,
             _ if DI.with(|di| di.contains(cp))
                 || GCB.with(|g| g.get(cp) == GraphemeClusterBreak::Extend)

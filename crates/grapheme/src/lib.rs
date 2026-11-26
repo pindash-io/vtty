@@ -157,10 +157,8 @@ impl Iterator for Graphemes<'_> {
             return self.next_ascii();
         }
 
-        // Detect a printable-ASCII run. Each byte is its own cluster (`Other`
-        // never joins) unless preceded by `Prepend` (GB9b). The run's last
-        // byte stays held as the open cluster so a combining mark can attach
-        // (GB9/GB9a).
+        // Detect a printable-ASCII run: each byte is its own cluster unless
+        // preceded by `Prepend` (GB9b); the last byte stays held for GB9/GB9a.
         if self.left != Some(Gcb::Prepend) {
             let run = vtty_width::first_non_printable_ascii(&self.text.as_bytes()[self.pos..]);
             if run > 0 {

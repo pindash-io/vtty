@@ -348,10 +348,8 @@ impl Parser {
         // Complete a partially-decoded UTF-8 code point carried over from the
         // previous call.
         if self.partial.pending() {
-            // A consumed continuation byte either completes the code point
-            // (emit it) or leaves more to arrive. A non-continuation byte
-            // aborts the partial (emit U+FFFD once) and is left for the main
-            // loop.
+            // A continuation byte completes the code point or leaves more to
+            // arrive; anything else aborts it (one U+FFFD) for the main loop.
             while i < bytes.len() {
                 if !self.partial.feed(bytes[i]) {
                     p.print(char::REPLACEMENT_CHARACTER);
@@ -584,10 +582,8 @@ impl Parser {
                     }
                 }
                 0x80..=0x9f => {
-                    // Raw 8-bit C1: introducers start their sequence; ST is
-                    // a no-op; other C1 controls execute (a lone C1 byte is
-                    // invalid UTF-8, so this is the correct fallback).
-                    // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+                    // Raw 8-bit C1: introducers start a sequence, ST is a
+                    // no-op, other controls execute.
                     let (action, next) = Self::c1_transition(b);
                     self.apply(p, action, b);
                     if next != ParseState::Ground {
@@ -698,10 +694,8 @@ impl Parser {
             }
             match seq[i] {
                 0x3c..=0x3f => {
-                    // Private marker (`> = < ?`): only valid as a CSI prefix
-                    // (CsiEntry), before any param or marker. After params the
-                    // DEC state machine transitions to CsiIgnore and drops the
-                    // whole sequence, so bail to the cold path.
+                    // A private marker is valid only as a CSI prefix; after
+                    // params the sequence is ignored, so bail to cold.
                     if self.params.len != 0 || !self.params.empty || self.intermediates.len != 0 {
                         return None;
                     }
@@ -813,10 +807,8 @@ impl Parser {
         let (action, next) = transition(state, b);
         self.apply(p, action, b);
         self.state = next;
-        // Returning to ground clears collected params/intermediates, so a
-        // later bulk-CSI fast path (which assumes a clean ground state) cannot
-        // inherit a stale, ignored sequence. Dispatch actions already clear;
-        // this only matters for ignored/aborted sequences.
+        // Returning to ground clears collected params, so the bulk-CSI fast
+        // path cannot inherit a stale or ignored sequence.
         if next == ParseState::Ground {
             self.clear_seq_state();
         }
@@ -847,10 +839,8 @@ impl Parser {
                 self.state = ParseState::SosPmApcString;
                 i + 1
             }
-            // `ESC <intermediate> <final>`: the 3-byte shape of charset
-            // designation (`ESC ( B`), DECALN (`ESC # 8`) and UTF-8 select
-            // (`ESC % G`). The cold `EscapeIntermediate` table path costs ~4 ns
-            // more.
+            // `ESC <intermediate> <final>`: charset designation, DECALN, UTF-8
+            // select. Inline because the table path costs ~4 ns more.
             0x20..=0x2f if matches!(bytes.get(i + 1), Some(0x30..=0x7e)) => {
                 p.esc_dispatch(&bytes[i..i + 1], bytes[i + 1]);
                 self.state = ParseState::Ground;
@@ -1011,10 +1001,8 @@ impl Parser {
             self.osc_reset();
             return;
         }
-        // Unify the deferred (input-sliced) and accumulated (`payload`-sliced)
-        // cases: the input holds the `;` separators, so each `;`-free
-        // boundary offset shifts by `k` and the source is `bytes` rather
-        // than `payload`.
+        // Deferred and accumulated payloads differ only by the `;` separators
+        // the input still holds, which shift each boundary offset by `k`.
         let (src, base, shift, last_end) = match self.osc.buffer {
             OscBuffer::Deferred { base } => (bytes, base, 1, end_pos),
             OscBuffer::Accumulated => (&self.osc.payload[..], 0, 0, self.osc.payload.len()),
