@@ -21,7 +21,7 @@ vtty = { workspace = true, features = ["perf-inline", "simd-transcode"] }
 
 [dev-dependencies]
 # The comparison parsers are only exercised by the `[[bench]]` target, so they
-# are dev-dependencies (not `dependencies`) — `cargo::unused_dependencies`.
+# are dev-dependencies (not `dependencies`); `cargo::unused_dependencies`.
 vtty_screen = { workspace = true }
 
 criterion.workspace = true
