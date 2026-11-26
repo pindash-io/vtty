@@ -6,7 +6,7 @@
 
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
-use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
+use fearless_simd::{Level, Simd, mask8x16, prelude::*, u8x16, u32x4};
 
 #[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
@@ -35,6 +35,33 @@ enum ScanKind {
     DcsBoundary,
 }
 
+/// Dispatch a kernel to the baseline implementation for the architecture.
+///
+/// `fearless_simd::dispatch!` compiles a copy of the kernel for every level it
+/// can detect, but these kernels only use `u8x16`/`u32x4`/`u16x8`: the AVX2 and
+/// AVX-512 copies re-encode the same xmm-width work, at the cost of code size
+/// and of extra inlined copies inside `advance`. SSE2 is the x86 baseline, so
+/// one copy covers every x86 level; other targets keep the library's dispatch.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+macro_rules! dispatch_baseline {
+    ($level:expr, $simd:pat => $op:expr) => {{
+        let level = $level;
+        let token = match level.as_sse2() {
+            Some(token) => token,
+            // `Level::new` never reports the fallback level on a target whose
+            // baseline is SSE2, and the parser only passes `Level::new()`.
+            None => unreachable!("`Level::new` returns an SSE2 level on x86"),
+        };
+        token.vectorize(|| {
+            let $simd = token;
+            $op
+        })
+    }};
+}
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+use fearless_simd::dispatch as dispatch_baseline;
+
 /// Two explicit byte checks, then the vector scan: 0- and 1-byte runs are the
 /// common shape (ANSI-dense input, `word\r\n` lines, a `;` right after an OSC
 /// separator), where dispatch and chunk setup cost more than the scan.
@@ -47,7 +74,7 @@ macro_rules! scan_or_fast {
             return 1;
         }
         let level = Level::new();
-        dispatch!(level, simd => first_matching(simd, $bytes, ScanKind::$kind))
+        dispatch_baseline!(level, simd => first_matching(simd, $bytes, ScanKind::$kind))
     }};
 }
 
@@ -65,7 +92,7 @@ pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = Level::new();
-    dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
+    dispatch_baseline!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
 /// Index of the first OSC payload boundary — see [`is_osc_boundary`].
@@ -175,7 +202,7 @@ fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
     let level = Level::new();
-    dispatch!(level, simd => decode_3byte(simd, bytes))
+    dispatch_baseline!(level, simd => decode_3byte(simd, bytes))
 }
 
 /// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
@@ -293,7 +320,7 @@ fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usiz
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
     let level = Level::new();
-    dispatch!(level, simd => decode_block(simd, bytes, out))
+    dispatch_baseline!(level, simd => decode_block(simd, bytes, out))
 }
 
 /// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
@@ -303,7 +330,7 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn any_control(cps: &[u32]) -> bool {
     let level = Level::new();
-    dispatch!(level, simd => any_control_impl(simd, cps))
+    dispatch_baseline!(level, simd => any_control_impl(simd, cps))
 }
 
 #[cfg(feature = "simd-transcode")]
@@ -343,7 +370,7 @@ mod tests {
         let bytes = [
             0xe4, 0xb8, 0xad, 0xe6, 0x96, 0x87, 0xe6, 0x97, 0xa5, 0xe6, 0x9c, 0xac, 0, 0, 0, 0,
         ];
-        let out = dispatch!(Level::new(), simd => decode_3byte(simd, &bytes));
+        let out = dispatch_baseline!(Level::new(), simd => decode_3byte(simd, &bytes));
         assert_eq!(out, [0x4e2d, 0x6587, 0x65e5, 0x672c]);
     }
 
