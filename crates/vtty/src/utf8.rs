@@ -405,7 +405,7 @@ pub(crate) fn decode_utf8<P: Perform>(
                 return scalar_mixed_loop(p, s).max(1);
             }
         }
-        // fall through to the scalar path (invalid input).
+        // Fall through to the scalar path (invalid input).
     }
     #[cfg(not(feature = "simd"))]
     let _ = simd;
