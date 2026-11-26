@@ -158,19 +158,19 @@ impl Properties {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Gcb {
-    /// Other (including the emoji-specific GCB values).
+    /// Any other value, including the emoji-specific ones.
     Other = 0,
-    /// `Control` (includes newlines other than CR/LF).
+    /// Control, including newlines other than CR and LF.
     Control = 1,
     /// Carriage return.
     CR = 2,
     /// Line feed.
     LF = 3,
-    /// `Extend` (combining marks, variation selectors, ZWJ-adjacent).
+    /// Extend, combining marks and selectors.
     Extend = 4,
     /// Zero-width joiner.
     ZWJ = 5,
-    /// Regional indicator (flag emoji half).
+    /// Regional indicator, a flag half.
     RegionalIndicator = 6,
     /// `Prepend`.
     Prepend = 7,
@@ -186,7 +186,7 @@ pub enum Gcb {
     LV = 12,
     /// Hangul syllable `LVT`.
     LVT = 13,
-    /// `Extended_Pictographic` (GB11).
+    /// Extended pictographic.
     ExtPict = 14,
 }
 

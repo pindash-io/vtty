@@ -14,11 +14,11 @@ use crate::properties::{Gcb, Properties, cjk_fast_width, emoji_category};
 /// they accept any non-space base instead of rejecting non-emoji bases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selector {
-    /// VS16 (U+FE0F): forces emoji presentation (width 2).
+    /// VS16, emoji presentation.
     Vs16,
-    /// VS15 (U+FE0E): forces text presentation (width 1).
+    /// VS15, text presentation.
     Vs15,
-    /// ZWJ (U+200D): joins the next emoji element (no width change).
+    /// ZWJ, joins the next element.
     Zwj,
     /// Not a selector: a combining mark (or any other char).
     None,
