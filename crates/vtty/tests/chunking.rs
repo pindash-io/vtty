@@ -4,7 +4,7 @@
 //! Chunking-invariance: a byte stream must parse to the same canonical byte
 //! stream no matter how it is split across `advance` calls.
 //!
-//! This is the observable contract of the parser's streaming state — the
+//! This is the observable contract of the parser's streaming state: the
 //! UTF-8 partial decoder, the OSC deferral, and the CSI/DCS parameter
 //! accumulation must all make the result independent of chunk boundaries.
 //! Each event's [`Event::write_bytes`] gives the canonical on-wire bytes, so

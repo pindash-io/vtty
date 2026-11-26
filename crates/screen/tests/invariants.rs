@@ -3,8 +3,8 @@
 
 //! Property test: feed curated and pseudo-random VT bytes through the parser
 //! into a `Screen`, asserting the screen's structural invariants after every
-//! chunk. Exercises the implicit state machines — autowrap, origin mode,
-//! insert/replace, scroll margins, alt-screen swap, and the ring buffer — by
+//! chunk. Exercises the implicit state machines (autowrap, origin mode,
+//! insert/replace, scroll margins, alt-screen swap, the ring buffer) by
 //! driving them with a deterministic byte generator.
 
 #![allow(

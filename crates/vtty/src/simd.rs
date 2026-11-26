@@ -66,13 +66,13 @@ pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
-/// Index of the first OSC payload boundary — see [`is_osc_boundary`].
+/// Index of the first OSC payload boundary; see [`is_osc_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, OscBoundary, is_osc_boundary)
 }
 
-/// Index of the first DCS passthrough boundary — see [`is_dcs_boundary`].
+/// Index of the first DCS passthrough boundary; see [`is_dcs_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, DcsBoundary, is_dcs_boundary)
@@ -284,7 +284,7 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
 }
 
 /// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
-/// `0x80..=0x9f`) — the ones the dispatch loop must split out via `execute`
+/// `0x80..=0x9f`), the ones the dispatch loop must split out via `execute`
 /// instead of a single `print_codepoints` run.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]

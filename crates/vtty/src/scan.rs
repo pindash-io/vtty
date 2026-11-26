@@ -33,12 +33,12 @@ const fn swar_byte_eq(w: u64, b: u8) -> u64 {
 
 /// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
 /// scan falls through to the same scalar tail loop anyway, so the SWAR path
-/// stays faster — and ANSI-dense input produces runs this short.
+/// stays faster, and ANSI-dense input produces runs this short.
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
 /// Run the SWAR scan unless the `simd` feature is on, the parser opted in, and
-/// the first `SIMD_MIN_RUN` bytes hold no stop — the same probe the scalar path
+/// the first `SIMD_MIN_RUN` bytes hold no stop, the same probe the scalar path
 /// uses, so a run that ends early never pays for the vector dispatch.
 macro_rules! scan_or_simd {
     ($bytes:expr, $simd:expr, $mask:expr, $scalar:expr, $vector:path) => {{
@@ -87,7 +87,7 @@ fn first_where(
 }
 
 /// Index of the first ESC byte in the first `limit` bytes, or that length when
-/// none — the probe that bounds each multi-byte decode window. SWAR over 8-byte
+/// none: the probe that bounds each multi-byte decode window. SWAR over 8-byte
 /// words; SIMD memchr pays alignment and dispatch setup for no gain on such a
 /// short window.
 #[cfg(feature = "simd")]
@@ -133,7 +133,7 @@ pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
     first_stop_in_word::<8>(bytes, non_printable_mask)
 }
 
-/// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
+/// Length of the leading printable-ASCII run (`0x20..=0x7e`), the ground
 /// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
 /// `DEL` (`0x7f`) is a C0 control, not printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
@@ -168,7 +168,7 @@ const fn osc_stop_mask(w: u64) -> u64 {
     swar_byte_eq(w & SPLAT_C0_C1, 0) | swar_byte_eq(w, SEMICOLON)
 }
 
-/// Index of the first byte that ends an OSC payload run — see
+/// Index of the first byte that ends an OSC payload run; see
 /// [`is_osc_boundary`] for the class. The rest are `OSC_PUT` bytes.
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
@@ -193,7 +193,7 @@ const fn dcs_stop_mask(w: u64) -> u64 {
         | swar_byte_eq(w, DEL)
 }
 
-/// Index of the first byte that ends a DCS passthrough run — see
+/// Index of the first byte that ends a DCS passthrough run; see
 /// [`is_dcs_boundary`] for the class.
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {

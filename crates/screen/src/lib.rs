@@ -9,7 +9,7 @@
 //! with [`Screen::render_line`]/[`Screen::lines`] (plain text) or
 //! [`Screen::render_ansi`] (SGR-styled text).
 //!
-//! This is the MVP — cursor addressing, scrolling, SGR, DECSC/DECRC, DECALN,
+//! This is the MVP: cursor addressing, scrolling, SGR, DECSC/DECRC, DECALN,
 //! the alternate screen buffer (DEC 47/1046/1047/1049), scrollback (with
 //! resize reflow), tab stops (HTS/TBC), resize reflow, and the VT editing
 //! commands. Combining marks and ZWJ emoji families (up to eight trailing

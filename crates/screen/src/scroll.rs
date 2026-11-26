@@ -82,7 +82,7 @@ impl Screen {
         let top = self.active.margins.top as usize;
         let bottom = self.active.margins.bottom as usize;
 
-        // Full-screen scrolls rotate the ring in place — O(cols) per line
+        // Full-screen scrolls rotate the ring in place: O(cols) per line
         // instead of memmoving the whole grid.
         if top == 0 && bottom == self.rows as usize - 1 {
             if down {

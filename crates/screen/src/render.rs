@@ -52,7 +52,7 @@ pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
 }
 
 /// Emit one SGR color (`;{base}8;5;n` indexed or `;{base}8;2;r;g;b`
-/// truecolor resolved from `palette`). The default color emits nothing —
+/// truecolor resolved from `palette`). The default color emits nothing:
 /// the leading `ESC [ 0` already selects it.
 pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: &[u32]) {
     let default = if base == 3 {

@@ -40,7 +40,7 @@ impl PartialUtf8 {
     /// Feed one byte into the pending sequence. Returns `true` when the byte
     /// was consumed as a continuation (the sequence is then complete iff
     /// [`Self::pending`] is now `false`). Returns `false` when the byte was
-    /// not a continuation — the partial is cleared and the caller must emit
+    /// not a continuation: the partial is cleared and the caller must emit
     /// `U+FFFD` and reprocess the byte.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) const fn feed(&mut self, b: u8) -> bool {
@@ -62,7 +62,7 @@ impl PartialUtf8 {
     }
 }
 
-/// Expected byte length and initial code-point bits for a UTF-8 lead byte —
+/// Expected byte length and initial code-point bits for a UTF-8 lead byte,
 /// the two facts the partial-decoder needs, from one range dispatch. Returns
 /// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
 /// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
@@ -132,7 +132,7 @@ pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
             },
         ));
     }
-    // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
+    // `last` is neither ASCII, a valid lead, nor a continuation byte: it is
     // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
     // main loop decodes it as U+FFFD.
     if !matches!(last, 0x80..0xc0) {
@@ -217,7 +217,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 p.execute(b);
                 i += 1;
             }
-            // Printable ASCII run (0x20..=0x7e) — SIMD-scanned.
+            // Printable ASCII run (0x20..=0x7e), SIMD-scanned.
             // Same print+LF fusion as `advance_ground`: `\n`/`\r\n` after a
             // run dispatches the fused `print_line`/`print_crlf_line` instead
             // of `print_bytes` + two `execute`s.
@@ -249,7 +249,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 loop {
                     let b0 = s[i];
                     if matches!(b0, 0xe0..=0xef) {
-                        // 3-byte lead (CJK etc.) — never C1. Four consecutive
+                        // 3-byte lead (CJK etc.), never C1. Four consecutive
                         // 3-byte code points are SIMD-decoded (simdutf's
                         // `0x924` path).
                         if i + 16 <= s.len()
@@ -341,13 +341,13 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
 ///
 /// With `simd`, validates a window via `simdutf8` and dispatches it in bulk
 /// (ASCII + multi-byte together); scalar decodes one code point at a time.
-/// The window is capped at the next `ESC` — `ESC` is never a UTF-8 continuation,
+/// The window is capped at the next `ESC`: `ESC` is never a UTF-8 continuation,
 /// so it is a safe boundary that must reach the escape state rather than be
 /// dispatched as `execute`.
 ///
 /// Both paths follow W3C "Substitution of Maximal Subparts": a truncated or
 /// ill-formed sequence yields one U+FFFD, and a standalone C1 byte
-/// (`0x80..=0x9f`) dispatches via [`Perform::execute`] — the same contract
+/// (`0x80..=0x9f`) dispatches via [`Perform::execute`], the same contract
 /// as vte and rio-vt.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_utf8<P: Perform>(

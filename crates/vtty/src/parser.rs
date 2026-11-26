@@ -33,7 +33,7 @@ struct Params {
     param: i32,
     /// True while the current parameter is empty (no digits seen since the
     /// last `;`/`:`). An empty COLON parameter is pushed as `-1` so SGR colon
-    /// forms (`38:2::r:g:b` — empty colorspace) stay distinguishable from a
+    /// forms (`38:2::r:g:b`, empty colorspace) stay distinguishable from a
     /// literal `0`.
     empty: bool,
     /// Collected parameters, capped at [`MAX_PARAM_COUNT`]. A fixed array plus
@@ -68,14 +68,14 @@ struct Intermediates {
 /// OSC payload accumulator.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Osc {
-    /// Accumulated payload bytes. Inline up to 56 — nvim's longest OSC is 54
+    /// Accumulated payload bytes. Inline up to 56: nvim's longest OSC is 54
     /// bytes (clipboard base64), so common OSC payloads stay inline.
     payload: SmallVec<u8, 56>,
     /// Set when the payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
     /// then discarded.
     overflow: bool,
     /// Start offset of each OSC param in `payload` (the params are contiguous
-    /// in the buffer — `;` separators are not stored). `starts[0]` is always
+    /// in the buffer, since `;` separators are not stored). `starts[0]` is always
     /// 0; the extra slot holds the last param's end offset, so params 17+ are
     /// dropped.
     starts: [u32; MAX_OSC_PARAMS + 1],
@@ -561,7 +561,7 @@ impl Parser {
                 break;
             }
             let mut b = run[pos];
-            // Bulk CSI fast path: `ESC [ params final` — scan the final byte
+            // Bulk CSI fast path: `ESC [ params final`, scan the final byte
             // and parse params (plus a leading `?`/`>`/`=`/`<` marker) in one
             // pass. Anything else (an intermediate, a private marker after
             // params, C0/DEL, high-bit) bails to the state machine, which
@@ -660,7 +660,7 @@ impl Parser {
             return None;
         }
 
-        // `CSI ? <digits> h|l` — DEC private mode set/reset, the shape shells
+        // `CSI ? <digits> h|l`: DEC private mode set/reset, the shape shells
         // and TUIs emit around every prompt. The marker byte otherwise forces
         // the general parameter loop.
         if seq[0] == b'?' {
@@ -716,7 +716,7 @@ impl Parser {
             }
             match seq[i] {
                 0x3c..=0x3f => {
-                    // Private marker (`> = < ?`) — only valid as a CSI prefix
+                    // Private marker (`> = < ?`): only valid as a CSI prefix
                     // (CsiEntry), before any param or marker. After params the
                     // DEC state machine transitions to CsiIgnore and drops the
                     // whole sequence, so bail to the cold path.
@@ -757,7 +757,7 @@ impl Parser {
         }
     }
 
-    /// Escape-sequence states — rare, so kept cold and out of the hot loop.
+    /// Escape-sequence states, kept cold and out of the hot loop.
     #[inline(never)]
     fn advance_non_ground<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let b = bytes[i];
@@ -868,7 +868,7 @@ impl Parser {
                 self.state = ParseState::SosPmApcString;
                 i + 1
             }
-            // `ESC <intermediate> <final>` — the 3-byte shape of charset
+            // `ESC <intermediate> <final>`: the 3-byte shape of charset
             // designation (`ESC ( B`), DECALN (`ESC # 8`) and UTF-8 select
             // (`ESC % G`). The cold `EscapeIntermediate` table path costs ~4 ns
             // more.
@@ -1151,8 +1151,8 @@ impl Parser {
 
     /// Accumulate a decimal digit into the current parameter (16-bit clamp).
     ///
-    /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry — every writer
-    /// either zeroes it or caps it via `min` — so `param * 10 + digit` can
+    /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry: every writer
+    /// either zeroes it or caps it via `min`, so `param * 10 + digit` can
     /// never overflow i32, and plain arithmetic replaces the saturating ops.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_digit(&mut self, b: u8) {
@@ -1181,7 +1181,7 @@ impl Parser {
     }
 
     /// End a parameter on a `;` separator. An empty one becomes the `-2`
-    /// sentinel — distinct from the `-1` trailing/colon empty — so `CSI ; Pr
+    /// sentinel, distinct from the `-1` trailing/colon empty, so `CSI ; Pr
     /// s` (DECSLRM set-right margin) stays distinguishable from `CSI 0;Pr s`,
     /// and SGR can tell a leading empty (`;1m` = reset) from a trailing empty
     /// (`48;2;r;g;b;m` = ignore).
@@ -1205,7 +1205,7 @@ impl Parser {
                 self.param_digit(b);
                 true
             }
-            // `;` before `:` — semicolon-separated params dominate real
+            // `;` before `:`: semicolon-separated params dominate real
             // streams (SGR churn, cursor motion), so it wins the branch.
             b';' => {
                 self.param_semicolon();

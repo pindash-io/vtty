@@ -186,14 +186,14 @@ pub(crate) fn run_rio(bytes: &[u8]) -> Vec<Event> {
 }
 
 /// Build the corpus: all C0/C1 controls, `ESC`/`CSI`/`OSC`/`DCS` variants, UTF-8.
-/// `DEL` (`0x7f`), raw 8-bit C1, and `SOS`/`PM`/`APC` are excluded — vtty diverges
+/// `DEL` (`0x7f`), raw 8-bit C1, and `SOS`/`PM`/`APC` are excluded: vtty diverges
 /// from the vte family there on purpose (documented in `parser.rs`).
 pub(crate) fn corpus() -> Vec<Vec<u8>> {
     let mut v: Vec<Vec<u8>> = Vec::new();
 
     // C0 controls (0x00..=0x1f) plus space. DEL (0x7f) is INTENTIONALLY
     // divergent: vtty dispatches it as a C0 control (destructive backspace),
-    // while vte includes it in printable runs — the terminal's screens rely
+    // while vte includes it in printable runs; the terminal's screens rely
     // on the control path. Covered by vtty's own parser tests.
     for b in 0x00_u8..=0x20 {
         v.push(vec![b]);
@@ -204,7 +204,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     // byte. See <https://vt100.net/emu/dec_ansi_parser> and `parser.rs`
     // `c1_transition`; covered by vtty's own tests.
 
-    // C1 controls as two-byte UTF-8 (U+0080..=U+009F) — both decode+execute,
+    // C1 controls as two-byte UTF-8 (U+0080..=U+009F): both decode+execute,
     // so these still match vte.
     for b in 0x80_u8..=0x9f {
         v.push(vec![0xc2, b]);
@@ -240,7 +240,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
 
     // Private markers (`<=>?`) are only a valid CSI prefix. After a param
     // (or another marker) the DEC state machine enters CsiIgnore and drops
-    // the whole sequence — these must produce no dispatch.
+    // the whole sequence; these must produce no dispatch.
     for seq in [
         &b"\x1b[1>m"[..],
         &b"\x1b[1;2?m"[..],
@@ -264,7 +264,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     v.push(b"\x1b]0;title\x18".to_vec());
 
     // SOS/PM/APC: vtty dispatches hook/put/unhook (kitty graphics `_G`), vte
-    // drops them — excluded from the differential baseline, covered by the
+    // drops them; excluded from the differential baseline, covered by the
     // cell-screen kitty-graphics tests.
 
     // UTF-8: 2/3/4-byte chars, plus an overlong/invalid byte.
@@ -277,7 +277,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     v.push(vec![0xf5]); // invalid lead (U+110000+ / 5-byte lead)
     v.push(vec![0xf1, 0xfb]); // 0xFB is not a continuation byte
     v.push(vec![0xff, 0xf1, 0xfb]); // invalid lead + valid lead + invalid byte
-    // Invalid second byte on a constrained lead: not a truncated partial —
+    // Invalid second byte on a constrained lead: not a truncated partial,
     // both parsers decode it as U+FFFD.
     v.push(vec![0xf4, 0xad]);
     v.push(vec![0xe0, 0x80]); // 0xE0 requires 0xA0..=0xBF
@@ -355,7 +355,7 @@ pub(crate) fn corpus() -> Vec<Vec<u8>> {
     v.push("👋🏿".as_bytes().to_vec());
     v.push("🇺🇸".as_bytes().to_vec());
 
-    // Edge cases from wezterm's vendored `vtparse` (Kaku) — colon sub-params,
+    // Edge cases from wezterm's vendored `vtparse` (Kaku): colon sub-params,
     // kitty curly underline, OSC-with-ESC-ST, OSC param truncation.
     for seq in [
         &b"\x1b[38:2::128:64:192m"[..], // colon rgb with empty sub-params

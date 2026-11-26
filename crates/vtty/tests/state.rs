@@ -44,7 +44,7 @@ fn trailing_newline_counts_as_empty_line() {
 
 #[test]
 fn crlf_is_one_line_break() {
-    // CR returns to column 0; LF advances the line — so CRLF is one break.
+    // CR returns to column 0 and LF advances the line, so CRLF is one break.
     let s = drive(b"a\r\nb");
     assert_eq!(s.text, "a\nb");
     assert_eq!(s.line_count(), 2);

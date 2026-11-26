@@ -4,8 +4,8 @@
 //! Single source of truth for the parser's resource limits.
 //!
 //! These bounds are the code-side counterpart of the "Resource limits" table
-//! in `ARCHITECTURE.md`. Keeping them in one module — rather than scattered
-//! across `parser.rs` and `utf8.rs` — means the two cannot drift apart. Each
+//! in `ARCHITECTURE.md`. Keeping them in one module, rather than scattered
+//! across `parser.rs` and `utf8.rs`, means the two cannot drift apart. Each
 //! constant documents why the bound exists and what happens when it is
 //! exceeded.
 
@@ -40,7 +40,7 @@ pub(crate) const MAX_INTERMEDIATES: usize = 2;
 
 /// Maximum number of continuation bytes in a UTF-8 code point.
 ///
-/// A full code point is at most `1 + MAX_UTF8_CONTINUATIONS = 4` bytes — the
+/// A full code point is at most `1 + MAX_UTF8_CONTINUATIONS = 4` bytes, the
 /// "UTF-8 partial: 4 bytes" row in `ARCHITECTURE.md`.
 pub(crate) const MAX_UTF8_CONTINUATIONS: usize = 3;
 

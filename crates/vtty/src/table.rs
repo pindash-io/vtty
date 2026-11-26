@@ -4,7 +4,7 @@
 //! DEC VT500 escape-sequence state machine: parser states, the `Action`
 //! table, and the `transition` lookup.
 //!
-//! Reference: Paul Flo Williams' [VT500 parser state diagram] — the "State
+//! Reference: Paul Flo Williams' [VT500 parser state diagram]; the "State
 //! Definitions" and "Action Definitions" sections map 1:1 to [`ParseState`]
 //! and [`Action`]. The grammar those states encode is [ECMA-48] §5.4/§8.3.
 //!

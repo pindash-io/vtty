@@ -88,7 +88,7 @@ impl Screen {
         self.active.cursor.col = col.saturating_sub(1).min(self.cols - 1);
     }
 
-    /// CUP/HVP — 1-based `(row, col)`, origin-mode aware.
+    /// CUP/HVP: 1-based `(row, col)`, origin-mode aware.
     pub(crate) fn cup(&mut self, row: u32, col: u32) {
         self.clear_wrap();
         self.set_row_1based(row);
@@ -105,13 +105,13 @@ impl Screen {
         self.cols - 1
     }
 
-    /// HTS — set a tab stop at the cursor column.
+    /// HTS: set a tab stop at the cursor column.
     pub(crate) fn hts(&mut self) {
         self.clear_wrap();
         self.tab_stops[self.active.cursor.col as usize] = true;
     }
 
-    /// TBC — clear a tab stop: `0` (default) at the cursor, `3` all.
+    /// TBC: clear a tab stop at the cursor (`0`, the default) or all of them (`3`).
     pub(crate) fn tbc(&mut self, params: &[i32]) {
         self.clear_wrap();
         match params.first().copied().unwrap_or(0) {
@@ -121,20 +121,20 @@ impl Screen {
         }
     }
 
-    /// CHA — 1-based column, same row.
+    /// CHA: 1-based column, same row.
     pub(crate) fn cha(&mut self, col: u32) {
         self.clear_wrap();
         self.set_col_1based(col);
     }
 
-    /// VPA — 1-based row, same column.
+    /// VPA: 1-based row, same column.
     pub(crate) fn vpa(&mut self, row: u32) {
         self.clear_wrap();
         self.set_row_1based(row);
     }
 
     pub(crate) fn set_margins(&mut self, params: &[i32]) {
-        // DECSTBM: 0 (or negative) means the default — row 1 for the top, the
+        // DECSTBM: 0 (or negative) means the default; row 1 for the top, the
         // last row for the bottom. Non-positive values must not reach the
         // `- 1` below (a `0` param would underflow).
         let top = params.first().copied().filter(|&p| p > 0).unwrap_or(1) as u32 - 1;

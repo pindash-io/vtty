@@ -4,7 +4,7 @@
 //! Compile-time UTF-8→UTF-32 transcode lookup tables.
 //!
 //! Computed by `const fn` from simdutf's `shufutf8`/`utf8bigindex` algorithm
-//! — no table data is checked in. A 12-bit end-of-code-point mask (`bit i =
+//! so no table data is checked in. A 12-bit end-of-code-point mask (`bit i =
 //! byte i ends a code point`) yields code-point sizes (gaps between set bits),
 //! classified as `case12` (6×1-2-byte), `case123` (4×1-3-byte), or `case1234`
 //! (3×1-4-byte); otherwise an error sentinel `(209, 12)`. `UTF8BIGINDEX[mask]`
@@ -155,7 +155,7 @@ const fn shuf_case1234(s: [u8; 3]) -> [u8; 16] {
 }
 
 /// The 1-based digit at `place` (0 = least significant) of `code` in the
-/// given `radix` — enumerates tuples lexicographically in a single loop.
+/// given `radix`; enumerates tuples lexicographically in a single loop.
 const fn digit(code: usize, radix: usize, place: usize) -> u8 {
     let mut v = code;
     let mut p = 0_usize;

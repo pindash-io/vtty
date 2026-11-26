@@ -106,7 +106,7 @@ impl Screen {
         while col < cols && glyphs < n as usize {
             // `start` is never a continuation (it was adjusted to the lead),
             // and each iteration advances past a whole glyph, so `col` always
-            // lands on a lead or a plain cell — never mid-pair.
+            // lands on a lead or a plain cell, never mid-pair.
             let wide = col + 1 < cols && self.active.cells[row + col + 1].is_continuation();
             let width = if wide { 2 } else { 1 };
             del += width;

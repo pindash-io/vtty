@@ -164,7 +164,7 @@ fn csi_trailing_empty_param_is_sentinel() {
 #[test]
 fn csi_paramless_split_across_writes_is_empty() {
     // `CSI s` (SCOSC) split across two `advance` calls must still dispatch
-    // with an empty param list — not `[0]`, which the decoder reads as
+    // with an empty param list, not `[0]`, which the decoder reads as
     // DECSLRM. (Regression for the non-ground final-byte fast path.)
     let mut p = Parser::new();
     let mut c = Collecting::default();
@@ -232,7 +232,7 @@ fn osc_st_terminated() {
 #[test]
 fn osc_sixteen_params_across_multiple_parsers() {
     // A full 16-param OSC (`0;1;…;15`). Each parser must dispatch all 16
-    // independently — the `EMPTY` seed array is copied per call, so one
+    // independently: the `EMPTY` seed array is copied per call, so one
     // parser's slices never leak into another, and no trailing empty slice
     // is dispatched.
     let mut bytes = vec![0x1b, b']'];
@@ -325,7 +325,7 @@ fn utf8_split_across_chunks() {
 #[test]
 fn utf8_partial_abort_emits_single_replacement() {
     // A 3-byte lead (U+4xxx) followed by a non-continuation byte must emit
-    // exactly one U+FFFD for the aborted partial, then decode the byte —
+    // exactly one U+FFFD for the aborted partial, then decode the byte,
     // not re-emit the stale code point as a spurious control char.
     let mut p = Parser::new();
     let mut c = Collecting::default();
@@ -343,7 +343,7 @@ fn utf8_partial_abort_emits_single_replacement() {
 #[test]
 fn utf8_partial_abort_after_continuation_emits_single_replacement() {
     // A partial that consumes a continuation byte and THEN hits a
-    // non-continuation byte must still emit exactly one U+FFFD — not the
+    // non-continuation byte must still emit exactly one U+FFFD, not the
     // stale truncated code point plus a replacement char.
     let mut p = Parser::new();
     let mut c = Collecting::default();
@@ -481,7 +481,7 @@ fn multiple_csi_params() {
 #[test]
 fn csi_params_capped_at_32() {
     // A malicious stream with thousands of `;` must not grow the param
-    // vector unboundedly — only the first 32 are kept (vte/rio-vt cap).
+    // vector unboundedly; only the first 32 are kept (vte/rio-vt cap).
     let mut seq = vec![0x1b, b'['];
     for _ in 0..1000 {
         seq.push(b'7');
