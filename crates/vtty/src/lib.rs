@@ -1,8 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! A **zero-allocation**, **panic-free** DEC VT500 terminal parser with
-//! **UTF-8** decoding and **`no_std`** support.
+//! A zero-allocation, panic-free DEC VT500 terminal parser with UTF-8 decoding
+//! and `no_std` support.
 //!
 //! `vtty` turns bytes into typed events via the `Perform` callback trait and
 //! re-exports the terminal model types (`ColorId`, `SgrFlags`, `Charset`, …)
@@ -37,11 +37,6 @@
 //! With the `simd` feature enabled, `Parser::with_simd` opts into SIMD
 //! scanning and UTF-8 validation.
 //!
-//! Also available: `Event`/`Recording` (owned enum API), `State` (byte-cursor
-//! sink with line/cursor geometry), `Reply` (query reply builder),
-//! `ColorId`, `SgrFlags`, `TermFlags`, `KittyFlags`, `MouseButton`, `Charset`,
-//! and `Cap`.
-//!
 //! ## Serialization
 //!
 //! Every owned type round-trips through the compact, `no_std` binary codec:
@@ -61,20 +56,17 @@
 //!
 //! ## Features
 //!
-//! - **Safety** — `#![forbid(unsafe_code)]`; malformed PTY input never
-//!   crashes.
-//! - **Zero-allocation** — one `print_bytes` per ASCII run, one
-//!   `print_codepoints` per non-ASCII run; CSI/OSC/DCS state is inline.
-//! - **`no_std`** — optional `simd` (scanning + validation) and
-//!   `simd-transcode` (UTF-8→UTF-32) features, enabled per parser.
-//! - **UTF-8** — maximal-subpart substitution; 8-bit C1 controls (DEC
-//!   “anywhere”).
-//! - **Wire protocols** (on by default, opt out with
-//!   `default-features = false`) — `reply` (DECRQSS/DECRQM/XTGETTCAP),
-//!   `termcap` (`Cap`/`CapValue`, implies `reply`), `status` (`OSC 7501`
-//!   `ProgramStatus`).
-//! - **`perf-inline`** (on by default) — `#[inline(always)]` on the parser
-//!   hot path; opt out for smaller code at some throughput cost.
+//! - Safety: `#![forbid(unsafe_code)]`; malformed PTY input never crashes.
+//! - Zero-allocation: one `print_bytes` per ASCII run, one `print_codepoints`
+//!   per non-ASCII run; CSI/OSC/DCS state is inline.
+//! - `no_std`: optional `simd` (scanning and validation) and `simd-transcode`
+//!   (UTF-8 to UTF-32) features, enabled per parser.
+//! - UTF-8: maximal-subpart substitution; 8-bit C1 controls (DEC "anywhere").
+//! - Wire protocols (on by default, opt out with `default-features = false`):
+//!   `reply` (DECRQSS/DECRQM/XTGETTCAP), `termcap` (`Cap`/`CapValue`, implies
+//!   `reply`), `status` (`OSC 7501` `ProgramStatus`).
+//! - `perf-inline` (on by default): `#[inline(always)]` on the parser hot path;
+//!   opt out for smaller code at some throughput cost.
 //!
 //! ## Test
 //!
