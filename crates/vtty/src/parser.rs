@@ -687,54 +687,53 @@ impl Parser {
             return None;
         }
 
-        // Nearly every CSI begins with a numeric parameter: a bare colour
-        // change (`CSI 31m`), cursor addressing (`CSI r;c H` / `f`) or a
-        // multi-parameter list (`CSI 1;31;44m`, `CSI 38;2;r;g;b m`). Parse the
-        // parameters once and dispatch inline; anything this path cannot model
-        // primes the accumulator so the byte loop below resumes past the digits
-        // instead of re-parsing them.
+        // `CSI ? <digits> h|l` — DEC private mode set/reset, the shape shells
+        // and TUIs emit around every prompt. The marker byte otherwise forces
+        // the general parameter loop.
+        if seq[0] == b'?' {
+            let mut i = 1;
+            if seq.get(i).is_some_and(u8::is_ascii_digit) {
+                let mode = param_at(seq, &mut i);
+                if let Some(&next @ (b'h' | b'l')) = seq.get(i) {
+                    p.csi_dispatch(&[mode], 0, b"?", next);
+                    return Some(i + 1);
+                }
+            }
+        }
+
+        // One or two parameters and a final byte carry almost every other CSI:
+        // SGR (`CSI 31m`), cursor addressing (`CSI r;c H`), scroll margins
+        // (`CSI 1;24 r`). A longer `;` list goes to `dispatch_param_list`; an
+        // empty parameter or a `:` separator primes the accumulator and resumes
+        // in the byte loop below.
         let mut i = 0;
         if seq[i].is_ascii_digit() {
             let first = param_at(seq, &mut i);
 
             if let Some(&next) = seq.get(i) {
-                if next == b'm' {
-                    p.csi_dispatch(&[first], 0, &[], b'm');
+                if matches!(next, 0x40..=0x7e) {
+                    p.csi_dispatch(&[first], 0, &[], next);
                     return Some(i + 1);
                 }
                 if next == b';' {
                     let mut j = i + 1;
                     let col = param_at(seq, &mut j);
-                    // A column needs at least one digit; `CSI r;H` reports
-                    // the `-1` sentinel that the loop would push for it.
-                    if j > i + 1 {
-                        if matches!(seq.get(j), Some(b'H' | b'f')) {
-                            p.csi_dispatch(&[first, col], 0, &[], seq[j]);
-                            return Some(j + 1);
-                        }
-                        if seq.get(j) == Some(&b'm') {
-                            p.csi_dispatch(&[first, col], 0, &[], b'm');
-                            return Some(j + 1);
-                        }
-                        // `CSI a;b;… m`: the truecolor and multi-attribute
-                        // forms, where the byte loop costs ~1.5 ns per
-                        // parameter.
-                        if seq.get(j) == Some(&b';')
-                            && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, col)
-                        {
-                            return Some(consumed);
-                        }
+                    // A column needs at least one digit; `CSI r;H` reports the
+                    // `-1` sentinel the loop would push for it.
+                    if j > i + 1 && matches!(seq.get(j), Some(0x40..=0x7e)) {
+                        p.csi_dispatch(&[first, col], 0, &[], seq[j]);
+                        return Some(j + 1);
+                    }
+                    if seq.get(j) == Some(&b';')
+                        && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, col)
+                    {
+                        return Some(consumed);
                     }
                 }
             }
 
             self.params.param = first;
             self.params.empty = false;
-        } else if matches!(seq[i], 0x40..=0x7e) {
-            // `CSI <final>` with no parameters — `CSI m`, `CSI H`, `CSI J`,
-            // `CSI K`. Two byte compares beat the loop's per-byte dispatch.
-            p.csi_dispatch(&[], 0, &[], seq[i]);
-            return Some(1);
         }
 
         while i < seq.len() {
@@ -898,6 +897,15 @@ impl Parser {
             0x58 | 0x5e | 0x5f => {
                 self.state = ParseState::SosPmApcString;
                 i + 1
+            }
+            // `ESC <intermediate> <final>` — the 3-byte shape of charset
+            // designation (`ESC ( B`), DECALN (`ESC # 8`) and UTF-8 select
+            // (`ESC % G`). The cold `EscapeIntermediate` table path costs ~4 ns
+            // more.
+            0x20..=0x2f if matches!(bytes.get(i + 1), Some(0x30..=0x7e)) => {
+                p.esc_dispatch(&bytes[i..i + 1], bytes[i + 1]);
+                self.state = ParseState::Ground;
+                i + 2
             }
             0x20..=0x2f => {
                 self.push_intermediate(bytes[i]);

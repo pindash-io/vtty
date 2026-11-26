@@ -315,8 +315,7 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     let c1_end = 0x9f;
     // Return at the first chunk holding a control. Accumulating the masks and
     // branching once is slower: printable text scans every chunk either way,
-    // and the accumulator adds a loop-carried dependency (2.2% on
-    // `utf8_mixed`).
+    // and the accumulator adds a loop-carried dependency (2.2% on `utf8_mixed`).
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
         let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(space));
