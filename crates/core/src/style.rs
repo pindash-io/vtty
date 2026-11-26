@@ -11,8 +11,7 @@ use smallvec::SmallVec;
 use crate::event::param_colon_sep;
 
 bitflags::bitflags! {
-    /// SGR attributes as flags: the stored ones in SGR-code order, plus the
-    /// parse-only [`Self::BLINK_RAPID`] and [`Self::RESET`] marks.
+    /// SGR attribute flags, the stored ones in SGR-code order.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SgrFlags: u16 {
         /// SGR 1 bold.
@@ -107,8 +106,7 @@ impl SgrFlags {
 }
 
 bitflags::bitflags! {
-    /// The five SGR decorations a screen stores per span/cell, bits ordered by
-    /// SGR code.
+    /// The SGR decorations a screen stores per cell, in SGR-code order.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct StyleFlags: u8 {
         /// SGR 1 bold.
@@ -145,8 +143,7 @@ pub enum UnderlineStyle {
 }
 
 impl From<u8> for UnderlineStyle {
-    /// Map an SGR `4:<n>` sub-parameter to a style; an unknown sub-parameter is
-    /// [`Self::Single`], the plain-`4` default.
+    /// SGR `4:<n>` decoder; unknown is [`Self::Single`].
     #[inline]
     fn from(v: u8) -> Self {
         match v {
@@ -161,9 +158,7 @@ impl From<u8> for UnderlineStyle {
 }
 
 impl UnderlineStyle {
-    /// The stored-byte decoder, the inverse of the `repr(u8)` discriminant:
-    /// out-of-range codes are [`Self::None`], where the SGR decoder reads plain
-    /// `4` as [`Self::Single`].
+    /// Stored-byte decoder; out-of-range is [`Self::None`].
     #[inline]
     pub const fn from_stored(v: u8) -> Self {
         match v {

@@ -456,11 +456,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn vs15_breaks_a_zwj_family() {
-        // UTS #51 §2.7.1: a text presentation selector (VS15) applied to any
-        // element of an emoji ZWJ sequence breaks that sequence, so the
-        // partial sequences render separately, each with its own presentation
-        // style. The VS15 on the LAST member (👧) breaks the 👩👨👧 family
-        // into the 👩👨 couple (2 cells) + a text-presentation 👧 (1 cell).
+        // UTS #51 §2.7.1: a VS15 on the last family member splits the family
+        // into the couple (2 cells) + a text-presentation member (1 cell).
         assert_eq!(
             cell_widths("\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}"),
             vec![2, 0, 0, 0, 1, 0]

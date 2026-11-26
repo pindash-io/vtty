@@ -513,11 +513,8 @@ impl Parser {
                 // classifier already rejected control/high-bit bytes), so no
                 // `from_utf8` re-validation is needed here.
                 let mut end = pos + n;
-                // Fused print+LF fast path: `printable\n` (raw LF) or
-                // `printable\r\n` (OPOST) dispatch one `print_line`/
-                // `print_crlf_line` call. The defaults delegate to
-                // `print_bytes` + `execute`, so non-specializing screens
-                // are unaffected.
+                // Fused print+LF: `printable\n` or `printable\r\n` dispatch
+                // one `print_line`/`print_crlf_line` call, not print+execute.
                 if end < valid && run[end] == b'\n' {
                     p.print_line(&run[pos..end]);
                     pos = end + 1;
@@ -561,11 +558,8 @@ impl Parser {
                 break;
             }
             let mut b = run[pos];
-            // Bulk CSI fast path: `ESC [ params final`, scan the final byte
-            // and parse params (plus a leading `?`/`>`/`=`/`<` marker) in one
-            // pass. Anything else (an intermediate, a private marker after
-            // params, C0/DEL, high-bit) bails to the state machine, which
-            // enforces CsiIntermediate/CsiParam → CsiIgnore.
+            // Bulk CSI: scan the final byte and the params (plus a private
+            // marker) in one pass; anything else bails to the state machine.
             if !self.force_cold() && b == 0x1b && matches!(run.get(pos + 1), Some(&b'[')) {
                 // Keep scanning on success: a re-entry costs a fresh
                 // `first_non_printable` scan per sequence on CSI-dense input
@@ -674,11 +668,8 @@ impl Parser {
             }
         }
 
-        // One or two parameters and a final byte carry almost every other CSI:
-        // SGR (`CSI 31m`), cursor addressing (`CSI r;c H`), scroll margins
-        // (`CSI 1;24 r`). A longer `;` list goes to `dispatch_param_list`; an
-        // empty parameter or a `:` separator primes the accumulator and resumes
-        // in the byte loop below.
+        // One or two params and a final byte cover SGR, cursor addressing and
+        // margins; anything else falls back to the loop below.
         let mut i = 0;
         if seq[i].is_ascii_digit() {
             let first = param_at(seq, &mut i);
@@ -768,11 +759,8 @@ impl Parser {
             self.clear_seq_state();
         }
 
-        // 8-bit C1 (DEC's "anywhere" rule): a C1 control cancels any sequence
-        // in progress. A string state's exit action fires first (the deferred
-        // OSC payload was already flushed), then the control executes or an
-        // introducer re-enters its state.
-        // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+        // 8-bit C1 (DEC "anywhere"): a string's exit action fires first, then
+        // the control executes or an introducer re-enters its state.
         if matches!(b, 0x80..=0x9f) {
             match state {
                 ParseState::OscString => self.osc_end(p, false, bytes, i),

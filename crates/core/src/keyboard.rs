@@ -132,9 +132,7 @@ pub enum KeySpec {
 }
 
 bitflags::bitflags! {
-    /// Keyboard modifier state, winit-free: the bits equal the xterm/kitty
-    /// modifier contributions, so [`Modifiers::encoded`] is the wire bitfield
-    /// minus the leading `1` (no-modifiers) bit.
+    /// Keyboard modifiers; the bits match the xterm/kitty contributions.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Modifiers: u8 {
         /// Shift.

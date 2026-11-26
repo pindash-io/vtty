@@ -224,11 +224,8 @@ pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec
             offs.push(rel);
             continue;
         }
-        // A standalone width-0 mark written as a fresh base (bit 0): the write
-        // path gave it its own 1-cell glyph, but the whole-text DFA would
-        // re-attach it to a preceding base (0 cells). Restart the DFA at the
-        // mark so it stays 1 cell. Selectors (VS16/VS15/ZWJ) are never
-        // standalone.
+        // A fresh-base mark restarts the DFA so it keeps its 1-cell glyph
+        // instead of re-attaching to a preceding base; selectors never are.
         if flags & EmojiTrace::FB_FRESH != 0
             && rel > 0
             && text[rel..].chars().next().is_some_and(|c| {

@@ -121,9 +121,7 @@ impl core::ops::Deref for ColorId {
 /// Pack three 0..255 channels into opaque RGBA8 (`0xRRGGBBFF`).
 #[inline]
 pub const fn rgb_to_u32(r: i32, g: i32, b: i32) -> u32 {
-    // The array reads in channel order; `from_be_bytes` puts `R` in the top
-    // byte, so the packed value is 0xRRGGBBAA after a single `bswap` (a native
-    // bit-cast on big-endian targets) instead of three shifts + two ORs.
+    // Channel order plus a big-endian read packs `0xRRGGBBAA`, no shifts.
     u32::from_be_bytes([clamp_channel(r), clamp_channel(g), clamp_channel(b), 0xff])
 }
 
