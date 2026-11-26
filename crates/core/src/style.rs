@@ -506,16 +506,17 @@ pub const fn single_code(code: i32) -> Option<SgrEffect> {
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
-pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
+pub const fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, usize)> {
     let len = params.len();
+    if i + 1 >= len {
+        return None;
+    }
     let colon = param_colon_sep(sep, i);
     // A colon after the `g` slot (i + 4) marks the colorspace form.
     let cs = colon && param_colon_sep(sep, i + 4);
-    let value = match params.get(i + 1)? {
-        5 if len > i + 2 => {
-            // Indexed colors clamp to the 256-color table (xterm).
-            (ColorSpec::indexed(params[i + 2]), 2)
-        }
+    match params[i + 1] {
+        // Indexed colors clamp to the 256-color table (xterm).
+        5 if len > i + 2 => Some((ColorSpec::indexed(params[i + 2]), 2)),
         2 => {
             // `cs` skips the colorspace param at `i+2`, shifting the triplet
             // (and the required length) by one.
@@ -529,11 +530,10 @@ pub fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(ColorSpec, 
                 params[i + 3 + off],
                 params[i + 4 + off],
             );
-            (ColorSpec::rgb(r, g, b), 4 + off)
+            Some((ColorSpec::rgb(r, g, b), 4 + off))
         }
-        _ => return None,
-    };
-    Some(value)
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -868,6 +868,23 @@ mod tests {
         assert_eq!(CursorStyle::from_osc(1), CursorStyle::Bar);
         assert_eq!(CursorStyle::from_osc(2), CursorStyle::Underline);
         assert_eq!(CursorStyle::from_osc(9), CursorStyle::None);
+    }
+
+    #[test]
+    fn parse_extended_is_const() {
+        // Usable in a `const` item.
+        const INDEXED: Option<(ColorSpec, usize)> = parse_extended(&[38, 5, 196], 0, 0);
+        assert_eq!(INDEXED, Some((ColorSpec::Indexed(196), 2)));
+        const TRUECOLOR: Option<(ColorSpec, usize)> = parse_extended(&[48, 2, 1, 2, 3], 0, 0);
+        assert_eq!(TRUECOLOR, Some((ColorSpec::rgb(1, 2, 3), 4)));
+        // Colorspace form: `38:2:<cs>:r:g:b`, one extra parameter.
+        const CS: Option<(ColorSpec, usize)> = parse_extended(&[38, 2, 7, 1, 2, 3], 0b11111, 0);
+        assert_eq!(CS, Some((ColorSpec::rgb(1, 2, 3), 5)));
+        // Truncated at every length the guard covers.
+        assert_eq!(parse_extended(&[], 0, 0), None);
+        assert_eq!(parse_extended(&[38], 0, 0), None);
+        assert_eq!(parse_extended(&[38, 5], 0, 0), None);
+        assert_eq!(parse_extended(&[38, 2, 1, 2], 0, 0), None);
     }
 
     #[test]
