@@ -192,18 +192,18 @@ fn push_sgr_color(
     default_id: ColorId,
     palette: &[u32],
 ) {
-    if id != default_id {
-        if id.0 <= 255 {
+    match (id == default_id, id.0 <= 255, palette.get(id.0 as usize)) {
+        (false, true, _) => {
             let _ = write!(s, ";{base}8;5;{id}");
-            return;
         }
-        if let Some(rgb) = palette.get(id.0 as usize).copied() {
-            let [r, g, b] = u32_to_rgb(rgb);
+        (false, false, Some(rgb)) => {
+            let [r, g, b] = u32_to_rgb(*rgb);
             let _ = write!(s, ";{base}8;2;{r};{g};{b}");
-            return;
+        }
+        _ => {
+            let _ = write!(s, ";{base}9");
         }
     }
-    let _ = write!(s, ";{base}9");
 }
 
 #[cfg(test)]

@@ -103,7 +103,7 @@ impl MouseButton {
     #[must_use]
     pub fn encode_utf8(self, x: u16, y: u16) -> CompactString {
         let (cb, cx, cy) = self.x10_bytes(x, y);
-        let mut b = CompactString::new("");
+        let mut b = CompactString::default();
         b.push_str("\x1b[M");
         b.push(cb as char);
         b.push(char::from_u32(cx as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
@@ -125,7 +125,7 @@ impl MouseButton {
             return None;
         }
         // X10 (DEC 9) reports only button presses, never releases.
-        if tracking.contains(MouseTracking::X10) && !pressed {
+        if !pressed && tracking.contains(MouseTracking::X10) {
             return None;
         }
         if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {

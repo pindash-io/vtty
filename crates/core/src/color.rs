@@ -269,9 +269,8 @@ pub const fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
         }
         _ => return None,
     }
-    let [r, g, b, a] = match const_hex::const_decode_to_array(&color) {
-        Ok(rgba) => rgba,
-        Err(_) => return None,
+    let Ok([r, g, b, a]) = const_hex::const_decode_to_array(&color) else {
+        return None;
     };
     Some([
         r as f32 / 255.0,

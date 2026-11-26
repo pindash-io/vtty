@@ -4,7 +4,7 @@
 //! The [`State`] byte-cursor sink.
 
 use alloc::string::String;
-use core::ops::Range;
+use core::range::Range;
 
 use crate::perform::Perform;
 

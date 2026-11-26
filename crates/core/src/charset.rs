@@ -196,13 +196,13 @@ impl Scs {
     #[inline]
     pub const fn apply_shift(&mut self, byte: u8) {
         match byte {
-            0x0E => self.shift(1),
-            0x0F => self.shift(0),
-            0x8E => {
+            0x0e => self.shift(1),
+            0x0f => self.shift(0),
+            0x8e => {
                 self.single_shift = Some(2);
                 self.ascii_fast = false;
             }
-            0x8F => {
+            0x8f => {
                 self.single_shift = Some(3);
                 self.ascii_fast = false;
             }
