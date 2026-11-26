@@ -236,11 +236,33 @@ fn decode_rgb(s: &str) -> Option<[u8; 3]> {
     <[u8; 3]>::try_from(bytes.as_slice()).ok()
 }
 
-/// Parse a six-digit `RRGGBB` hex string into `[R, G, B, 1.0]`.
+/// Parse a CSS hex color into `[R, G, B, A]`, with or without the leading `#`.
+///
+/// Accepts `RGB`, `RGBA`, `RRGGBB` and `RRGGBBAA`; the shorthand forms repeat
+/// each nibble (`#ff0` is `#ffff00`), and a missing alpha channel is opaque.
 #[inline]
 pub fn parse_hex_color(s: &str) -> Option<[f32; 4]> {
-    let [r, g, b] = decode_rgb(s)?;
-    Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
+    let hex = s.strip_prefix('#').unwrap_or(s).as_bytes();
+    let mut color = [b'f'; 8];
+    match hex.len() {
+        3 | 4 => {
+            for (i, &nibble) in hex.iter().enumerate() {
+                color[i * 2] = nibble;
+                color[i * 2 + 1] = nibble;
+            }
+        }
+        6 | 8 => {
+            color[..hex.len()].copy_from_slice(hex);
+        }
+        _ => return None,
+    };
+    let [r, g, b, a] = const_hex::const_decode_to_array(&color).ok()?;
+    Some([
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+        a as f32 / 255.0,
+    ])
 }
 
 /// Parse an OSC color (`rgb:RR/GG/BB`, `rgb:RRRR/GGGG/BBBB`, or
@@ -262,11 +284,8 @@ pub fn parse(s: &[u8]) -> Option<u32> {
             scale_channel(c)? as i32,
         ));
     }
-    if s.starts_with('#') {
-        let [r, g, b] = decode_rgb(s)?;
-        return Some(rgb_to_u32(r as i32, g as i32, b as i32));
-    }
-    None
+    let [r, g, b] = decode_rgb(s)?;
+    Some(rgb_to_u32(r as i32, g as i32, b as i32))
 }
 
 /// Scale one `rgb:` channel of 1..=4 hex digits to 8 bits (`XParseColor`).
@@ -423,6 +442,23 @@ mod tests {
         assert_eq!(parse_hex_color("#ff0000"), Some([1.0, 0.0, 0.0, 1.0]));
         assert_eq!(parse_hex_color("ff0000"), Some([1.0, 0.0, 0.0, 1.0]));
         assert_eq!(parse_hex_color("nonsense"), None);
+
+        // Shorthand: each nibble repeats, so `#ff0` is `#ffff00`.
+        assert_eq!(parse_hex_color("#ff0"), Some([1.0, 1.0, 0.0, 1.0]));
+        assert_eq!(parse_hex_color("#f00"), Some([1.0, 0.0, 0.0, 1.0]));
+        assert_eq!(parse_hex_color("#fff"), Some([1.0, 1.0, 1.0, 1.0]));
+        // Four digits carry alpha, scaled from the nibble (`f` = 1.0, `0` = 0).
+        assert_eq!(parse_hex_color("#fff0"), Some([1.0, 1.0, 1.0, 0.0]));
+        assert_eq!(parse_hex_color("#f008"), Some([1.0, 0.0, 0.0, 8.0 / 15.0]));
+        // Full alpha form.
+        assert_eq!(
+            parse_hex_color("#ff000080"),
+            Some([1.0, 0.0, 0.0, 128.0 / 255.0])
+        );
+        // Lengths outside 3/4/6/8 and non-hex digits are rejected.
+        assert_eq!(parse_hex_color("#ff"), None);
+        assert_eq!(parse_hex_color("#ff00f"), None);
+        assert_eq!(parse_hex_color("#ggg"), None);
         // Four `rgb:` channels are rejected.
         assert_eq!(parse(b"rgb:ff/00/00/00"), None);
     }
