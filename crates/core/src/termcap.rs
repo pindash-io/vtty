@@ -80,9 +80,8 @@ impl CapValue {
 #[derive(Clone, Copy, Debug)]
 pub struct Cap;
 
-/// Defines the terminfo capability table: one entry per capability
-/// generates its `Cap` name const and its `parse` match arm, so the two
-/// lists cannot drift apart.
+/// The terminfo capability table: each entry generates its `Cap` const and
+/// `parse` arm, so the two cannot drift.
 macro_rules! caps {
     ($(
         $name:ident => $bytes:literal => $value:ident $(, [$($alias:ident => $abytes:literal),+ $(,)?])*
@@ -97,9 +96,8 @@ macro_rules! caps {
                 )+)*
             )+
 
-            /// Parse a query name into a capability (canonical key + value),
-            /// accepting the long/short terminfo aliases. Unknown names map to
-            /// [`CapValue::None`].
+            /// Parse a query name into a capability, accepting the aliases;
+            /// unknown names are [`CapValue::None`].
             pub const fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
                 match query {
                     $(Self::$name $( $(| Self::$alias)+ )* => (Self::$name, CapValue::$value),)+

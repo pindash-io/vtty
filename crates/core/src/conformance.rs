@@ -86,9 +86,7 @@ impl crate::reply::Reply {
         format_compact!("\x1b[>{id};{firmware};{keyboard}c")
     }
 
-    /// Build a DA3 (Tertiary Device Attributes) answer:
-    /// `DCS ! | {hex} ST`: the terminal unit ID as hex byte pairs
-    /// (EK-VT520-RM §5-12).
+    /// Build a DA3 answer (`DCS ! | {hex} ST`): the unit ID as hex pairs.
     #[must_use]
     pub fn da3(unit_id: &[u8]) -> CompactString {
         dcs_string("\x1bP!|", &const_hex::encode(unit_id))

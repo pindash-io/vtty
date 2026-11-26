@@ -75,9 +75,8 @@ impl From<i32> for SgrFlags {
 }
 
 impl SgrFlags {
-    /// The flags an SGR code affects. "Reset" codes (22/23/24/25/27/28/29/55)
-    /// carry the [`SgrFlags::RESET`] mark so the caller can tell clear from
-    /// set.
+    /// The flags an SGR code affects; "reset" codes carry [`SgrFlags::RESET`]
+    /// so the caller can tell clear from set.
     #[inline]
     pub const fn from_code(code: i32) -> Self {
         match code {
@@ -224,9 +223,8 @@ impl CursorStyle {
         }
     }
 
-    /// Encode a cursor shape and blink flag into its DECSCUSR code: the
-    /// inverse of [`Self::from_decscusr`]. The odd codes (1/3/5) blink, the
-    /// even codes (2/4/6) are steady, and 0 is the default (steady block).
+    /// The DECSCUSR code for a shape and blink flag; odd codes blink, 0 is the
+    /// default block.
     #[inline]
     pub const fn to_decscusr(self, blink: bool) -> u8 {
         match (self, blink) {
@@ -240,9 +238,8 @@ impl CursorStyle {
         }
     }
 
-    /// The DECSCUSR blink flag implied by a cursor-shape parameter: odd codes
-    /// (1/3/5) blink, even codes (2/4/6) are steady, 0 is the default (steady),
-    /// and unsupported codes (≥7) leave the blink state unchanged (`None`).
+    /// The DECSCUSR blink flag implied by a shape parameter; unsupported codes
+    /// are `None`.
     #[inline]
     pub const fn decscusr_blink(param: i32) -> Option<bool> {
         Some(match param {
@@ -354,9 +351,8 @@ impl Sgr {
     }
 }
 
-/// Parse an SGR sequence into its effects, appending to `out` (which the
-/// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
-/// ([`ColorSpec`]) so each consumer interns them against its own palette.
+/// Parse an SGR sequence into `out`, which the caller reuses. Colors stay
+/// unresolved [`ColorSpec`]s for the consumer's palette.
 pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
     // Arity first: `CSI m` and the one-parameter codes are ~70% of the SGR on a
     // real wire, and neither needs the iterator below.

@@ -138,11 +138,11 @@ const fn clamp_channel(v: i32) -> u8 {
 /// Pack `[R, G, B, A]` (0..1 floats) into `0xRRGGBBAA`.
 #[inline]
 pub const fn rgba_to_u32(c: [f32; 4]) -> u32 {
-    let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0) as u32;
-    let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0) as u32;
-    let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0) as u32;
-    let a = round_channel(c[3].clamp(0.0, 1.0) * 255.0) as u32;
-    (r << 24) | (g << 16) | (b << 8) | a
+    let r = round_channel(c[0].clamp(0.0, 1.0) * 255.0);
+    let g = round_channel(c[1].clamp(0.0, 1.0) * 255.0);
+    let b = round_channel(c[2].clamp(0.0, 1.0) * 255.0);
+    let a = round_channel(c[3].clamp(0.0, 1.0) * 255.0);
+    u32::from_be_bytes([r, g, b, a])
 }
 
 /// Round a 0..255 float channel to its byte. `f32::round` is `std`-only, so
@@ -182,9 +182,7 @@ pub const fn blend_faint(a: u32, b: u32) -> u32 {
     )
 }
 
-/// Resolve an xterm 256-color index (`0..=255`) to packed `0xRRGGBBAA`: the 16
-/// ANSI colors, the 6×6×6 color cube (`16..=231`), and the grayscale ramp
-/// (`232..=255`).
+/// Resolve an xterm 256-color index to packed `0xRRGGBBAA`: ANSI, cube, ramp.
 #[inline]
 pub const fn indexed_rgb(n: u8) -> u32 {
     match n {
@@ -367,9 +365,7 @@ pub fn rgb_spec(rgb: u32) -> CompactString {
     format_compact!("rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}")
 }
 
-/// Format an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
-/// `0xRRGGBBAA` value (8-bit channels repeated to 4 hex digits, the xterm
-/// convention).
+/// Format an OSC color reply (`ESC]CODE;rgb:… ESC\`) from a `0xRRGGBBAA` value.
 #[inline]
 #[must_use]
 pub fn format_osc_color_reply(code: u16, rgb: u32) -> CompactString {
@@ -383,9 +379,7 @@ pub fn format_osc_palette_reply(index: usize, rgb: u32) -> CompactString {
     format_compact!("\x1b]4;{index};{}\x1b\\", rgb_spec(rgb))
 }
 
-/// Format the full `OSC 11` background reply as a fixed 25-byte buffer:
-/// `\x1b]11;rgb:{r:02x}{r:02x}/{g:02x}{g:02x}/{b:02x}{b:02x}\x1b\\`
-/// (8-bit channels repeated to 4 hex digits, the xterm convention).
+/// Format the `OSC 11` reply as a fixed 25-byte buffer.
 #[inline]
 #[must_use]
 pub const fn format_osc_background(c: [f32; 4]) -> [u8; 25] {

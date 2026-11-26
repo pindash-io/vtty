@@ -113,9 +113,7 @@ impl Reply {
         buf
     }
 
-    /// Build an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
-    /// `0xRRGGBBAA` value (8-bit channels repeated to 4 hex digits, the xterm
-    /// convention).
+    /// Build an OSC color reply (`ESC]CODE;rgb:… ESC\`) from `0xRRGGBBAA`.
     #[inline]
     #[must_use]
     pub fn osc_color(code: u16, rgb: u32) -> CompactString {
@@ -139,9 +137,8 @@ impl Reply {
         CompactString::from_utf8(crate::color::format_osc_background(c)).unwrap_or_default()
     }
 
-    /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
-    /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
-    /// includes the `?` for `CSI ?Ps$p` queries.
+    /// Build a DECRQM answer; `state` is ECMA-48's 0/1/2 and `private` adds
+    /// the `?`.
     #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
         format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
@@ -154,9 +151,7 @@ fn terminate(buf: &mut CompactString) {
     buf.push_str(ST);
 }
 
-/// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
-/// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
-/// failure messages.
+/// Append an XTGETTCAP answer; `value` is omitted for booleans and failures.
 pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Option<&[u8]>) {
     buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
     buf.push_str(&const_hex::encode(key));
@@ -189,9 +184,7 @@ fn xtgettcap_num_build(key: &[u8], n: usize) -> CompactString {
     buf
 }
 
-/// Append an SGR color to `s`: `;{base}9` (default), `;{base}8;5;n`
-/// (indexed), or `;{base}8;2;r;g;b` (RGB, resolved from the palette).
-/// `base` is 3 for fg, 4 for bg; `default_id` is the matching default color.
+/// Append an SGR color (`;{base}9`, `;{base}8;5;n` or `;{base}8;2;r;g;b`).
 fn push_sgr_color(
     s: &mut CompactString,
     base: u8,

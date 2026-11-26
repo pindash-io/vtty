@@ -77,9 +77,8 @@ impl MouseButton {
         )
     }
 
-    /// Encode this event as an SGR (`CSI < … M/m`) sequence. `x`/`y` are
-    /// 0-based; the emitted protocol is 1-based. Press/release differ only
-    /// in the final byte (`M`/`m`).
+    /// Encode as SGR (`CSI < … M/m`). `x`/`y` are 0-based; the wire is
+    /// 1-based, and press/release differ only in the final byte.
     #[inline]
     #[must_use]
     pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> CompactString {
@@ -98,9 +97,8 @@ impl MouseButton {
         SmallVec::from([0x1b, b'[', b'M', cb, cx as u8, cy as u8])
     }
 
-    /// Encode this event in DEC 1005 UTF-8 mouse style: X10's `CSI M Cb`
-    /// prefix, but `Cx`/`Cy` are UTF-8 encoded instead of truncated single
-    /// bytes. Built inline (no heap `String`).
+    /// Encode in DEC 1005 style: X10's `CSI M Cb` prefix with UTF-8
+    /// `Cx`/`Cy`, built inline.
     #[inline]
     #[must_use]
     pub fn encode_utf8(self, x: u16, y: u16) -> CompactString {

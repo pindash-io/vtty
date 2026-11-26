@@ -191,9 +191,8 @@ impl Scs {
             && matches!(self.charsets.get(self.gl as usize), Charset::Ascii);
     }
 
-    /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
-    /// SI (`0x0F`) = LS0, SS2 (`0x8E`) = single-shift G2, SS3 (`0x8F`) =
-    /// single-shift G3. Any other byte is a no-op.
+    /// Apply a C0/C1 shift byte (`SO`/`SI` lock GL, `SS2`/`SS3` shift once);
+    /// any other byte is a no-op.
     #[inline]
     pub const fn apply_shift(&mut self, byte: u8) {
         match byte {
@@ -221,9 +220,8 @@ impl Scs {
         self.charsets.get(gl as usize)
     }
 
-    /// The locked charset (the GL slot, ignoring any SS2/SS3 single shift),
-    /// the bulk path where the caller has already verified `single_shift` is
-    /// `None`.
+    /// The locked charset (the GL slot), the bulk path where `single_shift` is
+    /// already known to be `None`.
     #[inline]
     pub const fn locked(&self) -> Charset {
         self.charsets.get(self.gl as usize)

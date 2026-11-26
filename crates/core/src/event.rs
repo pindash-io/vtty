@@ -78,9 +78,8 @@ pub enum Event {
 }
 
 impl Event {
-    /// Append the canonical escape-sequence bytes to `out`, the textual
-    /// inverse of the parser, so re-parsing the appended bytes reproduces
-    /// `self` (modulo the `-1` empty-param sentinel).
+    /// Append the canonical escape-sequence bytes for `self`; re-parsing them
+    /// reproduces the event.
     pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
         match self {
             Self::Print(c) => {
@@ -354,9 +353,7 @@ fn split_intermediates(ints: &[u8]) -> (&[u8], &[u8]) {
     ints.split_at(split)
 }
 
-/// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
-/// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
-/// Only the first 16 parameters are tracked; later ones read as `false`.
+/// Bit `i` is set when parameter `i` was colon-separated; 16 parameters only.
 #[inline]
 pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
     i < 16 && (sep & (1 << i)) != 0
@@ -384,9 +381,7 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
     }
 }
 
-/// Append one parameter as decimal text. The negative sentinels (`-1` trailing
-/// or colon-empty, `-2` separator-empty) are written as nothing: the
-/// surrounding separators already carry them.
+/// Append one parameter as decimal text; the `-1`/`-2` sentinels write nothing.
 #[inline]
 pub(crate) fn push_param<const N: usize>(out: &mut SmallVec<u8, N>, p: i32) {
     if p < 0 {

@@ -8,9 +8,8 @@
 //! [DECronomicon table]: https://vt100.net/emu/dec_private_modes.html
 //! [xterm's ctlseqs]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 
-/// Define the DEC private-mode mapping from one list of `Flag => number`
-/// pairs: [`TermFlags::private_param`] and [`TermFlags::from_private_param`],
-/// so the flag ↔ number mapping cannot drift apart.
+/// Define the DEC private-mode mapping from `Flag => number` pairs, together
+/// with both lookups.
 macro_rules! private_modes {
     ($($flag:ident => $param:literal),+ $(,)?) => {
         /// The DEC private-mode parameter (`? Pm h/l` / DECRQM). `0` for
@@ -105,9 +104,8 @@ bitflags::bitflags! {
         const MOUSE_URXVT = 1 << 28;
         /// DEC 1016: SGR-pixel mouse, pixel coordinates.
         const MOUSE_PIXEL = 1 << 26;
-        /// DEC 1045 (`CSI ?1045 h/l`): extended reverse wrap-around, like
-        /// DEC 45 but crosses NON-wrapped rows and wraps around the scroll
-        /// region's top edge (xterm XTREVWRAP2).
+        /// DEC 1045 (`CSI ?1045 h/l`): reverse wrap-around that crosses
+        /// non-wrapped rows and wraps at the region's top edge.
         const REVERSE_WRAP_EXTENDED = 1 << 30;
         /// DEC 1046: alternate screen, save/restore cursor.
         const VI = 1 << 21;
@@ -125,9 +123,8 @@ bitflags::bitflags! {
         const UNICODE_CORE = 1 << 25;
         /// XTCOLORMOD (`CSI ?2031 h/l`): report color-scheme changes.
         const COLOR_SCHEME_UPDATES = 1 << 17;
-        /// DEC 2048: in-band window resize, where the terminal reports size
-        /// changes as `CSI 48;lines;cols;pixel_lines;pixel_cols t` instead of
-        /// the app relying on SIGWINCH.
+        /// DEC 2048: in-band resize, reported as `CSI 48;… t` instead of
+        /// SIGWINCH.
         const IN_BAND_RESIZE = 1 << 29;
     }
 }
@@ -183,9 +180,7 @@ impl TermFlags {
         }
     }
 
-    /// The ANSI/DEC mode number and `?` form for this flag, the inverse of
-    /// [`Self::from_mode_code`]. `None` for [`Self::NONE`] and untracked
-    /// flags.
+    /// The ANSI/DEC mode number and `?` form; `None` for [`Self::NONE`].
     #[inline]
     pub const fn mode_code(self) -> Option<(i32, bool)> {
         Some(match self {

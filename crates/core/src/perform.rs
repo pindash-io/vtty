@@ -43,14 +43,12 @@ pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).
     fn print(&mut self, _c: char) {}
 
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`), display text,
-    /// the bulk hot path. Valid UTF-8 by construction, so implementations
-    /// may `std::str::from_utf8_unchecked` without re-validating.
+    /// A contiguous printable ASCII run (`0x20..=0x7e`), the bulk hot path.
+    /// Valid UTF-8 by construction, so no re-validation is needed.
     fn print_bytes(&mut self, _s: &[u8]) {}
 
-    /// A contiguous run of pre-decoded printable code points (never C0/C1).
-    /// Defaults to per-code-point [`print`](Perform::print); bulk sinks can
-    /// specialize.
+    /// A run of pre-decoded printable code points; defaults to per-code-point
+    /// [`print`](Perform::print).
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         for &cp in codepoints {
             let c = char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER);
@@ -68,9 +66,7 @@ pub trait Perform {
         self.execute(b'\n');
     }
 
-    /// A printable ASCII run immediately followed by `\r\n`, the OPOST/PTY
-    /// streaming hot path. Defaults to print then CR then LF; screens may
-    /// fuse them when the result is identical.
+    /// A printable ASCII run followed by `\r\n`. Defaults to print, CR, LF.
     fn print_crlf_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\r');
@@ -92,9 +88,8 @@ pub trait Perform {
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
     fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
 
-    /// A device-control string payload byte arrived. Raw: arbitrary, not
-    /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:
-    /// ignore.
+    /// A DCS payload byte arrived: raw, not necessarily UTF-8. Ignored by
+    /// default.
     fn put(&mut self, _byte: u8) {}
 
     /// A contiguous DCS payload run, raw bytes. Defaults to per-byte
