@@ -140,17 +140,15 @@ impl Run {
     }
 }
 
-/// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
-/// a ZWJ needs an emoji ZWJ target, VS15/VS16 need an emoji base, and a
-/// combining mark accepts any non-space base.
+/// Whether a zero-width mark may attach to `base`: a ZWJ needs an emoji ZWJ
+/// target, VS15/VS16 an emoji base, a combining mark any non-space base.
 #[inline]
 pub fn mark_attaches(mark: char, base: char) -> bool {
     Selector::from_char(mark).attaches_to(base)
 }
 
-/// Whether a char is a valid VS15/VS16 attach base: the
-/// `Extended_Pictographic` binary property (includes the reserved emoji
-/// ranges). Keycap bases (`0-9`, `#`, `*`) carry `Emoji` but are not `ExtPict`.
+/// Whether a char is a valid VS15/VS16 base: `Extended_Pictographic`, which
+/// excludes keycap bases.
 #[inline]
 pub fn is_vs_base(c: char) -> bool {
     Properties::get(c).is_extended_pictographic()
@@ -385,9 +383,8 @@ pub(crate) fn finalize_lead(
     w
 }
 
-/// The Hangul continuation state after a char that starts a syllable (`w > 0`)
-/// or is an attached V/T jamo (`w == 0`): bit 0 = V may follow, bit 1 = T may
-/// follow (UAX #29 GB6/GB7/GB8).
+/// The Hangul continuation bits after a syllable start: bit 0 = V may follow,
+/// bit 1 = T may follow (UAX #29 GB6/GB7/GB8).
 #[inline]
 const fn hangul_after(gcb: Gcb) -> u8 {
     match gcb {

@@ -39,18 +39,16 @@ pub struct SplitBoundaries {
 /// $$(\mathsf{zwj}, \mathsf{prev\_emoji}, \mathsf{drop\_next\_zwj}, \mathsf{grapheme\_open}) \in \mathbb{B}^4$$
 #[derive(Debug, Default)]
 pub struct EmojiTrace {
-    /// The previous print was the immediately-preceding char (no control
-    /// since), so a VS16/VS15 continuing that base attaches to it, not the
-    /// char at the cursor.
+    /// The previous print was the char just before, so a VS16/VS15 continuing
+    /// it attaches there, not at the cursor.
     pub grapheme_open: bool,
     /// The previous printed char was a width-2 emoji.
     pub prev_emoji: bool,
     /// The previous printed char was a ZWJ that followed a width-2 emoji (a
     /// width-2 emoji after it is a ZWJ-sequence continuation, 0 cells).
     pub zwj: bool,
-    /// A wide ZWJ-sequence base was dropped (autowrap off at the right
-    /// margin): the following ZWJ/continuation chars have no base and are
-    /// dropped too.
+    /// A wide ZWJ base was dropped at the right margin, so its continuations
+    /// have no base and are dropped too.
     pub drop_next_zwj: bool,
     /// A control closed an open ZWJ: the next width-consuming char is fresh
     /// (its byte offset is recorded when it is written).
@@ -105,9 +103,7 @@ impl EmojiTrace {
         self.mark_bit(abs, Self::FB_REOPEN);
     }
 
-    /// Set `bit` on the trace at `abs`, recording a sparse entry (a byte
-    /// past the current end is a future marker, the spec's "set at write
-    /// time").
+    /// Set `bit` at `abs`; a byte past the current end is a future marker.
     #[inline]
     pub fn mark_bit(&mut self, abs: usize, bit: u8) {
         let fb = &mut self.boundaries.fb;
@@ -147,9 +143,8 @@ impl EmojiTrace {
         fb.retain(|&(_, flags)| flags != 0);
     }
 
-    /// Splice the sparse trace through a `[pos, pos+old_len) → diff` byte
-    /// edit, preserving the `b == pos` survive rule (an edit at a boundary
-    /// does not destroy it) and clearing the shifted copy of a pure insert.
+    /// Splice the trace through a `[pos, pos+old_len)` edit, keeping a boundary
+    /// marker and clearing the shifted copy of a pure insert.
     #[inline]
     pub fn splice_fb(&mut self, pos: usize, old_len: usize, diff: isize) {
         let fb = &mut self.boundaries.fb;
