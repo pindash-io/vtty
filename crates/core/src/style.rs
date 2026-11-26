@@ -369,9 +369,20 @@ impl Sgr {
 /// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
 /// ([`ColorSpec`]) so each consumer interns them against its own palette.
 pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
-    if params.is_empty() {
-        out.push(SgrEffect::Reset);
-        return;
+    // Arity first: `CSI m` and the one-parameter codes are ~70% of the SGR on a
+    // real wire, and neither needs the iterator below.
+    match params {
+        [] => {
+            out.push(SgrEffect::Reset);
+            return;
+        }
+        // A lone code has no colon sub-parameter to read (`4:` alone is still
+        // `Single`), so the single-code map is the whole answer.
+        [code] => {
+            out.extend(single_code(*code));
+            return;
+        }
+        _ => {}
     }
     let mut iter = params.iter().enumerate();
     while let Some((i, &code)) = iter.next() {
@@ -412,13 +423,13 @@ pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>)
 /// path. Returns `None` for anything else (colon forms, multi-param
 /// sequences) — the caller falls back to [`parse_effects`].
 #[inline]
-pub fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
+pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
         return None;
     }
     let value = match *params {
         [] => SgrEffect::Reset,
-        [code] => single_code(code)?,
+        [code] => return single_code(code),
         [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
         [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
         _ => return None,
