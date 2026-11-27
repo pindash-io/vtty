@@ -393,8 +393,9 @@ pub(crate) fn push_param<const N: usize>(out: &mut SmallVec<u8, N>, p: i32) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use smallvec::SmallVec;
+
+    use super::*;
 
     #[test]
     fn write_bytes_print_and_execute() {

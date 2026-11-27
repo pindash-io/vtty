@@ -12,9 +12,12 @@
 use alloc::string::ToString;
 use core::fmt::Write as _;
 
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+use compact_str::format_compact;
 
-use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
+use crate::u32_to_rgb;
+use crate::{ColorId, SgrFlags};
+use crate::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 
 /// DCS/OSC string terminator (`ESC \`).
 pub(crate) const ST: &str = "\x1b\\";

@@ -10,7 +10,8 @@
 
 use alloc::string::ToString;
 
-use compact_str::{CompactString, ToCompactString, format_compact};
+use compact_str::format_compact;
+use compact_str::{CompactString, ToCompactString};
 
 bitflags::bitflags! {
     /// Kitty keyboard protocol flags, reported by `CSI > flags u` and pushed

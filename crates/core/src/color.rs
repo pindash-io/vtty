@@ -5,7 +5,8 @@
 
 use core::fmt;
 
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+use compact_str::format_compact;
 
 /// Reserved palette index for the default foreground (SGR 39).
 pub const DEFAULT_FG_ID: ColorId = ColorId(256);
@@ -30,8 +31,8 @@ pub const DEFAULT_BG_ID: ColorId = ColorId(257);
 /// assert_eq!(DEFAULT_FG_ID, ColorId(256));
 /// assert_eq!(DEFAULT_BG_ID, ColorId(257));
 /// ```
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorId(pub u16);
 
 impl ColorId {

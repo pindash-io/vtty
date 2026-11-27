@@ -8,7 +8,8 @@
 //!
 //! [xterm ctlseqs, Mouse Tracking]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking
 
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+use compact_str::format_compact;
 use smallvec::SmallVec;
 
 /// Inline capacity for one mouse sequence; SGR is the longest at 19 bytes.
@@ -40,8 +41,8 @@ impl MouseTracking {
 }
 
 /// Mouse button/event codes for X10 and SGR encoding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MouseButton {
     /// Button 0.

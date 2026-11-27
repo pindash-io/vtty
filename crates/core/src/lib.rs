@@ -51,17 +51,20 @@ mod style;
 mod termcap;
 
 pub use charset::{Charset, Charsets, Scs};
+pub use color::ColorId;
+pub use color::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 pub use color::{
-    ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, blend_faint, format_osc_background,
-    format_osc_color_reply, format_osc_palette_reply, indexed_rgb, parse, parse_hex_color,
-    rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_rgb, u32_to_rgba,
+    blend_faint, format_osc_background, format_osc_color_reply, format_osc_palette_reply,
+    indexed_rgb, parse, parse_hex_color, rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_rgb,
+    u32_to_rgba,
 };
 pub use conformance::ConformanceLevel;
-pub use event::{Event, Recording, param_colon_sep, set_param_colon_sep};
+pub use event::{Event, Recording};
+pub use event::{param_colon_sep, set_param_colon_sep};
 pub use keyboard::{
     Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers,
-    encode_key, legacy_ctrl,
 };
+pub use keyboard::{encode_key, legacy_ctrl};
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
 pub use num::write_decimal;

@@ -12,7 +12,9 @@ use core::fmt::Display;
 use core::fmt::Write as _;
 
 #[cfg(feature = "reply")]
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+#[cfg(feature = "reply")]
+use compact_str::format_compact;
 
 /// DECTSR answer prefix (`DCS 1 $ s`). The final is lowercase, per the VT510 errata.
 #[cfg(feature = "reply")]

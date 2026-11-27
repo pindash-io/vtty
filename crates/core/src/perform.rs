@@ -109,10 +109,11 @@ pub trait Perform {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::string::String;
     use alloc::vec;
     use alloc::vec::Vec;
+
+    use super::*;
 
     /// Records the leaf callbacks so the delegating defaults are observable.
     #[derive(Default)]
