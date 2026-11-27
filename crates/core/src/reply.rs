@@ -15,7 +15,7 @@ use core::fmt::Write as _;
 use compact_str::CompactString;
 use compact_str::format_compact;
 
-use crate::u32_to_rgb;
+use crate::u32_to_array;
 use crate::{ColorId, SgrFlags};
 use crate::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 
@@ -207,7 +207,7 @@ fn push_sgr_color(
         let _ = write!(s, ";{base}9");
         return;
     };
-    let [r, g, b] = u32_to_rgb(*rgb);
+    let [r, g, b] = u32_to_array(*rgb);
     let _ = write!(s, ";{base}8;2;{r};{g};{b}");
 }
 

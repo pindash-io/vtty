@@ -55,8 +55,8 @@ pub use color::ColorId;
 pub use color::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 pub use color::{
     blend_faint, format_osc_background, format_osc_color_reply, format_osc_palette_reply,
-    indexed_rgb, parse, parse_hex_color, rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_rgb,
-    u32_to_rgba,
+    hex_to_rgb_array, hex_to_rgba, hex_to_rgba_array, hex_to_rgba_u32, indexed_rgb,
+    osc_to_rgba_u32, rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_array, u32_to_rgba,
 };
 pub use conformance::ConformanceLevel;
 pub use event::{Event, Recording};

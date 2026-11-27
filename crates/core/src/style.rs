@@ -172,8 +172,8 @@ impl UnderlineStyle {
 }
 
 /// DECSCUSR cursor shape (`CSI Ps SP q`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum CursorStyle {
     /// DECSCUSR 0 / DECTCEM off no cursor.
