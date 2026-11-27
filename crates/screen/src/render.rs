@@ -43,9 +43,9 @@ fn push_sgr_flags(out: &mut String, sgr: SgrFlags) {
 /// needs that so defaults swap as real RGB.
 pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
     push_sgr_flags(out, sgr);
-    let [r, g, b] = vtty_core::u32_to_rgb(fg);
+    let [r, g, b] = vtty_core::u32_to_array(fg);
     let _ = write!(out, ";38;2;{r};{g};{b}");
-    let [r, g, b] = vtty_core::u32_to_rgb(bg);
+    let [r, g, b] = vtty_core::u32_to_array(bg);
     let _ = write!(out, ";48;2;{r};{g};{b}");
     out.push('m');
 }
@@ -61,7 +61,7 @@ pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: 
     if id != default && id.0 <= 255 {
         let _ = write!(out, ";{base}8;5;{}", id.0);
     } else if let Some(&rgb) = id.0.checked_sub(258).and_then(|i| palette.get(i as usize)) {
-        let [r, g, b] = vtty_core::u32_to_rgb(rgb);
+        let [r, g, b] = vtty_core::u32_to_array(rgb);
         let _ = write!(out, ";{base}8;2;{r};{g};{b}");
     }
 }
