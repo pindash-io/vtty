@@ -76,20 +76,17 @@ impl State {
     /// Byte range `[start, end)` of line `line`; `end` points at its `\n`. `None`
     /// when the line is out of range.
     pub fn line_range(&self, line: usize) -> Option<Range<usize>> {
-        let bytes = self.text.as_bytes();
-        if bytes.is_empty() {
+        if self.text.is_empty() {
             return None;
         }
-
-        // `match_indices` yields `\n` offsets lazily: skip to the newline before
-        // `line` (start is one past it), then the next newline ends the line.
+        // Skip to the newline before `line` (start is one past it), then the
+        // next newline ends the line.
         let mut newlines = self.text.match_indices('\n');
-        let start = if line == 0 {
-            0
-        } else {
-            newlines.nth(line - 1)?.0 + 1
+        let start = match line {
+            0 => 0,
+            n => newlines.nth(n - 1)?.0 + 1,
         };
-        let end = newlines.next().map_or(bytes.len(), |(i, _)| i);
+        let end = newlines.next().map_or(self.text.len(), |(i, _)| i);
         Some(start..end)
     }
 }
