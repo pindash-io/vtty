@@ -410,13 +410,14 @@ pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
         return None;
     }
-    match *params {
-        [] => Some(SgrEffect::Reset),
-        [code] => single_code(code),
-        [code @ (38 | 48 | 58), 5, n] => Some(extended_effect(code, ColorSpec::indexed(n))),
-        [code @ (38 | 48 | 58), 2, r, g, b] => Some(extended_effect(code, ColorSpec::rgb(r, g, b))),
-        _ => None,
-    }
+    let effect = match *params {
+        [] => SgrEffect::Reset,
+        [code] => return single_code(code),
+        [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
+        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
+        _ => return None,
+    };
+    Some(effect)
 }
 
 /// The common attribute-plus-extended-color form (`1;38;2;r;g;b`), avoiding
