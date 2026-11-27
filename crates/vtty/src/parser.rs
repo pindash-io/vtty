@@ -10,7 +10,8 @@ use alloc::vec::Vec;
 
 use smallvec::SmallVec;
 
-use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
+use vtty_core::set_param_colon_sep;
+use vtty_core::{Event, Perform, Recording};
 
 use crate::limits::{
     MAX_INTERMEDIATES, MAX_OSC_PARAMS, MAX_OSC_PAYLOAD, MAX_PARAM_COUNT, MAX_PARAM_VALUE,
@@ -18,8 +19,10 @@ use crate::limits::{
 use crate::scan::{
     first_dcs_boundary, first_non_printable, first_non_printable_word, first_osc_boundary,
 };
-use crate::table::{Action, ParseState, transition};
-use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
+use crate::table::transition;
+use crate::table::{Action, ParseState};
+use crate::utf8::PartialUtf8;
+use crate::utf8::{decode_utf8, trailing_partial};
 
 /// CSI/DCS parameter accumulator: the current digit run, the collected params
 /// and the colon-separator bits.
@@ -1212,14 +1215,15 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use smallvec::SmallVec;
+
     use super::Parser;
     use crate::Event;
     use crate::Recording;
     use crate::limits::MAX_OSC_PAYLOAD;
     use crate::table::{Action, ParseState};
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use smallvec::SmallVec;
 
     /// Canonical wire bytes of an event stream (concatenated `write_bytes`).
     fn events_bytes(events: &[Event]) -> Vec<u8> {

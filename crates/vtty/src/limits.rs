@@ -42,8 +42,9 @@ pub(crate) const SIMD_UTF8_CHUNK: usize = 4096;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::string::String;
+
+    use super::*;
 
     /// The `ARCHITECTURE.md` "Resource limits" table must match this module; every value
     /// is derived from a constant here.

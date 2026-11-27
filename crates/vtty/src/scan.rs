@@ -7,9 +7,8 @@
 
 #[cfg(feature = "simd")]
 use crate::utils::is_esc;
-use crate::utils::{
-    CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_non_printable, is_osc_boundary,
-};
+use crate::utils::{CAN, DEL, ESC, SEMICOLON, SUB};
+use crate::utils::{is_dcs_boundary, is_non_printable, is_osc_boundary};
 
 /// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
 const SPLAT_01: u64 = 0x0101_0101_0101_0101;
@@ -202,8 +201,9 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_dcs_boundary, first_non_printable, first_osc_boundary};
     use alloc::vec::Vec;
+
+    use super::{first_dcs_boundary, first_non_printable, first_osc_boundary};
 
     /// Scalar reference for the bounded ESC probe.
     #[cfg(feature = "simd")]

@@ -6,16 +6,15 @@
 
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
-use fearless_simd::{Level, Simd, dispatch, mask8x16, prelude::*, u8x16, u32x4};
+use fearless_simd::{Level, Simd};
+use fearless_simd::{dispatch, mask8x16, prelude::*, u8x16, u32x4};
 
 #[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
-use crate::utils::{
-    C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB, is_dcs_boundary, is_esc, is_non_printable,
-    is_osc_boundary,
-};
+use crate::utils::{C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB};
+use crate::utils::{is_dcs_boundary, is_esc, is_non_printable, is_osc_boundary};
 
 /// One UTF-8 byte's seven payload bits; the markers sit above them.
 const PAYLOAD_MASK: u32 = 0x7f;

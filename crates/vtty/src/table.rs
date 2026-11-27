@@ -37,8 +37,8 @@ static TABLE: [(Action, ParseState); 14 * 256] = build_table();
 /// on the [state diagram]. Discriminants double as the table index.
 ///
 /// [state diagram]: https://vt100.net/emu/dec_ansi_parser
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum ParseState {
     #[default]
     Ground = 0,
@@ -237,7 +237,8 @@ pub(crate) fn transition(state: ParseState, b: u8) -> (Action, ParseState) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Action, ParseState, TABLE, build_table, transition};
+    use super::{Action, ParseState, TABLE};
+    use super::{build_table, transition};
 
     /// Independent transcription of Paul Flo Williams' [VT500 parser state
     /// diagram], restricted to bytes `0x00..=0x7f` (C0 + GL + `DEL`). C1

@@ -103,11 +103,12 @@ mod utf8;
 mod utf8_tables;
 mod utils;
 
-pub use parser::Parser;
 pub use vtty_core::*;
 #[cfg(feature = "status")]
 #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
 pub use vtty_status::*;
+
+pub use parser::Parser;
 
 /// Compile-time guarantee: the parser is `Send` + `Sync` (no interior
 /// mutability), so it can be owned by a dedicated input thread.
@@ -125,11 +126,12 @@ pub mod prelude {
     #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
     pub use crate::{Cap, CapValue};
     pub use crate::{
-        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle, DEFAULT_BG_ID,
-        DEFAULT_FG_ID, Event, Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec,
-        KittyFlags, Modifiers, MouseButton, MouseTracking, Parser, Perform, Recording, Scs, Sgr,
-        SgrEffect, SgrFlags, State, StyleFlags, TermFlags, UnderlineStyle,
+        Charset, Charsets, ColorId, ColorSpec, ConformanceLevel, CursorStyle, Event, Key,
+        KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers,
+        MouseButton, MouseTracking, Parser, Perform, Recording, Scs, Sgr, SgrEffect, SgrFlags,
+        State, StyleFlags, TermFlags, UnderlineStyle,
     };
+    pub use crate::{DEFAULT_BG_ID, DEFAULT_FG_ID};
     #[cfg(feature = "status")]
     #[cfg_attr(docsrs, doc(cfg(feature = "status")))]
     pub use crate::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
