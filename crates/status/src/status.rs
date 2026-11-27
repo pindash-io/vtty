@@ -110,8 +110,8 @@ pub trait PerformProgramStatus: Perform {
 }
 
 /// The state a program reports.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StatusState {
     /// At rest.
