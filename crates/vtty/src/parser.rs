@@ -371,24 +371,26 @@ impl Parser {
             None => bytes.len(),
         };
 
+        let force_cold = self.force_cold();
+
         while i < bytes.len() {
-            match self.state {
-                ParseState::Ground => {
+            match (self.state, force_cold) {
+                (ParseState::Ground, _) => {
                     i = self.advance_ground(p, bytes, i, valid_end);
                 }
-                ParseState::OscString if !self.force_cold() => {
+                (ParseState::OscString, false) => {
                     i = self.advance_osc_run(p, bytes, i);
                 }
-                ParseState::DcsPassthrough if !self.force_cold() => {
+                (ParseState::DcsPassthrough, false) => {
                     i = self.advance_dcs_run(p, bytes, i);
                 }
-                ParseState::Escape if !self.force_cold() => {
+                (ParseState::Escape, false) => {
                     i = self.advance_escape_byte(p, bytes, i);
                 }
-                ParseState::DcsEntry if !self.force_cold() => {
+                (ParseState::DcsEntry, false) => {
                     i = self.advance_dcs_entry_byte(p, bytes, i);
                 }
-                ParseState::CsiParam | ParseState::DcsParam if !self.force_cold() => {
+                (ParseState::CsiParam | ParseState::DcsParam, false) => {
                     i = self.advance_param_run(p, bytes, i);
                 }
                 _ => i = self.advance_non_ground(p, bytes, i),
@@ -622,57 +624,92 @@ impl Parser {
 
     /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can
     /// extend past the final byte; returns the bytes consumed or `None`.
+    /// Dispatch a complete CSI from the printable run that follows `ESC [`,
+    /// returning the bytes consumed. `None` hands the shape to the state
+    /// machine: an intermediate, a marker after params, C0/DEL, a high byte, or
+    /// a sequence that ends past this run.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
-        if seq.is_empty() {
+        let &first = seq.first()?;
+
+        if first == b'?'
+            && let Some(consumed) = self.dispatch_dec_mode(p, seq)
+        {
+            return Some(consumed);
+        } else if first.is_ascii_digit()
+            && let Some(consumed) = self.dispatch_params(p, seq)
+        {
+            return Some(consumed);
+        } else if matches!(first, 0x40..=0x7e) {
+            // `CSI <final>`: no params, no intermediates, so there is no
+            // accumulator to prime or clear.
+            p.csi_dispatch(&[], 0, &[], first);
+            return Some(1);
+        }
+
+        self.dispatch_csi_loop(p, seq, 0)
+    }
+
+    /// `CSI ? <digits> h|l`: the private-mode shape shells and TUIs emit.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_dec_mode<P: Perform>(&self, p: &mut P, seq: &[u8]) -> Option<usize> {
+        let mut i = 1;
+        if !seq.get(i).is_some_and(u8::is_ascii_digit) {
             return None;
         }
-
-        // `CSI ? <digits> h|l`: the private-mode shape shells and TUIs emit; the
-        // marker would otherwise force the general param loop.
-        if seq[0] == b'?' {
-            let mut i = 1;
-            if seq.get(i).is_some_and(u8::is_ascii_digit) {
-                let mode = param_at(seq, &mut i);
-                if let Some(&next @ (b'h' | b'l')) = seq.get(i) {
-                    p.csi_dispatch(&[mode], 0, b"?", next);
-                    return Some(i + 1);
-                }
+        let mode = param_at(seq, &mut i);
+        match seq.get(i) {
+            Some(&next @ (b'h' | b'l')) => {
+                p.csi_dispatch(&[mode], 0, b"?", next);
+                Some(i + 1)
             }
+            _ => None,
         }
+    }
 
-        // One or two params and a final byte cover SGR, cursor addressing and
-        // margins; anything else falls back to the loop below.
+    /// One param, two params, or a longer `;`-list, all ending in one final
+    /// byte. On failure the accumulator is primed for [`Self::dispatch_csi_loop`].
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_params<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         let mut i = 0;
-        if seq[i].is_ascii_digit() {
-            let first = param_at(seq, &mut i);
+        let first = param_at(seq, &mut i);
 
-            if let Some(&next) = seq.get(i) {
-                if matches!(next, 0x40..=0x7e) {
-                    p.csi_dispatch(&[first], 0, &[], next);
-                    return Some(i + 1);
+        if let Some(&next) = seq.get(i) {
+            if (0x40..=0x7e).contains(&next) {
+                p.csi_dispatch(&[first], 0, &[], next);
+                return Some(i + 1);
+            }
+            if next == b';' {
+                let mut j = i + 1;
+                let second = param_at(seq, &mut j);
+                // A second param needs at least one digit; `CSI r;H` reports
+                // the `-1` sentinel the loop would push for it.
+                if j > i + 1 && matches!(seq.get(j), Some(0x40..=0x7e)) {
+                    p.csi_dispatch(&[first, second], 0, &[], seq[j]);
+                    return Some(j + 1);
                 }
-                if next == b';' {
-                    let mut j = i + 1;
-                    let col = param_at(seq, &mut j);
-                    // A column needs at least one digit; `CSI r;H` reports the
-                    // `-1` sentinel the loop would push for it.
-                    if j > i + 1 && matches!(seq.get(j), Some(0x40..=0x7e)) {
-                        p.csi_dispatch(&[first, col], 0, &[], seq[j]);
-                        return Some(j + 1);
-                    }
-                    if seq.get(j) == Some(&b';')
-                        && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, col)
-                    {
-                        return Some(consumed);
-                    }
+                if seq.get(j) == Some(&b';')
+                    && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, second)
+                {
+                    return Some(consumed);
                 }
             }
-
-            self.params.param = first;
-            self.params.empty = false;
         }
 
+        self.params.param = first;
+        self.params.empty = false;
+        self.dispatch_csi_loop(p, seq, i)
+    }
+
+    /// The general CSI byte loop, resuming at `i`: intermediates, a private
+    /// marker that is only valid before any param, then the final byte.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_csi_loop<P: Perform>(
+        &mut self,
+        p: &mut P,
+        seq: &[u8],
+        mut i: usize,
+    ) -> Option<usize> {
         while i < seq.len() {
             if self.param_byte(seq[i]) {
                 i += 1;
@@ -689,8 +726,8 @@ impl Parser {
                     i += 1;
                 }
                 0x40..=0x7e => {
-                    // A param-less CSI dispatches `[]`; a trailing empty param (ConPTY's
-                    // `SGR …;m`) is pushed as `-1`.
+                    // A param-less CSI dispatches `[]`; a trailing empty param
+                    // (ConPTY's `SGR …;m`) is pushed as `-1`.
                     self.dispatch_csi(p, seq[i]);
                     return Some(i + 1);
                 }
