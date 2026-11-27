@@ -56,10 +56,7 @@ impl State {
     /// Number of lines in the text buffer. An empty buffer has 0 lines; each
     /// `\n` starts a new line (a trailing `\n` counts as one empty line).
     pub fn line_count(&self) -> usize {
-        if self.text.is_empty() {
-            return 0;
-        }
-        self.text.split('\n').count()
+        self.text.matches('\n').count() + usize::from(!self.text.is_empty())
     }
 
     /// 0-based row (line index) of the cursor.
