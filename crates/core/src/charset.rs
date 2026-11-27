@@ -39,10 +39,7 @@ impl Charset {
     pub const fn map(self, c: char) -> char {
         match self {
             Self::Ascii => c,
-            Self::Dec => match c {
-                '\u{5f}'..='\u{7e}' => dec_special_graphics(c),
-                _ => c,
-            },
+            Self::Dec => Self::dec(c),
             Self::British => {
                 if c == '#' {
                     '£'
@@ -51,6 +48,20 @@ impl Charset {
                 }
             }
         }
+    }
+
+    /// The DEC Special Graphics glyphs for `0x5f..=0x7e`, in code-point order;
+    /// any other char passes through.
+    const fn dec(c: char) -> char {
+        const GLYPHS: [char; 32] = [
+            ' ', '◆', '▒', '␉', '␌', '␍', '␊', '°', '±', '␤', '␋', '┘', '┐', '┌', '└', '┼', '⎺',
+            '⎻', '─', '⎼', '⎽', '├', '┤', '┴', '┬', '│', '≤', '≥', 'π', '≠', '£', '·',
+        ];
+        let i = c as u32;
+        if i < 0x5f || i > 0x7e {
+            return c;
+        }
+        GLYPHS[(i - 0x5f) as usize]
     }
 }
 
@@ -251,54 +262,12 @@ impl Default for Scs {
     }
 }
 
-/// The DEC Special Graphics table for `0x5f..=0x7e`, used when a G-set is
-/// designated to [`Charset::Dec`]; bytes outside the range pass through.
-#[inline]
-pub const fn dec_special_graphics(c: char) -> char {
-    match c {
-        '_' => ' ',
-        '`' => '◆',
-        'a' => '▒',
-        'b' => '␉',
-        'c' => '␌',
-        'd' => '␍',
-        'e' => '␊',
-        'f' => '°',
-        'g' => '±',
-        'h' => '␤',
-        'i' => '␋',
-        'j' => '┘',
-        'k' => '┐',
-        'l' => '┌',
-        'm' => '└',
-        'n' => '┼',
-        'o' => '⎺',
-        'p' => '⎻',
-        'q' => '─',
-        'r' => '⎼',
-        's' => '⎽',
-        't' => '├',
-        'u' => '┤',
-        'v' => '┴',
-        'w' => '┬',
-        'x' => '│',
-        'y' => '≤',
-        'z' => '≥',
-        '{' => 'π',
-        '|' => '≠',
-        '}' => '£',
-        '~' => '·',
-        _ => c,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn dec_special_graphics_translation() {
-        assert_eq!(dec_special_graphics('_'), ' ');
         assert_eq!(Charset::Dec.map('_'), ' ');
         assert_eq!(Charset::Dec.map('q'), '─');
         assert_eq!(Charset::Dec.map('x'), '│');
@@ -345,11 +314,11 @@ mod tests {
             ('~', '·'),
         ];
         for (c, expected) in table {
-            assert_eq!(dec_special_graphics(c), expected, "for {c:?}");
+            assert_eq!(Charset::Dec.map(c), expected, "for {c:?}");
         }
         // Unmapped chars pass through.
-        assert_eq!(dec_special_graphics('A'), 'A');
-        assert_eq!(dec_special_graphics('^'), '^');
+        assert_eq!(Charset::Dec.map('A'), 'A');
+        assert_eq!(Charset::Dec.map('^'), '^');
     }
 
     #[test]
@@ -391,8 +360,8 @@ mod tests {
 
     #[test]
     fn dec_special_graphics_passthrough() {
-        assert_eq!(dec_special_graphics('A'), 'A');
-        assert_eq!(dec_special_graphics('~'), '·');
+        assert_eq!(Charset::Dec.map('A'), 'A');
+        assert_eq!(Charset::Dec.map('~'), '·');
     }
 
     #[test]

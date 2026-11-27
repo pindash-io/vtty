@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Moved the DEC Special Graphics glyph table into `Charset`, as a 32-entry
+  array indexed by code point. `Charset::Dec.map` no longer range-checks before
+  the lookup: the table's length is the range.
+
+### Removed
+
+- Removed `dec_special_graphics`; translate through `Charset::Dec.map` instead.
+
 ## [0.2.1] (2026-11-21)
 
 - Downgraded `icu_properties` to `=0.2.3`.
