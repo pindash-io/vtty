@@ -185,13 +185,11 @@ mod tests {
         s.print('a');
         s.print('b');
         assert_eq!(s.text, "ab");
-        // Move the cursor back and insert mid-text.
         s.cursor = 1;
         s.print('X');
         assert_eq!(s.text, "aXb");
         s.print_bytes(b"YZ");
         assert_eq!(s.text, "aXYZb");
-        // CR returns to the line start without advancing a line.
         s.execute(b'\r');
         assert_eq!(s.cursor, s.line_start);
     }
@@ -200,10 +198,8 @@ mod tests {
     fn perform_drops_invalid_utf8_and_ignores_unknown_controls() {
         let mut s = State::new();
         s.print('a');
-        // A non-UTF-8 byte run is dropped rather than mishandled.
         s.print_bytes(&[0xff]);
         assert_eq!(s.text, "a");
-        // Unknown C0 controls are no-ops.
         s.execute(0x00);
         assert_eq!(s.text, "a");
         assert_eq!(s.cursor, 1);

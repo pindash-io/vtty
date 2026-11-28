@@ -484,12 +484,10 @@ mod tests {
         assert_eq!(rec.len(), 6);
         assert_eq!(rec.iter().count(), 6);
 
-        // Replay every variant onto a fresh recording.
         let mut target = Recording::new();
         rec.replay(&mut target);
         assert_eq!(target.events, rec.events);
 
-        // Drain empties the recording and yields the events.
         let drained: Vec<_> = rec.drain().collect();
         assert_eq!(drained.len(), 6);
         assert!(rec.is_empty());

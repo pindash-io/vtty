@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP and the
-//! `$`-family DCS reports).
-//!
-//! The query/response pairs follow the [DECronomicon CSI/DCS tables] and the
-//! report formats EK-VT520-RM §5.
+//! `$`-family DCS reports). See the [DECronomicon CSI/DCS tables] and
+//! EK-VT520-RM §5.
 //!
 //! [DECronomicon CSI/DCS tables]: https://vt100.net/emu/ctrlseq_dec.html
 

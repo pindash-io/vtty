@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! DEC conformance and identity: DECSCL, Device Attributes (DA1/DA2/DA3), and
-//! the `$`-family DCS reports (DECTSR / DECCTR / DECCIR / DECTABSR).
-//!
-//! Reference: EK-VT520-RM §5.
+//! the `$`-family DCS reports (DECTSR / DECCTR / DECCIR / DECTABSR). EK-VT520-RM §5.
 
 #[cfg(feature = "reply")]
 use core::fmt::Display;
