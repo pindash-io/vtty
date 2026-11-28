@@ -115,8 +115,7 @@ pub fn cjk_width() -> bool {
     CJK_WIDTH.load(core::sync::atomic::Ordering::Relaxed)
 }
 
-/// Longer-form documentation kept in the repository and mirrored here so it
-/// also appears on docs.rs.
+/// Repository docs mirrored onto docs.rs.
 #[allow(
     clippy::doc_markdown,
     reason = "embedded repository markdown documents LaTeX formulas, not Rust items"
