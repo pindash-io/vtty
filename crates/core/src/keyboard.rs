@@ -638,8 +638,7 @@ fn encode_modify_other_keys(
     {
         return encode_keypad(*sym, *plain, mods, modes);
     }
-    // xterm modifier param: 1 (none), 2 shift, 3 alt, 4 shift+alt, 5 ctrl, …
-    // xterm has no super bit, so mask it out.
+    // xterm modifier param: 1 none, 2 shift, 3 alt, 4 shift+alt, 5 ctrl; no super bit.
     let xmod = mods.encoded() & 0b111;
     if xmod == 1 {
         return encode_legacy(key, false, mods, modes, text);

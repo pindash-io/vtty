@@ -212,8 +212,7 @@ pub const fn hex_to_rgba_array(s: &str) -> Option<[u8; 4]> {
         [b'#', rest @ ..] => rest,
         bytes => bytes,
     };
-    // Expand to `RRGGBBAA`: the shorthand repeats each nibble, and the alpha of
-    // the three- and six-digit forms stays `ff`.
+    // Shorthand repeats each nibble; 3/6-digit alpha stays `ff`.
     let mut color = [b'f'; 8];
     let mut i = 0;
     match hex.len() {
@@ -551,8 +550,7 @@ mod tests {
     fn hex_to_rgba_u32_shapes() {
         const RED: Option<u32> = hex_to_rgba_u32("#f00");
         assert_eq!(RED, Some(0xff0000ff));
-        // Every shorthand shape repeats its nibble; six and eight digits pass
-        // through; the alpha of a form without one stays `ff`.
+        // Shorthand repeats nibbles; 6/8-digit pass through; missing alpha = `ff`.
         assert_eq!(hex_to_rgba_u32("#ff0"), Some(0xffff00ff));
         assert_eq!(hex_to_rgba_u32("ff0000"), Some(0xff0000ff));
         assert_eq!(hex_to_rgba_u32("#fff0"), Some(0xffff_ff00));

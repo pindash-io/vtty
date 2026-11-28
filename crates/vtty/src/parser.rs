@@ -335,11 +335,9 @@ impl Parser {
         }
         let mut i = 0;
 
-        // Complete a partially-decoded UTF-8 code point carried over from the
-        // previous call.
+        // Complete a carried-over partial code point.
         if self.partial.pending() {
-            // A continuation byte completes the code point or leaves more to
-            // arrive; anything else aborts it (one U+FFFD) for the main loop.
+            // A continuation completes it or leaves more; anything else aborts it (U+FFFD).
             while i < bytes.len() {
                 if !self.partial.feed(bytes[i]) {
                     p.print(char::REPLACEMENT_CHARACTER);
@@ -361,8 +359,7 @@ impl Parser {
             }
         }
 
-        // Detect a trailing partial code point once, handing the partial-free
-        // prefix length to the ground loop (avoids re-scanning per entry).
+        // Detect a trailing partial once; hand the prefix length to the ground loop.
         let valid_end = match trailing_partial(bytes) {
             Some((v, partial)) => {
                 self.partial = partial;

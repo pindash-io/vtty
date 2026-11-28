@@ -3,23 +3,17 @@
 
 //! A minimal cell-grid terminal screen for `vtty`.
 //!
-//! `Screen` is a `Perform` sink: feed it bytes through `vtty::Parser` and it
-//! maintains a `rows × cols` grid of styled cells, a cursor, DECSTBM scroll
-//! margins, and the common DEC cursor/erase/insert/delete commands. Render
-//! with [`Screen::render_line`]/[`Screen::lines`] (plain text) or
-//! [`Screen::render_ansi`] (SGR-styled text).
+//! `Screen` is a `Perform` sink: fed bytes through `vtty::Parser`, it keeps a
+//! `rows × cols` grid of styled cells, a cursor, DECSTBM scroll margins, and the
+//! common DEC cursor, erase, insert, delete and scroll commands
+//! (EK-VT520-RM). Render with [`Screen::render_line`]/[`Screen::lines`] for
+//! plain text or [`Screen::render_ansi`] for SGR-styled text.
 //!
-//! This is the MVP: cursor addressing, scrolling, SGR, DECSC/DECRC, DECALN,
-//! the alternate screen buffer (DEC 47/1046/1047/1049), scrollback (with
-//! resize reflow), tab stops (HTS/TBC), resize reflow, and the VT editing
-//! commands. Combining marks and ZWJ emoji families (up to eight trailing
-//! glyphs) attach to their base cell.
-//!
-//! Sixel, `ReGIS`, and downloadable soft fonts are out of scope. This is a
-//! text cell grid, not a pixel emulator.
-//!
-//! The cursor, erase, insert/delete and scroll commands follow EK-VT520-RM
-//! (ANSI Control Functions).
+//! Covered: SGR, DECSC/DECRC, DECALN, the alternate screen (DEC
+//! 47/1046/1047/1049), scrollback with reflow, and tab stops (HTS/TBC).
+//! Combining marks and ZWJ families (up to eight glyphs) attach to their base
+//! cell. Sixel, `ReGIS` and soft fonts are out of scope: this is a text grid,
+//! not a pixel emulator.
 
 #![forbid(unsafe_code)]
 #![no_std]

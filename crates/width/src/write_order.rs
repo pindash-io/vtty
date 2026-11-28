@@ -13,7 +13,7 @@ pub struct SplitBoundaries {
     /// Sparse `(byte_offset, flags)` entries (bit 0 = fresh base, bit 1 =
     /// re-open); absent bytes are implicitly zero.
     pub fb: Vec<(usize, u8)>,
-    /// Byte past each REP/direct-ZWJ flushed base (native width). `F`.
+    /// Byte offset just past each REP/direct-ZWJ flushed base (native width). `F`.
     pub zwj_flushes: Vec<usize>,
 }
 
@@ -21,8 +21,8 @@ pub struct SplitBoundaries {
 /// [`SplitBoundaries`] that [`split_widths`] consumes.
 #[derive(Debug, Default)]
 pub struct EmojiTrace {
-    /// The previous print was the char just before, so a VS16/VS15 continuing
-    /// it attaches there, not at the cursor.
+    /// A grapheme is open: the previous print was its base, so a following
+    /// VS16/VS15 or mark attaches there, not at the cursor.
     pub grapheme_open: bool,
     /// The previous printed char was a width-2 emoji.
     pub prev_emoji: bool,

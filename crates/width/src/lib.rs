@@ -397,7 +397,7 @@ mod tests {
         // the selector (W is not an emoji base), so it stays zero-width.
         assert_eq!(cell_widths("W\u{FE0F}"), vec![1, 0]);
         assert_eq!(cell_widths("W\u{FE0F}x"), vec![1, 0, 1]);
-        // VS15 narrows a width-2 emoji to 1; the FIRST selector locks the width
+        // VS15 narrows a width-2 emoji to 1; the first selector locks the width
         // (kitty: `▶+VS16+VS15` stays 2, `😐+VS15+VS16` stays 1).
         assert_eq!(cell_widths("😐\u{FE0E}x"), vec![1, 0, 1]);
         assert_eq!(cell_widths("▶\u{FE0F}\u{FE0E}"), vec![2, 0, 0]);

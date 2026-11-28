@@ -34,7 +34,8 @@ impl Screen {
     }
 
     /// Write a printable-ASCII run as width-1 cells: `print_bytes` only sees
-    /// `0x20..=0x7e`, so the width lookup is dead work. The bulk text hot path.
+    /// `0x20..=0x7e`, so the width lookup is dead work. This is the bulk text
+    /// hot path.
     pub(crate) fn put_ascii(&mut self, s: &[u8]) {
         // Insert mode writes one cell at a time so each glyph shifts the row
         // right; the bulk path below is the non-insert fast path.
