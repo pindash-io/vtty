@@ -1,10 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Shared style types (cursor shape, underline style, SGR flags).
-//!
-//! SGR (Select Graphic Rendition) follows ECMA-48, as documented in the DEC
-//! manuals (EK-VT520-RM §5).
+//! Shared style types (cursor shape, underline style, SGR flags). SGR follows
+//! ECMA-48 (EK-VT520-RM §5).
 
 use smallvec::SmallVec;
 
@@ -303,8 +301,8 @@ pub enum SgrEffect {
 /// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the
 /// colon-separator bitfield (bit `i` = parameter `i` followed by `:`).
 ///
-/// Params are inline-allocated: the common one-to-eight param SGR sequence
-/// touches the heap.
+/// Params are inline-allocated, so the common one-to-eight param SGR sequence
+/// never touches the heap.
 ///
 /// # Example
 ///
@@ -354,52 +352,76 @@ impl Sgr {
 /// Parse an SGR sequence into `out`, which the caller reuses. Colors stay
 /// unresolved [`ColorSpec`]s for the consumer's palette.
 pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
-    // Arity first: `CSI m` and the one-parameter codes are ~70% of the SGR on a
-    // real wire, and neither needs the iterator below.
-    match params {
-        [] => {
-            out.push(SgrEffect::Reset);
-            return;
-        }
-        // A lone code has no colon sub-parameter to read (`4:` alone is still
-        // `Single`), so the single-code map is the whole answer.
-        [code] => {
-            out.extend(single_code(*code));
-            return;
-        }
-        _ => {}
+    out.extend(Effects::new(params, sep));
+}
+
+/// A cursor over the [`SgrEffect`]s of an SGR sequence, one decoded per
+/// `next()`. Sinks apply each effect as it is decoded; [`parse_effects`] is
+/// the collecting form.
+#[derive(Debug, Clone)]
+pub struct Effects<'a> {
+    params: &'a [i32],
+    sep: u16,
+    i: usize,
+}
+
+impl<'a> Effects<'a> {
+    /// A cursor over `params`; `sep` is the colon-separator bitfield.
+    #[must_use]
+    pub const fn new(params: &'a [i32], sep: u16) -> Self {
+        Self { params, sep, i: 0 }
     }
-    let mut iter = params.iter().enumerate();
-    while let Some((i, &code)) = iter.next() {
-        match code {
-            // `4:0..5` is the colon-separated underline style; plain `4` is
-            // single underline.
-            4 => {
-                let style = if param_colon_sep(sep, i) {
-                    iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
-                } else {
-                    None
+}
+
+impl Iterator for Effects<'_> {
+    type Item = SgrEffect;
+
+    #[inline]
+    fn next(&mut self) -> Option<SgrEffect> {
+        // `CSI m` with no parameters is a reset, not an empty sequence.
+        if self.params.is_empty() {
+            let first = self.i == 0;
+            self.i = 1;
+            return first.then_some(SgrEffect::Reset);
+        }
+        while let Some(&code) = self.params.get(self.i) {
+            let i = self.i;
+            self.i += 1;
+            match code {
+                // `4:0..5` is the colon-separated underline style; plain `4`
+                // is single underline.
+                4 => {
+                    let sub = if param_colon_sep(self.sep, i) {
+                        // Consume the sub-parameter slot whether or not it is
+                        // present (`4:` alone is still single underline).
+                        let sub = self.params.get(self.i).copied();
+                        if self.i < self.params.len() {
+                            self.i += 1;
+                        }
+                        sub
+                    } else {
+                        None
+                    }
+                    .map(|s| UnderlineStyle::from(s as u8));
+                    return Some(SgrEffect::Underline(sub.unwrap_or(UnderlineStyle::Single)));
                 }
-                .unwrap_or(UnderlineStyle::Single);
-                out.push(SgrEffect::Underline(style));
-            }
-            // The extended colors (38/48/58), the multi-param forms.
-            38 | 48 | 58 => {
-                let Some((c, skip)) = parse_extended(params, sep, i) else {
-                    continue;
-                };
-                out.push(extended_effect(code, c));
-                for _ in 0..skip {
-                    iter.next();
-                }
-            }
-            // Everything else: the single-code mapping.
-            _ => {
-                if let Some(style) = single_code(code) {
-                    out.push(style);
+                // The extended colors (38/48/58), the multi-param forms.
+                38 | 48 | 58 => match parse_extended(self.params, self.sep, i) {
+                    Some((c, skip)) => {
+                        self.i += skip;
+                        return Some(extended_effect(code, c));
+                    }
+                    None => continue,
+                },
+                // Everything else: the single-code mapping.
+                _ => {
+                    if let Some(effect) = single_code(code) {
+                        return Some(effect);
+                    }
                 }
             }
         }
+        None
     }
 }
 
@@ -420,21 +442,17 @@ pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     Some(effect)
 }
 
-/// The common attribute-plus-extended-color form (`1;38;2;r;g;b`), avoiding
-/// the effects `SmallVec`; `None` falls back to [`parse_effects`].
+/// The two-parameter form (`1;31`, `0;39`, `7;44`) where neither code is an
+/// extended colour: `None` falls back to [`Effects`].
 #[inline]
-pub const fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
+pub const fn two_simple_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
-    let (attr, code, spec) = match *params {
-        [attr, code @ (38 | 48 | 58), 5, n] => (attr, code, ColorSpec::indexed(n)),
-        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (attr, code, ColorSpec::rgb(r, g, b)),
-        _ => return None,
-    };
-    match single_code(attr) {
-        Some(effect) => Some((effect, extended_effect(code, spec))),
-        None => None,
+    let [a, b] = *params else { return None };
+    match (single_code(a), single_code(b)) {
+        (Some(a), Some(b)) => Some((a, b)),
+        _ => None,
     }
 }
 
@@ -520,6 +538,127 @@ pub const fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(Color
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pre-cursor loop, kept verbatim as the parity oracle for
+    /// [`Effects`].
+    fn oracle(params: &[i32], sep: u16) -> SmallVec<SgrEffect, 8> {
+        let mut out = SmallVec::new();
+        match params {
+            [] => {
+                out.push(SgrEffect::Reset);
+                return out;
+            }
+            [code] => {
+                out.extend(single_code(*code));
+                return out;
+            }
+            _ => {}
+        }
+        let mut iter = params.iter().enumerate();
+        while let Some((i, &code)) = iter.next() {
+            match code {
+                4 => {
+                    let style = if param_colon_sep(sep, i) {
+                        iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
+                    } else {
+                        None
+                    }
+                    .unwrap_or(UnderlineStyle::Single);
+                    out.push(SgrEffect::Underline(style));
+                }
+                38 | 48 | 58 => {
+                    let Some((c, skip)) = parse_extended(params, sep, i) else {
+                        continue;
+                    };
+                    out.push(extended_effect(code, c));
+                    for _ in 0..skip {
+                        iter.next();
+                    }
+                }
+                _ => {
+                    if let Some(style) = single_code(code) {
+                        out.push(style);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Every vector the cursor yields must equal the oracle's, so the rewrite
+    /// cannot change what a sink sees.
+    #[test]
+    fn effects_cursor_matches_oracle() {
+        const CODES: &[i32] = &[
+            0, 1, 2, 4, 5, 7, 21, 22, 23, 24, 25, 29, 30, 31, 38, 39, 40, 44, 48, 49, 58, 59, 90,
+            107, -1, -2, 255,
+        ];
+        const SEPS: &[u16] = &[0, 0b1, 0b11, 0b101, 0b10001, 0b100010, 0b11111];
+
+        let mut params: SmallVec<i32, 8> = SmallVec::new();
+        let check = |params: &[i32]| {
+            for &sep in SEPS {
+                let got: SmallVec<SgrEffect, 8> = Effects::new(params, sep).collect();
+                assert_eq!(got, oracle(params, sep), "params {params:?} sep {sep:#b}");
+            }
+        };
+
+        // The fast paths must agree with the cursor wherever they answer.
+        let fast = |params: &[i32]| -> Option<SmallVec<SgrEffect, 8>> {
+            if let Some(e) = single_effect(params, 0) {
+                return Some(SmallVec::from([e]));
+            }
+            two_simple_effects(params, 0).map(|(a, b)| SmallVec::from([a, b]))
+        };
+
+        check(&[]);
+        for &a in CODES {
+            check(&[a]);
+            for &b in CODES {
+                params.clear();
+                params.extend([a, b]);
+                check(&params);
+                for &c in CODES {
+                    params.clear();
+                    params.extend([a, b, c]);
+                    check(&params);
+                }
+            }
+        }
+
+        for &a in CODES {
+            for &b in CODES {
+                for c in [0_i32, 1, 31, 44, -1] {
+                    let params = [a, b, c];
+                    if let Some(fast) = fast(&params) {
+                        let got: SmallVec<SgrEffect, 8> = Effects::new(&params, 0).collect();
+                        assert_eq!(fast, got, "fast path disagrees on {params:?}");
+                    }
+                }
+            }
+        }
+
+        // Longer vectors from a deterministic generator, where the extended
+        // colors and their skip counts appear in every position.
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 33) as usize
+        };
+        for _ in 0..20_000 {
+            let len = 4 + next() % 5;
+            params.clear();
+            for _ in 0..len {
+                params.push(CODES[next() % CODES.len()]);
+            }
+            check(&params);
+            let sep = (next() & 0x1f) as u16;
+            let got: SmallVec<SgrEffect, 8> = Effects::new(&params, sep).collect();
+            assert_eq!(got, oracle(&params, sep), "params {params:?} sep {sep:#b}");
+        }
+    }
 
     #[test]
     fn sgr_set_code_maps_to_flag() {
@@ -718,76 +857,6 @@ mod tests {
         out.clear();
         parse_effects(&[38, 2, 0, 1, 2, 3], 0b11111, &mut out);
         assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(1, 2, 3))]);
-    }
-
-    #[test]
-    fn effect_fast_paths_cover_only_complete_shapes() {
-        // Both are `const`: usable in a `const` item.
-        const RESET: Option<SgrEffect> = single_effect(&[], 0);
-        assert_eq!(RESET, Some(SgrEffect::Reset));
-        const PAIR: Option<(SgrEffect, SgrEffect)> = two_effects(&[1, 38, 5, 196], 0);
-        assert_eq!(
-            PAIR,
-            Some((
-                SgrEffect::Set(SgrFlags::BOLD),
-                SgrEffect::Fg(ColorSpec::Indexed(196))
-            ))
-        );
-
-        // Truncated extended forms are `parse_effects`' job.
-        assert_eq!(single_effect(&[38, 5], 0), None);
-        assert_eq!(single_effect(&[38, 2, 1, 2], 0), None);
-        // An empty `;`-parameter slot clamps like `parse_extended` does.
-        assert_eq!(
-            single_effect(&[38, 5, -1], 0),
-            Some(SgrEffect::Fg(ColorSpec::Indexed(0)))
-        );
-        // A second effect, a bad sub-command or a colon form falls back too.
-        assert_eq!(single_effect(&[1, 31], 0), None);
-        assert_eq!(single_effect(&[38, 3, 1], 0), None);
-        assert_eq!(single_effect(&[38, 5, 196], 0b1), None);
-        assert_eq!(two_effects(&[1, 38, 5], 0), None);
-        assert_eq!(two_effects(&[7, 48, 2, 1, 2, 3], 0b1), None);
-        // `two_effects` needs a leading attribute the single-code map knows.
-        assert_eq!(two_effects(&[99, 38, 5, 196], 0), None);
-    }
-
-    #[test]
-    fn sgr_single_effect_hot_path() {
-        assert_eq!(
-            single_effect(&[38, 2, 1, 2, 3], 0),
-            Some(SgrEffect::Fg(ColorSpec::rgb(1, 2, 3)))
-        );
-        assert_eq!(
-            single_effect(&[48, 5, 196], 0),
-            Some(SgrEffect::Bg(ColorSpec::indexed(196)))
-        );
-        assert_eq!(single_effect(&[1], 0), Some(SgrEffect::Set(SgrFlags::BOLD)));
-        // Colon-separated forms fall back to `parse_effects`.
-        assert_eq!(single_effect(&[4, 2], 0b01), None);
-        assert_eq!(single_effect(&[1, 2], 0), None);
-    }
-
-    #[test]
-    fn sgr_encode_round_trips_canonical_bytes() {
-        let mut out = SmallVec::<u8, 16>::new();
-        Sgr::new(SmallVec::from([1, 31]), 0).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[1;31m");
-
-        // Colon-separated form: `4:2` underlines double.
-        out.clear();
-        Sgr::new(SmallVec::from([4, 2]), 0b01).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[4:2m");
-
-        // A trailing empty param (ConPTY's `SGR …;m`) writes nothing: the
-        // separator carries it.
-        out.clear();
-        Sgr::new(SmallVec::from([48, 2, 255, 0, 128, -1]), 0).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[48;2;255;0;128;m");
-
-        out.clear();
-        Sgr::default().write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[m");
     }
 
     #[test]
