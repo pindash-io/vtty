@@ -6,17 +6,20 @@
 
 #[cfg(feature = "simd-transcode")]
 use fearless_simd::u16x8;
-use fearless_simd::{Level, Simd};
-use fearless_simd::{dispatch, mask8x16, prelude::*, u8x16, u32x4};
+use fearless_simd::{Level, Simd, mask8x16, prelude::*, u8x16, u32x4};
 
 #[cfg(feature = "simd-transcode")]
 use crate::utf8::decode_utf8_n;
 #[cfg(feature = "simd-transcode")]
 use crate::utf8_tables::{SHUFUTF8, UTF8BIGINDEX};
-use crate::utils::{C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB};
-use crate::utils::{is_dcs_boundary, is_esc, is_non_printable, is_osc_boundary};
+use crate::utils::{
+    C0_C1_MASK, CAN, DEL, ESC, SEMICOLON, SPACE, SUB, is_dcs_boundary, is_esc, is_non_printable,
+    is_osc_boundary,
+};
 
-/// One UTF-8 byte's seven payload bits; the markers sit above them.
+/// One UTF-8 byte's seven payload bits: the lead and continuation markers sit
+/// above them. Ungated — the 3-byte decode path is built without
+/// `simd-transcode`.
 const PAYLOAD_MASK: u32 = 0x7f;
 
 /// What terminates the scan run.
@@ -26,14 +29,42 @@ enum ScanKind {
     NonPrintable,
     /// The `ESC` byte.
     Esc,
-    /// An OSC payload boundary.
+    /// OSC payload boundary.
     OscBoundary,
-    /// A DCS passthrough boundary.
+    /// DCS passthrough boundary.
     DcsBoundary,
 }
 
-/// Two byte checks, then the vector scan: 0- and 1-byte runs are the common
-/// shape, where dispatch and chunk setup cost more than the scan.
+/// Dispatch a kernel to the architecture baseline.
+///
+/// `fearless_simd::dispatch!` compiles a kernel for every level it detects,
+/// but these kernels use `u8x16`/`u32x4`/`u16x8` only: on x86 the wider AVX2/
+/// AVX-512 copies re-encode the same xmm-width work, so one SSE2 copy covers
+/// every x86 level. Other targets keep the library's dispatch.
+macro_rules! dispatch {
+    ($level:expr, $simd:pat => $op:expr) => {{
+        cfg_select! {
+            any(target_arch = "x86", target_arch = "x86_64") => {
+                let level = $level;
+                let token = match level.as_sse2() {
+                    Some(token) => token,
+                    None => unreachable!("`Level::new` returns an SSE2 level on x86"),
+                };
+                token.vectorize(|| {
+                    let $simd = token;
+                    $op
+                })
+            },
+            _ => {
+                fearless_simd::dispatch!($level, $simd => $op)
+            },
+        }
+    }};
+}
+
+/// Two explicit byte checks, then the vector scan: 0- and 1-byte runs are the
+/// common shape (ANSI-dense input, `word\r\n` lines, a `;` right after an OSC
+/// separator), where dispatch and chunk setup cost more than the scan.
 macro_rules! scan_or_fast {
     ($bytes:expr, $kind:ident, $is_stop:expr) => {{
         if matches!($bytes.first(), Some(b) if $is_stop(b)) {
@@ -47,28 +78,30 @@ macro_rules! scan_or_fast {
     }};
 }
 
-/// Index of the first byte outside printable ASCII (`0x7f` is `execute`), or
-/// `bytes.len()` when every byte is printable.
+/// Return the index of the first byte outside printable ASCII (`0x20..=0x7e`;
+/// `0x7f` DEL is dispatched via `execute`), or `bytes.len()` if every byte is
+/// printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, NonPrintable, is_non_printable)
 }
 
-/// Index of the first `ESC`, or `bytes.len()` if none: it caps the decode
-/// window at a sequence introducer.
+/// Index of the first `ESC` byte (`0x1b`), or `bytes.len()` if none. Caps the
+/// SIMD UTF-8 decode window at the next sequence introducer, which must
+/// reach the escape state rather than be dispatched as `execute`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc(bytes: &[u8]) -> usize {
     let level = Level::new();
     dispatch!(level, simd => first_matching(simd, bytes, ScanKind::Esc))
 }
 
-/// Index of the first OSC payload boundary; see [`is_osc_boundary`].
+/// Index of the first OSC payload boundary — see [`is_osc_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_osc_boundary(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, OscBoundary, is_osc_boundary)
 }
 
-/// Index of the first DCS passthrough boundary; see [`is_dcs_boundary`].
+/// Index of the first DCS passthrough boundary — see [`is_dcs_boundary`].
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_dcs_boundary(bytes: &[u8]) -> usize {
     scan_or_fast!(bytes, DcsBoundary, is_dcs_boundary)
@@ -130,13 +163,15 @@ const fn matches_kind(b: &u8, kind: ScanKind) -> bool {
     }
 }
 
-/// Index of the first non-zero lane in a 16-lane mask.
+/// Index of the first non-zero lane in a 16-lane mask (`0`/`-1`). Scalar
+/// early-return — the bitmask + `trailing_zeros` alternative was slower here.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_set(mask: [i8; 16]) -> usize {
     mask.iter().position(|&m| m != 0).unwrap_or(16)
 }
 
-/// Turn a shuffled `u32x4` into four code points.
+/// Mask + shift + or a shuffled `u32x4` (the 3-byte `0x924` layout) into four
+/// code points. Shared by [`decode_3byte`] and the 2/3-byte-mix table path.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
     let ascii = p & simd.splat_u32x4(PAYLOAD_MASK);
@@ -145,7 +180,9 @@ fn finish_u32x4_3byte<S: Simd>(simd: S, p: u32x4<S>) -> [u32; 4] {
     ((ascii | middle) | high).into()
 }
 
-/// Decode four consecutive 3-byte code points (12 bytes).
+/// Decode four consecutive 3-byte code points (12 bytes). The simdutf
+/// `0x924` fast path: one fixed shuffle gathers each 3-byte group into a u32
+/// lane, then mask + shift + or.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_3byte<S: Simd>(simd: S, bytes: &[u8]) -> [u32; 4] {
     let v = u8x16::from_slice(simd, bytes);
@@ -168,7 +205,10 @@ pub(crate) fn decode_3byte_dispatch(bytes: &[u8]) -> [u32; 4] {
     dispatch!(level, simd => decode_3byte(simd, bytes))
 }
 
-/// Decode up to 12 bytes of validated UTF-8 from a per-byte end-of-code-point mask.
+/// Decode up to 12 bytes of validated UTF-8 into `out`, using the pre-shifted
+/// `end_mask` (bit `i` = byte `i` ends a code point). Returns
+/// `(code_points_written, bytes_consumed)`. Mirrors simdutf's
+/// `convert_masked_utf8_to_utf32` (`0x924` 3-byte fast path, then the table).
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_utf8_12<S: Simd>(
@@ -229,7 +269,11 @@ fn decode_utf8_12<S: Simd>(
     }
 }
 
-/// Transcode one 64-byte block of validated UTF-8 to UTF-32.
+/// Transcode one 64-byte block of validated UTF-8 to UTF-32 (one end-of-code-
+/// point mask per block, then a 12-byte chunk loop).
+/// Returns `(code_points_written, bytes_consumed)`. A full block consumes
+/// 52..=63 bytes (the trailing ≤12 overlap into the next call); a sub-76-byte
+/// input falls back to scalar decode.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn decode_block<S: Simd>(simd: S, bytes: &[u8], out: &mut [u32]) -> (usize, usize) {
@@ -279,8 +323,9 @@ pub(crate) fn decode_block_dispatch(bytes: &[u8], out: &mut [u32]) -> (usize, us
     dispatch!(level, simd => decode_block(simd, bytes, out))
 }
 
-/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, `0x80..=0x9f`),
-/// so the loop must split the run.
+/// Whether any code point in `cps` is a control (`< 0x20`, `DEL`, or
+/// `0x80..=0x9f`) — the ones the dispatch loop must split out via `execute`
+/// instead of a single `print_codepoints` run.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn any_control(cps: &[u32]) -> bool {
@@ -295,8 +340,9 @@ fn any_control_impl<S: Simd>(simd: S, cps: &[u32]) -> bool {
     let space = SPACE as u32;
     let del = DEL as u32;
     let c1_end = 0x9f;
-    // Return at the first control: the accumulated-mask version adds a
-    // loop-carried dependency (2.2% on `utf8_mixed`).
+    // Return at the first chunk holding a control. Accumulating the masks and
+    // branching once is slower: printable text scans every chunk either way,
+    // and the accumulator adds a loop-carried dependency (2.2% on `utf8_mixed`).
     for chunk in chunks {
         let v = u32x4::from_slice(simd, chunk);
         let c0 = simd.simd_lt_u32x4(v, simd.splat_u32x4(space));

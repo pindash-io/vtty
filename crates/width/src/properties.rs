@@ -487,9 +487,33 @@ pub(crate) fn cell_width_from(p: Properties, c: char) -> Option<usize> {
 mod simd {
     use std::sync::OnceLock;
 
-    use fearless_simd::{Level, Simd, dispatch, prelude::*, u8x16};
+    use fearless_simd::{Level, Simd, prelude::*, u8x16};
 
     static LEVEL: OnceLock<Level> = OnceLock::new();
+
+    /// Dispatch a kernel to the architecture baseline: on x86 these kernels use
+    /// `u8x16` only, so one SSE2 copy covers every level; other targets keep
+    /// `fearless_simd::dispatch!`.
+    macro_rules! dispatch {
+        ($level:expr, $simd:pat => $op:expr) => {{
+            cfg_select! {
+                any(target_arch = "x86", target_arch = "x86_64") => {
+                    let level = $level;
+                    let token = match level.as_sse2() {
+                        Some(token) => token,
+                        None => unreachable!("`Level::new` returns an SSE2 level on x86"),
+                    };
+                    token.vectorize(|| {
+                        let $simd = token;
+                        $op
+                    })
+                },
+                _ => {
+                    fearless_simd::dispatch!($level, $simd => $op)
+                },
+            }
+        }};
+    }
 
     #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) fn first_non_ascii(bytes: &[u8]) -> usize {
