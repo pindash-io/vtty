@@ -27,7 +27,6 @@ fn autowrap_at_last_column() {
     run(&mut s, b"abc");
     assert_eq!(s.cursor(), (0, 2));
     run(&mut s, b"d");
-    // `d` wraps to the next line.
     assert_eq!(s.cursor(), (1, 1));
     assert_eq!(s.render_line(0).as_deref(), Some("abc"));
     assert_eq!(s.render_line(1).as_deref(), Some("d"));
@@ -62,7 +61,6 @@ fn skin_tone_attaches_to_wide() {
 fn zwj_emoji_family_is_one_cell() {
     let mut s = Screen::new(8, 1);
     run(&mut s, "👨\u{200D}👩\u{200D}👧x".as_bytes());
-    // The whole family occupies two cells (one glyph); `x` lands after.
     assert_eq!(s.render_line(0).as_deref(), Some("👨\u{200D}👩\u{200D}👧x"));
     assert_eq!(s.cell(0, 0).map(|c| c.ch), Some('👨'));
     assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
@@ -97,7 +95,6 @@ fn render_ansi_style_change() {
 fn render_ansi_trims_trailing_blank() {
     let mut s = Screen::new(8, 1);
     run(&mut s, b"hi");
-    // Plain text needs no escape sequences and no trailing blanks.
     assert_eq!(s.render_ansi_line(0), "hi");
 }
 
@@ -162,13 +159,11 @@ fn truecolor_sgr() {
 #[test]
 fn color_rgb_resolves_palette() {
     let mut s = Screen::new(4, 1);
-    // Default fg/bg resolve to the configured defaults.
     assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xffff_ffff));
     assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x0000_00ff));
     // Indexed colors: 0..=15 use the palette, 16..=255 the xterm table.
     assert_eq!(s.color_rgb(ColorId(1)), Some(0xcd0000ff));
     assert_eq!(s.color_rgb(ColorId(196)), Some(0xff0000ff));
-    // Truecolor ids resolve through the dynamic palette.
     run(&mut s, b"\x1b[38;2;0;128;255mX");
     assert_eq!(s.color_rgb(ColorId(258)), Some(0x0080ffff));
 }
@@ -288,7 +283,6 @@ fn decsca_zero_clears_protection() {
 fn reverse_video_swaps_default_colors() {
     let mut s = Screen::new(4, 1);
     run(&mut s, b"X\x1b[?5h"); // DECSCNM on
-    // Default fg/bg swap to explicit black-on-white.
     assert_eq!(
         s.render_ansi_line(0),
         "\x1b[0;38;2;0;0;0;48;2;255;255;255mX\x1b[0m"
@@ -735,7 +729,6 @@ fn resize_reflows_scrollback() {
     assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaaa"));
     assert_eq!(s.scrollback_text(1).as_deref(), Some("bbbbb"));
     s.resize(10, 2);
-    // History survives the resize (now at the wider width).
     assert_eq!(s.scrollback_len(), 2);
     assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaaa"));
     assert_eq!(s.scrollback_text(1).as_deref(), Some("bbbbb"));
@@ -950,7 +943,6 @@ fn render_ansi_multiple_rows() {
     let ansi = s.render_ansi();
     assert!(ansi.contains("a\r\n"));
     assert!(ansi.contains("b"));
-    // Wide glyphs skip their continuation cell.
     run(&mut s, b"\x1b[2J\x1b[1;1H");
     run(&mut s, "中".as_bytes());
     assert!(s.render_ansi_line(0).contains("中"));

@@ -3,13 +3,13 @@
 
 //! Compile-time UTF-8→UTF-32 transcode lookup tables.
 //!
-//! Computed by `const fn` from simdutf's `shufutf8`/`utf8bigindex` algorithm
-//! so no table data is checked in. A 12-bit end-of-code-point mask (`bit i =
-//! byte i ends a code point`) yields code-point sizes (gaps between set bits),
-//! classified as `case12` (6×1-2-byte), `case123` (4×1-3-byte), or `case1234`
-//! (3×1-4-byte); otherwise an error sentinel `(209, 12)`. `UTF8BIGINDEX[mask]`
-//! maps to `(shuffle index, consumed bytes)`; `SHUFUTF8[idx]` is the shuffle
-//! that gathers each code point's bytes into one lane.
+//! Computed by `const fn` from simdutf's `shufutf8`/`utf8bigindex` algorithm, so
+//! no table data is checked in. A 12-bit end-of-code-point mask (bit `i` = byte
+//! `i` ends a code point) gives the code-point sizes as gaps between set bits,
+//! classified `case12` (6×1–2 bytes), `case123` (4×1–3), `case1234` (3×1–4), or
+//! the error sentinel `(209, 12)`. `UTF8BIGINDEX[mask]` maps to
+//! `(shuffle index, consumed bytes)` and `SHUFUTF8[idx]` gathers each code
+//! point's bytes into one lane.
 
 /// 209 × 16-byte shuffle patterns.
 pub(crate) const SHUFUTF8: [[u8; 16]; 209] = build_shufutf8();

@@ -1,19 +1,16 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! VT input throughput across parsers: vtty, vte, vt100, vtparse, rio-vt
-//! and fux-vt.
+//! VT input throughput across parsers: vtty, vte, vt100, vtparse, rio-vt and
+//! fux-vt.
 //!
-//! Every parser feeds the same byte corpora into a counting sink so the
-//! measurement is parser + dispatch cost, not grid/state mutation. vt100 and
-//! fux-vt are the exceptions: they expose no standalone parser, so their full
-//! screen emulators are measured as-is.
+//! Every parser feeds the same byte corpora into a counting sink, so this
+//! measures parser + dispatch cost, not grid mutation. vt100 and fux-vt expose
+//! no standalone parser, so their full screen emulators run as-is. Both vtty
+//! paths are measured in one run: the `simd` feature is on and each parser
+//! picks scalar or `Parser::with_simd` at runtime.
 //!
-//! The `vtty` (scalar) and `vtty-simd` (`Parser::with_simd`) paths are both
-//! measured in one run: vtty is compiled with the `simd` feature and the
-//! path is selected per-parser at runtime.
-//!
-//! `vt_input`/`vt_screen` use a 2 MiB working set (cache-resident, single
+//! `vt_input` and `vt_screen` use a 2 MiB working set (cache-resident, single
 //! core). `vt_bandwidth` re-runs a subset with `VTTY_BENCH_BYTES` (default
 //! 512 MiB) so the working set exceeds the last-level cache, and
 //! `vt_parallel` shards that input across `VTTY_BENCH_THREADS` (default:

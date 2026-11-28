@@ -141,8 +141,7 @@ impl MouseButton {
         if tracking.contains(MouseTracking::UTF8) {
             return Some(SmallVec::from(b.encode_utf8(x, y).as_bytes()));
         }
-        // X10 coordinates top out at 222 (`32 + coord + 1` ≤ 255); larger
-        // would wrap and corrupt the stream, so drop the event.
+        // X10 coordinates top out at 222 (`32 + coord + 1` ≤ 255); larger would wrap.
         if x > 222 || y > 222 {
             return None;
         }
@@ -240,8 +239,7 @@ mod tests {
             "DEC 9 reports no releases"
         );
 
-        // SGR-pixel (1016): 1-based pixel coordinates (herdr maps pixel 1,1 to
-        // the top-left cell and rejects 0).
+        // SGR-pixel (1016): 1-based pixel coordinates.
         let px = MouseTracking::ENABLED | MouseTracking::PIXEL;
         assert_eq!(
             MouseButton::Left.encode(px, 27, 72, true).as_deref(),
@@ -256,8 +254,7 @@ mod tests {
             Some(&b"\x1b[M@!!"[..])
         );
 
-        // X10's single-byte coordinates top out at 222 (222 + 1 + 32 = 255);
-        // a larger coordinate would wrap and must be dropped.
+        // X10 single-byte coordinates top out at 222 (222+1+32 = 255); larger wraps.
         assert_eq!(
             MouseButton::Left.encode(x10, 222, 0, true).as_deref(),
             Some(&b"\x1b[M \xff!"[..])

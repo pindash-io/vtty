@@ -270,7 +270,7 @@ impl ColorSpec {
         Self::Rgb(crate::rgb_to_u32(r, g, b))
     }
 
-    /// Clamp an indexed color to the 256-color table and wrap it.
+    /// Clamp an indexed color to the 256-color table.
     #[inline]
     pub const fn indexed(n: i32) -> Self {
         Self::Indexed(crate::ColorId::from_index(n).index())

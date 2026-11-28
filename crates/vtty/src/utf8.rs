@@ -319,19 +319,17 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     i
 }
 
-/// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`).
-/// Returns bytes consumed (at least 1).
+/// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`),
+/// returning bytes consumed (at least 1).
 ///
-/// With `simd`, validates a window via `simdutf8` and dispatches it in bulk
-/// (ASCII + multi-byte together); scalar decodes one code point at a time.
-/// The window is capped at the next `ESC`: `ESC` is never a UTF-8 continuation,
-/// so it is a safe boundary that must reach the escape state rather than be
-/// dispatched as `execute`.
+/// With `simd`, a window is validated by `simdutf8` and dispatched in bulk;
+/// scalar decodes one code point at a time. The window ends at the next `ESC`,
+/// which is never a continuation byte, so the escape state always sees it.
 ///
 /// Both paths follow W3C "Substitution of Maximal Subparts": a truncated or
 /// ill-formed sequence yields one U+FFFD, and a standalone C1 byte
-/// (`0x80..=0x9f`) dispatches via [`Perform::execute`], the same contract
-/// as vte and rio-vt.
+/// (`0x80..=0x9f`) dispatches through [`Perform::execute`], as in vte and
+/// rio-vt.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_utf8<P: Perform>(
     p: &mut P,

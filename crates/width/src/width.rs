@@ -424,7 +424,7 @@ fn decode_at(bytes: &[u8], pos: usize) -> Option<(char, usize)> {
 }
 
 /// Per-char display cell widths, with emoji sequences merged by the UTS #51
-/// DFA ([`crate::EmojiDFA`]): the single structural source of truth
+/// DFA ([`crate::EmojiDFA`]): the single source of truth
 /// (keycap, modifier, RI flag, ZWJ, tag, VS16/VS15):
 ///
 /// - A lone char keeps its own width (`©` = 1, `👍` = 2); a lone width-0 mark

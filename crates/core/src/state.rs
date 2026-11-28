@@ -79,8 +79,7 @@ impl State {
         if self.text.is_empty() {
             return None;
         }
-        // Skip to the newline before `line` (start is one past it), then the
-        // next newline ends the line.
+        // Start one past the previous newline; end at the next.
         let mut newlines = self.text.match_indices('\n');
         let start = match line {
             0 => 0,
@@ -103,8 +102,7 @@ impl Perform for State {
     }
 
     fn print_bytes(&mut self, s: &[u8]) {
-        // Printable ASCII is valid UTF-8 by construction; a non-UTF-8 run is
-        // impossible and is dropped rather than mishandled.
+        // Printable ASCII is valid UTF-8; a non-UTF-8 run is dropped.
         let Ok(s) = core::str::from_utf8(s) else {
             return;
         };
