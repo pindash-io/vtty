@@ -137,8 +137,7 @@ pub mod prelude {
     pub use crate::{PerformProgramStatus, ProgramStatus, StatusKind, StatusState};
 }
 
-/// Longer-form documentation kept in the repository and mirrored here so it
-/// also appears on docs.rs.
+/// Repository docs mirrored onto docs.rs.
 #[allow(
     clippy::doc_markdown,
     reason = "embedded repository markdown uses plain-table identifiers, not Rust items"

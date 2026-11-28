@@ -75,17 +75,11 @@ Owned events, replies and terminal state round-trip through a compact,
 use vtty_codec::{decode_from_slice, encode_to_vec};
 use vtty::{Event, Parser};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Owned events encode/decode as data:
-    let mut parser = Parser::new();
-    let events = parser.parse_events(b"\x1b[1;31mhi");
+let mut parser = Parser::new();
+let events = parser.parse_events(b"\x1b[1;31mhi");
 
-    let bytes = encode_to_vec(&events)?;
-    let restored = decode_from_slice::<Vec<Event>>(&bytes)?;
-
-    assert_eq!(events, restored);
-    Ok(())
-}
+let bytes = encode_to_vec(&events)?;
+assert_eq!(decode_from_slice::<Vec<Event>>(&bytes)?, events);
 ```
 
 ## Benchmarks

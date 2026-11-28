@@ -196,14 +196,7 @@ DECPCTERM and is deliberately ignored, not treated as a DECSTBM form.
 
 ## Resource limits
 
-Bounded, O(n) (see [ARCHITECTURE.md, Resource limits](ARCHITECTURE.md#resource-limits)):
-
-- OSC payload 1 MiB
-- OSC params 16
-- CSI/DCS params 32
-- intermediates 2
-- UTF-8 partial 4 bytes
-- SIMD window 4096
+Bounded and O(n); see [ARCHITECTURE.md, Resource limits](ARCHITECTURE.md#resource-limits).
 
 ## How this is enforced
 
