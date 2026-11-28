@@ -18,7 +18,7 @@ use crate::perform::Perform;
 ///
 /// # Allocation
 ///
-/// Params/intermediates use inline `SmallVec`s (≤6 params, ≤2 intermediates,
+/// Params/intermediates use inline `SmallVec`s (≤8 params, ≤2 intermediates,
 /// no heap); only OSC bodies allocate. This mirrors `vtparse`'s `VTAction`
 /// for differential testing.
 ///
@@ -30,14 +30,13 @@ use crate::perform::Perform;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Event {
-    /// A single printable code point (UTF-8 decoded).
+    /// One printable code point.
     Print(char),
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — the bulk hot
-    /// path, preserved as one event (not per-byte `Print`).
+    /// A printable ASCII run, kept as one event.
     PrintBytes(Vec<u8>),
-    /// A C0/C1 control byte.
+    /// A C0 or C1 control byte.
     Execute(u8),
-    /// A CSI sequence: `ESC [ <params> <intermediates> <final>`.
+    /// A CSI sequence (`ESC [ params intermediates final`).
     CsiDispatch {
         /// Collected numeric parameters (inline up to 8).
         params: SmallVec<i32, 8>,
@@ -49,14 +48,14 @@ pub enum Event {
         /// The final byte selecting the command.
         final_byte: u8,
     },
-    /// An escape sequence: `ESC <intermediates> <byte>`.
+    /// An escape sequence (`ESC intermediates byte`).
     EscDispatch {
         /// Intermediate bytes (`0x20..0x2f`).
         intermediates: SmallVec<u8, 2>,
         /// The final byte selecting the command.
         byte: u8,
     },
-    /// A DCS header: `ESC P <params> <intermediates> <final>`.
+    /// A DCS header (`ESC P params intermediates final`).
     DcsHook {
         /// Collected numeric parameters (inline up to 8).
         params: SmallVec<i32, 8>,
@@ -65,13 +64,11 @@ pub enum Event {
         /// The final byte selecting the command.
         final_byte: u8,
     },
-    /// A DCS payload byte.
+    /// One DCS payload byte.
     DcsPut(u8),
     /// The DCS string ended.
     DcsUnhook,
-    /// An OSC command ended: `ESC ] <params split on ';'> (BEL | ST)`. The
-    /// outer list is inline up to 8 params; each body is a heap `Vec<u8>`
-    /// (variable-length byte strings have to be owned).
+    /// A finished OSC command (`ESC ] params`, BEL or ST terminated).
     OscDispatch {
         /// Parameters split on `;`, each an owned byte string.
         params: SmallVec<Vec<u8>, 8>,
@@ -81,9 +78,8 @@ pub enum Event {
 }
 
 impl Event {
-    /// Append the canonical escape-sequence bytes to `out` — the textual
-    /// inverse of the parser, so re-parsing the appended bytes reproduces
-    /// `self` (modulo the `-1` empty-param sentinel).
+    /// Append the canonical escape-sequence bytes for `self`; re-parsing them
+    /// reproduces the event.
     pub fn write_bytes<const N: usize>(&self, out: &mut SmallVec<u8, N>) {
         match self {
             Self::Print(c) => {
@@ -357,9 +353,7 @@ fn split_intermediates(ints: &[u8]) -> (&[u8], &[u8]) {
     ints.split_at(split)
 }
 
-/// Bit `i` of a CSI colon-separator bitfield is set when parameter `i`
-/// (0-based) was followed by a colon (`:`) rather than a semicolon (`;`).
-/// Only the first 16 parameters are tracked; later ones read as `false`.
+/// Bit `i` is set when parameter `i` was colon-separated; 16 parameters only.
 #[inline]
 pub const fn param_colon_sep(sep: u16, i: usize) -> bool {
     i < 16 && (sep & (1 << i)) != 0
@@ -379,7 +373,7 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
     for (i, p) in params.iter().enumerate() {
         if i > 0 {
             // The separator before param `i` is "param `i - 1` followed by
-            // colon" — bit `i - 1` of the bitfield.
+            // colon": bit `i - 1` of the bitfield.
             let colon = param_colon_sep(sep, i - 1);
             out.push(if colon { b':' } else { b';' });
         }
@@ -387,9 +381,7 @@ fn push_params<const N: usize>(out: &mut SmallVec<u8, N>, params: &[i32], sep: u
     }
 }
 
-/// Append one parameter as decimal text. The negative sentinels (`-1` trailing
-/// or colon-empty, `-2` separator-empty) are written as nothing: the
-/// surrounding separators already carry them.
+/// Append one parameter as decimal text; the `-1`/`-2` sentinels write nothing.
 #[inline]
 pub(crate) fn push_param<const N: usize>(out: &mut SmallVec<u8, N>, p: i32) {
     if p < 0 {
@@ -401,8 +393,9 @@ pub(crate) fn push_param<const N: usize>(out: &mut SmallVec<u8, N>, p: i32) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use smallvec::SmallVec;
+
+    use super::*;
 
     #[test]
     fn write_bytes_print_and_execute() {
@@ -437,9 +430,7 @@ mod tests {
             (SmallVec::from([-2, -2, -1]), &b"\x1b[;;m"[..]),
             (SmallVec::from([-1]), &b"\x1b[m"[..]),
             (SmallVec::from([0, 65535]), &b"\x1b[0;65535m"[..]),
-            // Hand-built params are not clamped; `i32::MAX` is the widest
-            // value `push_param` can see, and it needs every one of the ten
-            // buffer bytes.
+            // Hand-built params are not clamped; `i32::MAX` needs every buffer byte.
             (SmallVec::from([i32::MAX]), &b"\x1b[2147483647m"[..]),
         ] {
             let mut out = SmallVec::<u8, 16>::new();
@@ -493,12 +484,10 @@ mod tests {
         assert_eq!(rec.len(), 6);
         assert_eq!(rec.iter().count(), 6);
 
-        // Replay every variant onto a fresh recording.
         let mut target = Recording::new();
         rec.replay(&mut target);
         assert_eq!(target.events, rec.events);
 
-        // Drain empties the recording and yields the events.
         let drained: Vec<_> = rec.drain().collect();
         assert_eq!(drained.len(), 6);
         assert!(rec.is_empty());

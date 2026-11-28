@@ -3,20 +3,20 @@
 How `vtty` lines up against DEC's VT500-series behaviour, as specified by
 Paul Flo Williams' canonical references on <https://vt100.net/>:
 
-- **[A parser for DEC's ANSI-compatible video terminals](https://vt100.net/emu/dec_ansi_parser)** — the
+- **[A parser for DEC's ANSI-compatible video terminals](https://vt100.net/emu/dec_ansi_parser)**: the
   state machine `vtty` encodes (`crates/vtty/src/table.rs`, `parser.rs`).
-- **[DECronomicon: private control sequences](https://vt100.net/emu/ctrlseq_dec.html)** — the
+- **[DECronomicon: private control sequences](https://vt100.net/emu/ctrlseq_dec.html)**: the
   DEC private CSI catalog (by intermediate byte).
-- **[DECronomicon: private modes](https://vt100.net/emu/dec_private_modes.html)** — DEC
+- **[DECronomicon: private modes](https://vt100.net/emu/dec_private_modes.html)**: DEC
   private modes 1–117.
-- **[DECronomicon: device control strings](https://vt100.net/emu/dcsseq_dec.html)** — the
+- **[DECronomicon: device control strings](https://vt100.net/emu/dcsseq_dec.html)**: the
   DEC DCS catalog.
-- **EK-VT510-RM** / **EK-VT520-RM** — the VT500-series programmer manuals.
+- **EK-VT510-RM** / **EK-VT520-RM**: the VT500-series programmer manuals.
 
 > **Scope note.** `vtty` is a *parser*: it decodes bytes into typed events
 > (`csi_dispatch`, `hook`/`put`/`unhook`, `osc_dispatch`, …) and hands them to
 > a `Perform` sink. The parser does **not** interpret cursor movement, editing,
-> scrolling, or rendering. `vtty_screen` ships a `Perform` sink that does — a
+> scrolling, or rendering. `vtty_screen` ships a `Perform` sink that does; a
 > cell grid with cursor addressing, SGR, scrolling, DECSTBM, the alternate
 > screen, and scrollback. So "conformance" here means the parser recognizes
 > the byte grammar exactly as DEC did, and the *types* (`TermFlags`, `Reply`,
@@ -24,9 +24,9 @@ Paul Flo Williams' canonical references on <https://vt100.net/>:
 
 ## Parser state machine
 
-The DEC VT500 transition diagram is transcribed twice — once in the production
+The DEC VT500 transition diagram is transcribed twice, once in the production
 table (`transition_impl`), once as an independent reference (`dec_step` in
-`table.rs` tests) — and compared exhaustively.
+`table.rs` tests), and compared exhaustively.
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ xterm/kitty modes modern apps probe.
 | Mode | Mnemonic | vtty flag |
 | --- | --- | --- |
 | 1 | DECCKM | `CURSOR_KEYS` |
-| 3 | DECCOLM | `DECCOLM` (tracked, not applied — host owns width) |
+| 3 | DECCOLM | `DECCOLM` (tracked, not applied: host owns width) |
 | 5 | DECSCNM | `REVERSE` |
 | 6 | DECOM | `ORIGIN` |
 | 7 | DECAWM | `WRAPAROUND` |
@@ -75,14 +75,14 @@ xterm/kitty modes modern apps probe.
 | 80 | DECSDM | `DECSDM` (tracked; Sixel placement is the renderer's job) |
 
 **xterm/kitty modes tracked** (modern protocol, not DEC): 9, 12, 45, 47,
-1000–1016, 1035, 1045–1049, 2004, 2026, 2027, 2031, 2048 — see
+1000–1016, 1035, 1045–1049, 2004, 2026, 2027, 2031, 2048; see
 `TermFlags::from_private_param`.
 
 **Notable DEC modes *not* tracked** (would need a screen to act on them):
 DECSCLM (4), DECARM (8), DECRLM (34), DECCRNLM (40), DECNRCM (42), DECAAM
 (100), DECCANSM (101), DECNULM (102), DECECM (117), and the VT520 session/
 window modes. These are parse-dispatched (the screen sees the `SM`/`RM`
-call), just not reflected in a flag — the full catalog is at
+call), just not reflected in a flag; the full catalog is at
 <https://vt100.net/emu/dec_private_modes.html>.
 
 ## Query / Reply protocols
@@ -94,7 +94,7 @@ call), just not reflected in a flag — the full catalog is at
 | DECRQSS | `DCS $ q … ST` | `DCS {valid} $ r … ST` | ✅ `Reply::decrqss` |
 | DECRQM | `CSI ?Ps$p` | `CSI ?Ps;{state}$y` | ✅ `Reply::decrqm` |
 | XTGETTCAP | `DCS + q <hex> ST` | `DCS {ok} + r … ST` | ✅ `Reply::xtgettcap_*` + `Cap` table |
-| SGR (DECRQSS `m`) | — | `0;…m` | ✅ `Reply::sgr` |
+| SGR (DECRQSS `m`) | (none) | `0;…m` | ✅ `Reply::sgr` |
 | `OSC 10/11/4` color | `OSC … ?` | `OSC … ST` | ✅ `Reply::osc_color` / `osc_palette` / `osc_background` |
 | DECTSR (state report) | `CSI 1 $ u` (DECRQTSR) | `DCS 1 $ s D…D ST` | ✅ `Reply::dectsr` |
 | DECCTR (color table) | `CSI 2 $ u` (DECRQTSR) | `DCS 2 $ s D…D ST` | ✅ `Reply::decctr` |
@@ -106,7 +106,7 @@ call), just not reflected in a flag — the full catalog is at
 
 > DECTSR uses a **lowercase `s`** final (`DCS 1 $ s`), per the EK-VT510-RM
 > errata on vt100.net. DECTSR/DECCTR payloads are the device-attribute / color
-> table data; DECCIR/DECTABSR payloads are the cursor / tab-stop state — the
+> table data; DECCIR/DECTABSR payloads are the cursor and tab-stop state: the
 > screen supplies them to the `Reply` builders.
 
 ## Device control strings (DCS)
@@ -196,29 +196,22 @@ DECPCTERM and is deliberately ignored, not treated as a DECSTBM form.
 
 ## Resource limits
 
-Bounded, O(n) (see [ARCHITECTURE.md — Resource limits](ARCHITECTURE.md#resource-limits)):
-
-- OSC payload 1 MiB
-- OSC params 16
-- CSI/DCS params 32
-- intermediates 2
-- UTF-8 partial 4 bytes
-- SIMD window 4096
+Bounded and O(n); see [ARCHITECTURE.md, Resource limits](ARCHITECTURE.md#resource-limits).
 
 ## How this is enforced
 
-- `table.rs` — exhaustive state×byte differential vs the DEC diagram (1,664 assertions).
-- `parser.rs` — C1 "anywhere" + string-cancellation regression tests.
-- `tests/vt_differential.rs` / `vt_differential_rio.rs` — corpus parity vs `vte` / `rio-vt`
+- `table.rs`: exhaustive state×byte differential vs the DEC diagram (1,664 assertions).
+- `parser.rs`: C1 "anywhere" + string-cancellation regression tests.
+- `tests/vt_differential.rs` / `vt_differential_rio.rs`: corpus parity vs `vte` / `rio-vt`
   (documented divergences excluded: raw C1, rio-vt's four intermediates, and
   rio-vt's verbatim OSC payloads).
-- `fuzz/` — libFuzzer differential + robustness targets.
+- `fuzz/`: libFuzzer differential + robustness targets.
 
 ## Known gaps (roadmap)
 
-1. `DECRSPS` (`DCS $ t`) / `DECRSTS` (`DCS $ p`) restore handlers — the parser
+1. `DECRSPS` (`DCS $ t`) / `DECRSTS` (`DCS $ p`) restore handlers: the parser
    dispatches them, but applying the state is the screen's job.
-2. The remaining DEC private modes (4, 8, 34, 40, 42, 100–117) — parse-dispatched
+2. The remaining DEC private modes (4, 8, 34, 40, 42, 100–117): parse-dispatched
    but not tracked as `TermFlags`; `DECSCL` is covered by `ConformanceLevel`.
 3. Reference renderers for Sixel (`DCS q`), DECDLD (`DCS {`), DECUDK (`DCS |`).
 4. `vtty_screen` gaps: DECLRMM/DECSLRM (horizontal margins) and keyboard

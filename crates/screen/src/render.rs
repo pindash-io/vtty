@@ -39,21 +39,19 @@ fn push_sgr_flags(out: &mut String, sgr: SgrFlags) {
     }
 }
 
-/// Emit an SGR sequence with explicit truecolor foreground/background
-/// (already resolved to packed `0xRRGGBBAA`). Used by reverse video, where
-/// the default colors must swap as real RGB rather than sentinel ids.
+/// Emit truecolor fg/bg SGR, already resolved to `0xRRGGBBAA`; reverse video
+/// needs that so defaults swap as real RGB.
 pub(crate) fn push_rgb_sgr(out: &mut String, sgr: SgrFlags, fg: u32, bg: u32) {
     push_sgr_flags(out, sgr);
-    let [r, g, b] = vtty_core::u32_to_rgb(fg);
+    let [r, g, b] = vtty_core::u32_to_array(fg);
     let _ = write!(out, ";38;2;{r};{g};{b}");
-    let [r, g, b] = vtty_core::u32_to_rgb(bg);
+    let [r, g, b] = vtty_core::u32_to_array(bg);
     let _ = write!(out, ";48;2;{r};{g};{b}");
     out.push('m');
 }
 
-/// Emit one SGR color (`;{base}8;5;n` indexed or `;{base}8;2;r;g;b`
-/// truecolor resolved from `palette`). The default color emits nothing —
-/// the leading `ESC [ 0` already selects it.
+/// Emit one SGR color (`;{base}8;5;n` or `;{base}8;2;r;g;b`); the default
+/// emits nothing, since the leading reset selects it.
 pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: &[u32]) {
     let default = if base == 3 {
         DEFAULT_FG_ID
@@ -63,7 +61,7 @@ pub(crate) fn push_ansi_color(out: &mut String, base: u8, id: ColorId, palette: 
     if id != default && id.0 <= 255 {
         let _ = write!(out, ";{base}8;5;{}", id.0);
     } else if let Some(&rgb) = id.0.checked_sub(258).and_then(|i| palette.get(i as usize)) {
-        let [r, g, b] = vtty_core::u32_to_rgb(rgb);
+        let [r, g, b] = vtty_core::u32_to_array(rgb);
         let _ = write!(out, ";{base}8;2;{r};{g};{b}");
     }
 }
@@ -77,9 +75,8 @@ pub(crate) const fn trailing_blanks(cells: &[Cell]) -> usize {
     n
 }
 
-/// Render a `Cell` slice to plain text (used by
-/// [`Screen::render_line`](crate::Screen::render_line) and
-/// [`Screen::scrollback_text`](crate::Screen::scrollback_text)).
+/// Render a `Cell` slice to plain text (used by `render_line` and
+/// `scrollback_text`).
 pub(crate) fn render_cells(cells: &[Cell]) -> String {
     let mut s = String::new();
     for cell in cells {

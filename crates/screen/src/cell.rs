@@ -15,22 +15,22 @@ bitflags::bitflags! {
     /// Per-buffer screen state, swapped wholesale with the alternate screen.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct BufferFlags: u8 {
-        /// DECOM — origin mode (cursor addressing is margin-relative).
+        /// DECOM, margin-relative addressing.
         const ORIGIN = 1 << 1;
     }
 
     /// Global screen modes, shared across the main and alternate buffers.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct ScreenFlags: u8 {
-        /// DECAWM — autowrap.
+        /// DECAWM, autowrap.
         const WRAP = 1 << 0;
-        /// DECTCEM — cursor visible.
+        /// DECTCEM, cursor visible.
         const CURSOR_VISIBLE = 1 << 1;
-        /// The alternate screen buffer is active (DEC 47/1046/1047/1049).
+        /// The alternate screen buffer is active.
         const ALT_ACTIVE = 1 << 2;
-        /// IRM (`CSI 4 h/l`) — insert mode; new glyphs shift the row right.
+        /// IRM, insert mode.
         const INSERT = 1 << 3;
-        /// DECSCNM (`CSI ?5 h/l`) — reverse video; render swaps fg/bg.
+        /// DECSCNM, reverse video.
         const REVERSE = 1 << 4;
     }
 }

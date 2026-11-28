@@ -1,7 +1,7 @@
 /* Copyright © Fangdun Tsai <fundon@pindash.io>
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  *
- * vtty_ffi.h — raw C ABI over the byte-level `vtty` VT parser.
+ * vtty_ffi.h: raw C ABI over the byte-level `vtty` VT parser.
  *
  * All offsets (cursor, text length, line ranges) are BYTE offsets into the
  * UTF-8 buffer returned by vt_text. vt_text is valid UTF-8 but NOT
@@ -63,7 +63,7 @@ size_t vt_line_count(const vt_state *state);
 size_t vt_cursor_row(const vt_state *state);
 
 /* 0-based BYTE column of the cursor within its line (byte offset from the
- * line start — not a terminal cell column). */
+ * line start, not a terminal cell column). */
 size_t vt_cursor_col(const vt_state *state);
 
 /* Fill *start and *end with the byte range of line `line` (0-based) into

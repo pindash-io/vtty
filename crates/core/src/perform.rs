@@ -9,28 +9,17 @@
 
 /// A sink for the byte parser's decoded output.
 ///
-/// `Parser::advance` calls one method per dispatch: a printable code point or
-/// ASCII run, a C0/C1 control, or the parsed body of a CSI, OSC, DCS or ESC
-/// sequence. Every method has a no-op default, so a screen overrides only the
-/// callbacks it needs.
-///
-/// [`Event`](crate::Event) is the owned, trait-free alternative: parse into a
-/// `Vec<Event>` via `Parser::parse_events` instead of implementing this trait.
+/// Every method has a no-op default, so a sink overrides only the callbacks it
+/// needs. [`Event`](crate::Event) is the owned alternative: `parse_events`
+/// returns a `Vec<Event>` instead of calling back.
 ///
 /// # Fused callbacks
 ///
-/// Two defaults are composites rather than raw parser actions:
-///
-/// * [`print_line`](Perform::print_line) fuses a printable ASCII run with a
-///   following bare `\n`.
-/// * [`print_crlf_line`](Perform::print_crlf_line) fuses a printable ASCII
-///   run with a following `\r\n`.
-///
-/// Terminal output almost always arrives as LF- or CRLF-terminated lines, so
-/// one fused call avoids two or three callback round-trips. The defaults
-/// delegate to [`print_bytes`](Perform::print_bytes) and
-/// [`execute`](Perform::execute); a screen may override them to render the
-/// fused form directly.
+/// [`print_line`](Perform::print_line) and
+/// [`print_crlf_line`](Perform::print_crlf_line) fuse a printable ASCII run with
+/// the `\n` or `\r\n` after it. The defaults delegate to
+/// [`print_bytes`](Perform::print_bytes) and [`execute`](Perform::execute);
+/// override them to render the fused form.
 ///
 /// # Example
 ///
@@ -54,14 +43,12 @@ pub trait Perform {
     /// A single printable non-ASCII code point (UTF-8 decoded).
     fn print(&mut self, _c: char) {}
 
-    /// A contiguous run of printable ASCII (`0x20..=0x7e`) — display text,
-    /// the bulk hot path. Valid UTF-8 by construction, so implementations
-    /// may `std::str::from_utf8_unchecked` without re-validating.
+    /// A contiguous printable ASCII run (`0x20..=0x7e`), the bulk hot path.
+    /// Valid UTF-8 by construction, so no re-validation is needed.
     fn print_bytes(&mut self, _s: &[u8]) {}
 
-    /// A contiguous run of pre-decoded printable code points (never C0/C1).
-    /// Defaults to per-code-point [`print`](Perform::print); bulk writers
-    /// can specialize.
+    /// A run of pre-decoded printable code points; defaults to per-code-point
+    /// [`print`](Perform::print).
     fn print_codepoints(&mut self, codepoints: &[u32]) {
         for &cp in codepoints {
             let c = char::from_u32(cp).unwrap_or(char::REPLACEMENT_CHARACTER);
@@ -72,18 +59,14 @@ pub trait Perform {
     /// A C0/C1 control byte (e.g. `\n`, `\t`, `\x1b`).
     fn execute(&mut self, _byte: u8) {}
 
-    /// A printable ASCII run immediately followed by a bare `\n` — the
-    /// raw-LF streaming hot path. Defaults to [`print_bytes`](Perform::print_bytes)
-    /// then [`execute`](Perform::execute) of `\n`; screens may fuse them when
-    /// the result is identical.
+    /// A printable ASCII run followed by a bare `\n`. Defaults to `print_bytes`
+    /// then `execute`; screens may fuse them when the result is identical.
     fn print_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\n');
     }
 
-    /// A printable ASCII run immediately followed by `\r\n` — the OPOST/PTY
-    /// streaming hot path. Defaults to print then CR then LF; screens may
-    /// fuse them when the result is identical.
+    /// A printable ASCII run followed by `\r\n`. Defaults to print, CR, LF.
     fn print_crlf_line(&mut self, s: &[u8]) {
         self.print_bytes(s);
         self.execute(b'\r');
@@ -105,12 +88,11 @@ pub trait Perform {
     /// [`csi_dispatch`](Perform::csi_dispatch)). Default: ignore.
     fn hook(&mut self, _params: &[i32], _intermediates: &[u8], _final_byte: u8) {}
 
-    /// A device-control string payload byte arrived. Raw — arbitrary, not
-    /// necessarily UTF-8 (Sixel raster, kitty graphics, base64). Default:
-    /// ignore.
+    /// A DCS payload byte arrived: raw, not necessarily UTF-8. Ignored by
+    /// default.
     fn put(&mut self, _byte: u8) {}
 
-    /// A contiguous DCS payload run — raw bytes. Defaults to per-byte
+    /// A contiguous DCS payload run, raw bytes. Defaults to per-byte
     /// [`put`](Perform::put); cross-byte decoders (e.g. sixel) can override.
     fn put_slice(&mut self, bytes: &[u8]) {
         for &byte in bytes {
@@ -127,10 +109,11 @@ pub trait Perform {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::string::String;
     use alloc::vec;
     use alloc::vec::Vec;
+
+    use super::*;
 
     /// Records the leaf callbacks so the delegating defaults are observable.
     #[derive(Default)]

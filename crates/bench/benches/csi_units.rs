@@ -12,8 +12,8 @@
 //! cargo bench -p vtty_bench --bench csi_units -- --baseline before   # compare
 //! ```
 //!
-//! Throughput is reported per *sequence* (`Melem/s` — `1e9 / elem_s` is the
-//! cost of one dispatch), which is the unit the parser's fast paths are about.
+//! Throughput is per *sequence* (Criterion's `Melem/s`; each element is one
+//! CSI dispatch).
 //! The baseline pair above is the supported way to A/B a change: criterion
 //! compares each shape against the stored run in the same machine state, so it
 //! resolves differences that a cross-binary comparison cannot.

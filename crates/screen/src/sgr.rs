@@ -86,17 +86,15 @@ impl Screen {
         }
     }
 
-    /// DECSCA (`CSI Ps " q`): protect attribute for subsequently written
-    /// cells. `1` marks them protected (DECSED/DECSEL skip them); `0`/`2`
-    /// (or an absent parameter) leave them erasable.
+    /// DECSCA (`CSI Ps " q`): `1` marks cells protected, `0`/`2` leave them
+    /// erasable.
     pub(crate) fn decsca(&mut self, params: &[i32]) {
         self.active.protect = params.first().copied().unwrap_or(0) == 1;
     }
 }
 
-/// Parse an SGR parameter list into `(sgr, fg, bg)` in place. Truecolor specs
-/// are appended to `rgb` and referenced by id, so the same sequence applies
-/// to one cell (the current style) or many (DECCARA/DECRARA).
+/// Parse an SGR list into `(sgr, fg, bg)`, appending truecolor specs to `rgb`
+/// so one sequence can apply to one cell or many.
 pub(crate) fn apply_sgr_to(
     params: &[i32],
     sgr: &mut SgrFlags,

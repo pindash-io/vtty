@@ -7,10 +7,6 @@
 //! treatment follows the [DEC parser state diagram]. The DEC Special Graphics
 //! glyph table is from EK-VT520-RM.
 //!
-//! [`Charset`] is a single designated set, [`Charsets`] the four G0..=G3
-//! sets, and [`Scs`] the full SCS state; the raw glyph table is
-//! [`dec_special_graphics`].
-//!
 //! [ECMA-35]: https://www.ecma-international.org/publications-and-standards/standards/ecma-35/
 //! [ISO 2022]: https://en.wikipedia.org/wiki/ISO/IEC_2022
 //! [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
@@ -19,12 +15,11 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Charset {
-    /// US-ASCII (the default).
+    /// US-ASCII, the default.
     Ascii,
-    /// DEC Special Graphics — maps ASCII `0x5f..=0x7e` to line-drawing and
-    /// special glyphs (`─│┌┐└┘` etc.), which vim/tmux use to draw borders.
+    /// DEC Special Graphics, line drawing over `0x5f..=0x7e`.
     Dec,
-    /// British (`ESC ( A`) — maps `#` to `£`.
+    /// British, `#` as `£`.
     British,
 }
 
@@ -44,10 +39,7 @@ impl Charset {
     pub const fn map(self, c: char) -> char {
         match self {
             Self::Ascii => c,
-            Self::Dec => match c {
-                '\u{5f}'..='\u{7e}' => dec_special_graphics(c),
-                _ => c,
-            },
+            Self::Dec => Self::dec(c),
             Self::British => {
                 if c == '#' {
                     '£'
@@ -56,6 +48,20 @@ impl Charset {
                 }
             }
         }
+    }
+
+    /// The DEC Special Graphics glyphs for `0x5f..=0x7e`, in code-point order;
+    /// any other char passes through.
+    const fn dec(c: char) -> char {
+        const GLYPHS: [char; 32] = [
+            ' ', '◆', '▒', '␉', '␌', '␍', '␊', '°', '±', '␤', '␋', '┘', '┐', '┌', '└', '┼', '⎺',
+            '⎻', '─', '⎼', '⎽', '├', '┤', '┴', '┬', '│', '≤', '≥', 'π', '≠', '£', '·',
+        ];
+        let i = c as u32;
+        if i < 0x5f || i > 0x7e {
+            return c;
+        }
+        GLYPHS[(i - 0x5f) as usize]
     }
 }
 
@@ -69,10 +75,8 @@ impl From<u8> for Charset {
     }
 }
 
-/// The four ISO 2022 designated character sets (G0, G1, G2, G3), selected by
-/// the `ESC ( / ) / * / +` designation sequences and the `SO`/`SI`/`SS2`/`SS3` shift
-/// controls. A terminal carries these as one unit: DECSC/DECRC save and
-/// restore all four together.
+/// The four ISO 2022 designated sets (G0..=G3), selected by `ESC ( / ) / * / +`
+/// and the `SO`/`SI`/`SS2`/`SS3` shifts. DECSC/DECRC save all four together.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Charsets([Charset; 4]);
 
@@ -143,9 +147,8 @@ impl core::ops::IndexMut<usize> for Charsets {
 }
 
 /// The full ISO 2022 SCS (Select Character Set) state: the four designated
-/// G-sets plus the GL locking-shift slot and the `SS2`/`SS3` single shift. One
-/// `Copy` value so the active-charset selection lives in one place (teken's
-/// `t_scs_gl`/`t_curscs` over `t_scs`).
+/// G-sets plus the GL locking-shift slot and the `SS2`/`SS3` single shift. A
+/// single `Copy` value, so DECSC/DECRC saves the whole selection at once.
 ///
 /// # Example
 ///
@@ -166,7 +169,7 @@ pub struct Scs {
     pub gl: u8,
     /// `SS2`/`SS3` single shift for the next printable char only.
     pub single_shift: Option<u8>,
-    /// `single_shift.is_none() && locked() == Ascii` — cached so the bulk
+    /// Cached `single_shift.is_none() && locked() == Ascii`, so the bulk
     /// ASCII path reads one flag instead of the `Option` + the slot lookup.
     pub ascii_fast: bool,
 }
@@ -198,19 +201,18 @@ impl Scs {
             && matches!(self.charsets.get(self.gl as usize), Charset::Ascii);
     }
 
-    /// Apply a C0/C1 charset-shift control byte: SO (`0x0E`) = LS1,
-    /// SI (`0x0F`) = LS0, SS2 (`0x8E`) = single-shift G2, SS3 (`0x8F`) =
-    /// single-shift G3. Any other byte is a no-op.
+    /// Apply a C0/C1 shift byte (`SO`/`SI` lock GL, `SS2`/`SS3` shift once);
+    /// any other byte is a no-op.
     #[inline]
     pub const fn apply_shift(&mut self, byte: u8) {
         match byte {
-            0x0E => self.shift(1),
-            0x0F => self.shift(0),
-            0x8E => {
+            0x0e => self.shift(1),
+            0x0f => self.shift(0),
+            0x8e => {
                 self.single_shift = Some(2);
                 self.ascii_fast = false;
             }
-            0x8F => {
+            0x8f => {
                 self.single_shift = Some(3);
                 self.ascii_fast = false;
             }
@@ -228,9 +230,8 @@ impl Scs {
         self.charsets.get(gl as usize)
     }
 
-    /// The locked charset (the GL slot, ignoring any SS2/SS3 single shift) —
-    /// the bulk path where the caller has already verified `single_shift` is
-    /// `None`.
+    /// The locked charset (the GL slot), the bulk path where `single_shift` is
+    /// already known to be `None`.
     #[inline]
     pub const fn locked(&self) -> Charset {
         self.charsets.get(self.gl as usize)
@@ -245,10 +246,8 @@ impl Scs {
         charset.map(c)
     }
 
-    /// Translate a char through the locked charset only — the bulk path where
-    /// the caller has already verified `single_shift` is `None` (so `active()`
-    /// would just read `gl`). Skips the `Option` unwrap and the `single_shift`
-    /// write of [`Self::map`].
+    /// Translate a char through the locked charset only: the bulk path, where the
+    /// caller already checked `single_shift` is `None`.
     #[inline]
     pub const fn map_locked(&self, c: char) -> char {
         let charset = self.charsets.get(self.gl as usize);
@@ -262,56 +261,12 @@ impl Default for Scs {
     }
 }
 
-/// The DEC Special Graphics glyph table for `0x5f..=0x7e`.
-///
-/// Used when a G-set is designated to [`Charset::Dec`] (`ESC ( 0` /
-/// `ESC ) 0`). Bytes outside the range pass through unchanged.
-#[inline]
-pub const fn dec_special_graphics(c: char) -> char {
-    match c {
-        '_' => ' ',
-        '`' => '◆',
-        'a' => '▒',
-        'b' => '␉',
-        'c' => '␌',
-        'd' => '␍',
-        'e' => '␊',
-        'f' => '°',
-        'g' => '±',
-        'h' => '␤',
-        'i' => '␋',
-        'j' => '┘',
-        'k' => '┐',
-        'l' => '┌',
-        'm' => '└',
-        'n' => '┼',
-        'o' => '⎺',
-        'p' => '⎻',
-        'q' => '─',
-        'r' => '⎼',
-        's' => '⎽',
-        't' => '├',
-        'u' => '┤',
-        'v' => '┴',
-        'w' => '┬',
-        'x' => '│',
-        'y' => '≤',
-        'z' => '≥',
-        '{' => 'π',
-        '|' => '≠',
-        '}' => '£',
-        '~' => '·',
-        _ => c,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn dec_special_graphics_translation() {
-        assert_eq!(dec_special_graphics('_'), ' ');
         assert_eq!(Charset::Dec.map('_'), ' ');
         assert_eq!(Charset::Dec.map('q'), '─');
         assert_eq!(Charset::Dec.map('x'), '│');
@@ -358,11 +313,11 @@ mod tests {
             ('~', '·'),
         ];
         for (c, expected) in table {
-            assert_eq!(dec_special_graphics(c), expected, "for {c:?}");
+            assert_eq!(Charset::Dec.map(c), expected, "for {c:?}");
         }
         // Unmapped chars pass through.
-        assert_eq!(dec_special_graphics('A'), 'A');
-        assert_eq!(dec_special_graphics('^'), '^');
+        assert_eq!(Charset::Dec.map('A'), 'A');
+        assert_eq!(Charset::Dec.map('^'), '^');
     }
 
     #[test]
@@ -404,8 +359,8 @@ mod tests {
 
     #[test]
     fn dec_special_graphics_passthrough() {
-        assert_eq!(dec_special_graphics('A'), 'A');
-        assert_eq!(dec_special_graphics('~'), '·');
+        assert_eq!(Charset::Dec.map('A'), 'A');
+        assert_eq!(Charset::Dec.map('~'), '·');
     }
 
     #[test]

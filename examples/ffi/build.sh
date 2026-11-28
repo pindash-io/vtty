@@ -15,4 +15,4 @@ esac
 echo ">> compiling term_demo…"
 cc -O2 term_demo.c -I ../../crates/vtty_ffi -L ../../target/release "${libs[@]}" -o term_demo
 
-echo ">> built ./term_demo — run it, or pipe commands: printf 'ls\\nexit\\n' | ./term_demo"
+echo ">> built ./term_demo; run it, or pipe commands: printf 'ls\\nexit\\n' | ./term_demo"

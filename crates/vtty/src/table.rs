@@ -4,7 +4,7 @@
 //! DEC VT500 escape-sequence state machine: parser states, the `Action`
 //! table, and the `transition` lookup.
 //!
-//! Reference: Paul Flo Williams' [VT500 parser state diagram] — the "State
+//! Reference: Paul Flo Williams' [VT500 parser state diagram]; the "State
 //! Definitions" and "Action Definitions" sections map 1:1 to [`ParseState`]
 //! and [`Action`]. The grammar those states encode is [ECMA-48] §5.4/§8.3.
 //!
@@ -29,17 +29,16 @@ const STATES: [ParseState; 14] = [
     ParseState::SosPmApcString,
 ];
 
-/// The DEC VT500 transition table expanded to a flat `[state][byte]` lookup
-/// table at compile time. 14 states × 256 bytes = 3584 × 4 bytes ≈ 14 KB,
-/// resident in `.rodata`; the runtime lookup is a single load.
+/// The DEC VT500 transition table as a flat `[state][byte]` array built at
+/// compile time: 3584 × 4 bytes ≈ 14 KB in `.rodata`, one load per lookup.
 static TABLE: [(Action, ParseState); 14 * 256] = build_table();
 
 /// The DEC VT500 parser states, named after their "State Definitions" entry
 /// on the [state diagram]. Discriminants double as the table index.
 ///
 /// [state diagram]: https://vt100.net/emu/dec_ansi_parser
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum ParseState {
     #[default]
     Ground = 0,
@@ -204,9 +203,8 @@ const fn transition_impl(state: ParseState, b: u8) -> (Action, ParseState) {
             0x00..=0x17 | 0x19 | 0x1c..=0x1f => (Action::NONE, ParseState::SosPmApcString),
             0x18 | 0x1a => (Action::EXECUTE, ParseState::Ground),
             0x1b => (Action::NONE, ParseState::Escape),
-            // SOS/PM/APC: the first content byte is the "action" (e.g. `G`
-            // for kitty graphics APC `_G`); dispatch it as a hook and reuse
-            // the DCS string state for put/unhook.
+            // SOS/PM/APC: the first content byte is the action (kitty's `G`), so
+            // dispatch it as a hook and reuse the DCS state for put/unhook.
             0x20..=0x7e => (Action::HOOK, ParseState::DcsPassthrough),
             0x9c => (Action::NONE, ParseState::Ground),
             _ => (Action::NONE, ParseState::SosPmApcString),
@@ -239,7 +237,8 @@ pub(crate) fn transition(state: ParseState, b: u8) -> (Action, ParseState) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Action, ParseState, TABLE, build_table, transition};
+    use super::{Action, ParseState, TABLE};
+    use super::{build_table, transition};
 
     /// Independent transcription of Paul Flo Williams' [VT500 parser state
     /// diagram], restricted to bytes `0x00..=0x7f` (C0 + GL + `DEL`). C1
@@ -377,29 +376,25 @@ mod tests {
         }
     }
 
-    /// Deliberate deviations from the DEC diagram (modern protocol
-    /// extensions). `(state, byte)` pairs that intentionally behave
-    /// differently from DEC; everything else must match `dec_step` exactly.
+    /// Deliberate deviations from the DEC diagram (modern extensions); every
+    /// other pair must match `dec_step` exactly.
     fn vtty_deviation(state: ParseState, b: u8) -> Option<(Action, ParseState)> {
         Some(match (state, b) {
-            // kitty colon sub-parameters: `:` is a param separator (SGR
-            // `38:2::r:g:b`, `4:3` curly underline), not "ignore the whole
-            // sequence" as DEC specified.
+            // kitty colon sub-parameters: `:` separates (SGR `38:2::r:g:b`, `4:3`), not
+            // ignore the sequence as DEC specified.
             (ParseState::CsiEntry, 0x3a) => (Action::NONE, ParseState::CsiParam),
             (ParseState::CsiParam, 0x3a) => (Action::NONE, ParseState::CsiParam),
             (ParseState::DcsEntry, 0x3a) => (Action::NONE, ParseState::DcsParam),
             (ParseState::DcsParam, 0x3a) => (Action::NONE, ParseState::DcsParam),
-            // kitty APC graphics `_G`: SOS/PM/APC content bytes dispatch
-            // `hook` (and reuse the DCS passthrough state for put/unhook)
-            // instead of being ignored as DEC specified.
+            // kitty APC `_G`: content bytes dispatch hook/put/unhook instead of being
+            // ignored as DEC specified.
             (ParseState::SosPmApcString, 0x20..=0x7e) => (Action::HOOK, ParseState::DcsPassthrough),
             _ => return None,
         })
     }
 
-    /// Exhaustive differential: every non-ground state x every byte in the
-    /// table's scope (`0x00..=0x7f`) must match the DEC diagram, except the
-    /// documented deviations. 13 x 128 = 1664 assertions.
+    /// Every non-ground state by every byte in scope (`0x00..=0x7f`), minus the
+    /// documented deviations.
     #[test]
     fn table_matches_dec_ansi_parser_diagram() {
         const STATES: [ParseState; 13] = [
@@ -430,8 +425,8 @@ mod tests {
         }
     }
 
-    /// Run the const builder at runtime so its arms are covered, and assert
-    /// the flat `TABLE` agrees with it entry for entry.
+    /// Run the const builder at runtime so its arms are covered, and compare it entry
+    /// for entry with `TABLE`.
     #[test]
     fn table_builder_matches_const_table() {
         assert_eq!(build_table(), TABLE);

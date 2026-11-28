@@ -10,7 +10,8 @@ use alloc::vec::Vec;
 
 use smallvec::SmallVec;
 
-use vtty_core::{Event, Perform, Recording, set_param_colon_sep};
+use vtty_core::set_param_colon_sep;
+use vtty_core::{Event, Perform, Recording};
 
 use crate::limits::{
     MAX_INTERMEDIATES, MAX_OSC_PARAMS, MAX_OSC_PAYLOAD, MAX_PARAM_COUNT, MAX_PARAM_VALUE,
@@ -18,23 +19,20 @@ use crate::limits::{
 use crate::scan::{
     first_dcs_boundary, first_non_printable, first_non_printable_word, first_osc_boundary,
 };
-use crate::table::{Action, ParseState, transition};
-use crate::utf8::{PartialUtf8, decode_utf8, trailing_partial};
+use crate::table::transition;
+use crate::table::{Action, ParseState};
+use crate::utf8::PartialUtf8;
+use crate::utf8::{decode_utf8, trailing_partial};
 
-/// The byte-input VT parser: UTF-8 decoding plus per-codepoint dispatch.
-///
-/// CSI/DCS parameter accumulator: the current digit run, the collected
-/// parameters and the colon-separator bits.
+/// CSI/DCS parameter accumulator: the current digit run, the collected params
+/// and the colon-separator bits.
 #[derive(Debug, PartialEq, Eq)]
 struct Params {
-    /// Current parameter being accumulated. DEC VT500 params are 16-bit
-    /// (0..=65535); `i32` holds the clamped range plus the `-1` empty-param
-    /// sentinel.
+    /// Current parameter being accumulated: DEC's 16-bit range plus the `-1`
+    /// empty-param sentinel.
     param: i32,
-    /// True while the current parameter is empty (no digits seen since the
-    /// last `;`/`:`). An empty COLON parameter is pushed as `-1` so SGR colon
-    /// forms (`38:2::r:g:b` — empty colorspace) stay distinguishable from a
-    /// literal `0`.
+    /// True while the current parameter has no digits. A colon-empty param is `-1`,
+    /// keeping SGR colon forms distinct from a literal `0`.
     empty: bool,
     /// Collected parameters, capped at [`MAX_PARAM_COUNT`]. A fixed array plus
     /// a separate length makes clearing O(1).
@@ -68,16 +66,14 @@ struct Intermediates {
 /// OSC payload accumulator.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Osc {
-    /// Accumulated payload bytes. Inline up to 56 — nvim's longest OSC is 54
+    /// Accumulated payload bytes. Inline up to 56: nvim's longest OSC is 54
     /// bytes (clipboard base64), so common OSC payloads stay inline.
     payload: SmallVec<u8, 56>,
     /// Set when the payload exceeds [`MAX_OSC_PAYLOAD`]; the whole OSC is
     /// then discarded.
     overflow: bool,
-    /// Start offset of each OSC param in `payload` (the params are contiguous
-    /// in the buffer — `;` separators are not stored). `starts[0]` is always
-    /// 0; the extra slot holds the last param's end offset, so params 17+ are
-    /// dropped.
+    /// Start offset of each OSC param in `payload`; the extra slot holds the last
+    /// end, so params past the cap are dropped.
     starts: [u32; MAX_OSC_PARAMS + 1],
     num_starts: usize,
     /// Where the current payload lives: deferred in the `advance` input slice
@@ -85,23 +81,12 @@ struct Osc {
     buffer: OscBuffer,
 }
 
-/// A byte-input VT500 state machine that decodes terminal escape sequences
-/// and dispatches them to a [`Perform`] sink.
+/// A byte-input VT500 parser: UTF-8 decode plus inline dispatch to a [`Perform`]
+/// sink.
 ///
-/// `Parser` implements the DEC VT500 state machine from Paul Flo Williams'
-/// [A parser for DEC's ANSI-compatible video terminals][dec-parser]. It turns
-/// raw PTY bytes into a small set of typed callbacks: printable text, C0/C1
-/// controls, and the parsed bodies of CSI, OSC, DCS and ESC sequences.
-///
-/// Parsing state is inline, so [`Parser::new`] never allocates. Reuse one
-/// parser across calls; the only heap growth is an OSC payload past 56 bytes.
-///
-/// # Two dispatch styles
-///
-/// * [`Parser::advance`] feeds a [`Perform`] implementation — the
-///   zero-allocation hot path, with no intermediate [`Event`] values.
-/// * [`Parser::parse_events`] collects every dispatch into a `Vec<Event>` — the
-///   trait-free convenience API for tests and tooling.
+/// Parsing state is inline, so [`Parser::new`] never allocates; the only heap
+/// growth is an OSC payload past 56 bytes. [`Parser::advance`] feeds a sink
+/// directly, [`Parser::parse_events`] collects `Vec<Event>` instead.
 ///
 /// # Example
 ///
@@ -127,19 +112,15 @@ struct Osc {
 ///
 /// # Streaming and chunking
 ///
-/// `Parser` is incremental: bytes may arrive in arbitrarily small chunks, and
-/// sequences split across calls to [`Parser::advance`] are reassembled. A
-/// UTF-8 code point split across calls is held until the remaining bytes
-/// arrive; an unterminated OSC payload is buffered until its terminator.
-/// After the final [`Parser::advance`], call [`Parser::flush`] once so a
-/// trailing incomplete code point is emitted as `U+FFFD`.
+/// Chunks may split a code point or sequence at any boundary; both are
+/// reassembled. Call [`Parser::flush`] after the last chunk so a trailing
+/// partial code point becomes `U+FFFD`.
 ///
-/// # Panics
+/// # Panic safety
 ///
 /// The parser never panics on untrusted input: truncated sequences, invalid
-/// UTF-8 and overlong payloads are handled by maximal subpart substitution
-/// and the parser's hard caps. `unwrap`, `expect` and `panic` are denied
-/// crate-wide.
+/// UTF-8 and overlong payloads go through maximal-subpart substitution and the
+/// hard caps.
 ///
 /// [dec-parser]: https://vt100.net/emu/dec_ansi_parser
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -151,14 +132,12 @@ pub struct Parser {
     /// A UTF-8 code point split across `advance` calls (lead + already-arrived
     /// continuation bytes held until the rest arrive).
     partial: PartialUtf8,
-    /// Runtime SIMD toggle: when `true`, the printable-run scan and UTF-8
-    /// validation use SIMD. Only present (and only settable, via
-    /// [`Parser::with_simd`]) when the `simd` feature is compiled in.
+    /// Runtime SIMD toggle for the printable-run scan and UTF-8 validation,
+    /// present only with the `simd` feature.
     #[cfg(feature = "simd")]
     simd: bool,
-    /// Test-only: route the escape-sequence states through the transition
-    /// table (skipping the inline hot-path handlers) so tests can
-    /// differential the table against the optimized paths.
+    /// Test-only: route the escape states through the table instead of the
+    /// inline handlers, so tests can differential the two.
     #[cfg(test)]
     cold: bool,
 }
@@ -183,8 +162,7 @@ impl OscBuffer {
 }
 
 /// Parse one decimal CSI parameter at `*i`, clamped to [`MAX_PARAM_VALUE`].
-/// Absent digits read as `0`, matching what the accumulator yields for an
-/// empty parameter.
+/// Absent digits read as `0`.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 const fn param_at(seq: &[u8], i: &mut usize) -> i32 {
     let mut v = 0_i32;
@@ -203,10 +181,7 @@ const fn param_at(seq: &[u8], i: &mut usize) -> i32 {
 }
 
 impl Parser {
-    /// An empty parser in the ground state.
-    ///
-    /// This is equivalent to [`Parser::new`], but can be used in a `const`
-    /// context.
+    /// An empty parser in the ground state, usable in a `const` context.
     pub const DEFAULT: Self = Self {
         state: ParseState::Ground,
         params: Params {
@@ -332,15 +307,10 @@ impl Parser {
     /// Feed a chunk of bytes to the parser, dispatching each decoded event to
     /// the sink `p`.
     ///
-    /// This is the zero-allocation hot path: events are delivered directly to
-    /// `p` without being materialized as [`Event`] values. See
-    /// [`Parser::parse_events`] for the owned enum API.
-    ///
-    /// `advance` is incremental. Bytes may be split across calls at arbitrary
-    /// boundaries: multi-byte UTF-8 code points and escape sequences that
-    /// straddle a chunk boundary are reassembled transparently. After the
-    /// final chunk, call [`Parser::flush`] once so that a trailing incomplete
-    /// UTF-8 code point is emitted as `U+FFFD`.
+    /// Events go straight to `p`, never materialized as [`Event`] values;
+    /// [`Parser::parse_events`] is the owned alternative. Chunks may split a
+    /// code point or sequence at any boundary; call [`Parser::flush`] after the
+    /// last chunk so a trailing partial code point becomes `U+FFFD`.
     ///
     /// # Example
     ///
@@ -365,13 +335,9 @@ impl Parser {
         }
         let mut i = 0;
 
-        // Complete a partially-decoded UTF-8 code point carried over from the
-        // previous call.
+        // Complete a carried-over partial code point.
         if self.partial.pending() {
-            // A consumed continuation byte either completes the code point
-            // (emit it) or leaves more to arrive. A non-continuation byte
-            // aborts the partial (emit U+FFFD once) and is left for the main
-            // loop.
+            // A continuation completes it or leaves more; anything else aborts it (U+FFFD).
             while i < bytes.len() {
                 if !self.partial.feed(bytes[i]) {
                     p.print(char::REPLACEMENT_CHARACTER);
@@ -393,8 +359,7 @@ impl Parser {
             }
         }
 
-        // Detect a trailing partial code point once, handing the partial-free
-        // prefix length to the ground loop (avoids re-scanning per entry).
+        // Detect a trailing partial once; hand the prefix length to the ground loop.
         let valid_end = match trailing_partial(bytes) {
             Some((v, partial)) => {
                 self.partial = partial;
@@ -403,24 +368,26 @@ impl Parser {
             None => bytes.len(),
         };
 
+        let force_cold = self.force_cold();
+
         while i < bytes.len() {
-            match self.state {
-                ParseState::Ground => {
+            match (self.state, force_cold) {
+                (ParseState::Ground, _) => {
                     i = self.advance_ground(p, bytes, i, valid_end);
                 }
-                ParseState::OscString if !self.force_cold() => {
+                (ParseState::OscString, false) => {
                     i = self.advance_osc_run(p, bytes, i);
                 }
-                ParseState::DcsPassthrough if !self.force_cold() => {
+                (ParseState::DcsPassthrough, false) => {
                     i = self.advance_dcs_run(p, bytes, i);
                 }
-                ParseState::Escape if !self.force_cold() => {
+                (ParseState::Escape, false) => {
                     i = self.advance_escape_byte(p, bytes, i);
                 }
-                ParseState::DcsEntry if !self.force_cold() => {
+                (ParseState::DcsEntry, false) => {
                     i = self.advance_dcs_entry_byte(p, bytes, i);
                 }
-                ParseState::CsiParam | ParseState::DcsParam if !self.force_cold() => {
+                (ParseState::CsiParam | ParseState::DcsParam, false) => {
                     i = self.advance_param_run(p, bytes, i);
                 }
                 _ => i = self.advance_non_ground(p, bytes, i),
@@ -496,10 +463,7 @@ impl Parser {
         p.print(char::REPLACEMENT_CHARACTER);
     }
 
-    /// Ground state: SIMD-scan for the next non-printable byte (control OR
-    /// high-bit — which includes `ESC`), bulk-dispatch printable ASCII runs via
-    /// `print_bytes`, and decode multi-byte chars one at a time. The hot path —
-    /// kept inline.
+    /// Ground state: scan the printable run, then dispatch it in bulk.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_ground<P: Perform>(
         &mut self,
@@ -509,8 +473,7 @@ impl Parser {
         valid_end: usize,
     ) -> usize {
         let run = &bytes[i..];
-        // `valid` is the prefix before the trailing partial; an escape
-        // sequence can consume past `valid_end` (raw bytes), so a later ground
+        // An escape sequence can consume past `valid_end`, so a later ground
         // re-entry clears the stale partial.
         let valid = if i <= valid_end {
             valid_end - i
@@ -523,24 +486,19 @@ impl Parser {
             // SIMD: find the leading printable-ASCII run.
             let n = first_non_printable(&run[pos..valid], self.simd_enabled());
             if n > 0 {
-                // Printable ASCII is valid UTF-8 by construction (the SIMD
-                // classifier already rejected control/high-bit bytes), so no
-                // `from_utf8` re-validation is needed here.
+                // The SIMD classifier already rejected control and high-bit bytes, so
+                // this ASCII is valid UTF-8: no re-validation.
                 let mut end = pos + n;
-                // Fused print+LF fast path: `printable\n` (raw LF) or
-                // `printable\r\n` (OPOST) dispatch one `print_line`/
-                // `print_crlf_line` call. The defaults delegate to
-                // `print_bytes` + `execute`, so non-specializing screens
-                // are unaffected.
+                // Fused print+LF: `printable\n` or `printable\r\n` dispatch
+                // one `print_line`/`print_crlf_line` call, not print+execute.
                 if end < valid && run[end] == b'\n' {
                     p.print_line(&run[pos..end]);
                     pos = end + 1;
                     continue;
                 }
                 if end + 1 < valid && run[end] == b'\r' && run[end + 1] == b'\n' {
-                    // CRLF storm (`printable\r\n` repeated): SWAR-scan one
-                    // 8-byte word per line and dispatch `print_crlf_line`
-                    // without re-entering the general ground loop.
+                    // CRLF storm: SWAR-scan one word per line and dispatch `print_crlf_line`
+                    // without re-entering the ground loop.
                     loop {
                         p.print_crlf_line(&run[pos..end]);
                         pos = end + 2;
@@ -575,15 +533,11 @@ impl Parser {
                 break;
             }
             let mut b = run[pos];
-            // Bulk CSI fast path: `ESC [ params final` — scan the final byte
-            // and parse params (plus a leading `?`/`>`/`=`/`<` marker) in one
-            // pass. Anything else (an intermediate, a private marker after
-            // params, C0/DEL, high-bit) bails to the state machine, which
-            // enforces CsiIntermediate/CsiParam → CsiIgnore.
+            // Bulk CSI: scan the final byte and the params (plus a private
+            // marker) in one pass; anything else bails to the state machine.
             if !self.force_cold() && b == 0x1b && matches!(run.get(pos + 1), Some(&b'[')) {
-                // Keep scanning on success: a re-entry costs a fresh
-                // `first_non_printable` scan per sequence on CSI-dense input
-                // (SGR churn, cursor motion).
+                // Keep scanning on success: a re-entry costs a fresh scan per sequence on
+                // CSI-dense input.
                 if let Some(consumed) = self.try_dispatch_csi(p, &run[pos + 2..valid]) {
                     pos += 2 + consumed;
                     continue;
@@ -597,9 +551,8 @@ impl Parser {
                     return i + pos + 1;
                 }
                 0x00..=0x1f | 0x7f => {
-                    // C0 controls (and DEL) often cluster (`\r\n`, `\t\t`):
-                    // execute the run in a tight loop without re-scanning.
-                    // ESC breaks out so the outer loop enters the escape state.
+                    // C0 clusters (`\r\n`, `\t\t`): execute the run in one loop; ESC breaks
+                    // out to the escape state.
                     loop {
                         p.execute(b);
                         pos += 1;
@@ -613,10 +566,8 @@ impl Parser {
                     }
                 }
                 0x80..=0x9f => {
-                    // Raw 8-bit C1: introducers start their sequence; ST is
-                    // a no-op; other C1 controls execute (a lone C1 byte is
-                    // invalid UTF-8, so this is the correct fallback).
-                    // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+                    // Raw 8-bit C1: introducers start a sequence, ST is a
+                    // no-op, other controls execute.
                     let (action, next) = Self::c1_transition(b);
                     self.apply(p, action, b);
                     if next != ParseState::Ground {
@@ -635,11 +586,8 @@ impl Parser {
         i + run.len()
     }
 
-    /// Dispatch `CSI a;b;c… m` — three or more parameters, the truecolor and
-    /// multi-attribute SGR shapes. `k` points at the `;` after `second`.
-    /// Returns the bytes consumed, or `None` when the shape is not a plain
-    /// parameter list (an empty parameter, a `:` separator or an oversized
-    /// list belongs to the byte loop).
+    /// Dispatch `CSI a;b;c… m`, three or more parameters. `k` points at the `;`
+    /// after `second`; returns the bytes consumed, or `None` to fall back.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn dispatch_param_list<P: Perform>(
         &mut self,
@@ -671,71 +619,94 @@ impl Parser {
         Some(k + 1)
     }
 
-    /// Parse a `ESC [` CSI sequence from `seq`, dispatching inline. `seq` is
-    /// the printable run that follows `ESC [`, so it can extend past the final
-    /// byte; every read here is bounds-checked. Returns the number of bytes
-    /// consumed, or `None` to bail to the state machine (an intermediate, a
-    /// private marker after params, C0/DEL, or a high bit).
-    ///
-    /// The sequence state is already empty on entry (ground-state invariant:
-    /// any prior sequence cleared it on dispatch, and the caller clears on
-    /// bail), so there is no up-front clear — the success path's
-    /// `dispatch_csi` and the bail path's caller both reset it.
+    /// Parse an `ESC [` sequence from `seq`, dispatching inline. `seq` can
+    /// extend past the final byte; returns the bytes consumed or `None`.
+    /// Dispatch a complete CSI from the printable run that follows `ESC [`,
+    /// returning the bytes consumed. `None` hands the shape to the state
+    /// machine: an intermediate, a marker after params, C0/DEL, a high byte, or
+    /// a sequence that ends past this run.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn try_dispatch_csi<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
-        if seq.is_empty() {
+        let &first = seq.first()?;
+
+        if first == b'?'
+            && let Some(consumed) = self.dispatch_dec_mode(p, seq)
+        {
+            return Some(consumed);
+        } else if first.is_ascii_digit()
+            && let Some(consumed) = self.dispatch_params(p, seq)
+        {
+            return Some(consumed);
+        } else if matches!(first, 0x40..=0x7e) {
+            // `CSI <final>`: no params, no intermediates, so there is no
+            // accumulator to prime or clear.
+            p.csi_dispatch(&[], 0, &[], first);
+            return Some(1);
+        }
+
+        self.dispatch_csi_loop(p, seq, 0)
+    }
+
+    /// `CSI ? <digits> h|l`: the private-mode shape shells and TUIs emit.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_dec_mode<P: Perform>(&self, p: &mut P, seq: &[u8]) -> Option<usize> {
+        let mut i = 1;
+        if !seq.get(i).is_some_and(u8::is_ascii_digit) {
             return None;
         }
-
-        // `CSI ? <digits> h|l` — DEC private mode set/reset, the shape shells
-        // and TUIs emit around every prompt. The marker byte otherwise forces
-        // the general parameter loop.
-        if seq[0] == b'?' {
-            let mut i = 1;
-            if seq.get(i).is_some_and(u8::is_ascii_digit) {
-                let mode = param_at(seq, &mut i);
-                if let Some(&next @ (b'h' | b'l')) = seq.get(i) {
-                    p.csi_dispatch(&[mode], 0, b"?", next);
-                    return Some(i + 1);
-                }
+        let mode = param_at(seq, &mut i);
+        match seq.get(i) {
+            Some(&next @ (b'h' | b'l')) => {
+                p.csi_dispatch(&[mode], 0, b"?", next);
+                Some(i + 1)
             }
+            _ => None,
         }
+    }
 
-        // One or two parameters and a final byte carry almost every other CSI:
-        // SGR (`CSI 31m`), cursor addressing (`CSI r;c H`), scroll margins
-        // (`CSI 1;24 r`). A longer `;` list goes to `dispatch_param_list`; an
-        // empty parameter or a `:` separator primes the accumulator and resumes
-        // in the byte loop below.
+    /// One param, two params, or a longer `;`-list, all ending in one final
+    /// byte. On failure the accumulator is primed for [`Self::dispatch_csi_loop`].
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_params<P: Perform>(&mut self, p: &mut P, seq: &[u8]) -> Option<usize> {
         let mut i = 0;
-        if seq[i].is_ascii_digit() {
-            let first = param_at(seq, &mut i);
+        let first = param_at(seq, &mut i);
 
-            if let Some(&next) = seq.get(i) {
-                if matches!(next, 0x40..=0x7e) {
-                    p.csi_dispatch(&[first], 0, &[], next);
-                    return Some(i + 1);
+        if let Some(&next) = seq.get(i) {
+            if (0x40..=0x7e).contains(&next) {
+                p.csi_dispatch(&[first], 0, &[], next);
+                return Some(i + 1);
+            }
+            if next == b';' {
+                let mut j = i + 1;
+                let second = param_at(seq, &mut j);
+                // A second param needs at least one digit; `CSI r;H` reports
+                // the `-1` sentinel the loop would push for it.
+                if j > i + 1 && matches!(seq.get(j), Some(0x40..=0x7e)) {
+                    p.csi_dispatch(&[first, second], 0, &[], seq[j]);
+                    return Some(j + 1);
                 }
-                if next == b';' {
-                    let mut j = i + 1;
-                    let col = param_at(seq, &mut j);
-                    // A column needs at least one digit; `CSI r;H` reports the
-                    // `-1` sentinel the loop would push for it.
-                    if j > i + 1 && matches!(seq.get(j), Some(0x40..=0x7e)) {
-                        p.csi_dispatch(&[first, col], 0, &[], seq[j]);
-                        return Some(j + 1);
-                    }
-                    if seq.get(j) == Some(&b';')
-                        && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, col)
-                    {
-                        return Some(consumed);
-                    }
+                if seq.get(j) == Some(&b';')
+                    && let Some(consumed) = self.dispatch_param_list(p, seq, j, first, second)
+                {
+                    return Some(consumed);
                 }
             }
-
-            self.params.param = first;
-            self.params.empty = false;
         }
 
+        self.params.param = first;
+        self.params.empty = false;
+        self.dispatch_csi_loop(p, seq, i)
+    }
+
+    /// The general CSI byte loop, resuming at `i`: intermediates, a private
+    /// marker that is only valid before any param, then the final byte.
+    #[cfg_attr(feature = "perf-inline", inline(always))]
+    fn dispatch_csi_loop<P: Perform>(
+        &mut self,
+        p: &mut P,
+        seq: &[u8],
+        mut i: usize,
+    ) -> Option<usize> {
         while i < seq.len() {
             if self.param_byte(seq[i]) {
                 i += 1;
@@ -743,10 +714,8 @@ impl Parser {
             }
             match seq[i] {
                 0x3c..=0x3f => {
-                    // Private marker (`> = < ?`) — only valid as a CSI prefix
-                    // (CsiEntry), before any param or marker. After params the
-                    // DEC state machine transitions to CsiIgnore and drops the
-                    // whole sequence, so bail to the cold path.
+                    // A private marker is valid only as a CSI prefix; after
+                    // params the sequence is ignored, so bail to cold.
                     if self.params.len != 0 || !self.params.empty || self.intermediates.len != 0 {
                         return None;
                     }
@@ -754,9 +723,8 @@ impl Parser {
                     i += 1;
                 }
                 0x40..=0x7e => {
-                    // A param-less CSI (`CSI H`, `CSI m`, `CSI s`) dispatches
-                    // `[]`; a trailing empty param (e.g. ConPTY's `SGR …;m`)
-                    // is pushed as `-1`.
+                    // A param-less CSI dispatches `[]`; a trailing empty param
+                    // (ConPTY's `SGR …;m`) is pushed as `-1`.
                     self.dispatch_csi(p, seq[i]);
                     return Some(i + 1);
                 }
@@ -784,7 +752,7 @@ impl Parser {
         }
     }
 
-    /// Escape-sequence states — rare, so kept cold and out of the hot loop.
+    /// Escape-sequence states, kept cold and out of the hot loop.
     #[inline(never)]
     fn advance_non_ground<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let b = bytes[i];
@@ -795,11 +763,8 @@ impl Parser {
             self.clear_seq_state();
         }
 
-        // 8-bit C1 (DEC's "anywhere" rule): a C1 control cancels any sequence
-        // in progress. A string state's exit action fires first (the deferred
-        // OSC payload was already flushed), then the control executes or an
-        // introducer re-enters its state.
-        // <https://vt100.net/emu/dec_ansi_parser> §"anywhere".
+        // 8-bit C1 (DEC "anywhere"): a string's exit action fires first, then
+        // the control executes or an introducer re-enters its state.
         if matches!(b, 0x80..=0x9f) {
             match state {
                 ParseState::OscString => self.osc_end(p, false, bytes, i),
@@ -813,13 +778,10 @@ impl Parser {
             return i + 1;
         }
 
-        // String runs, ESC introducers, and CSI/DCS param runs are dispatched
-        // inline from `advance`; this cold path only sees rare and boundary
-        // bytes.
+        // String runs, ESC introducers and param runs go inline; this cold path
+        // only sees rare bytes.
 
-        // CSI final-byte fast path: `0x40..=0x7e` from CsiEntry/CsiParam/
-        // CsiIntermediate always dispatches (CSI_DISPATCH → Ground). Skip the
-        // transition() table lookup for the one dispatch byte per sequence.
+        // A final byte from Csi* always dispatches, so skip the table lookup for it.
         if !self.force_cold()
             && matches!(b, 0x40..=0x7e)
             && matches!(
@@ -861,20 +823,16 @@ impl Parser {
         let (action, next) = transition(state, b);
         self.apply(p, action, b);
         self.state = next;
-        // Returning to ground clears collected params/intermediates, so a
-        // later bulk-CSI fast path (which assumes a clean ground state) cannot
-        // inherit a stale, ignored sequence. Dispatch actions already clear;
-        // this only matters for ignored/aborted sequences.
+        // Returning to ground clears collected params, so the bulk-CSI fast
+        // path cannot inherit a stale or ignored sequence.
         if next == ParseState::Ground {
             self.clear_seq_state();
         }
         i + 1
     }
 
-    /// Escape-state byte dispatch: the sequence introducers (`[` CSI, `]` OSC,
-    /// `P` DCS, `X`/`^`/`_` `SOS`/`PM`/`APC`), `ESC` finals, intermediates and C0
-    /// controls are all handled inline; only the rare bytes (`ESC` restart, `DEL`,
-    /// raw C1/high bytes) fall through to the cold per-byte state machine.
+    /// Escape-state dispatch: introducers (`[`, `]`, `P`, `X`/`^`/`_`), `ESC`
+    /// finals, intermediates and C0 controls.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_escape_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         match bytes[i] {
@@ -898,10 +856,8 @@ impl Parser {
                 self.state = ParseState::SosPmApcString;
                 i + 1
             }
-            // `ESC <intermediate> <final>` — the 3-byte shape of charset
-            // designation (`ESC ( B`), DECALN (`ESC # 8`) and UTF-8 select
-            // (`ESC % G`). The cold `EscapeIntermediate` table path costs ~4 ns
-            // more.
+            // `ESC <intermediate> <final>`: charset designation, DECALN, UTF-8
+            // select. Inline because the table path costs ~4 ns more.
             0x20..=0x2f if matches!(bytes.get(i + 1), Some(0x30..=0x7e)) => {
                 p.esc_dispatch(&bytes[i..i + 1], bytes[i + 1]);
                 self.state = ParseState::Ground;
@@ -932,8 +888,7 @@ impl Parser {
         }
     }
 
-    /// `DcsEntry` byte dispatch: the final byte (0x40..=0x7e) hooks inline;
-    /// digits/separators/intermediates fall through to the cold state machine.
+    /// `DcsEntry` dispatch: a final byte hooks inline, anything else takes the cold table.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_dcs_entry_byte<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let b = bytes[i];
@@ -947,10 +902,7 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// OSC string bulk run: append the payload prefix (everything up to the
-    /// next C0/C1 boundary) in one `extend_from_slice`. Dispatched inline
-    /// from `advance` so the hot OSC copy path does not pay the cold
-    /// `advance_non_ground` call + prologue; boundary bytes fall through.
+    /// OSC bulk run: append everything up to the next C0/C1 boundary in one copy.
     #[inline]
     fn advance_osc_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
@@ -995,9 +947,7 @@ impl Parser {
         }
     }
 
-    /// DCS passthrough bulk run: dispatch the payload prefix via one
-    /// `put_slice`, stopping at `CAN`/`SUB`/`ESC`/`DEL` or any byte `> DEL`. Same
-    /// inline-dispatch rationale as `advance_osc_run`.
+    /// DCS bulk run: dispatch everything up to the next passthrough boundary in one call.
     #[inline]
     fn advance_dcs_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let run = &bytes[i..];
@@ -1016,9 +966,7 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// CSI/DCS param run: digits, `;` and `:` never dispatch, so consume the
-    /// whole run in a tight loop. Dispatched inline from `advance`; the
-    /// boundary byte falls through to `advance_non_ground`.
+    /// CSI/DCS parameter run: digits, `;` and `:` never dispatch, so consume them in one loop.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn advance_param_run<P: Perform>(&mut self, p: &mut P, bytes: &[u8], i: usize) -> usize {
         let mut j = i;
@@ -1031,9 +979,8 @@ impl Parser {
         self.advance_non_ground(p, bytes, i)
     }
 
-    /// Record the start of the next OSC param. `;` separators are not buffered
-    /// into `payload`, so consecutive ranges merge at their boundary. Params past
-    /// the 16th are dropped.
+    /// Record the start of the next OSC param. `;` separators are not buffered,
+    /// so adjacent ranges merge; params past the 16th are dropped.
     #[inline]
     const fn osc_param_boundary(&mut self, offset: u32) {
         if self.osc.num_starts > MAX_OSC_PARAMS {
@@ -1056,10 +1003,8 @@ impl Parser {
         self.osc.overflow = take < run.len();
     }
 
-    /// Dispatch a collected OSC command and reset the OSC state. An oversized
-    /// payload is discarded wholesale (a truncated `OSC 52` would otherwise
-    /// decode into garbage). With `bytes`/`end_pos` the params are sliced
-    /// straight from the input when deferred; otherwise from `payload`.
+    /// Dispatch the collected OSC command and reset the OSC state; an oversized
+    /// payload is dropped whole.
     #[inline]
     fn osc_end<P: Perform>(&mut self, p: &mut P, bell: bool, bytes: &[u8], end_pos: usize) {
         let n = self.osc.num_starts;
@@ -1073,10 +1018,8 @@ impl Parser {
             self.osc_reset();
             return;
         }
-        // Unify the deferred (input-sliced) and accumulated (`payload`-sliced)
-        // cases: the input holds the `;` separators, so each `;`-free
-        // boundary offset shifts by `k` and the source is `bytes` rather
-        // than `payload`.
+        // Deferred and accumulated payloads differ only by the `;` separators
+        // the input still holds, which shift each boundary offset by `k`.
         let (src, base, shift, last_end) = match self.osc.buffer {
             OscBuffer::Deferred { base } => (bytes, base, 1, end_pos),
             OscBuffer::Accumulated => (&self.osc.payload[..], 0, 0, self.osc.payload.len()),
@@ -1096,9 +1039,7 @@ impl Parser {
         self.osc_reset();
     }
 
-    /// Reset the OSC accumulation/dispatch state. `osc.clear()` keeps the heap
-    /// allocation; `mem::take` would free it and force a malloc on the next
-    /// >56-byte payload.
+    /// Reset the OSC accumulation, keeping the payload allocation.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     fn osc_reset(&mut self) {
         self.osc.payload.clear();
@@ -1107,9 +1048,7 @@ impl Parser {
         self.osc.buffer = OscBuffer::Accumulated;
     }
 
-    /// Flush a deferred OSC payload into `payload` (the string spans `advance`
-    /// calls or hits a cold terminator). The recorded `starts` offsets stay
-    /// valid — they become `payload`-relative instead of input-relative.
+    /// Copy a deferred OSC payload into `payload`.
     #[inline]
     fn osc_flush(&mut self, bytes: &[u8], end_pos: usize) {
         let base = match self.osc.buffer {
@@ -1155,8 +1094,7 @@ impl Parser {
             self.osc_extend(&[byte]);
         }
         if action.contains(Action::OSC_END) {
-            // Cold terminator (C1 ST / CAN / SUB): the deferred payload was
-            // already flushed by the `advance_osc_run` fallback, so dispatch
+            // The deferred payload was already flushed by the run fallback, so dispatch
             // from `payload`.
             self.osc_end(p, byte == 0x07, &[], 0);
         }
@@ -1196,8 +1134,8 @@ impl Parser {
 
     /// Accumulate a decimal digit into the current parameter (16-bit clamp).
     ///
-    /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry — every writer
-    /// either zeroes it or caps it via `min` — so `param * 10 + digit` can
+    /// `param` is always ≤ `MAX_PARAM_VALUE` (65535) on entry: every writer
+    /// either zeroes it or caps it via `min`, so `param * 10 + digit` can
     /// never overflow i32, and plain arithmetic replaces the saturating ops.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_digit(&mut self, b: u8) {
@@ -1210,9 +1148,8 @@ impl Parser {
         self.params.empty = false;
     }
 
-    /// End a parameter on a `:` separator: push it (an empty one becomes the
-    /// `-1` sentinel so SGR colon forms like `38:2::r:g:b` survive) and mark
-    /// the `sep` bit so `4:2` stays distinguishable from `4;2`.
+    /// End a parameter on a `:` separator, pushing it (empty becomes `-1`) and
+    /// marking the `sep` bit so `4:2` stays distinct from `4;2`.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     const fn param_colon(&mut self) {
         self.push_param(if self.params.empty {
@@ -1226,7 +1163,7 @@ impl Parser {
     }
 
     /// End a parameter on a `;` separator. An empty one becomes the `-2`
-    /// sentinel — distinct from the `-1` trailing/colon empty — so `CSI ; Pr
+    /// sentinel, distinct from the `-1` trailing/colon empty, so `CSI ; Pr
     /// s` (DECSLRM set-right margin) stays distinguishable from `CSI 0;Pr s`,
     /// and SGR can tell a leading empty (`;1m` = reset) from a trailing empty
     /// (`48;2;r;g;b;m` = ignore).
@@ -1250,7 +1187,7 @@ impl Parser {
                 self.param_digit(b);
                 true
             }
-            // `;` before `:` — semicolon-separated params dominate real
+            // `;` before `:`: semicolon-separated params dominate real
             // streams (SGR churn, cursor motion), so it wins the branch.
             b';' => {
                 self.param_semicolon();
@@ -1264,9 +1201,8 @@ impl Parser {
         }
     }
 
-    /// Push the trailing parameter before a dispatch. A param-less sequence
-    /// stays empty; a trailing empty becomes the `-1` sentinel for CSI (so SGR
-    /// can ignore it) but the raw value for DCS.
+    /// Push the trailing parameter before a dispatch. A trailing empty becomes
+    /// `-1` for CSI (SGR ignores it) but stays raw for DCS.
     #[inline]
     const fn push_trailing_param(&mut self, sentinel: bool) {
         if !self.params.empty || self.params.len != 0 {
@@ -1313,14 +1249,15 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use smallvec::SmallVec;
+
     use super::Parser;
     use crate::Event;
     use crate::Recording;
     use crate::limits::MAX_OSC_PAYLOAD;
     use crate::table::{Action, ParseState};
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use smallvec::SmallVec;
 
     /// Canonical wire bytes of an event stream (concatenated `write_bytes`).
     fn events_bytes(events: &[Event]) -> Vec<u8> {
@@ -1331,10 +1268,8 @@ mod tests {
         out.to_vec()
     }
 
-    /// The inline hot-path handlers (`advance_escape_byte`, the bulk CSI scan,
-    /// and the CSI final-byte shortcut) re-implement `transition()` table
-    /// entries. A parser with `cold = true` routes those states through the
-    /// table instead; both must produce identical events.
+    /// The inline handlers re-implement `transition()` rows; [`Parser::force_cold`]
+    /// must produce identical events.
     #[test]
     fn hot_and_cold_paths_agree() {
         let corpus: &[&[u8]] = &[
@@ -1398,9 +1333,8 @@ mod tests {
         );
     }
 
-    /// Systematic form of [`hot_and_cold_paths_agree`]: every combination of
-    /// digits, both separators, the private marker, an intermediate and a final
-    /// byte, over 1..=4-byte runs with and without a tail.
+    /// Systematic form: every combination of digits, separators, the private marker,
+    /// an intermediate and a final byte, over 1..=4-byte runs.
     #[test]
     fn hot_and_cold_paths_agree_systematic() {
         let alphabet = b"018;:Hm ?fJ";
@@ -1427,8 +1361,8 @@ mod tests {
         }
     }
 
-    /// Random form of [`hot_and_cold_paths_agree`] across the escape alphabet,
-    /// plus chunk invariance: three-byte feeds must match one `parse_events`.
+    /// Random form across the escape alphabet, plus chunk invariance against one
+    /// `parse_events` call.
     #[test]
     fn hot_and_cold_paths_agree_random() {
         let alphabet = b"0123456789;:?>=< HfmrAJKhl\x00\x7f\x9b\x1b[";
@@ -1460,10 +1394,8 @@ mod tests {
         }
     }
 
-    /// Exhaustive form of [`hot_and_cold_paths_agree`]: every state with both
-    /// a hot inline handler and a cold table row, over every byte. `Ground`
-    /// is excluded — it is hot-only (UTF-8 decoding + SIMD), with a table
-    /// stub of `(NONE, Ground)` for every byte.
+    /// Exhaustive form: every state with a hot handler and a cold row, over every
+    /// byte. `Ground` is hot-only.
     #[test]
     fn hot_and_cold_paths_agree_exhaustive() {
         let states = [
@@ -1493,11 +1425,8 @@ mod tests {
         }
     }
 
-    /// DEC's "anywhere" invariant for 8-bit C1 controls
-    /// ([DEC parser state diagram]): introducers re-enter their state, `ST`
-    /// `0x9c` is a no-op, and every other C1 control executes and returns to
-    /// ground (a lone C1 byte is invalid UTF-8, so this is the correct
-    /// fallback for a UTF-8 terminal).
+    /// DEC's anywhere rule: introducers re-enter, `ST` is a no-op, every other C1
+    /// control executes and returns to ground.
     ///
     /// [DEC parser state diagram]: https://vt100.net/emu/dec_ansi_parser
     #[test]
@@ -1521,11 +1450,8 @@ mod tests {
         }
     }
 
-    /// End-to-end: a raw 8-bit C1 control interrupting an OSC string or DCS
-    /// passthrough fires the string's exit action (`osc_end` / `unhook`)
-    /// before the control is executed or an introducer re-enters its state —
-    /// DEC's "anywhere" rule. Regression test: the exit action was previously
-    /// dropped for every C1 control except `ST` (`0x9c`).
+    /// A C1 control interrupting an OSC or DCS string fires the exit action first.
+    /// Regression: only `ST` did.
     #[test]
     fn c1_interrupt_fires_string_exit_action() {
         use crate::Event;
@@ -1658,9 +1584,8 @@ mod tests {
 
     #[test]
     fn ignored_csi_clears_state_before_next_sequence() {
-        // `? ) 5 h` collects `?`+`)`, then the digit pushes it into CsiIgnore
-        // (no dispatch). The ignored sequence must not leak its collected
-        // intermediates into the next CSI's dispatch (fuzz regression).
+        // A dropped CSI must not leak its intermediates into the next dispatch
+        // (fuzz regression).
         let events = Parser::new().parse_events(b"\x1b[?)5h\x1b[1;1H");
         assert_eq!(events.len(), 1, "{events:?}");
         let Event::CsiDispatch {

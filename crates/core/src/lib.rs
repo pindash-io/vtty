@@ -6,13 +6,10 @@
 //! `SgrFlags`, `Charset`, `TermFlags`, …), and the reference byte-cursor
 //! [`State`] sink.
 //!
-//! This crate is split out so the `vtty` parser facade and `vtty_codec` can
-//! share it without the codec depending on the parser.
-//!
 //! ## Features
 //!
-//! - `reply` — DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
-//! - `termcap` — XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
+//! - `reply`: DECRQSS/DECRQM/XTGETTCAP answer formatting (`Reply`).
+//! - `termcap`: XTGETTCAP terminfo capability table (`Cap`/`CapValue`);
 //!   implies `reply`.
 //!
 //! ## Stability
@@ -53,18 +50,21 @@ mod style;
 #[cfg(feature = "termcap")]
 mod termcap;
 
-pub use charset::{Charset, Charsets, Scs, dec_special_graphics};
+pub use charset::{Charset, Charsets, Scs};
+pub use color::ColorId;
+pub use color::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 pub use color::{
-    ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, blend_faint, format_osc_background,
-    format_osc_color_reply, format_osc_palette_reply, indexed_rgb, parse, parse_hex_color,
-    rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_rgb, u32_to_rgba,
+    blend_faint, format_osc_background, format_osc_color_reply, format_osc_palette_reply,
+    hex_to_rgb_array, hex_to_rgba, hex_to_rgba_array, hex_to_rgba_u32, indexed_rgb,
+    osc_to_rgba_u32, rgb_spec, rgb_to_u32, rgba_to_u32, u32_to_array, u32_to_rgba,
 };
 pub use conformance::ConformanceLevel;
-pub use event::{Event, Recording, param_colon_sep, set_param_colon_sep};
+pub use event::{Event, Recording};
+pub use event::{param_colon_sep, set_param_colon_sep};
 pub use keyboard::{
     Key, KeyEncoding, KeyEventKind, KeyLocation, KeyModes, KeySpec, KittyFlags, Modifiers,
-    encode_key, legacy_ctrl,
 };
+pub use keyboard::{encode_key, legacy_ctrl};
 pub use mode::{MOUSE_MASK, TermFlags};
 pub use mouse::{MouseButton, MouseTracking};
 pub use num::write_decimal;
@@ -73,9 +73,10 @@ pub use perform::Perform;
 #[cfg_attr(docsrs, doc(cfg(feature = "reply")))]
 pub use reply::Reply;
 pub use state::State;
+pub use style::Effects;
 pub use style::Sgr;
 pub use style::{ColorSpec, CursorStyle, SgrEffect, SgrFlags, StyleFlags, UnderlineStyle};
-pub use style::{parse_effects, parse_extended, single_code, single_effect, two_effects};
+pub use style::{parse_effects, parse_extended, single_code, single_effect, two_simple_effects};
 #[cfg(feature = "termcap")]
 #[cfg_attr(docsrs, doc(cfg(feature = "termcap")))]
 pub use termcap::{Cap, CapValue};

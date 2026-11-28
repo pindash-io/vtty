@@ -1,6 +1,8 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+//! Cell-grid behaviour, every case driven through the real `vtty::Parser`.
+
 use alloc::vec;
 use vtty::Parser;
 
@@ -25,7 +27,6 @@ fn autowrap_at_last_column() {
     run(&mut s, b"abc");
     assert_eq!(s.cursor(), (0, 2));
     run(&mut s, b"d");
-    // `d` wraps to the next line.
     assert_eq!(s.cursor(), (1, 1));
     assert_eq!(s.render_line(0).as_deref(), Some("abc"));
     assert_eq!(s.render_line(1).as_deref(), Some("d"));
@@ -60,7 +61,6 @@ fn skin_tone_attaches_to_wide() {
 fn zwj_emoji_family_is_one_cell() {
     let mut s = Screen::new(8, 1);
     run(&mut s, "👨\u{200D}👩\u{200D}👧x".as_bytes());
-    // The whole family occupies two cells (one glyph); `x` lands after.
     assert_eq!(s.render_line(0).as_deref(), Some("👨\u{200D}👩\u{200D}👧x"));
     assert_eq!(s.cell(0, 0).map(|c| c.ch), Some('👨'));
     assert_eq!(s.cell(0, 1).map(Cell::is_continuation), Some(true));
@@ -95,7 +95,6 @@ fn render_ansi_style_change() {
 fn render_ansi_trims_trailing_blank() {
     let mut s = Screen::new(8, 1);
     run(&mut s, b"hi");
-    // Plain text needs no escape sequences and no trailing blanks.
     assert_eq!(s.render_ansi_line(0), "hi");
 }
 
@@ -160,13 +159,11 @@ fn truecolor_sgr() {
 #[test]
 fn color_rgb_resolves_palette() {
     let mut s = Screen::new(4, 1);
-    // Default fg/bg resolve to the configured defaults.
     assert_eq!(s.color_rgb(DEFAULT_FG_ID), Some(0xffff_ffff));
     assert_eq!(s.color_rgb(DEFAULT_BG_ID), Some(0x0000_00ff));
     // Indexed colors: 0..=15 use the palette, 16..=255 the xterm table.
     assert_eq!(s.color_rgb(ColorId(1)), Some(0xcd0000ff));
     assert_eq!(s.color_rgb(ColorId(196)), Some(0xff0000ff));
-    // Truecolor ids resolve through the dynamic palette.
     run(&mut s, b"\x1b[38;2;0;128;255mX");
     assert_eq!(s.color_rgb(ColorId(258)), Some(0x0080ffff));
 }
@@ -286,7 +283,6 @@ fn decsca_zero_clears_protection() {
 fn reverse_video_swaps_default_colors() {
     let mut s = Screen::new(4, 1);
     run(&mut s, b"X\x1b[?5h"); // DECSCNM on
-    // Default fg/bg swap to explicit black-on-white.
     assert_eq!(
         s.render_ansi_line(0),
         "\x1b[0;38;2;0;0;0;48;2;255;255;255mX\x1b[0m"
@@ -698,9 +694,8 @@ fn resize_keeps_content_in_tall_screen() {
 
 #[test]
 fn resize_does_not_multiply_blank_lines() {
-    // One intentional blank line must stay one blank line when the width
-    // shrinks (a blank row stores `cols` blank cells, which would
-    // otherwise re-wrap into `ceil(old/new)` rows).
+    // A blank line stays one line when the width shrinks: a blank row stores
+    // `cols` cells, which would otherwise re-wrap into more rows.
     let mut s = Screen::new(20, 4);
     run(&mut s, b"a\r\n\r\nb");
     assert_eq!(s.render_line(0).as_deref(), Some("a"));
@@ -734,7 +729,6 @@ fn resize_reflows_scrollback() {
     assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaaa"));
     assert_eq!(s.scrollback_text(1).as_deref(), Some("bbbbb"));
     s.resize(10, 2);
-    // History survives the resize (now at the wider width).
     assert_eq!(s.scrollback_len(), 2);
     assert_eq!(s.scrollback_text(0).as_deref(), Some("aaaaa"));
     assert_eq!(s.scrollback_text(1).as_deref(), Some("bbbbb"));
@@ -949,7 +943,6 @@ fn render_ansi_multiple_rows() {
     let ansi = s.render_ansi();
     assert!(ansi.contains("a\r\n"));
     assert!(ansi.contains("b"));
-    // Wide glyphs skip their continuation cell.
     run(&mut s, b"\x1b[2J\x1b[1;1H");
     run(&mut s, "中".as_bytes());
     assert!(s.render_ansi_line(0).contains("中"));
@@ -1034,7 +1027,7 @@ fn csi_question_r_is_decpcterm_and_ignored() {
     run(&mut s, b"\x1b[2;4r"); // DECSTBM: margins rows 2-4, cursor homes to row 1
     run(&mut s, b"\x1b[3;1H"); // move the cursor to row 2
     run(&mut s, b"\x1b[?r"); // DECPCTERM (PCTerm/Scancode mode): out of scope, ignored
-    assert_eq!(s.cursor(), (2, 0)); // cursor unchanged — margins were not reset
+    assert_eq!(s.cursor(), (2, 0)); // cursor unchanged: margins were not reset
 }
 
 #[test]
@@ -1055,9 +1048,8 @@ fn vt_and_ff_linefeed() {
 
 #[test]
 fn ignored_csi_finals_are_noop() {
-    // The exact CSI finals the screen dispatches. Everything else in
-    // `0x40..=0x7e` (the DEC/ANSI final range) must be a no-op, so a new
-    // handler cannot slip in without updating this pin.
+    // The CSI finals the screen dispatches; everything else in `0x40..=0x7e`
+    // must be a no-op, so a new handler cannot slip in unpinned.
     let handled = b"@ABCDEFGHJKLMPSTXdfghlmr";
     for f in 0x40..=0x7e {
         if handled.contains(&f) {

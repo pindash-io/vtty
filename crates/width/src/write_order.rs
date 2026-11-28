@@ -1,64 +1,36 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Layer 3 of the width model: the write-order derived cell width.
-//!
-//! The whole-text [`crate::cell_widths`] DFA cannot see write order: a
-//! control resets its scope, so the same text can carry different widths.
-//! This module makes the write order explicit as pure functions of
-//! `(text, B, F)` — the text slice, the split-boundary flags `B`, and the
-//! flushed-base offsets `F` — plus the live [`EmojiTrace`] automaton that
-//! records those boundaries at print time.
-//!
-//! Spec: §3.2/§3.3 of the [width model](crate::_documentation::width_model),
-//! with the formulas inlined per function below.
+//! Layer 3 of the width model: cell width derived from write order. A
+//! control resets the whole-text [`crate::cell_widths`] DFA's scope, so the
+//! same text can carry different widths. See §3.2/§3.3 of the
+//! [width model](crate::_documentation::width_model).
 
-#![allow(
-    clippy::doc_markdown,
-    reason = "module documents LaTeX math formulas, not Rust identifiers"
-)]
-
-/// The write-order boundary DATA for the split-DFA (spec §3.3): the per-byte
-/// flags where the emoji DFA restarts (`B`) and the byte offsets where a
-/// REP'd base was flushed (`F`). Pure data — the live automaton flags live in
-/// [`EmojiTrace`], which OWNS a `SplitBoundaries` alongside them.
-///
-/// $$B = \{ \mathsf{bytes}(s, k) : fb\lbrack{}k\rbrack \neq 0 \}, \qquad F = \mathsf{zwj\_flushes}$$
+/// Write-order boundary data for the split DFA (§3.3): the restart flags `B`
+/// (`fb`) and the flushed-base offsets `F` (`zwj_flushes`).
 #[derive(Debug, Default)]
 pub struct SplitBoundaries {
-    /// Sparse write-order flag set aligned to the logical text: a sorted
-    /// `(byte_offset, flags)` list of the non-zero entries (bit 0 = fresh
-    /// base, bit 1 = re-open boundary). Bytes not present are implicitly
-    /// zero. Sparse because the fresh bases are RARE (a few per screen) —
-    /// the old dense `Vec<u8>` was one byte per character and doubled the
-    /// memory of emoji-bearing scrollback.
+    /// Sparse `(byte_offset, flags)` entries (bit 0 = fresh base, bit 1 =
+    /// re-open); absent bytes are implicitly zero.
     pub fb: Vec<(usize, u8)>,
-    /// Byte past each REP/direct-ZWJ flushed base (native width). `F`.
+    /// Byte offset just past each REP/direct-ZWJ flushed base (native width). `F`.
     pub zwj_flushes: Vec<usize>,
 }
 
-/// The live write-order emoji/ZWJ width automaton (spec §3.2/§3.3).
-///
-/// Tracks the open-ZWJ / fresh-base / flushed-base state and records the
-/// per-byte [`SplitBoundaries`] the segmented DFA ([`split_widths`]) consumes.
-/// Shared by terminal consumers so they use one width model.
-///
-/// State tuple (spec §3.2):
-/// $$(\mathsf{zwj}, \mathsf{prev\_emoji}, \mathsf{drop\_next\_zwj}, \mathsf{grapheme\_open}) \in \mathbb{B}^4$$
+/// The live write-order emoji/ZWJ automaton (§3.2/§3.3); records the
+/// [`SplitBoundaries`] that [`split_widths`] consumes.
 #[derive(Debug, Default)]
 pub struct EmojiTrace {
-    /// The previous print was the immediately-preceding char (no control
-    /// since) — a VS16/VS15 continuing that base attaches to it, not the
-    /// char at the cursor.
+    /// A grapheme is open: the previous print was its base, so a following
+    /// VS16/VS15 or mark attaches there, not at the cursor.
     pub grapheme_open: bool,
     /// The previous printed char was a width-2 emoji.
     pub prev_emoji: bool,
     /// The previous printed char was a ZWJ that followed a width-2 emoji (a
     /// width-2 emoji after it is a ZWJ-sequence continuation, 0 cells).
     pub zwj: bool,
-    /// A wide ZWJ-sequence base was dropped (autowrap off at the right
-    /// margin): the following ZWJ/continuation chars have no base and are
-    /// dropped too.
+    /// A wide ZWJ base was dropped at the right margin, so its continuations
+    /// have no base and are dropped too.
     pub drop_next_zwj: bool,
     /// A control closed an open ZWJ: the next width-consuming char is fresh
     /// (its byte offset is recorded when it is written).
@@ -67,15 +39,13 @@ pub struct EmojiTrace {
     /// within one print run, before any control/scroll can intervene).
     pub zwj_tail: usize,
     /// The recorded write-order boundary data (fresh bases / re-opens /
-    /// flushed bases) — `(B, F)` in the spec.
+    /// flushed bases): `(B, F)` in the spec.
     pub boundaries: SplitBoundaries,
 }
 
 impl EmojiTrace {
-    // Per-byte fresh-base flags (`fb`): bit 0 = fresh base (DFA restarts), bit
-    // 1 = re-open boundary (print-time only). The trace is aligned to logical
-    // text; a marker past the end is a future marker.
-
+    // `fb`: bit 0 = fresh base (DFA restarts), bit 1 = re-open boundary
+    // (print time). A marker past the end is a future marker.
     const FB_FRESH: u8 = 0x01;
     const FB_REOPEN: u8 = 0x02;
     const FB_ICH: u8 = 0x04;
@@ -86,11 +56,8 @@ impl EmojiTrace {
         self.mark_bit(abs, Self::FB_FRESH);
     }
 
-    /// Relocate a fresh-base flag from `pos` to `pos + diff` — the ICH case:
-    /// the generic fb splice restores the flag at the insert point and clears
-    /// its shifted copy (the "pure insert" survive rule), but an ICH is a
-    /// shift: the fresh base (a standalone mark) moves right with the
-    /// content, past the inserted blanks.
+    /// Move a fresh-base flag from `pos` to `pos + diff`: an ICH shifts the content, so
+    /// the flag moves past the inserted blanks.
     pub fn shift_fresh_over_insert(&mut self, pos: usize, diff: usize) {
         if diff == 0 {
             return;
@@ -118,9 +85,7 @@ impl EmojiTrace {
         self.mark_bit(abs, Self::FB_REOPEN);
     }
 
-    /// Set `bit` on the trace at `abs`, recording a sparse entry (a byte
-    /// past the current end is a future marker — the spec's "set at write
-    /// time").
+    /// Set `bit` at `abs`; a byte past the current end is a future marker.
     #[inline]
     pub fn mark_bit(&mut self, abs: usize, bit: u8) {
         let fb = &mut self.boundaries.fb;
@@ -144,10 +109,8 @@ impl EmojiTrace {
         }
     }
 
-    /// Clear the fresh bits in `[start, end)` — an erase (ECH/ED/EL/DCH)
-    /// removes the chars, so their fresh-base markers must not survive the
-    /// generic `splice_fb` "edit at a boundary survives" rule (a stale
-    /// marker would re-classify the replacement blank/mark as a fresh base).
+    /// Clear the fresh bits in `[start, end)`; an erase removes the chars, so their
+    /// fresh-base markers must not survive the `splice_fb` boundary rule.
     #[inline]
     pub fn clear_fresh_range(&mut self, start: usize, end: usize) {
         if start >= end {
@@ -162,9 +125,8 @@ impl EmojiTrace {
         fb.retain(|&(_, flags)| flags != 0);
     }
 
-    /// Splice the sparse trace through a `[pos, pos+old_len) → diff` byte
-    /// edit, preserving the `b == pos` survive rule (an edit at a boundary
-    /// does not destroy it) and clearing the shifted copy of a pure insert.
+    /// Splice the trace through a `[pos, pos+old_len)` edit, keeping a boundary
+    /// marker and clearing the shifted copy of a pure insert.
     #[inline]
     pub fn splice_fb(&mut self, pos: usize, old_len: usize, diff: isize) {
         let fb = &mut self.boundaries.fb;
@@ -203,14 +165,10 @@ impl EmojiTrace {
     }
 }
 
-/// `split(B, a, b)` — the relative byte offsets (inside `text`) where the
-/// emoji DFA restarts: markers that fall strictly inside and split a ZWJ from
-/// a following non-zero-width char. `fb` is the per-byte write-order flag
-/// aligned to the logical text (bit 0 = fresh base, bit 1 = re-open); `start`
-/// is the logical offset of `text`'s first byte.
-///
-/// Spec §3.3:
-/// $$\mathsf{split}(B, a, b) = \{ x : x \in B,\ a < x < b,\ s\lbrack{}x-1\rbrack = \mathsf{ZWJ},\ w_1^0(s\lbrack{}x\rbrack) > 0 \}$$
+/// Relative byte offsets where the DFA restarts: markers strictly inside the
+/// slice that split a ZWJ from a following non-zero-width char, or a fresh
+/// base from what precedes it. `fb` is the sparse flag set; `start` is the
+/// logical offset of `text`.
 pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec<usize> {
     if text.is_empty() {
         return Vec::new();
@@ -237,11 +195,8 @@ pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec
             offs.push(rel);
             continue;
         }
-        // A standalone width-0 mark written as a fresh base (bit 0): the write
-        // path gave it its own 1-cell glyph, but the whole-text DFA would
-        // re-attach it to a preceding base (0 cells). Restart the DFA at the
-        // mark so it stays 1 cell. Selectors (VS16/VS15/ZWJ) are never
-        // standalone.
+        // A fresh-base mark restarts the DFA so it keeps its 1-cell glyph
+        // instead of re-attaching to a preceding base; selectors never are.
         if flags & EmojiTrace::FB_FRESH != 0
             && rel > 0
             && text[rel..].chars().next().is_some_and(|c| {
@@ -254,11 +209,7 @@ pub(crate) fn split_offsets(text: &str, fb: &[(usize, u8)], start: usize) -> Vec
     offs
 }
 
-/// `seg` — concatenate `cell_widths` per DFA segment (split at `offs`,
-/// relative to the text start).
-///
-/// Spec §3.3:
-/// $$\mathsf{seg}(B, s[a..b)) = w_2(s[a..x_1)) \cdot w_2(s[x_1..x_2)) \cdot \dots \cdot w_2(s[x_k..b))$$
+/// `cell_widths` per DFA segment, split at `offs` (relative to the text start).
 pub(crate) fn segmented_widths(text: &str, offs: &[usize]) -> Vec<usize> {
     let mut w = Vec::new();
     let mut prev = 0;
@@ -270,16 +221,8 @@ pub(crate) fn segmented_widths(text: &str, offs: &[usize]) -> Vec<usize> {
     w
 }
 
-/// `correct_F` — a REP/direct-ZWJ flush writes its repeated base at NATIVE
-/// width, but the whole-text DFA widens a text-default emoji whose trailing
-/// ZWJ is a sequence element (e.g. `❤ ZWJ` → `Emoji_Presentation`, 2 cells).
-/// Override the flushed base's width back to native — the DFA's family
-/// continuations after it are untouched. `zwj_flushes` holds ABSOLUTE byte
-/// offsets.
-///
-/// Spec §3.3: `correct_F` — for each `f ∈ F, f ≥ a` with
-/// `overridable(s, f)`, set `w[idx(c)] ← max(w₁⁰(c), 1)` when
-/// `w₁⁰(c) > 0 ∧ w[idx(c)] > w₁⁰(c)`.
+/// Un-widen a REP/direct-ZWJ flushed base that the whole-text DFA widened
+/// (e.g. `❤ ZWJ` → 2 cells). `zwj_flushes` holds absolute byte offsets.
 pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
     text: &str,
     zwj_flushes: &[T],
@@ -295,10 +238,8 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
         if matches!(marks.next(), Some('\u{FE0F}' | '\u{FE0E}')) {
             continue;
         }
-        // A ZWJ in the trailing zero-width run re-opens the family, which
-        // `correct_F` undoes back to the flushed native width. But a VS16/VS15
-        // in that run explicitly re-widens/narrows the base, so the
-        // flushed-native override must not apply — the selector wins.
+        // A VS16/VS15 in the trailing zero-width run re-widens or narrows the
+        // base, so the flushed-native override must not apply.
         let mut has_zwj = false;
         let mut has_vs = false;
         for c in text[flush..]
@@ -327,9 +268,8 @@ pub(crate) fn override_flush_width<T: Copy + Into<usize>>(
     }
 }
 
-/// The sorted-offset splice map: keep `t < pos`, drop `[pos, end)`, and
-/// shift `t >= end` by `diff` (clamped to 0). `None` drops the offset — the
-/// pure arithmetic behind the byte-offset traces' edit splice (spec §3.3).
+/// Splice the sorted offsets through a `[pos, end) -> diff` byte edit: keep `t < pos`,
+/// drop `[pos, end)`, shift the rest by `diff`.
 #[inline]
 pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<usize> {
     if t < pos {
@@ -341,13 +281,9 @@ pub fn splice_offset(t: usize, pos: usize, end: usize, diff: isize) -> Option<us
     None
 }
 
-/// `W(s[a..b), B, F)` — the Layer-3 derived width:
-/// `correct_F(seg(B, s[a..b)))`. Pure function of the text slice and the
-/// write-order boundary data, so the spec's non-compositionality
-/// counterexamples are directly testable.
-///
-/// Spec §3.3:
-/// $$W(s, a, b, B, F) = \mathsf{correct\_F}(\mathsf{seg}(B, s[a..b)), s, a, F)$$
+/// The Layer-3 derived width: `correct_F(seg(split(text)))`. Pure in the
+/// text and boundary data, so the spec's non-compositionality cases are
+/// testable.
 pub fn split_widths(text: &str, b: &SplitBoundaries, start: usize) -> Vec<usize> {
     if crate::first_non_ascii(text.as_bytes()) == text.len() {
         return vec![1; text.len()];
@@ -358,27 +294,8 @@ pub fn split_widths(text: &str, b: &SplitBoundaries, start: usize) -> Vec<usize>
     w
 }
 
-/// The cursor advance (`cell`) of one printed char, given the write-order
-/// state. `dfa_w` is `Some` for a buffered char (part of the segmented DFA),
-/// `None` for a direct mark. Shared by terminal consumers so they use one
-/// classification.
-///
-/// Spec §3.2:
-/// $$\mathsf{cell} =
-/// \begin{cases}
-/// 0   & \mathsf{zwj} \land \mathsf{target}(c) \\
-/// w   & \mathsf{raw} > 0 \land w = 0 \\
-/// w   & (\mathsf{followed\_by\_zwj} \lor \mathsf{keycap}) \land w > \mathsf{raw} \\
-/// w   & \mathsf{raw} = 0 \\
-/// \mathsf{raw} & \text{otherwise}
-/// \end{cases}
-/// \quad (\text{buffered}), \qquad
-/// \mathsf{cell} =
-/// \begin{cases}
-/// 0   & \mathsf{zwj} \land \mathsf{target}(c) \land \lnot\mathsf{wrap\_pending} \\
-/// \mathsf{raw} & \text{otherwise}
-/// \end{cases}
-/// \quad (\text{direct})$$
+/// The cursor advance of one printed char. `dfa_w` is `Some` for a buffered
+/// char (part of the segmented DFA), `None` for a direct mark. §3.2.
 #[inline]
 pub const fn classify_cell(
     zwj: bool,
@@ -398,9 +315,8 @@ pub const fn classify_cell(
                 return w;
             }
             if raw == 0 {
-                // A combining mark: the DFA's width is 1 lone (own cell) or 0
-                // attached — trust it. `raw` is always 0 for marks, so
-                // returning it would attach every mark and lose the lone cell.
+                // A mark is 1 cell lone, 0 attached; trust the DFA, since `raw` is
+                // always 0 for marks.
                 return w;
             }
             raw
@@ -415,12 +331,7 @@ pub const fn classify_cell(
     }
 }
 
-/// The row-wrap width of one printed char: the DFA width, but never less than
-/// the cursor advance (`cell`). A 0-cell ZWJ continuation still occupies its
-/// DFA width for the autowrap decision.
-///
-/// Spec §Corollary 8:
-/// $$\mathsf{wrap\_width}(\mathsf{cell}, \mathsf{dfa\_w}) = \max(\mathsf{cell}, \mathsf{dfa\_w})$$
+/// Row-wrap width of one printed char: `max(cell, dfa_w)`.
 #[inline]
 pub fn wrap_width(cell: usize, dfa_w: Option<usize>) -> usize {
     dfa_w.map_or(cell, |w| cell.max(w))
@@ -451,9 +362,8 @@ mod tests {
     #[cfg(any(feature = "baked", feature = "icu"))]
     #[test]
     fn split_widths_breaks_a_zwj_family_on_vs15() {
-        // Layer 3 (write order) agrees with the whole-text DFA: a VS15 on
-        // the last family member breaks the ZWJ sequence into the couple
-        // (2 cells) + a text-presentation 👧 (1 cell).
+        // Layer 3 agrees with the DFA: a VS15 on the last member splits the family
+        // into the couple + a text member.
         let text = "\u{1F469}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{FE0E}";
         assert_eq!(
             split_widths(text, &SplitBoundaries::default(), 0),

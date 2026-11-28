@@ -40,7 +40,7 @@ impl PartialUtf8 {
     /// Feed one byte into the pending sequence. Returns `true` when the byte
     /// was consumed as a continuation (the sequence is then complete iff
     /// [`Self::pending`] is now `false`). Returns `false` when the byte was
-    /// not a continuation — the partial is cleared and the caller must emit
+    /// not a continuation: the partial is cleared and the caller must emit
     /// `U+FFFD` and reprocess the byte.
     #[cfg_attr(feature = "perf-inline", inline(always))]
     pub(crate) const fn feed(&mut self, b: u8) -> bool {
@@ -62,10 +62,8 @@ impl PartialUtf8 {
     }
 }
 
-/// Expected byte length and initial code-point bits for a UTF-8 lead byte —
-/// the two facts the partial-decoder needs, from one range dispatch. Returns
-/// `(expected_len, lead_bits)`; `expected_len` is `0` for invalid
-/// (`0x80..=0xc1`, `0xf5..=0xff`) and continuation (`0x80..=0xbf`) bytes.
+/// Expected length and lead bits for a UTF-8 lead byte, from one range
+/// dispatch; `expected_len` is `0` for invalid and continuation bytes.
 #[inline]
 const fn utf8_lead(lead: u8) -> (usize, u32) {
     match lead {
@@ -94,10 +92,8 @@ pub(crate) const fn decode_utf8_n<const N: usize>(b: &[u8]) -> u32 {
     }
 }
 
-/// Whether `second` is a valid second byte for a 3/4-byte `lead`. 2-byte
-/// leads and unrestricted 3/4-byte leads accept any continuation; the four
-/// constrained leads (`0xE0`, `0xED`, `0xF0`, `0xF4`) have narrower ranges
-/// (UTF-8's non-shortest/non-surrogate/non-overlong rules).
+/// Whether `second` fits `lead`; the four constrained leads (`0xE0`, `0xED`,
+/// `0xF0`, `0xF4`) reject the non-shortest and surrogate ranges.
 #[inline]
 const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     match lead {
@@ -109,9 +105,8 @@ const fn utf8_second_byte_valid(lead: u8, second: u8) -> bool {
     }
 }
 
-/// If `s` ends with a partial UTF-8 sequence, return
-/// `(valid_prefix_len, partial)`; the partial is carried to the next
-/// `advance` call.
+/// If `s` ends with a partial UTF-8 sequence, return its length and the
+/// partial to carry into the next call.
 pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
     let len = s.len();
     if len == 0 {
@@ -132,9 +127,7 @@ pub(crate) const fn trailing_partial(s: &[u8]) -> Option<(usize, PartialUtf8)> {
             },
         ));
     }
-    // `last` is neither ASCII, a valid lead, nor a continuation byte — it is
-    // an invalid byte (0xC0/0xC1/0xF5..=0xFF). Not a trailing partial; the
-    // main loop decodes it as U+FFFD.
+    // Not a valid lead nor a continuation: the main loop decodes it as U+FFFD.
     if !matches!(last, 0x80..0xc0) {
         return None;
     }
@@ -202,10 +195,7 @@ fn push_cp<P: Perform>(p: &mut P, buf: &mut [u32; 32], n: &mut usize, cp: u32) {
     }
 }
 
-/// The scalar mixed-window loop: ASCII runs via `print_bytes`, multi-byte via
-/// `print_codepoints`, C0/C1 via `execute`; `ESC` ends the chunk. `s` is
-/// validated UTF-8. Returns the consumed byte count (the index of an `ESC`, or
-/// `s.len()`).
+/// Scalar mixed-window loop: ASCII runs via `print_bytes`, multi-byte via `print_codepoints`.
 #[cfg(all(feature = "simd", not(feature = "simd-transcode")))]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
@@ -220,10 +210,8 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 p.execute(b);
                 i += 1;
             }
-            // Printable ASCII run (0x20..=0x7e) — SIMD-scanned.
-            // Same print+LF fusion as `advance_ground`: `\n`/`\r\n` after a
-            // run dispatches the fused `print_line`/`print_crlf_line` instead
-            // of `print_bytes` + two `execute`s.
+            // Printable ASCII run (0x20..=0x7e), SIMD-scanned, with the same
+            // print+LF fusion as `advance_ground`.
             0x20..=0x7e => {
                 let n = crate::simd::first_non_printable(&s[i..]);
                 let end = i + n;
@@ -252,9 +240,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                 loop {
                     let b0 = s[i];
                     if matches!(b0, 0xe0..=0xef) {
-                        // 3-byte lead (CJK etc.) — never C1. Four consecutive
-                        // 3-byte code points are SIMD-decoded (simdutf's
-                        // `0x924` path).
+                        // 3-byte lead, never C1; four in a row take simdutf's `0x924` path.
                         if i + 16 <= s.len()
                             && matches!(s[i + 3], 0xe0..=0xef)
                             && matches!(s[i + 6], 0xe0..=0xef)
@@ -264,9 +250,7 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
                             let cps = crate::simd::decode_3byte_dispatch(&s[i..i + 16]);
                             buf[n..n + 4].copy_from_slice(&cps);
                             n += 4;
-                            // The 4-wide SIMD fill bypasses `push_cp` (whose
-                            // flush-at-32 guard the next `push_cp` relies on),
-                            // so flush here when full.
+                            // The 4-wide fill bypasses `push_cp`'s flush-at-32 guard, so flush here.
                             if n == BATCH {
                                 p.print_codepoints(&buf[..n]);
                                 n = 0;
@@ -301,25 +285,17 @@ fn scalar_mixed_loop<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     i
 }
 
-/// Unified SIMD transcode dispatch: decode validated UTF-8 `s` in 64-byte
-/// blocks (one end-of-code-point mask each, 12-byte chunks with the `0x924`
-/// fast path), then one `print_codepoints` call per control-free block. C0/C1
-/// are split out via `execute`; a mixed window (ASCII + multi-byte) is one
-/// `print_codepoints` run. Returns `s.len()`.
+/// Decode validated UTF-8 in blocks, dispatching a control-free run with one call.
 #[cfg(feature = "simd-transcode")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
-    // Buffer holds the max code points one `decode_block` call can emit: the
-    // sub-76-byte scalar tail decodes 1 code point/byte (≤ 75), and the
-    // 64-byte block emits ≤ 54.
+    // Worst case: a 64-byte block emits <= 54 and the scalar tail 1 per byte.
     const BATCH: usize = 76;
     let mut buf = [0_u32; BATCH];
     let mut i = 0;
     while i < s.len() {
         let (count, consumed) = crate::simd::decode_block_dispatch(&s[i..], &mut buf);
-        // Fast path: when the block has no controls, dispatch the whole run
-        // with one `print_codepoints` call instead of the per-code-point
-        // split scan.
+        // A control-free block dispatches the whole run in one call.
         if !crate::simd::any_control(&buf[..count]) {
             p.print_codepoints(&buf[..count]);
         } else {
@@ -343,19 +319,17 @@ fn transcode_dispatch<P: Perform>(p: &mut P, s: &[u8]) -> usize {
     i
 }
 
-/// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`).
-/// Returns bytes consumed (at least 1).
+/// Decode multi-byte UTF-8 starting at `bytes[pos]` (a lead byte `>= 0xA0`),
+/// returning bytes consumed (at least 1).
 ///
-/// With `simd`, validates a window via `simdutf8` and dispatches it in bulk
-/// (ASCII + multi-byte together); scalar decodes one code point at a time.
-/// The window is capped at the next `ESC` — `ESC` is never a UTF-8 continuation,
-/// so it is a safe boundary that must reach the escape state rather than be
-/// dispatched as `execute`.
+/// With `simd`, a window is validated by `simdutf8` and dispatched in bulk;
+/// scalar decodes one code point at a time. The window ends at the next `ESC`,
+/// which is never a continuation byte, so the escape state always sees it.
 ///
 /// Both paths follow W3C "Substitution of Maximal Subparts": a truncated or
 /// ill-formed sequence yields one U+FFFD, and a standalone C1 byte
-/// (`0x80..=0x9f`) dispatches via [`Perform::execute`] — the same contract
-/// as vte and rio-vt.
+/// (`0x80..=0x9f`) dispatches through [`Perform::execute`], as in vte and
+/// rio-vt.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn decode_utf8<P: Perform>(
     p: &mut P,
@@ -366,18 +340,14 @@ pub(crate) fn decode_utf8<P: Perform>(
 ) -> usize {
     #[cfg(feature = "simd")]
     if simd {
-        // A lone char before the next ESC (truecolor SGR) is cheaper on the
-        // scalar path: probe for a nearby ESC before paying for SIMD setup.
-        // The probe also bounds the window so `from_utf8` validates at most
-        // `PROBE` bytes.
+        // Probe for a nearby ESC before paying for SIMD setup; the probe also
+        // bounds `from_utf8` to `PROBE` bytes.
         const PROBE: usize = 32;
         let remaining = valid - pos;
         let esc = crate::scan::first_esc_bounded(&bytes[pos..valid], PROBE);
         let short = esc < remaining.min(PROBE) || remaining < PROBE;
         // The window ends at the next ESC (it must reach the escape state, not
-        // `execute`) or at the input end. Short windows stop at the probe
-        // bound; long windows cap at the next ESC / 4096 / a char boundary and
-        // decode via SIMD transcode.
+        // `execute`) or at the input end; long windows cap at 4096.
         let end = if short {
             if esc < remaining { pos + esc } else { valid }
         } else {
@@ -400,9 +370,8 @@ pub(crate) fn decode_utf8<P: Perform>(
         };
         if let Ok(s) = simdutf8::basic::from_utf8(&bytes[pos..end]) {
             let s = s.as_bytes();
-            // One-pass dispatch: the SIMD transcode batches a mixed window
-            // (ASCII + multi-byte) into a single `print_codepoints` run; the
-            // scalar mixed loop keeps the print_bytes/print_codepoints split.
+            // SIMD batches a mixed window into one `print_codepoints`; the scalar mixed
+            // loop keeps the `print_bytes`/`print_codepoints` split.
             #[cfg(feature = "simd-transcode")]
             {
                 return transcode_dispatch(p, s).max(1);
@@ -412,13 +381,12 @@ pub(crate) fn decode_utf8<P: Perform>(
                 return scalar_mixed_loop(p, s).max(1);
             }
         }
-        // fall through to the scalar path (invalid input).
+        // Fall through to the scalar path (invalid input).
     }
     #[cfg(not(feature = "simd"))]
     let _ = simd;
-    // Scalar decode: batch a run of consecutive non-ASCII code points into a
-    // single `print_codepoints` call. Stops at the first byte below `0xa0`
-    // (ASCII, C0/C1, ESC), which the caller's dispatch arms handle.
+    // Scalar: batch consecutive non-ASCII code points into one
+    // `print_codepoints`; stop below `0xa0` for the caller's dispatch.
     const BATCH: usize = 32;
     let mut buf = [0_u32; BATCH];
     let mut n = 0;
@@ -487,8 +455,7 @@ mod tests {
         assert!(sink.execs.is_empty());
         assert!(sink.bytes.is_empty());
 
-        // An ESC within the probe window bounds the decode: it stops before
-        // the ESC (consumed == the mixed prefix), leaving the ESC for the
+        // An ESC inside the probe window bounds the decode, leaving the ESC for the
         // state machine.
         let mut input = "日本語 🚀 ".as_bytes().to_vec();
         input.extend_from_slice(b"\x1b[31m");

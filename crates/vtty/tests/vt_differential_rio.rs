@@ -1,15 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Differential test: run a corpus of VT byte sequences through both `vtty`
-//! and `rio-vt`'s standalone parser, normalize the action streams, and assert
-//! they match. rio-vt is a fork of Alacritty's VTE, so the baseline is the
-//! same as `vt_differential.rs` (vte) with two documented divergences:
-//! rio-vt allows up to four intermediates (vtty/vte cap at two), and it keeps
-//! the payload of some OSC commands verbatim instead of splitting every `;`.
-//!
-//! Run with `--nocapture` to see the full difference report:
-//!   cargo test --test `vt_differential_rio` -- --nocapture
+//! Differential test against `rio-vt`'s standalone parser, a fork of
+//! Alacritty's VTE. It diverges from `vte` in two ways: up to four
+//! intermediates, and some OSC payloads kept verbatim.
 
 mod common;
 
@@ -28,9 +22,7 @@ fn differential_against_rio_vt() {
             skipped += 1;
             continue;
         }
-        // Documented divergence: rio-vt keeps the payload of some OSC commands
-        // verbatim (semicolons stay in the final param) while vtty/vte split
-        // every `;`. Skip those sequences.
+        // rio-vt keeps `;` in the last OSC param where vtty and vte split.
         if has_osc_verbatim_divergence(&bytes) {
             skipped += 1;
             continue;

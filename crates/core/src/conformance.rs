@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! DEC conformance and identity: DECSCL, Device Attributes (DA1/DA2/DA3), and
-//! the `$`-family DCS reports (DECTSR / DECCTR / DECCIR / DECTABSR).
-//!
-//! Reference: EK-VT520-RM §5.
+//! the `$`-family DCS reports (DECTSR / DECCTR / DECCIR / DECTABSR). EK-VT520-RM §5.
 
 #[cfg(feature = "reply")]
 use core::fmt::Display;
@@ -12,39 +10,37 @@ use core::fmt::Display;
 use core::fmt::Write as _;
 
 #[cfg(feature = "reply")]
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+#[cfg(feature = "reply")]
+use compact_str::format_compact;
 
-/// DECTSR answer prefix — `DCS 1 $ s` (Terminal State Report). The final is
-/// a lowercase `s` (the EK-VT510-RM errata on vt100.net corrects the printed
-/// uppercase `S`).
+/// DECTSR answer prefix (`DCS 1 $ s`). The final is lowercase, per the VT510 errata.
 #[cfg(feature = "reply")]
 const DECTSR_PREFIX: &str = "\x1bP1$s";
-/// DECCTR answer prefix — `DCS 2 $ s` (Color Table Report).
+/// DECCTR answer prefix (`DCS 2 $ s`).
 #[cfg(feature = "reply")]
 const DECCTR_PREFIX: &str = "\x1bP2$s";
-/// DECCIR answer prefix — `DCS 1 $ u` (Cursor Information Report).
+/// DECCIR answer prefix (`DCS 1 $ u`).
 #[cfg(feature = "reply")]
 const DECCIR_PREFIX: &str = "\x1bP1$u";
-/// DECTABSR answer prefix — `DCS 2 $ u` (Tab Stop Report).
+/// DECTABSR answer prefix (`DCS 2 $ u`).
 #[cfg(feature = "reply")]
 const DECTABSR_PREFIX: &str = "\x1bP2$u";
 
-/// DECSCL conformance level. `Ps1` selects the VT operating level (the
-/// factory default for the VT500 family is [`ConformanceLevel::Vt500`] with
-/// 8-bit controls); `Ps2` (`0`/`1`/`2`) selects 7-bit vs 8-bit C1 controls
-/// and is handled separately (S7C1T / S8C1T).
+/// DECSCL conformance level: `Ps1` is the operating level, default
+/// [`ConformanceLevel::Vt500`] with 8-bit controls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ConformanceLevel {
-    /// VT100 mode (`CSI 61 " p`).
+    /// VT100 (`CSI 61 " p`).
     Vt100 = 61,
-    /// VT200 mode (`CSI 62 " p`).
+    /// VT200 (`CSI 62 " p`).
     Vt200 = 62,
-    /// VT300 mode (`CSI 63 " p`).
+    /// VT300 (`CSI 63 " p`).
     Vt300 = 63,
-    /// VT400 mode (`CSI 64 " p`).
+    /// VT400 (`CSI 64 " p`).
     Vt400 = 64,
-    /// VT500 mode (`CSI 65 " p`).
+    /// VT500 (`CSI 65 " p`).
     #[default]
     Vt500 = 65,
 }
@@ -73,10 +69,8 @@ impl ConformanceLevel {
 
 #[cfg(feature = "reply")]
 impl crate::reply::Reply {
-    /// Build a DA1 (Primary Device Attributes) answer:
-    /// `CSI ? {a0};{a1};… c`. The first attribute is the service class
-    /// (`65` = VT500, `64` = VT400, `62` = VT220, `1` = VT100); the rest are
-    /// supported-extension codes (EK-VT520-RM §5-9).
+    /// A DA1 answer (`CSI ? … c`): the service class (`65` VT500, `62` VT220, …),
+    /// then the extension codes (EK-VT520-RM §5-9).
     #[must_use]
     pub fn da1(attrs: &[u32]) -> CompactString {
         join_wrapped("\x1b[?", attrs, ';', "c")
@@ -92,18 +86,14 @@ impl crate::reply::Reply {
         format_compact!("\x1b[>{id};{firmware};{keyboard}c")
     }
 
-    /// Build a DA3 (Tertiary Device Attributes) answer:
-    /// `DCS ! | {hex} ST` — the terminal unit ID as hex byte pairs
-    /// (EK-VT520-RM §5-12).
+    /// Build a DA3 answer (`DCS ! | {hex} ST`): the unit ID as hex pairs.
     #[must_use]
     pub fn da3(unit_id: &[u8]) -> CompactString {
         dcs_string("\x1bP!|", &const_hex::encode(unit_id))
     }
 
-    /// Build a DECTSR (Terminal State Report) answer:
-    /// `DCS 1 $ s {device_attrs} ST`. The payload is the terminal's
-    /// device-attribute string (the DA1/DA2/DA3 response bodies), per
-    /// EK-VT520-RM §5-160.
+    /// A DECTSR answer (`DCS 1 $ s … ST`) carrying the device-attribute string
+    /// (the DA1/DA2/DA3 bodies), per EK-VT520-RM §5-160.
     #[inline]
     #[must_use]
     pub fn dectsr(device_attrs: &str) -> CompactString {
@@ -117,10 +107,8 @@ impl crate::reply::Reply {
         format_compact!("\x1bP>|{name} {version}\x1b\\")
     }
 
-    /// Build a DECCTR (Color Table Report) answer:
-    /// `DCS 2 $ s {Pc;2;r;g;b / …} ST`. Each entry is `(color_number, red,
-    /// green, blue)` with 8-bit RGB (0-255), scaled to the DEC 0-100
-    /// coordinate range (rounding to nearest).
+    /// A DECCTR answer (`DCS 2 $ s … ST`): `(color, r, g, b)` entries with 8-bit
+    /// RGB scaled to DEC's 0-100 range.
     #[must_use]
     pub fn decctr(entries: &[(u8, u8, u8, u8)]) -> CompactString {
         let mut buf = CompactString::default();
@@ -141,10 +129,8 @@ impl crate::reply::Reply {
         buf
     }
 
-    /// Build a DECCIR (Cursor Information Report) answer:
-    /// `DCS 1 $ u {payload} ST`. The payload is the cursor state (position,
-    /// visual attributes, origin mode, and active G0–G3 charsets), which a
-    /// screen builds; see EK-VT520-RM §5-30.
+    /// A DECCIR answer (`DCS 1 $ u … ST`): the cursor position, attributes, origin
+    /// mode and active G-sets, built by the screen (EK-VT520-RM §5-30).
     #[inline]
     #[must_use]
     pub fn deccir(payload: &str) -> CompactString {

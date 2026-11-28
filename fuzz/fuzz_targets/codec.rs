@@ -1,6 +1,5 @@
-// Codec round-trip + robustness fuzz target: every event stream reachable
-// from arbitrary bytes must survive encode → decode losslessly, and arbitrary
-// bytes must never panic (or over-allocate) any decoder.
+// Codec fuzz target: every event stream reachable from arbitrary bytes must
+// survive encode -> decode losslessly; no decoder may panic.
 
 #![no_main]
 #![allow(missing_docs, reason = "fuzz target is internal test infrastructure")]

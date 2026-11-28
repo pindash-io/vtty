@@ -1,4 +1,4 @@
-# Width model — formal specification and conformance
+# Width model: formal specification and conformance
 
 Terminal cell-width assignment in `vtty_width`, stated as pure mathematics. The
 prose is confined to the **binding** that maps each symbol to its code
@@ -29,7 +29,7 @@ screen-level differential sweeps live in the consumer, not here.
 | $`wc`$ | the baked ICU4X width (`Properties::width`), derived from `GeneralCategory` + `EastAsianWidth` |
 | $`EP`$ | `Properties::is_emoji_presentation` |
 | $`EAW`$ | `Properties::is_ambiguous` (EAW "A"), bit 8 of the packed `u16` |
-| $`\mathsf{cjk}`$ | `vtty_width::cjk_width` / `set_cjk_width` — an `AtomicBool` |
+| $`\mathsf{cjk}`$ | `vtty_width::cjk_width` / `set_cjk_width`, an `AtomicBool` |
 | $`\mathsf{cat}`$ | `vtty_width::properties::emoji_category` (crate-internal) |
 | $`\mathsf{starter}`$ | `vtty_width::emoji::is_emoji_starter` (crate-internal) |
 | $`\mathsf{cont}`$ | `vtty_width::emoji::is_continuation` (crate-internal) |
@@ -43,7 +43,7 @@ screen-level differential sweeps live in the consumer, not here.
 | the grapheme-breaker decision | `vtty_width::composes_precomposed` |
 | cell↔char floor/ceil/end | `vtty_width::{cell_col_char_from_widths, cell_col_char_ceil_from_widths, cell_col_char_end_from_widths}` |
 | cell↔byte floor/ceil + grapheme tails | `vtty_width::{cell_col_byte_widths, cell_col_byte_from_widths, cell_col_byte_ceil_from_widths, grapheme_end_from_widths, grapheme_tail_end_from_widths}` |
-| $`B`$ | `SplitBoundaries.fb` — sparse $`(byte, flags)`$ trace |
+| $`B`$ | `SplitBoundaries.fb`, a sparse $`(byte, flags)`$ trace |
 | $`F`$ | `SplitBoundaries.zwj_flushes` |
 | $`W`$ | `vtty_width::split_widths(text, &SplitBoundaries, a)` |
 | $`\mathsf{split}`$ | `vtty_width::write_order::split_offsets` (crate-internal) |
@@ -56,16 +56,16 @@ screen-level differential sweeps live in the consumer, not here.
 
 ## Notation
 
-- $`\Sigma`$ — the Unicode scalar values; $`\Sigma^{*}`$ — finite strings over $`\Sigma`$.
-- $`\varepsilon`$ — empty string; $`s \cdot t`$ — concatenation; $`|s|`$ — code-point count.
-- $`s[k]`$ — the $`k`$-th code point; $`s[i..j)`$ — code points $`i \dots j-1`$ (code-point indices, not bytes).
-- $`\mathsf{byte}(c)`$ — the UTF-8 length of $`c`$; $`\mathsf{bytes}(s,k) = \sum_{t<k}\mathsf{byte}(s[t])`$.
-- $`\mathbb{N} = \{0,1,2,\dots\}`$; $`\mathbb{B} = \{\mathsf{false},\mathsf{true}\}`$; $`\bot`$ — "no width".
-- $`[u,v]`$ — the closed scalar range.
+- $`\Sigma`$: the Unicode scalar values; $`\Sigma^{*}`$, finite strings over $`\Sigma`$.
+- $`\varepsilon`$: empty string; $`s \cdot t`$, concatenation; $`|s|`$, code-point count.
+- $`s[k]`$: the $`k`$-th code point; $`s[i..j)`$, code points $`i \dots j-1`$ (code-point indices, not bytes).
+- $`\mathsf{byte}(c)`$: the UTF-8 length of $`c`$; $`\mathsf{bytes}(s,k) = \sum_{t<k}\mathsf{byte}(s[t])`$.
+- $`\mathbb{N} = \{0,1,2,\dots\}`$; $`\mathbb{B} = \{\mathsf{false},\mathsf{true}\}`$; $`\bot`$, "no width".
+- $`[u,v]`$: the closed scalar range.
 
 ---
 
-## Layer 1 — $`w_1`$ (per-char base width)
+## Layer 1: $`w_1`$ (per-char base width)
 
 ```math
 \begin{aligned}
@@ -111,7 +111,7 @@ independent halfwidth cells ($`w_1 = 1`$). Layer 2 must exclude them from its
 
 ---
 
-## Layer 2 — $`w_2`$ (per-run emoji DFA)
+## Layer 2: $`w_2`$ (per-run emoji DFA)
 
 ### Categories
 
@@ -142,12 +142,12 @@ $`\mathsf{cat} : \Sigma \to C`$ is `parley_emoji`'s segmentation category.
 
 A selector has **two** predicates, and they are not the same question:
 
-- $`\mathsf{vs\_base}`$ — `Extended_Pictographic` (including the reserved emoji
-  ranges) — decides whether the selector **attaches** (is stored as a
+- $`\mathsf{vs\_base}`$: `Extended_Pictographic` (including the reserved emoji
+  ranges), decides whether the selector **attaches** (is stored as a
   continuation) or is a stray. Keycap bases are $`\mathsf{Emoji}`$ but not
   $`ExtPict`$, so a selector there is a stray in the direct path; the full
   keycap sequence goes through the DFA.
-- $`\mathsf{vs\_target}`$ — $`\mathsf{Emoji}`$ minus keycap bases — decides whether
+- $`\mathsf{vs\_target}`$: $`\mathsf{Emoji}`$ minus keycap bases, decides whether
   the selector **changes the base's width**. An ExtPict-but-not-Emoji base
   attaches the selector with no width change.
 
@@ -282,12 +282,12 @@ Locked by `vtty_width::tests::combining_vs_spacing_acute`.
 
 ---
 
-## Layer 3 — write order
+## Layer 3: write order
 
 Width depends on the order chars were written, not just on the resulting
 string: a control byte closes the DFA scope. Layer 3 makes that order explicit
 as an automaton over an **event stream**, and reduces it to two pieces of
-data — the per-byte boundary trace $`B`$ and the flushed-base set $`F`$ — that the
+data (the per-byte boundary trace $`B`$ and the flushed-base set $`F`$) that the
 pure function $`W`$ consumes.
 
 ### Event stream
@@ -411,7 +411,7 @@ bytes must carry an `EmojiTrace` alongside the text.
 
 ### Representation
 
-`fb` is a **sparse per-byte flag map** — `SplitBoundaries.fb`, a sorted
+`fb` is a **sparse per-byte flag map**: `SplitBoundaries.fb`, a sorted
 `(byte_offset, flags)` list; bytes absent from it are implicitly zero. A
 dense byte-per-character array would double the memory of emoji-bearing
 scrollback, and fresh bases are rare.
@@ -466,7 +466,7 @@ W(\text{❤ ZWJ 👍 VS16}) = [2,0,0,0]
 
 A 0-cell ZWJ continuation still occupies its DFA width for the autowrap
 decision: at a full row, `ZWJ 👍VS16` wraps the `👍` as a fresh 2-cell base and
-the VS16 attaches to that new base — a soft wrap breaks the grapheme.
+the VS16 attaches to that new base, so a soft wrap breaks the grapheme.
 
 ## Deviations from the design specification
 
@@ -487,7 +487,7 @@ Where the implementation is deliberately narrower than the prose spec:
 What the model has to agree with: the authoritative Unicode data files, the
 three deliberate terminal divergences from them, the terminal-only rules the
 layers do not cover, and the engine that checks every sequence. The model
-follows UTS #51 as of **Unicode 17.0.0** — ICU4X 2.3.0 bakes the per-codepoint
+follows UTS #51 as of **Unicode 17.0.0**; ICU4X 2.3.0 bakes the per-codepoint
 properties, `parley_emoji` 0.13.0 supplies the version-agnostic DFA.
 
 ### Classification and summary
@@ -518,9 +518,9 @@ accounted for.
 
 | class | predicate | signature | justification |
 |---|---|---|---|
-| **K₁ — keycap-incomplete** | `s = c VS16`, `c ∈ {# * 0-9}` (no `U+20E3`) | `[1,0]` | a keycap base is `Emoji` but not `ExtPict`, so a lone VS16 after it is a stray. The complete `c VS16 U+20E3` widens to `[2,0,0]`. |
-| **K₂ — keycap-no-VS16** | `s = c U+20E3`, `c ∈ {# * 0-9}` | `[1,0]` | without the VS16 the keycap is text presentation. |
-| **S — lone skin tone** | `s = c`, `c ∈ {1F3FB..1F3FF}` | `[1]` | a skin-tone modifier is a 0-width combining mark; a lone one is one cell. |
+| **K₁**: keycap-incomplete | `s = c VS16`, `c ∈ {# * 0-9}` (no `U+20E3`) | `[1,0]` | a keycap base is `Emoji` but not `ExtPict`, so a lone VS16 after it is a stray. The complete `c VS16 U+20E3` widens to `[2,0,0]`. |
+| **K₂**: keycap-no-VS16 | `s = c U+20E3`, `c ∈ {# * 0-9}` | `[1,0]` | without the VS16 the keycap is text presentation. |
+| **S**: lone skin tone | `s = c`, `c ∈ {1F3FB..1F3FF}` | `[1]` | a skin-tone modifier is a 0-width combining mark; a lone one is one cell. |
 
 These are deliberate, Ghostty-aligned terminal overrides, not defects. They are
 the `ρ` keycap arm and the `w₁` skin-tone arm of the formal model.
@@ -539,7 +539,7 @@ surface a streaming consumer drives.
 
 #### Canonical composition (grapheme-breaker decision)
 
-`composes_precomposed(base, mark)` — does `base` + `mark` have a Unicode
+`composes_precomposed(base, mark)`: does `base` + `mark` have a Unicode
 canonical precomposed form (`e`+U+0301 → `é`)? A renderer inserts the ZWSP
 grapheme break only when this is true; a non-composing base (`◌`, symbols,
 CJK) keeps its grapheme intact so the GPOS mark anchor still positions the mark
@@ -588,14 +588,14 @@ Locked by `tests::hangul_jamo_and_syllable_widths`.
 
 #### Cell↔char walkers
 
-Three char-index walkers over the precomputed `cell_widths` vector — a
+Three char-index walkers over the precomputed `cell_widths` vector: a
 renderer's run char-range boundaries (floor/ceil/end):
 
-- `cell_col_char_from_widths(w, col)` — the glyph STARTING at (or containing)
+- `cell_col_char_from_widths(w, col)`: the glyph STARTING at (or containing)
   `col`, skipping 0-width continuations (floor).
-- `cell_col_char_ceil_from_widths(w, col)` — the first glyph at or past `col`
+- `cell_col_char_ceil_from_widths(w, col)`: the first glyph at or past `col`
   (ceil; a 0-width char at the boundary is included).
-- `cell_col_char_end_from_widths(w, col)` — one past the glyph ENDING at
+- `cell_col_char_end_from_widths(w, col)`: one past the glyph ENDING at
   `col`, including its trailing 0-width continuations. The boundary is
   inclusive (`cell + w >= col`, not `>`), so a glyph whose cell range ends
   exactly at `col` is included (the 2-cell ZWJ-family run-end case).
@@ -622,7 +622,7 @@ crate exposes the pieces a streaming consumer needs:
 | `wrap_width(cell, dfa_w)` | the autowrap width (≥ the cursor advance) |
 | `splice_offset(t, pos, end, diff)` | the edit splice that maintains `fb` |
 
-`fb` is sparse — a sorted `(byte_offset, flags)` list — and carries three bits:
+`fb` is sparse (a sorted `(byte_offset, flags)` list) and carries three bits:
 0 = fresh base (a control closed the prior scope), 1 = re-open boundary
 (print-time only), 2 = fresh base an ICH shifted right. Bit 2 exists so a
 standalone mark that an insert pushed past a non-space predecessor still keeps
@@ -690,7 +690,7 @@ single-file checks.
 ### Data sources
 
 The four files are ~1.2 MB and versioned by upstream, so they are downloaded
-rather than committed — `assets/emoji/` is git-ignored. From the repository
+rather than committed: `assets/emoji/` is git-ignored. From the repository
 root:
 
 ```bash

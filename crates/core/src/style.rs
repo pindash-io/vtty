@@ -1,20 +1,15 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Shared style types (cursor shape, underline style, SGR flags).
-//!
-//! SGR (Select Graphic Rendition) follows ECMA-48, as documented in the DEC
-//! manuals (EK-VT520-RM §5).
+//! Shared style types (cursor shape, underline style, SGR flags). SGR follows
+//! ECMA-48 (EK-VT520-RM §5).
 
 use smallvec::SmallVec;
 
 use crate::event::param_colon_sep;
 
 bitflags::bitflags! {
-    /// SGR attribute state: bold/faint/italic/underline/strikethrough/
-    /// overline/inverse/invisible/blink. The nine stored attributes occupy
-    /// bits 0..8 in SGR-code order; [`Self::BLINK_RAPID`] and [`Self::RESET`]
-    /// are parse-only marks above them.
+    /// SGR attribute flags, the stored ones in SGR-code order.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct SgrFlags: u16 {
         /// SGR 1 bold.
@@ -44,7 +39,7 @@ bitflags::bitflags! {
 }
 
 impl SgrFlags {
-    /// No attributes set — the default SGR state.
+    /// No attributes set, the default SGR state.
     pub const DEFAULT: Self = Self::empty();
 
     /// The decoration subset carried on a span/cell ([`StyleFlags`]).
@@ -78,9 +73,8 @@ impl From<i32> for SgrFlags {
 }
 
 impl SgrFlags {
-    /// The flags an SGR code affects. "Reset" codes (22/23/24/25/27/28/29/55)
-    /// carry the [`SgrFlags::RESET`] mark so the caller can tell clear from
-    /// set.
+    /// The flags an SGR code affects; "reset" codes carry [`SgrFlags::RESET`]
+    /// so the caller can tell clear from set.
     #[inline]
     pub const fn from_code(code: i32) -> Self {
         match code {
@@ -109,9 +103,7 @@ impl SgrFlags {
 }
 
 bitflags::bitflags! {
-    /// The five SGR decorations a screen stores per span/cell (bold /
-    /// italic / underline / strikethrough / overline), bits ordered by SGR
-    /// code.
+    /// The SGR decorations a screen stores per cell, in SGR-code order.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct StyleFlags: u8 {
         /// SGR 1 bold.
@@ -148,9 +140,7 @@ pub enum UnderlineStyle {
 }
 
 impl From<u8> for UnderlineStyle {
-    /// Map an SGR `4:<n>` sub-parameter to a style: `0` → [`Self::None`],
-    /// `2..=5` → the specific style, anything else → [`Self::Single`] (the
-    /// plain-`4` default).
+    /// SGR `4:<n>` decoder; unknown is [`Self::Single`].
     #[inline]
     fn from(v: u8) -> Self {
         match v {
@@ -165,11 +155,7 @@ impl From<u8> for UnderlineStyle {
 }
 
 impl UnderlineStyle {
-    /// Decode a stored underline-style code (0 = off, 1..=5 = a style) into a
-    /// style, treating any out-of-range code as [`Self::None`]. The
-    /// stored-field counterpart of the SGR sub-parameter decoder ([`From`]):
-    /// a stored field holds only 0..=5 in practice, so an unknown code is the
-    /// "no underline" fallback, not the SGR "plain `4` = single" default.
+    /// Stored-byte decoder; out-of-range is [`Self::None`].
     #[inline]
     pub const fn from_stored(v: u8) -> Self {
         match v {
@@ -184,8 +170,8 @@ impl UnderlineStyle {
 }
 
 /// DECSCUSR cursor shape (`CSI Ps SP q`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum CursorStyle {
     /// DECSCUSR 0 / DECTCEM off no cursor.
@@ -235,9 +221,8 @@ impl CursorStyle {
         }
     }
 
-    /// Encode a cursor shape + blink flag into its DECSCUSR code — the
-    /// inverse of [`Self::from_decscusr`]. The odd codes (1/3/5) blink, the
-    /// even codes (2/4/6) are steady, and 0 is the default (steady block).
+    /// The DECSCUSR code for a shape and blink flag; odd codes blink, 0 is the
+    /// default block.
     #[inline]
     pub const fn to_decscusr(self, blink: bool) -> u8 {
         match (self, blink) {
@@ -251,9 +236,8 @@ impl CursorStyle {
         }
     }
 
-    /// The DECSCUSR blink flag implied by a cursor-shape parameter: odd codes
-    /// (1/3/5) blink, even codes (2/4/6) are steady, 0 is the default (steady),
-    /// and unsupported codes (≥7) leave the blink state unchanged (`None`).
+    /// The DECSCUSR blink flag implied by a shape parameter; unsupported codes
+    /// are `None`.
     #[inline]
     pub const fn decscusr_blink(param: i32) -> Option<bool> {
         Some(match param {
@@ -267,15 +251,15 @@ impl CursorStyle {
 /// An unresolved SGR color (before palette interning).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ColorSpec {
-    /// 39/49 — restore the default fg/bg.
+    /// 39/49: restore the default fg/bg.
     Default,
-    /// 30..=37 / 90..=97 / 40..=47 / 100..=107 — the direct ANSI codes.
+    /// 30..=37 / 90..=97 / 40..=47 / 100..=107: the direct ANSI codes.
     /// Under bold, 30..=37 may render as the bright 90..=97 range (legacy).
     Ansi(u16),
-    /// `38;5;n` / `48;5;n` / `58;5;n` — the extended indexed color (already
+    /// `38;5;n` / `48;5;n` / `58;5;n`: the extended indexed color (already
     /// clamped to 0..=255).
     Indexed(u16),
-    /// `38;2;r;g;b` etc. — truecolor, packed `0xRRGGBBAA`.
+    /// `38;2;r;g;b` etc.: truecolor, packed `0xRRGGBBAA`.
     Rgb(u32),
 }
 
@@ -286,7 +270,7 @@ impl ColorSpec {
         Self::Rgb(crate::rgb_to_u32(r, g, b))
     }
 
-    /// Clamp an indexed color to the 256-color table and wrap it.
+    /// Clamp an indexed color to the 256-color table.
     #[inline]
     pub const fn indexed(n: i32) -> Self {
         Self::Indexed(crate::ColorId::from_index(n).index())
@@ -296,29 +280,29 @@ impl ColorSpec {
 /// A single parsed SGR effect, in sequence order.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SgrEffect {
-    /// 0 — reset all attributes and colors.
+    /// 0: reset all attributes and colors.
     Reset,
     /// Turn attribute flags on (bold/faint/…).
     Set(SgrFlags),
     /// Turn attribute flags off.
     Clear(SgrFlags),
-    /// 4 / 4:n / 21 — set the underline style (`None` clears it).
+    /// 4 / 4:n / 21: set the underline style (`None` clears it).
     Underline(UnderlineStyle),
-    /// 30..=37 / 39 / 38;… / 90..=97 — foreground.
+    /// 30..=37 / 39 / 38;… / 90..=97: foreground.
     Fg(ColorSpec),
-    /// 40..=47 / 49 / 48;… / 100..=107 — background.
+    /// 40..=47 / 49 / 48;… / 100..=107: background.
     Bg(ColorSpec),
-    /// 58;… — underline color.
+    /// 58;…: underline color.
     UnderlineColor(ColorSpec),
-    /// 59 — clear the underline color.
+    /// 59: clear the underline color.
     ClearUnderlineColor,
 }
 
 /// A raw SGR (`CSI … m`) attribute sequence: the parameter values plus the
 /// colon-separator bitfield (bit `i` = parameter `i` followed by `:`).
 ///
-/// Params are inline-allocated — the common 1–8 param SGR sequence never
-/// touches the heap.
+/// Params are inline-allocated, so the common one-to-eight param SGR sequence
+/// never touches the heap.
 ///
 /// # Example
 ///
@@ -365,94 +349,110 @@ impl Sgr {
     }
 }
 
-/// Parse an SGR sequence into its effects, appending to `out` (which the
-/// caller reuses to avoid a per-sequence allocation). Colors stay unresolved
-/// ([`ColorSpec`]) so each consumer interns them against its own palette.
+/// Parse an SGR sequence into `out`, which the caller reuses. Colors stay
+/// unresolved [`ColorSpec`]s for the consumer's palette.
 pub fn parse_effects(params: &[i32], sep: u16, out: &mut SmallVec<SgrEffect, 8>) {
-    // Arity first: `CSI m` and the one-parameter codes are ~70% of the SGR on a
-    // real wire, and neither needs the iterator below.
-    match params {
-        [] => {
-            out.push(SgrEffect::Reset);
-            return;
-        }
-        // A lone code has no colon sub-parameter to read (`4:` alone is still
-        // `Single`), so the single-code map is the whole answer.
-        [code] => {
-            out.extend(single_code(*code));
-            return;
-        }
-        _ => {}
-    }
-    let mut iter = params.iter().enumerate();
-    while let Some((i, &code)) = iter.next() {
-        match code {
-            // `4:0..5` is the colon-separated underline style; plain `4` is
-            // single underline.
-            4 => {
-                let style = if param_colon_sep(sep, i) {
-                    iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
-                } else {
-                    None
-                }
-                .unwrap_or(UnderlineStyle::Single);
-                out.push(SgrEffect::Underline(style));
-            }
-            // The extended colors (38/48/58) — the multi-param forms.
-            38 | 48 | 58 => {
-                let Some((c, skip)) = parse_extended(params, sep, i) else {
-                    continue;
-                };
-                out.push(extended_effect(code, c));
-                for _ in 0..skip {
-                    iter.next();
-                }
-            }
-            // Everything else — the single-code mapping.
-            _ => {
-                if let Some(style) = single_code(code) {
-                    out.push(style);
-                }
-            }
-        }
+    out.extend(Effects::new(params, sep));
+}
+
+/// A cursor over the [`SgrEffect`]s of an SGR sequence, one decoded per
+/// `next()`. Sinks apply each effect as it is decoded; [`parse_effects`] is
+/// the collecting form.
+#[derive(Debug, Clone)]
+pub struct Effects<'a> {
+    params: &'a [i32],
+    sep: u16,
+    i: usize,
+}
+
+impl<'a> Effects<'a> {
+    /// A cursor over `params`; `sep` is the colon-separator bitfield.
+    #[must_use]
+    pub const fn new(params: &'a [i32], sep: u16) -> Self {
+        Self { params, sep, i: 0 }
     }
 }
 
-/// The effect of the common single-color / single-attribute SGR forms,
-/// avoiding the effects `SmallVec` + iteration on the per-cell redraw hot
-/// path. Returns `None` for anything else (colon forms, multi-param
-/// sequences) — the caller falls back to [`parse_effects`].
+impl Iterator for Effects<'_> {
+    type Item = SgrEffect;
+
+    #[inline]
+    fn next(&mut self) -> Option<SgrEffect> {
+        // `CSI m` with no parameters is a reset, not an empty sequence.
+        if self.params.is_empty() {
+            let first = self.i == 0;
+            self.i = 1;
+            return first.then_some(SgrEffect::Reset);
+        }
+        while let Some(&code) = self.params.get(self.i) {
+            let i = self.i;
+            self.i += 1;
+            match code {
+                // `4:0..5` is the colon-separated underline style; plain `4`
+                // is single underline.
+                4 => {
+                    let sub = if param_colon_sep(self.sep, i) {
+                        // Consume the sub-parameter slot whether or not it is
+                        // present (`4:` alone is still single underline).
+                        let sub = self.params.get(self.i).copied();
+                        if self.i < self.params.len() {
+                            self.i += 1;
+                        }
+                        sub
+                    } else {
+                        None
+                    }
+                    .map(|s| UnderlineStyle::from(s as u8));
+                    return Some(SgrEffect::Underline(sub.unwrap_or(UnderlineStyle::Single)));
+                }
+                // The extended colors (38/48/58), the multi-param forms.
+                38 | 48 | 58 => match parse_extended(self.params, self.sep, i) {
+                    Some((c, skip)) => {
+                        self.i += skip;
+                        return Some(extended_effect(code, c));
+                    }
+                    None => continue,
+                },
+                // Everything else: the single-code mapping.
+                _ => {
+                    if let Some(effect) = single_code(code) {
+                        return Some(effect);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+/// The common single-color / single-attribute forms, avoiding the effects
+/// `SmallVec`; `None` falls back to [`parse_effects`].
 #[inline]
 pub const fn single_effect(params: &[i32], sep: u16) -> Option<SgrEffect> {
     if sep != 0 {
         return None;
     }
-    match *params {
-        [] => Some(SgrEffect::Reset),
-        [code] => single_code(code),
-        [code @ (38 | 48 | 58), 5, n] => Some(extended_effect(code, ColorSpec::indexed(n))),
-        [code @ (38 | 48 | 58), 2, r, g, b] => Some(extended_effect(code, ColorSpec::rgb(r, g, b))),
-        _ => None,
-    }
+    let effect = match *params {
+        [] => SgrEffect::Reset,
+        [code] => return single_code(code),
+        [code @ (38 | 48 | 58), 5, n] => extended_effect(code, ColorSpec::indexed(n)),
+        [code @ (38 | 48 | 58), 2, r, g, b] => extended_effect(code, ColorSpec::rgb(r, g, b)),
+        _ => return None,
+    };
+    Some(effect)
 }
 
-/// The common two-effect SGR form — one attribute code followed by one
-/// extended color (`1;38;2;r;g;b`, `4;48;5;n`) — avoiding the effects
-/// `SmallVec` + iteration on the bold+truecolor TUI hot path. Returns `None`
-/// for anything else; the caller falls back to [`parse_effects`].
+/// The two-parameter form (`1;31`, `0;39`, `7;44`) where neither code is an
+/// extended colour: `None` falls back to [`Effects`].
 #[inline]
-pub const fn two_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
+pub const fn two_simple_effects(params: &[i32], sep: u16) -> Option<(SgrEffect, SgrEffect)> {
     if sep != 0 {
         return None;
     }
-    let (attr, code, spec) = match *params {
-        [attr, code @ (38 | 48 | 58), 5, n] => (attr, code, ColorSpec::indexed(n)),
-        [attr, code @ (38 | 48 | 58), 2, r, g, b] => (attr, code, ColorSpec::rgb(r, g, b)),
-        _ => return None,
-    };
-    match single_code(attr) {
-        Some(effect) => Some((effect, extended_effect(code, spec))),
-        None => None,
+    let [a, b] = *params else { return None };
+    match (single_code(a), single_code(b)) {
+        (Some(a), Some(b)) => Some((a, b)),
+        _ => None,
     }
 }
 
@@ -471,9 +471,8 @@ const fn extended_effect(code: i32, spec: ColorSpec) -> SgrEffect {
 #[inline]
 pub const fn single_code(code: i32) -> Option<SgrEffect> {
     let value = match code {
-        // `-2` is the parser's `;`-separated empty sentinel; in SGR an empty
-        // (or `0`) parameter is a reset. `-1` (trailing/colon empty) is not a
-        // reset — it is ignored by the callers.
+        // `-2` (a `;`-empty) and `0` are resets in SGR; `-1` (trailing or colon
+        // empty) is not, and the callers ignore it.
         0 | -2 => SgrEffect::Reset,
         4 => SgrEffect::Underline(UnderlineStyle::Single),
         21 => SgrEffect::Underline(UnderlineStyle::Double),
@@ -502,7 +501,7 @@ pub const fn single_code(code: i32) -> Option<SgrEffect> {
 
 /// Parse an extended color (38/48/58): `X;5;n` / `X;2;r;g;b` and the colon
 /// forms `X:5:n`, `X:2:r:g:b`, `X:2:cs:r:g:b` / `X:2::r:g:b` (the colorspace
-/// is skipped — xterm reads the triplet as RGB, no CMY conversion).
+/// is skipped, since xterm reads the triplet as RGB rather than CMY).
 /// Returns `(spec, skip)` where `skip` is the number of params AFTER `i`
 /// consumed (so the caller does `i += skip`).
 #[inline]
@@ -539,6 +538,127 @@ pub const fn parse_extended(params: &[i32], sep: u16, i: usize) -> Option<(Color
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pre-cursor loop, kept verbatim as the parity oracle for
+    /// [`Effects`].
+    fn oracle(params: &[i32], sep: u16) -> SmallVec<SgrEffect, 8> {
+        let mut out = SmallVec::new();
+        match params {
+            [] => {
+                out.push(SgrEffect::Reset);
+                return out;
+            }
+            [code] => {
+                out.extend(single_code(*code));
+                return out;
+            }
+            _ => {}
+        }
+        let mut iter = params.iter().enumerate();
+        while let Some((i, &code)) = iter.next() {
+            match code {
+                4 => {
+                    let style = if param_colon_sep(sep, i) {
+                        iter.next().map(|(_, &s)| UnderlineStyle::from(s as u8))
+                    } else {
+                        None
+                    }
+                    .unwrap_or(UnderlineStyle::Single);
+                    out.push(SgrEffect::Underline(style));
+                }
+                38 | 48 | 58 => {
+                    let Some((c, skip)) = parse_extended(params, sep, i) else {
+                        continue;
+                    };
+                    out.push(extended_effect(code, c));
+                    for _ in 0..skip {
+                        iter.next();
+                    }
+                }
+                _ => {
+                    if let Some(style) = single_code(code) {
+                        out.push(style);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Every vector the cursor yields must equal the oracle's, so the rewrite
+    /// cannot change what a sink sees.
+    #[test]
+    fn effects_cursor_matches_oracle() {
+        const CODES: &[i32] = &[
+            0, 1, 2, 4, 5, 7, 21, 22, 23, 24, 25, 29, 30, 31, 38, 39, 40, 44, 48, 49, 58, 59, 90,
+            107, -1, -2, 255,
+        ];
+        const SEPS: &[u16] = &[0, 0b1, 0b11, 0b101, 0b10001, 0b100010, 0b11111];
+
+        let mut params: SmallVec<i32, 8> = SmallVec::new();
+        let check = |params: &[i32]| {
+            for &sep in SEPS {
+                let got: SmallVec<SgrEffect, 8> = Effects::new(params, sep).collect();
+                assert_eq!(got, oracle(params, sep), "params {params:?} sep {sep:#b}");
+            }
+        };
+
+        // The fast paths must agree with the cursor wherever they answer.
+        let fast = |params: &[i32]| -> Option<SmallVec<SgrEffect, 8>> {
+            if let Some(e) = single_effect(params, 0) {
+                return Some(SmallVec::from([e]));
+            }
+            two_simple_effects(params, 0).map(|(a, b)| SmallVec::from([a, b]))
+        };
+
+        check(&[]);
+        for &a in CODES {
+            check(&[a]);
+            for &b in CODES {
+                params.clear();
+                params.extend([a, b]);
+                check(&params);
+                for &c in CODES {
+                    params.clear();
+                    params.extend([a, b, c]);
+                    check(&params);
+                }
+            }
+        }
+
+        for &a in CODES {
+            for &b in CODES {
+                for c in [0_i32, 1, 31, 44, -1] {
+                    let params = [a, b, c];
+                    if let Some(fast) = fast(&params) {
+                        let got: SmallVec<SgrEffect, 8> = Effects::new(&params, 0).collect();
+                        assert_eq!(fast, got, "fast path disagrees on {params:?}");
+                    }
+                }
+            }
+        }
+
+        // Longer vectors from a deterministic generator, where the extended
+        // colors and their skip counts appear in every position.
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 33) as usize
+        };
+        for _ in 0..20_000 {
+            let len = 4 + next() % 5;
+            params.clear();
+            for _ in 0..len {
+                params.push(CODES[next() % CODES.len()]);
+            }
+            check(&params);
+            let sep = (next() & 0x1f) as u16;
+            let got: SmallVec<SgrEffect, 8> = Effects::new(&params, sep).collect();
+            assert_eq!(got, oracle(&params, sep), "params {params:?} sep {sep:#b}");
+        }
+    }
 
     #[test]
     fn sgr_set_code_maps_to_flag() {
@@ -645,9 +765,7 @@ mod tests {
 
     #[test]
     fn cursor_style_decscusr_round_trip_and_blink() {
-        // For the explicit shape+blink codes (1..=6), decode then encode is
-        // the identity. Code 0 is the "default" (a steady block, re-encoded
-        // as 2) so it is excluded from the round trip.
+        // Codes 1..=6 round-trip; 0 is the default (steady block, re-encoded as 2).
         for code in 1..=6 {
             let shape = CursorStyle::from_decscusr(code);
             assert_eq!(
@@ -688,9 +806,7 @@ mod tests {
 
     #[test]
     fn underline_style_from_stored_differs_from_wire() {
-        // The stored-field decoder treats an out-of-range code as None (the
-        // stored field is never corrupt in practice), unlike the wire decoder
-        // which defaults an unknown sub-param to Single.
+        // Out-of-range is `None` here, `Single` in the wire decoder.
         assert_eq!(UnderlineStyle::from_stored(9), UnderlineStyle::None);
         // The valid codes agree.
         for v in 0..=5 {
@@ -728,7 +844,7 @@ mod tests {
 
     #[test]
     fn sgr_parse_effects_colon_underline_and_colorspace() {
-        // `4:2` — double underline via the colon form.
+        // `4:2`: double underline via the colon form.
         let mut out = SmallVec::new();
         parse_effects(&[4, 2], 0b01, &mut out);
         assert_eq!(
@@ -736,81 +852,11 @@ mod tests {
             &[SgrEffect::Underline(UnderlineStyle::Double)]
         );
 
-        // `38:2::r:g:b` — the colorspace slot is skipped (`::`); the colon
+        // `38:2::r:g:b`: the colorspace slot is skipped (`::`), and the colon
         // after the `g` slot (bit 4) marks the colorspace form.
         out.clear();
         parse_effects(&[38, 2, 0, 1, 2, 3], 0b11111, &mut out);
         assert_eq!(out.as_ref(), &[SgrEffect::Fg(ColorSpec::rgb(1, 2, 3))]);
-    }
-
-    #[test]
-    fn effect_fast_paths_cover_only_complete_shapes() {
-        // Both are `const`: usable in a `const` item.
-        const RESET: Option<SgrEffect> = single_effect(&[], 0);
-        assert_eq!(RESET, Some(SgrEffect::Reset));
-        const PAIR: Option<(SgrEffect, SgrEffect)> = two_effects(&[1, 38, 5, 196], 0);
-        assert_eq!(
-            PAIR,
-            Some((
-                SgrEffect::Set(SgrFlags::BOLD),
-                SgrEffect::Fg(ColorSpec::Indexed(196))
-            ))
-        );
-
-        // Truncated extended forms are `parse_effects`' job.
-        assert_eq!(single_effect(&[38, 5], 0), None);
-        assert_eq!(single_effect(&[38, 2, 1, 2], 0), None);
-        // An empty `;`-parameter slot clamps like `parse_extended` does.
-        assert_eq!(
-            single_effect(&[38, 5, -1], 0),
-            Some(SgrEffect::Fg(ColorSpec::Indexed(0)))
-        );
-        // A second effect, a bad sub-command or a colon form falls back too.
-        assert_eq!(single_effect(&[1, 31], 0), None);
-        assert_eq!(single_effect(&[38, 3, 1], 0), None);
-        assert_eq!(single_effect(&[38, 5, 196], 0b1), None);
-        assert_eq!(two_effects(&[1, 38, 5], 0), None);
-        assert_eq!(two_effects(&[7, 48, 2, 1, 2, 3], 0b1), None);
-        // `two_effects` needs a leading attribute the single-code map knows.
-        assert_eq!(two_effects(&[99, 38, 5, 196], 0), None);
-    }
-
-    #[test]
-    fn sgr_single_effect_hot_path() {
-        assert_eq!(
-            single_effect(&[38, 2, 1, 2, 3], 0),
-            Some(SgrEffect::Fg(ColorSpec::rgb(1, 2, 3)))
-        );
-        assert_eq!(
-            single_effect(&[48, 5, 196], 0),
-            Some(SgrEffect::Bg(ColorSpec::indexed(196)))
-        );
-        assert_eq!(single_effect(&[1], 0), Some(SgrEffect::Set(SgrFlags::BOLD)));
-        // Colon-separated forms fall back to `parse_effects`.
-        assert_eq!(single_effect(&[4, 2], 0b01), None);
-        assert_eq!(single_effect(&[1, 2], 0), None);
-    }
-
-    #[test]
-    fn sgr_encode_round_trips_canonical_bytes() {
-        let mut out = SmallVec::<u8, 16>::new();
-        Sgr::new(SmallVec::from([1, 31]), 0).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[1;31m");
-
-        // Colon-separated form: `4:2` underlines double.
-        out.clear();
-        Sgr::new(SmallVec::from([4, 2]), 0b01).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[4:2m");
-
-        // A trailing empty param (ConPTY's `SGR …;m`) writes nothing: the
-        // separator carries it.
-        out.clear();
-        Sgr::new(SmallVec::from([48, 2, 255, 0, 128, -1]), 0).write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[48;2;255;0;128;m");
-
-        out.clear();
-        Sgr::default().write_bytes(&mut out);
-        assert_eq!(out.as_ref(), b"\x1b[m");
     }
 
     #[test]

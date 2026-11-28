@@ -4,8 +4,8 @@
 //! Single source of truth for the parser's resource limits.
 //!
 //! These bounds are the code-side counterpart of the "Resource limits" table
-//! in `ARCHITECTURE.md`. Keeping them in one module — rather than scattered
-//! across `parser.rs` and `utf8.rs` — means the two cannot drift apart. Each
+//! in `ARCHITECTURE.md`. Keeping them in one module, rather than scattered
+//! across `parser.rs` and `utf8.rs`, means the two cannot drift apart. Each
 //! constant documents why the bound exists and what happens when it is
 //! exceeded.
 
@@ -16,32 +16,20 @@
 /// clipboard ≈ 128 KiB). On overflow the whole OSC is discarded.
 pub(crate) const MAX_OSC_PAYLOAD: usize = 1_048_576;
 
-/// Maximum number of OSC parameters.
-///
-/// Parameters beyond this cap are dropped.
+/// Maximum number of OSC parameters; extras are dropped.
 pub(crate) const MAX_OSC_PARAMS: usize = 16;
 
-/// Maximum number of CSI/DCS parameters.
-///
-/// Parameters beyond this cap are dropped.
+/// Maximum number of CSI/DCS parameters; extras are dropped.
 pub(crate) const MAX_PARAM_COUNT: usize = 32;
 
-/// Maximum CSI/DCS parameter value.
-///
-/// DEC VT500 params are 16-bit (`0..=65535`); `i32` holds the clamped range
-/// plus the `-1` empty-param sentinel.
+/// Maximum CSI/DCS parameter value: DEC's 16-bit range plus the `-1` sentinel.
 pub(crate) const MAX_PARAM_VALUE: i32 = 65535;
 
-/// Maximum number of CSI/DCS intermediates.
-///
-/// The DEC spec caps intermediates (private markers plus `0x20..0x2f`) at
-/// two; extras are dropped.
+/// Maximum CSI/DCS intermediates; DEC caps them at two, extras are dropped.
 pub(crate) const MAX_INTERMEDIATES: usize = 2;
 
-/// Maximum number of continuation bytes in a UTF-8 code point.
-///
-/// A full code point is at most `1 + MAX_UTF8_CONTINUATIONS = 4` bytes — the
-/// "UTF-8 partial: 4 bytes" row in `ARCHITECTURE.md`.
+/// Maximum UTF-8 continuation bytes; a code point is at most four (see
+/// `ARCHITECTURE.md`).
 pub(crate) const MAX_UTF8_CONTINUATIONS: usize = 3;
 
 /// Maximum SIMD UTF-8 decode window, in bytes.
@@ -54,12 +42,12 @@ pub(crate) const SIMD_UTF8_CHUNK: usize = 4096;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloc::string::String;
 
-    /// The "Resource limits" table in `ARCHITECTURE.md` must stay in lockstep
-    /// with this module. Every documented value is derived from a constant
-    /// here, so changing one without the other fails this test.
+    use super::*;
+
+    /// The `ARCHITECTURE.md` "Resource limits" table must match this module; every value
+    /// is derived from a constant here.
     #[test]
     fn resource_limits_match_architecture_table() {
         let doc = include_str!("../ARCHITECTURE.md");

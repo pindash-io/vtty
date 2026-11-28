@@ -10,14 +10,10 @@ use crate::perform::Perform;
 
 /// A minimal byte-cursor terminal state.
 ///
-/// `State` is a reference [`Perform`](crate::Perform) sink that records printed
-/// text and moves a byte cursor on the control bytes a parser dispatches. It
-/// models just enough of a screen to report the cursor's line and column
-/// without a cell grid: text accumulates verbatim, and `\n`/`\r` move the
-/// cursor.
-///
-/// The invariant is `line_start <= cursor <= text.len()`; the row and column
-/// accessors clamp when the fields are inconsistent.
+/// A [`Perform`](crate::Perform) sink that records printed text and moves a
+/// byte cursor on control bytes: enough to report the line and column without a
+/// cell grid. `line_start <= cursor <= text.len()` holds after every dispatch;
+/// the accessors clamp when it does not.
 ///
 /// # Example
 ///
@@ -60,46 +56,36 @@ impl State {
     /// Number of lines in the text buffer. An empty buffer has 0 lines; each
     /// `\n` starts a new line (a trailing `\n` counts as one empty line).
     pub fn line_count(&self) -> usize {
-        let bytes = self.text.as_bytes();
-        let newlines = bytes.iter().filter(|&&b| b == b'\n').count();
-        newlines + usize::from(!bytes.is_empty())
+        self.text.matches('\n').count() + usize::from(!self.text.is_empty())
     }
 
     /// 0-based row (line index) of the cursor.
     pub fn cursor_row(&self) -> usize {
         let cursor = self.cursor.min(self.text.len());
-        self.text[..cursor].bytes().filter(|&b| b == b'\n').count()
+        self.text[..cursor].matches('\n').count()
     }
 
-    /// 0-based byte column of the cursor within its line (offset from the
-    /// line start, not a terminal cell column — this byte-cursor state has no
-    /// cell grid). Clamps to `0` when the fields are inconsistent, mirroring
-    /// [`Self::cursor_row`].
+    /// 0-based byte column within the line, not a cell column. Clamps to `0` when
+    /// the fields are inconsistent, mirroring [`Self::cursor_row`].
     pub fn cursor_col(&self) -> usize {
         self.cursor
             .min(self.text.len())
             .saturating_sub(self.line_start)
     }
 
-    /// Byte range `[start, end)` of line `line` (0-based). `end` is exclusive:
-    /// it points at the line's `\n` byte, or at the buffer end for the last
-    /// line. Returns `None` when `line` is out of range (or the buffer is
-    /// empty).
+    /// Byte range `[start, end)` of line `line`; `end` points at its `\n`. `None`
+    /// when the line is out of range.
     pub fn line_range(&self, line: usize) -> Option<Range<usize>> {
-        let bytes = self.text.as_bytes();
-        if bytes.is_empty() {
+        if self.text.is_empty() {
             return None;
         }
-
-        // `match_indices` yields `\n` offsets lazily: skip to the newline before
-        // `line` (start is one past it), then the next newline ends the line.
+        // Start one past the previous newline; end at the next.
         let mut newlines = self.text.match_indices('\n');
-        let start = if line == 0 {
-            0
-        } else {
-            newlines.nth(line - 1)?.0 + 1
+        let start = match line {
+            0 => 0,
+            n => newlines.nth(n - 1)?.0 + 1,
         };
-        let end = newlines.next().map_or(bytes.len(), |(i, _)| i);
+        let end = newlines.next().map_or(self.text.len(), |(i, _)| i);
         Some(start..end)
     }
 }
@@ -116,8 +102,7 @@ impl Perform for State {
     }
 
     fn print_bytes(&mut self, s: &[u8]) {
-        // Printable ASCII is valid UTF-8 by construction; a non-UTF-8 run is
-        // impossible and is dropped rather than mishandled.
+        // Printable ASCII is valid UTF-8; a non-UTF-8 run is dropped.
         let Ok(s) = core::str::from_utf8(s) else {
             return;
         };
@@ -198,13 +183,11 @@ mod tests {
         s.print('a');
         s.print('b');
         assert_eq!(s.text, "ab");
-        // Move the cursor back and insert mid-text.
         s.cursor = 1;
         s.print('X');
         assert_eq!(s.text, "aXb");
         s.print_bytes(b"YZ");
         assert_eq!(s.text, "aXYZb");
-        // CR returns to the line start without advancing a line.
         s.execute(b'\r');
         assert_eq!(s.cursor, s.line_start);
     }
@@ -213,10 +196,8 @@ mod tests {
     fn perform_drops_invalid_utf8_and_ignores_unknown_controls() {
         let mut s = State::new();
         s.print('a');
-        // A non-UTF-8 byte run is dropped rather than mishandled.
         s.print_bytes(&[0xff]);
         assert_eq!(s.text, "a");
-        // Unknown C0 controls are no-ops.
         s.execute(0x00);
         assert_eq!(s.text, "a");
         assert_eq!(s.cursor, 1);

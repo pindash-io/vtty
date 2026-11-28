@@ -2,32 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Query/response reply formatting (DECRQSS / DECRQM / XTGETTCAP and the
-//! `$`-family DCS reports).
-//!
-//! Query/response pairs follow the [DECronomicon CSI/DCS tables]; the
-//! individual report formats (DECRPSS, DECTSR, DECCTR, DECCIR, DECTABSR)
-//! follow EK-VT520-RM §5.
+//! `$`-family DCS reports). See the [DECronomicon CSI/DCS tables] and
+//! EK-VT520-RM §5.
 //!
 //! [DECronomicon CSI/DCS tables]: https://vt100.net/emu/ctrlseq_dec.html
 
 use alloc::string::ToString;
 use core::fmt::Write as _;
 
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+use compact_str::format_compact;
 
-use crate::{ColorId, DEFAULT_BG_ID, DEFAULT_FG_ID, SgrFlags, u32_to_rgb};
+use crate::u32_to_array;
+use crate::{ColorId, SgrFlags};
+use crate::{DEFAULT_BG_ID, DEFAULT_FG_ID};
 
 /// DCS/OSC string terminator (`ESC \`).
 pub(crate) const ST: &str = "\x1b\\";
 
-/// XTGETTCAP answer prefix — `DCS 1 + r` (supported/valid).
+/// XTGETTCAP answer prefix (`DCS 1 + r`), valid.
 const XTGETTCAP_OK: &str = "\x1bP1+r";
-/// XTGETTCAP answer prefix — `DCS 0 + r` (unsupported/error).
+/// XTGETTCAP answer prefix (`DCS 0 + r`), unsupported.
 const XTGETTCAP_ERR: &str = "\x1bP0+r";
 
-/// DECRQSS answer prefix — `DCS 1 $ r` (valid).
+/// DECRQSS answer prefix (`DCS 1 $ r`), valid.
 const DECRQSS_OK: &str = "\x1bP1$r";
-/// DECRQSS answer prefix — `DCS 0 $ r` (invalid).
+/// DECRQSS answer prefix (`DCS 0 $ r`), invalid.
 const DECRQSS_ERR: &str = "\x1bP0$r";
 
 /// Namespace for VT query reply builders.
@@ -72,7 +72,7 @@ impl Reply {
     }
 
     /// Build an XTGETTCAP boolean answer: `DCS 1 + r {hex key} ST` (no
-    /// `=value`, per xterm — a bare name means "supported").
+    /// `=value`, per xterm, where a bare name means "supported").
     #[inline]
     #[must_use]
     pub fn xtgettcap_reply_bool(key: &[u8]) -> CompactString {
@@ -94,7 +94,6 @@ impl Reply {
     }
 
     /// Build an SGR reply (`m…`) from a pen's palette ids + style flags.
-    /// Starts with `0` (reset-all). `palette` resolves RGB ids.
     #[must_use]
     pub fn sgr(fg: ColorId, bg: ColorId, flags: SgrFlags, palette: &[u32]) -> CompactString {
         let mut buf = CompactString::default();
@@ -115,9 +114,7 @@ impl Reply {
         buf
     }
 
-    /// Build an OSC color reply `ESC]CODE;rgb:RRRR/GGGG/BBBB ESC\` from a
-    /// `0xRRGGBBAA` value (8-bit channels repeated to 4 hex digits, the xterm
-    /// convention).
+    /// Build an OSC color reply (`ESC]CODE;rgb:… ESC\`) from `0xRRGGBBAA`.
     #[inline]
     #[must_use]
     pub fn osc_color(code: u16, rgb: u32) -> CompactString {
@@ -136,15 +133,13 @@ impl Reply {
     #[inline]
     #[must_use]
     pub fn osc_background(c: [f32; 4]) -> CompactString {
-        // Pure ASCII (ESC + hex digits + ST), so validation cannot fail. Stay
-        // strict rather than lossy: a broken invariant should drop the reply,
-        // not splice U+FFFD into it.
+        // Pure ASCII, so validation cannot fail: stay strict rather than splice
+        // U+FFFD into a broken reply.
         CompactString::from_utf8(crate::color::format_osc_background(c)).unwrap_or_default()
     }
 
-    /// Build a DECRQM answer: `CSI {?}{param};{state}$y`. `state` is the Pm
-    /// value per ECMA-48: 0 = not recognized, 1 = set, 2 = reset. `private`
-    /// includes the `?` for `CSI ?Ps$p` queries.
+    /// Build a DECRQM answer; `state` is ECMA-48's 0/1/2 and `private` adds
+    /// the `?`.
     #[must_use]
     pub fn decrqm(param: i32, private: bool, state: u8) -> CompactString {
         format_compact!("\x1b[{}{param};{state}$y", if private { "?" } else { "" })
@@ -157,9 +152,7 @@ fn terminate(buf: &mut CompactString) {
     buf.push_str(ST);
 }
 
-/// Append an XTGETTCAP answer: `DCS {ok} + r {hex key}[={hex value}] ST`.
-/// `ok` picks `1`/`0`; `value` is omitted for boolean capabilities and
-/// failure messages.
+/// Append an XTGETTCAP answer; `value` is omitted for booleans and failures.
 pub(crate) fn xtgettcap(buf: &mut CompactString, ok: bool, key: &[u8], value: Option<&[u8]>) {
     buf.push_str(if ok { XTGETTCAP_OK } else { XTGETTCAP_ERR });
     buf.push_str(&const_hex::encode(key));
@@ -192,9 +185,7 @@ fn xtgettcap_num_build(key: &[u8], n: usize) -> CompactString {
     buf
 }
 
-/// Append an SGR color to `s`: `;{base}9` (default), `;{base}8;5;n`
-/// (indexed), or `;{base}8;2;r;g;b` (RGB, resolved from the palette).
-/// `base` is 3 for fg, 4 for bg; `default_id` is the matching default color.
+/// Append an SGR color (`;{base}9`, `;{base}8;5;n` or `;{base}8;2;r;g;b`).
 fn push_sgr_color(
     s: &mut CompactString,
     base: u8,
@@ -202,18 +193,20 @@ fn push_sgr_color(
     default_id: ColorId,
     palette: &[u32],
 ) {
-    if id != default_id {
-        if id.0 <= 255 {
-            let _ = write!(s, ";{base}8;5;{id}");
-            return;
-        }
-        if let Some(rgb) = palette.get(id.0 as usize).copied() {
-            let [r, g, b] = u32_to_rgb(rgb);
-            let _ = write!(s, ";{base}8;2;{r};{g};{b}");
-            return;
-        }
+    if id == default_id {
+        let _ = write!(s, ";{base}9");
+        return;
     }
-    let _ = write!(s, ";{base}9");
+    if id.0 <= 255 {
+        let _ = write!(s, ";{base}8;5;{id}");
+        return;
+    }
+    let Some(rgb) = palette.get(id.0 as usize) else {
+        let _ = write!(s, ";{base}9");
+        return;
+    };
+    let [r, g, b] = u32_to_array(*rgb);
+    let _ = write!(s, ";{base}8;2;{r};{g};{b}");
 }
 
 #[cfg(test)]

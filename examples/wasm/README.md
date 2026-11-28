@@ -1,4 +1,4 @@
-# vtty — web (WASM) example
+# vtty: web (WASM) example
 
 A minimal browser demo: feed bytes to the `vtty` parser and read the text it
 produces. A `Terminal` wraps `vtty::Parser` + the built-in `vtty::State`
@@ -26,5 +26,5 @@ cd www && python3 -m http.server 8000
 
 Open <http://localhost:8000>. The **Demo** button feeds a string with SGR
 colors, bold, underline and multibyte text; the output shows the text with
-every escape sequence consumed. Type into the box — `\x1b` and `\n` are
+every escape sequence consumed. Type into the box; `\x1b` and `\n` are
 interpreted, so `\x1b[31mred\x1b[0m` parses to `red`.

@@ -1,7 +1,7 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! ICU4X runtime lookups (feature `icu`) — the width derivation used as the
+//! ICU4X runtime lookups (feature `icu`): the width derivation used as the
 //! runtime alternative to the baked table. The emoji property source for the
 //! segmentation DFA lives in [`crate::Properties::from_icu`].
 
@@ -18,7 +18,7 @@ use icu_properties::props::{
 #[cfg(feature = "icu")]
 use crate::properties::Gcb;
 
-/// ICU4X-backed display width — an alternative to `unicode-width`.
+/// ICU4X-backed display width: an alternative to `unicode-width`.
 ///
 /// - `GeneralCategory`: control/surrogate/unassigned and combining/format/
 ///   separator chars → `0`.
@@ -43,10 +43,8 @@ pub fn width_icu(cp: char) -> usize {
         0x2D7F => 1,
         0x1160..=0x11FF | 0xD7B0..=0xD7C6 | 0xD7CB..=0xD7FB => 0,
         _ => match gc.get(cp) {
-            // Control and surrogate have no width; default-ignorable and
-            // grapheme-extend chars are zero-width (matching unicode-width's
-            // zero-width rule). Everything else falls through to East Asian
-            // Width.
+            // Control and surrogate have no width; default-ignorable and extend
+            // chars are zero-width. The rest use East Asian Width.
             GeneralCategory::Control | GeneralCategory::Surrogate => 0,
             _ if DI.with(|di| di.contains(cp))
                 || GCB.with(|g| g.get(cp) == GraphemeClusterBreak::Extend)
@@ -62,9 +60,7 @@ pub fn width_icu(cp: char) -> usize {
     })
 }
 
-/// unicode-width's curated zero-width format/spacing marks that the raw
-/// Unicode properties (GC / `Default_Ignorable` / `Grapheme_Extend`) don't
-/// express.
+/// unicode-width's curated zero-width marks that the raw properties miss.
 const fn is_curated_zero_width(cp: u32) -> bool {
     matches!(
         cp,
@@ -91,9 +87,8 @@ const fn is_curated_zero_width(cp: u32) -> bool {
     )
 }
 
-/// ICU4X-backed grapheme cluster break property lookup — the `icu`
-/// alternative to the baked table (also used by `Properties::from_icu`
-/// for the baked-vs-icu differential test).
+/// ICU4X-backed grapheme cluster break lookup: the `icu` alternative to the
+/// baked table, also used by the drift test.
 #[cfg(feature = "icu")]
 pub(crate) fn gcb_icu(c: char) -> Gcb {
     thread_local! {
@@ -125,7 +120,7 @@ pub(crate) fn gcb_icu(c: char) -> Gcb {
     })
 }
 
-/// ICU4X East Asian Width "Ambiguous" predicate — the runtime counterpart
+/// ICU4X East Asian Width "Ambiguous" predicate: the runtime counterpart
 /// of the baked AMBIGUOUS bit.
 pub(crate) fn ambiguous_icu(cp: char) -> bool {
     thread_local! {

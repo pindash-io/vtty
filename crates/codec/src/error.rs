@@ -9,10 +9,9 @@ use core::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum EncodeError {
-    /// The destination buffer is too small to hold the value.
+    /// The destination buffer is too small.
     BufferTooSmall,
-    /// A value carries a variant this build does not know. A `#[non_exhaustive]`
-    /// enum gained a variant after this crate was compiled.
+    /// A variant this build does not know.
     UnknownVariant,
 }
 
@@ -31,10 +30,9 @@ impl core::error::Error for EncodeError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DecodeError {
-    /// The input ended before the value was complete.
+    /// The input ended mid-value.
     UnexpectedEof,
-    /// The input contained an undecodable value (bad enum tag, invalid
-    /// `bool`/`char`, malformed varint, invalid UTF-8, …).
+    /// An undecodable value.
     InvalidValue,
 }
 

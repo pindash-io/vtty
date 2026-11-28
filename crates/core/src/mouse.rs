@@ -4,16 +4,15 @@
 //! Mouse event encoding (X10 / normal / SGR / urxvt / pixel).
 //!
 //! Mouse tracking is an xterm extension using DEC private modes
-//! 9/1000/1002/1003/1005/1006/1015/1016 — see [xterm ctlseqs, Mouse Tracking].
+//! 9/1000/1002/1003/1005/1006/1015/1016; see [xterm ctlseqs, Mouse Tracking].
 //!
 //! [xterm ctlseqs, Mouse Tracking]: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking
 
-use compact_str::{CompactString, format_compact};
+use compact_str::CompactString;
+use compact_str::format_compact;
 use smallvec::SmallVec;
 
-/// Inline capacity for a mouse sequence. SGR (`ESC [ < cb ; x ; y M/m`) is
-/// the longest at ≤ 19 bytes; X10 (6) and UTF-8 (≤ 11) are shorter. 24 keeps
-/// all three on the stack.
+/// Inline capacity for one mouse sequence; SGR is the longest at 19 bytes.
 const MOUSE_SEQ_INLINE: usize = 24;
 
 bitflags::bitflags! {
@@ -21,19 +20,17 @@ bitflags::bitflags! {
     /// screens map their flags into this and delegate to [`MouseButton::encode`].
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MouseTracking: u8 {
-        /// Any tracking enabled: DEC 9 (X10), 1000 (press), 1002 (drag), or
-        /// 1003 (any-motion).
+        /// Any tracking enabled: X10, 1000, 1002 or 1003.
         const ENABLED = 1 << 0;
-        /// DEC 9 — X10 press-only mode: report button presses, but not
-        /// releases (1000 and up report both).
+        /// DEC 9, press-only reporting.
         const X10 = 1 << 1;
-        /// DEC 1006 — SGR protocol (`CSI < b ; x ; y M/m`).
+        /// DEC 1006, SGR protocol (`CSI < b ; x ; y M/m`).
         const SGR = 1 << 2;
-        /// DEC 1003 — any-motion tracking. Required for X10 motion reports.
+        /// DEC 1003, any-motion tracking.
         const ANY_MOTION = 1 << 3;
-        /// DEC 1016 — SGR-pixel protocol (1-based pixel coordinates).
+        /// DEC 1016, SGR-pixel protocol.
         const PIXEL = 1 << 4;
-        /// DEC 1005 — UTF-8 mouse protocol (X10 with UTF-8 coordinates).
+        /// DEC 1005, UTF-8 coordinates.
         const UTF8 = 1 << 5;
     }
 }
@@ -44,29 +41,29 @@ impl MouseTracking {
 }
 
 /// Mouse button/event codes for X10 and SGR encoding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MouseButton {
-    /// Left button (button 0).
+    /// Button 0.
     Left = 0,
-    /// Middle button (button 1).
+    /// Button 1.
     Middle = 1,
-    /// Right button (button 2).
+    /// Button 2.
     Right = 2,
-    /// Button release (button code + 3).
+    /// Release, code plus 3.
     Release = 3,
-    /// Motion with the left button held (bit 5 | button 0) — a drag.
+    /// Left button held, bit 5.
     Motion = 32,
-    /// Motion with no button held (bit 5 | button 3) — pure hover.
+    /// No button held, bit 5 plus 3.
     MotionNoButton = 35,
-    /// Wheel scroll up (bit 6 set).
+    /// Wheel up, bit 6.
     WheelUp = 64,
-    /// Wheel scroll down (bit 6 + 1 set).
+    /// Wheel down, bit 6 plus 1.
     WheelDown = 65,
-    /// Wheel scroll left (bit 6 + 2 set).
+    /// Wheel left, bit 6 plus 2.
     WheelLeft = 66,
-    /// Wheel scroll right (bit 6 + 3 set).
+    /// Wheel right, bit 6 plus 3.
     WheelRight = 67,
 }
 
@@ -81,23 +78,19 @@ impl MouseButton {
         )
     }
 
-    /// Encode this event as an SGR (`CSI < … M/m`) sequence. `x`/`y` are
-    /// 0-based; the emitted protocol is 1-based. Press/release differ only
-    /// in the final byte (`M`/`m`).
+    /// Encode as SGR (`CSI < … M/m`). `x`/`y` are 0-based; the wire is
+    /// 1-based, and press/release differ only in the final byte.
     #[inline]
     #[must_use]
     pub fn encode_sgr(self, x: u16, y: u16, pressed: bool) -> CompactString {
         let final_byte = if pressed { 'M' } else { 'm' };
         let (x, y) = (x + 1, y + 1);
-        // `Motion` = motion + left button (a drag, `cb=32`);
-        // `MotionNoButton` = pure hover (`cb=35`). The button code is used
-        // verbatim so ratatui/crossterm can tell Drag(Left) from Moved.
+        // `Motion` is a drag (`cb=32`), `MotionNoButton` a hover (`cb=35`); the
+        // code is used verbatim so drag and move stay distinguishable.
         format_compact!("\x1b[<{};{};{}{}", self as u8, x, y, final_byte)
     }
 
     /// Encode this event in X10 style (`CSI M Cb Cx Cy`, single bytes).
-    /// `Cx`/`Cy` are raw bytes (`32 + coord`, truncated) — they may be
-    /// non-UTF-8 for coordinates ≥ 96, so this returns bytes, not a string.
     #[inline]
     #[must_use]
     pub fn encode_x10(self, x: u16, y: u16) -> SmallVec<u8, MOUSE_SEQ_INLINE> {
@@ -105,14 +98,13 @@ impl MouseButton {
         SmallVec::from([0x1b, b'[', b'M', cb, cx as u8, cy as u8])
     }
 
-    /// Encode this event in DEC 1005 UTF-8 mouse style — X10's `CSI M Cb`
-    /// prefix, but `Cx`/`Cy` are UTF-8 encoded instead of truncated single
-    /// bytes. Built inline (no heap `String`).
+    /// Encode in DEC 1005 style: X10's `CSI M Cb` prefix with UTF-8
+    /// `Cx`/`Cy`, built inline.
     #[inline]
     #[must_use]
     pub fn encode_utf8(self, x: u16, y: u16) -> CompactString {
         let (cb, cx, cy) = self.x10_bytes(x, y);
-        let mut b = CompactString::new("");
+        let mut b = CompactString::default();
         b.push_str("\x1b[M");
         b.push(cb as char);
         b.push(char::from_u32(cx as u32).unwrap_or(char::REPLACEMENT_CHARACTER));
@@ -134,7 +126,7 @@ impl MouseButton {
             return None;
         }
         // X10 (DEC 9) reports only button presses, never releases.
-        if tracking.contains(MouseTracking::X10) && !pressed {
+        if !pressed && tracking.contains(MouseTracking::X10) {
             return None;
         }
         if tracking.intersects(MouseTracking::SGR | MouseTracking::PIXEL) {
@@ -149,8 +141,7 @@ impl MouseButton {
         if tracking.contains(MouseTracking::UTF8) {
             return Some(SmallVec::from(b.encode_utf8(x, y).as_bytes()));
         }
-        // X10 coordinates top out at 222 (`32 + coord + 1` ≤ 255); larger
-        // would wrap and corrupt the stream, so drop the event.
+        // X10 coordinates top out at 222 (`32 + coord + 1` ≤ 255); larger would wrap.
         if x > 222 || y > 222 {
             return None;
         }
@@ -248,8 +239,7 @@ mod tests {
             "DEC 9 reports no releases"
         );
 
-        // SGR-pixel (1016): 1-based pixel coordinates (herdr maps pixel 1,1 to
-        // the top-left cell and rejects 0).
+        // SGR-pixel (1016): 1-based pixel coordinates.
         let px = MouseTracking::ENABLED | MouseTracking::PIXEL;
         assert_eq!(
             MouseButton::Left.encode(px, 27, 72, true).as_deref(),
@@ -264,8 +254,7 @@ mod tests {
             Some(&b"\x1b[M@!!"[..])
         );
 
-        // X10's single-byte coordinates top out at 222 (222 + 1 + 32 = 255);
-        // a larger coordinate would wrap and must be dropped.
+        // X10 single-byte coordinates top out at 222 (222+1+32 = 255); larger wraps.
         assert_eq!(
             MouseButton::Left.encode(x10, 222, 0, true).as_deref(),
             Some(&b"\x1b[M \xff!"[..])

@@ -162,11 +162,8 @@ fn decode_seq<R: Read + ?Sized, T: Decode, C: FromIterator<T>>(
     reader: &mut R,
 ) -> Result<C, DecodeError> {
     let len = decode_varint(reader)?;
-    // A non-ZST element encodes at least one byte, so a length prefix larger
-    // than the remaining input can never be satisfied. Reject before `collect`
-    // pre-allocates `len` elements (a malicious prefix would force a huge
-    // allocation). `UnexpectedEof` keeps the streaming semantics: "need more
-    // bytes". ZSTs allocate nothing, so the guard is skipped for them.
+    // A non-ZST element costs at least one byte, so a prefix past the end can
+    // never be satisfied: reject before `collect` allocates. ZSTs skip it.
     if size_of::<T>() > 0 && reader.len_hint().is_some_and(|remaining| len > remaining) {
         return Err(DecodeError::UnexpectedEof);
     }
@@ -224,9 +221,7 @@ macro_rules! impl_bitflags_codec {
     };
 }
 
-/// Encodes a fieldless enum as one discriminant byte. The tag is written
-/// next to each variant so the on-wire mapping is auditable in one place;
-/// decoding rejects unknown tags.
+/// Encode a fieldless enum as one discriminant byte; unknown tags fail to decode.
 #[macro_export]
 macro_rules! impl_tagged_codec {
     ($ty:ty, $($tag:literal => $variant:path),+ $(,)?) => {

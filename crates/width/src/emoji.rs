@@ -8,17 +8,15 @@ use parley_emoji::{EmojiDFA, EmojiPresentationStyle, EmojiSegmentationCategory};
 
 use crate::properties::{Gcb, Properties, cjk_fast_width, emoji_category};
 
-/// A zero-width mark that can modify a base (UAX #29 GB9 + UTS #51): a
-/// variation selector or ZWJ. These change a base's emoji presentation
-/// (VS15/VS16) or join a ZWJ sequence. Combining marks are not selectors:
-/// they accept any non-space base instead of rejecting non-emoji bases.
+/// A zero-width mark that modifies a base (UAX #29 GB9 + UTS #51): a variation
+/// selector or ZWJ. Combining marks are not selectors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selector {
-    /// VS16 (U+FE0F): forces emoji presentation (width 2).
+    /// VS16, emoji presentation.
     Vs16,
-    /// VS15 (U+FE0E): forces text presentation (width 1).
+    /// VS15, text presentation.
     Vs15,
-    /// ZWJ (U+200D): joins the next emoji element (no width change).
+    /// ZWJ, joins the next element.
     Zwj,
     /// Not a selector: a combining mark (or any other char).
     None,
@@ -54,10 +52,8 @@ impl Selector {
         matches!(self, Self::Zwj)
     }
 
-    /// Whether the selector attaches to `base`: the base's category must be
-    /// a valid target, otherwise the selector is a stray and is dropped.
-    /// VS15/VS16 use [`is_vs_base`] (`ExtPict` — the attach predicate); ZWJ
-    /// uses [`is_zwj_target`].
+    /// Whether the selector attaches to `base`; a stray selector is dropped.
+    /// VS15/VS16 use [`is_vs_base`], ZWJ uses [`is_zwj_target`].
     #[inline]
     pub fn attaches_to(self, base: char) -> bool {
         if self.is_zwj() {
@@ -69,9 +65,8 @@ impl Selector {
         true
     }
 
-    /// The base's target cell width when this selector applies, or `None`
-    /// for ZWJ (a joiner never changes the width) and for a VS whose base
-    /// is not a variation base.
+    /// The base's target width when this selector applies; `None` for ZWJ and
+    /// for a VS on a non-variation base.
     #[inline]
     pub fn target_width(self, base: char) -> Option<usize> {
         if !self.is_vs() || !is_vs_target(base) {
@@ -84,9 +79,8 @@ impl Selector {
     }
 }
 
-/// An open emoji run: the lead char plus its continuations, whose final cell
-/// width is only known once the run closes (a VS16/ZWJ that arrives later can
-/// widen or extend the lead).
+/// An open emoji run: the lead plus its continuations, whose width is known
+/// only once the run closes (a later VS16/ZWJ can change it).
 pub(crate) struct Run {
     dfa: EmojiDFA,
     lead: char,
@@ -115,9 +109,8 @@ impl Run {
             dfa,
             lead: c,
             lead_w1,
-            // `presentation_style` uses this only for the basic case (lead +
-            // combining marks); a text-default ❤ must stay 1 cell. VS16/ZWJ
-            // sequences are decided by the DFA, independent of this flag.
+            // Used only for the basic case (lead + combining marks); VS16/ZWJ
+            // sequences are decided by the DFA.
             lead_ep,
             lead_cat: cat,
             lead_gcb,
@@ -147,40 +140,36 @@ impl Run {
     }
 }
 
-/// Whether a zero-width mark may attach to `base` (UAX #29 GB9 + UTS #51):
-/// a ZWJ needs an emoji ZWJ target, VS15/VS16 need an emoji base, and a
-/// combining mark accepts any non-space base.
+/// Whether a zero-width mark may attach to `base`: a ZWJ needs an emoji ZWJ
+/// target, VS15/VS16 an emoji base, a combining mark any non-space base.
 #[inline]
 pub fn mark_attaches(mark: char, base: char) -> bool {
     Selector::from_char(mark).attaches_to(base)
 }
 
-/// Whether a char is a valid VS15/VS16 attach base — the
-/// `Extended_Pictographic` binary property (includes the reserved emoji
-/// ranges). Keycap bases (`0-9`, `#`, `*`) carry `Emoji` but are not `ExtPict`.
+/// Whether a char is a valid VS15/VS16 base: `Extended_Pictographic`, which
+/// excludes keycap bases.
 #[inline]
 pub fn is_vs_base(c: char) -> bool {
     Properties::get(c).is_extended_pictographic()
 }
 
-/// Whether a VS15/VS16 CHANGES the width of `c` — the `Emoji` property minus
+/// Whether a VS15/VS16 changes the width of `c`: the `Emoji` property minus
 /// keycap bases.
 #[inline]
 pub fn is_vs_target(c: char) -> bool {
     Properties::get(c).is_emoji() && emoji_category(c) != EmojiSegmentationCategory::KeycapBase
 }
 
-/// Whether a zero-width `mark` is a stray for `base` — the inverse of
+/// Whether a zero-width `mark` is a stray for `base`: the inverse of
 /// [`mark_attaches`] for the ZWJ/VS family.
 #[inline]
 pub fn mark_is_stray(mark: char, base: char) -> bool {
     !mark_attaches(mark, base)
 }
 
-/// Whether a char is a keycap base (`#`, `*`, `0-9`). A buffered VS16/VS15
-/// after it attaches (the DFA groups it into the keycap sequence — the base
-/// widens to 2 cells only in the complete `base VS16 U+20E3`); a direct lone
-/// selector is still dropped.
+/// Whether a char is a keycap base (`#`, `*`, `0-9`): a buffered VS16/VS15
+/// after it attaches, but a lone one is dropped.
 #[inline]
 pub fn is_keycap_base(c: char) -> bool {
     emoji_category(c) == EmojiSegmentationCategory::KeycapBase
@@ -203,10 +192,8 @@ pub fn is_zwj_target(c: char) -> bool {
     )
 }
 
-/// Whether a char is a halfwidth katakana sound mark (U+FF9E/U+FF9F).
-/// These are `Grapheme_Extend` (so unicode-width reports 0), but terminals
-/// render them as independent halfwidth cells (see [`crate::cell_width`]) —
-/// the emoji DFA must not treat them as zero-width continuations.
+/// U+FF9E/U+FF9F: `Grapheme_Extend`, but terminals render them as 1 halfwidth
+/// cell, so the DFA must not treat them as continuations.
 #[inline]
 pub const fn is_halfwidth_sound_mark(c: char) -> bool {
     matches!(c, '\u{FF9E}' | '\u{FF9F}')
@@ -237,9 +224,8 @@ pub(crate) const fn is_emoji_starter(cat: EmojiSegmentationCategory) -> bool {
     )
 }
 
-/// Whether `c` (with packed `p`) can start an emoji sequence — the direct
-/// packed-property form of `is_emoji_starter(category_from(p, c))`, avoiding
-/// the parley `from_codepoint` classification on the hot path.
+/// Whether `c` can start an emoji sequence, from its packed properties: the
+/// hot form of `is_emoji_starter(category_from(p, c))`.
 #[inline]
 pub(crate) const fn is_emoji_starter_from(p: Properties, c: char) -> bool {
     p.is_regional_indicator()
@@ -249,7 +235,7 @@ pub(crate) const fn is_emoji_starter_from(p: Properties, c: char) -> bool {
         || matches!(c as u32, 0x30..=0x39 | 0x23 | 0x2A | 0x1F3F4)
 }
 
-/// Whether `c` (with packed `p`) is an emoji continuation — the direct form
+/// Whether `c` (with packed `p`) is an emoji continuation: the direct form
 /// of `is_continuation(category_from(p, c))`.
 #[inline]
 pub(crate) const fn is_continuation_from(p: Properties, c: char) -> bool {
@@ -285,10 +271,10 @@ pub(crate) const fn fresh_emoji_continues_from(
 }
 
 /// The terminal cell width of a run's leading char (1 or 2), from the
-/// `parley_emoji` presentation — one column narrower for a bare keycap: a
+/// `parley_emoji` presentation, one column narrower for a bare keycap: a
 /// keycap base is 2 cells only in the complete `base + VS16 + U+20E3`
 /// sequence (the no-VS16 `1 U+20E3` and the incomplete `1 VS16` both stay
-/// text-default 1 — a VS16 after a keycap base is dropped because it is not
+/// text-default 1: a VS16 after a keycap base is dropped because it is not
 /// `Extended_Pictographic`).
 #[inline]
 fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usize {
@@ -301,7 +287,7 @@ fn run_width(dfa: &EmojiDFA, lead: char, lead_ep: bool, keycap_end: bool) -> usi
     }
 }
 
-/// Whether `c` continues the open run `r` — the spec's `cont_t` predicate: the
+/// Whether `c` continues the open run `r`: the spec's `cont_t` predicate: the
 /// parley DFA's transition from the run's accumulated state (keycap/RI leads
 /// have no `→ ZWJ`, so a ZWJ after them is a stray) plus the deliberate
 /// combining-mark exception (`w₁ = 0` non-selector attaches to any emoji
@@ -329,10 +315,8 @@ pub(crate) fn run_continues(
             cat == EmojiSegmentationCategory::RegionalIndicator && r.ri_count == 1
         }
         _ => {
-            // A VS15 on the next char breaks the ZWJ sequence at `c`: `c` is
-            // the last family element, so it must not merge — it closes the
-            // run and starts fresh as the `c VS15` text presentation
-            // sequence (👩 ZWJ 👨 ZWJ 👧 VS15 = couple + text 👧).
+            // A VS15 on the next char breaks the sequence: `c` stays the last
+            // family element and starts its own `c VS15` text presentation.
             if next_is_vs15 && r.prev_zwj && is_zwj_target(c) {
                 return false;
             }
@@ -344,9 +328,8 @@ pub(crate) fn run_continues(
     }
 }
 
-/// The finalized width of the run's LEAD, with the lone-mark fix folded in: a
-/// lone 0-width mark occupies its own cell (1) unless it is a selector
-/// (invisible, 0) or a base precedes it (attaches, 0).
+/// The run lead's final width, with the lone-mark fix: a lone 0-width mark
+/// takes its own cell unless it is a selector.
 #[inline]
 pub(crate) fn finalize_lead(
     r: &Run,
@@ -363,9 +346,8 @@ pub(crate) fn finalize_lead(
     let gcb = r.lead_gcb;
     let w = if lead_w == 0 {
         let sel = Selector::from_char(r.lead);
-        // A selector, control, or format char is invisible even when lone;
-        // only a lone combining MARK occupies its own cell (see the else
-        // branch). Hangul V/T attach only per GB6/GB7/GB8.
+        // Only a lone combining mark takes its own cell; selectors, controls and
+        // format chars stay invisible.
         let attaches = match gcb {
             Gcb::V => *hangul & 1 != 0, // after L/LV/V
             Gcb::T => *hangul & 2 != 0, // after LV/V/LVT/T
@@ -377,9 +359,8 @@ pub(crate) fn finalize_lead(
         {
             0
         } else {
-            // A lone mark, or a mark after a space followed by another mark,
-            // must occupy its own cell so the next mark has a visible base. A
-            // visible base already provides one.
+            // A lone mark, or a mark after a space that another mark follows, needs
+            // its own cell to be a visible base.
             1
         }
     } else {
@@ -402,9 +383,8 @@ pub(crate) fn finalize_lead(
     w
 }
 
-/// The Hangul continuation state after a char that starts a syllable (`w > 0`)
-/// or is an attached V/T jamo (`w == 0`): bit 0 = V may follow, bit 1 = T may
-/// follow (UAX #29 GB6/GB7/GB8).
+/// The Hangul continuation bits after a syllable start: bit 0 = V may follow,
+/// bit 1 = T may follow (UAX #29 GB6/GB7/GB8).
 #[inline]
 const fn hangul_after(gcb: Gcb) -> u8 {
     match gcb {

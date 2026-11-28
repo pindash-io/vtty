@@ -7,9 +7,9 @@
 //!
 //! - FULLY-QUALIFIED entries collapse to `[2, 0, 0, ...]`.
 //! - MINIMALLY-QUALIFIED entries (a ZWJ sequence missing a VS16) collapse to
-//!   `[2, 0, 0, ...]` — the ZWJ family is still one 2-cell grapheme.
+//!   `[2, 0, 0, ...]`, since the ZWJ family is still one 2-cell grapheme.
 //! - UNQUALIFIED multi-codepoint entries (a ZWJ family whose base is
-//!   text-default) collapse to `[2, 0, 0, ...]` — the joiner still merges.
+//!   text-default) collapse to `[2, 0, 0, ...]`: the joiner still merges.
 //! - UNQUALIFIED single-codepoint entries are `[1]` (or `[2]` for wide CJK).
 //! - COMPONENT entries (hair components) are `[2]`.
 //!
@@ -56,7 +56,7 @@ fn main() {
         }
         let s: String = chars.iter().collect();
         let w = vtty_width::cell_widths(&s);
-        // A 2-cell lead with every continuation 0 — one collapsed grapheme.
+        // A 2-cell lead with every continuation 0: one collapsed grapheme.
         let collapsed = w.first() == Some(&2) && w.iter().skip(1).all(|&x| x == 0);
         let mut ok = true;
         let mut want = String::new();
@@ -82,9 +82,8 @@ fn main() {
             "unqualified" => {
                 unq += 1;
                 if chars.len() == 1 {
-                    // Unqualified means TEXT-default: width is the East Asian
-                    // width, so wide CJK symbols (〰 〽 🈂 🈷 ㊗ ㊙ …) are 2,
-                    // everything else 1.
+                    // Unqualified means text-default: the East Asian width, so
+                    // wide CJK symbols are 2 and everything else 1.
                     let wide_cjk = w == [2] && vtty_width::cell_width(chars[0]) == Some(2);
                     want = "[1]".into();
                     if w == [1] || wide_cjk {
@@ -112,9 +111,8 @@ fn main() {
             }
             "component" => {
                 comp += 1;
-                // Hair components (1F9B0..=1F9B3) are emoji-presentation
-                // (2 cells); skin-tone modifiers are 0-width combining, so a
-                // lone one is 1 cell.
+                // Hair components are emoji-presentation (2 cells); a lone
+                // skin-tone modifier is 1 cell.
                 let is_skin_tone = matches!(chars[0], '\u{1F3FB}'..='\u{1F3FF}');
                 want = if is_skin_tone { "[1]" } else { "[2]" }.into();
                 if (is_skin_tone && w == [1]) || (!is_skin_tone && w == [2]) {

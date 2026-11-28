@@ -17,43 +17,56 @@ updates.
 (SGR apply + cell writes + 80×24 render), so it measures the full parse +
 screen-update pipeline rather than the parser floor.
 
+`csi_units` runs one repeated sequence at a time (~40 s per run, `--bench
+csi_units`), so a change to a fast path can be checked in seconds. `vt_bandwidth`
+re-runs a subset with a working set past the last-level cache, and `vt_parallel`
+shards it across threads.
+
 Corpora: `plain`, `scroll_storm`, `utf8_mixed`, `ansi_mixed`,
 `ansi_two_styles`, `ansi_bare_csi`, `sgr_churn`, `cursor_motion`, `sync_churn`,
-`truecolor_unique`, `bracketed_paste`, `osc_heavy`, `dcs_sixel`.
+`truecolor_unique`, `sgr_nvim`, `bracketed_paste`, `osc_heavy`, `dcs_sixel`,
+`tui_redraw`, `cli_color`.
 
-## Results — `vt_input` (parser floor)
+## Results: `vt_input` (parser floor)
 
 | case | vtty | vtty-simd | vte | vtparse | rio-vt | fux-vt | vt100* |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| plain | 11.18 GiB/s | **25.52 GiB/s** | 2.55 GiB/s | 942 MiB/s | 3.33 GiB/s | 1.69 GiB/s | 183 MiB/s |
-| scroll_storm | **2.79 GiB/s** | **2.79 GiB/s** | 2.56 GiB/s | 973 MiB/s | 2.22 GiB/s | 498 MiB/s | 129 MiB/s |
-| utf8_mixed | 1.18 GiB/s | **2.25 GiB/s** | 1.53 GiB/s | 535 MiB/s | 2.02 GiB/s | 412 MiB/s | 254 MiB/s |
-| ansi_mixed | 1.59 GiB/s | **1.60 GiB/s** | 559 MiB/s | 375 MiB/s | 734 MiB/s | 529 MiB/s | 319 MiB/s |
-| ansi_two_styles | 1.50 GiB/s | **1.52 GiB/s** | 665 MiB/s | 409 MiB/s | 670 MiB/s | 391 MiB/s | 273 MiB/s |
-| ansi_bare_csi | **1.94 GiB/s** | 1.93 GiB/s | 980 MiB/s | 539 MiB/s | 846 MiB/s | 500 MiB/s | 242 MiB/s |
-| sgr_churn | **1.81 GiB/s** | 1.80 GiB/s | 585 MiB/s | 427 MiB/s | 872 MiB/s | 587 MiB/s | 464 MiB/s |
-| cursor_motion | 2.13 GiB/s | **2.14 GiB/s** | 617 MiB/s | 410 MiB/s | 776 MiB/s | 617 MiB/s | 464 MiB/s |
-| sync_churn | **1.99 GiB/s** | 1.80 GiB/s | 674 MiB/s | 461 MiB/s | 895 MiB/s | 501 MiB/s | 153 MiB/s |
-| truecolor_unique | **1.84 GiB/s** | 1.63 GiB/s | 599 MiB/s | 422 MiB/s | 941 MiB/s | 585 MiB/s | 520 MiB/s |
-| bracketed_paste | **2.95 GiB/s** | 2.78 GiB/s | 1.37 GiB/s | 664 MiB/s | 1.42 GiB/s | 746 MiB/s | 217 MiB/s |
-| osc_heavy | 2.88 GiB/s | **2.91 GiB/s** | 659 MiB/s | 256 MiB/s | 2.67 GiB/s | 2.13 GiB/s | 252 MiB/s |
-| dcs_sixel | 7.91 GiB/s | **11.81 GiB/s** | 1.02 GiB/s | 974 MiB/s | 7.35 GiB/s | 4.62 GiB/s | 783 MiB/s |
+| plain | 10.46 GiB/s | **19.66 GiB/s** | 2.66 GiB/s | 944 MiB/s | 3.25 GiB/s | 1.76 GiB/s | 183 MiB/s |
+| scroll_storm | 2.79 GiB/s | **2.79 GiB/s** | 2.71 GiB/s | 967 MiB/s | 2.22 GiB/s | 498 MiB/s | 130 MiB/s |
+| utf8_mixed | 1.45 GiB/s | **2.25 GiB/s** | 1.56 GiB/s | 531 MiB/s | 1.99 GiB/s | 415 MiB/s | 256 MiB/s |
+| ansi_mixed | 1.96 GiB/s | **1.98 GiB/s** | 592 MiB/s | 368 MiB/s | 733 MiB/s | 538 MiB/s | 321 MiB/s |
+| ansi_two_styles | **2.22 GiB/s** | 2.22 GiB/s | 713 MiB/s | 393 MiB/s | 716 MiB/s | 396 MiB/s | 274 MiB/s |
+| ansi_bare_csi | 2.16 GiB/s | **2.21 GiB/s** | 946 MiB/s | 529 MiB/s | 866 MiB/s | 509 MiB/s | 242 MiB/s |
+| sgr_churn | **1.90 GiB/s** | 1.90 GiB/s | 641 MiB/s | 425 MiB/s | 874 MiB/s | 600 MiB/s | 459 MiB/s |
+| cursor_motion | **2.03 GiB/s** | 2.02 GiB/s | 671 MiB/s | 401 MiB/s | 769 MiB/s | 638 MiB/s | 464 MiB/s |
+| sync_churn | **2.45 GiB/s** | 2.43 GiB/s | 713 MiB/s | 448 MiB/s | 919 MiB/s | 489 MiB/s | 154 MiB/s |
+| truecolor_unique | **1.88 GiB/s** | 1.59 GiB/s | 660 MiB/s | 425 MiB/s | 942 MiB/s | 589 MiB/s | 518 MiB/s |
+| sgr_nvim | **1.86 GiB/s** | 1.85 GiB/s | 636 MiB/s | 423 MiB/s | 807 MiB/s | 601 MiB/s | 294 MiB/s |
+| bracketed_paste | **3.43 GiB/s** | 2.93 GiB/s | 1.37 GiB/s | 646 MiB/s | 1.35 GiB/s | 747 MiB/s | 216 MiB/s |
+| osc_heavy | 3.02 GiB/s | **3.19 GiB/s** | 790 MiB/s | 256 MiB/s | 2.26 GiB/s | 2.15 GiB/s | 233 MiB/s |
+| dcs_sixel | 7.95 GiB/s | **11.32 GiB/s** | 1.02 GiB/s | 978 MiB/s | 7.27 GiB/s | 4.60 GiB/s | 795 MiB/s |
+| tui_redraw | **2.88 GiB/s** | 2.76 GiB/s | 770 MiB/s | 470 MiB/s | 945 MiB/s | 705 MiB/s | 177 MiB/s |
+| cli_color | **3.22 GiB/s** | 3.20 GiB/s | 1020 MiB/s | 548 MiB/s | 1008 MiB/s | 503 MiB/s | 178 MiB/s |
 
 *vt100 is a full-screen emulator, not a standalone parser.
 
-## Results — `vt_screen` (parse + cell grid)
+SIMD pays off on long runs (`plain` +88%, `utf8_mixed` +55%, `dcs_sixel` +42%) and
+loses on short ones (`bracketed_paste` -15%, `truecolor_unique` -15%), where the
+vector setup is never amortised. That is why `Parser::with_simd` is opt-in.
+
+## Results: `vt_screen` (parse + cell grid)
 
 | case | vtty | vtty-simd |
 | --- | --- | --- |
-| plain | 223 MiB/s | **226 MiB/s** |
-| sgr_nvim | **572 MiB/s** | 565 MiB/s |
-| sgr_churn | 854 MiB/s | **859 MiB/s** |
-| truecolor_unique | **682 MiB/s** | 656 MiB/s |
-| ansi_mixed | **547 MiB/s** | 546 MiB/s |
+| plain | 225 MiB/s | **228 MiB/s** |
+| sgr_nvim | 612 MiB/s | **613 MiB/s** |
+| sgr_churn | 863 MiB/s | **863 MiB/s** |
+| truecolor_unique | **725 MiB/s** | 684 MiB/s |
+| ansi_mixed | 561 MiB/s | **567 MiB/s** |
 
 Measured on Apple Silicon (aarch64). Numbers are medians of 20 Criterion
 samples from a full-suite run; throughput is sensitive to thermal throttling
-and CPU clock, so results vary run-to-run — treat as relative rankings rather
+and CPU clock, so results vary run-to-run; treat as relative rankings rather
 than absolute figures.
 
 ## License

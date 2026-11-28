@@ -1,9 +1,9 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Program Status Protocol (`OSC 7501`) — parse and encode.
+//! Program Status Protocol (`OSC 7501`): parse and encode.
 //!
-//! A program reports its state — idle, working, done, blocked, or error — to
+//! A program reports its state (idle, working, done, blocked, error) to
 //! the terminal, or clears a previously reported status:
 //!
 //! ```text
@@ -11,11 +11,11 @@
 //! ```
 //!
 //! The on-wire form is `ESC ] 7501 ; body ESC \`:
-//! - `ESC ]` (`0x1b 0x5d`) — the OSC introducer.
-//! - `7501` — the program-status protocol number.
-//! - `;` — the OSC parameter separator.
-//! - `body` — `key=value` pairs joined by `:`.
-//! - `ESC \` (`0x1b 0x5c`) — the string terminator.
+//! - `ESC ]` (`0x1b 0x5d`): the OSC introducer.
+//! - `7501`: the program-status protocol number.
+//! - `;`: the OSC parameter separator.
+//! - `body`: `key=value` pairs joined by `:`.
+//! - `ESC \` (`0x1b 0x5c`): the string terminator.
 //!
 //! [`ProgramStatus`] parses the body into a typed record;
 //! [`ProgramStatus::write_osc`] encodes one back into the full escape sequence.
@@ -31,39 +31,39 @@ use compact_str::CompactString;
 
 use vtty_core::Perform;
 
-/// Report body length limit (bytes).
+/// Report body limit, bytes.
 const MAX_SEQUENCE: usize = 4096;
 
-/// `key` length limit (bytes).
+/// Key limit, bytes.
 const MAX_KEY: usize = 16;
 
-/// `msg` limits: on-wire base64, then decoded bytes.
+/// Message limits: base64 on the wire, then decoded.
 const MAX_MSG_ENCODED: usize = 2732;
 
 const MAX_MSG_DECODED: usize = 2048;
 
-/// `title` limits: on-wire base64, then decoded bytes.
+/// Title limits: base64 on the wire, then decoded.
 const MAX_TITLE_ENCODED: usize = 256;
 
 const MAX_TITLE_DECODED: usize = 192;
 
-/// `app` length limit (bytes).
+/// App name limit, bytes.
 const MAX_APP: usize = 32;
 
-/// `id` limits: total length, per segment, and depth.
+/// Id limits: total, per segment, and depth.
 const MAX_ID: usize = 128;
 
 const MAX_ID_SEGMENT: usize = 32;
 
 const MAX_ID_DEPTH: usize = 8;
 
-/// OSC program-status protocol number.
+/// The protocol's OSC number.
 const OSC_NUM: &[u8] = b"7501";
 
-/// OSC introducer sequence: `ESC ]` (`0x1b 0x5d`).
+/// OSC introducer (`ESC ]`).
 const SEQ_OSC: &[u8] = b"\x1b]";
 
-/// String terminator sequence: `ESC \` (`0x1b 0x5c`).
+/// String terminator (`ESC \`).
 const SEQ_ST: &[u8] = b"\x1b\\";
 
 /// Implements `parse` (name → variant) and `as_bytes` (variant → name) for a
@@ -110,22 +110,22 @@ pub trait PerformProgramStatus: Perform {
 }
 
 /// The state a program reports.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StatusState {
-    /// At rest, waiting for the user's next instruction.
+    /// At rest.
     #[default]
     Idle = 0,
-    /// Running. May carry `progress`.
+    /// Running, may carry progress.
     Working = 1,
-    /// Finished a piece of work; the user has not seen the result yet.
+    /// OSC 9;4;2, completed.
     Done = 2,
-    /// Cannot continue until the user does something.
+    /// Waiting on the user.
     Blocked = 3,
-    /// Failed and stopped.
+    /// OSC 9;4;3, errored.
     Error = 4,
-    /// Not a state: clears the addressed record (and its children).
+    /// Clears the addressed record.
     Clear = 5,
 }
 
@@ -144,12 +144,12 @@ named_bytes!(
 #[repr(u8)]
 #[non_exhaustive]
 pub enum StatusKind {
-    /// Approval to do something.
+    /// Approval needed.
     #[default]
     Permission = 0,
-    /// The user must type an answer.
+    /// An answer is needed.
     Question = 1,
-    /// A login, token, or credential.
+    /// A login or credential.
     Auth = 2,
 }
 
@@ -160,10 +160,8 @@ named_bytes!(
     Auth => b"auth",
 );
 
-/// A parsed `OSC 7501` report.
-///
-/// A report without `id` addresses the root record; each report replaces its
-/// record completely.
+/// A parsed `OSC 7501` report. No `id` addresses the root; each report
+/// replaces its record.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProgramStatus {
     /// The reported state. Required by the protocol.
@@ -183,7 +181,7 @@ pub struct ProgramStatus {
 }
 
 impl ProgramStatus {
-    /// Feature-detection query: `ESC ] 7501 ; ? ESC \` — the `?` asks the
+    /// Feature-detection query: `ESC ] 7501 ; ? ESC \`, where `?` asks the
     /// terminal whether it supports the protocol.
     pub const QUERY: &[u8] = b"\x1b]7501;?\x1b\\";
 
@@ -295,11 +293,11 @@ impl ProgramStatus {
 /// A control-character class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Control {
-    /// C0 controls: `U+0000..=U+001F`.
+    /// C0 controls, `U+0000..=U+001F`.
     C0,
-    /// `DEL`: `U+007F`.
+    /// `DEL`, `U+007F`.
     Del,
-    /// C1 controls: `U+0080..=U+009F`.
+    /// C1 controls, `U+0080..=U+009F`.
     C1,
 }
 
@@ -325,9 +323,7 @@ const fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'+' | b'-')
 }
 
-/// Splits a `key=value` pair at the first `=`. Returns `None` for a malformed
-/// pair: no `=`, an empty/over-long/non-lowercase key, or a forbidden value
-/// byte.
+/// Split a `key=value` pair at the first `=`; `None` for a malformed pair.
 fn split_pair(pair: &[u8]) -> Option<(&[u8], &[u8])> {
     let mut kv = pair.splitn(2, |&b| b == b'=');
     let key = kv.next()?;
@@ -349,9 +345,8 @@ fn parse_progress(value: &[u8]) -> Option<u8> {
     if value.is_empty() || value.len() > 3 || !value.iter().all(u8::is_ascii_digit) {
         return None;
     }
-    // `value` is already all ASCII digits (the guard above), so it is valid
-    // UTF-8; parse the decimal directly without the `str` round-trip. The
-    // `checked_*` ops reject overflow the same way `parse::<u8>` does.
+    // `value` is all ASCII digits (guarded above), so parse the decimal directly
+    // and let `checked_*` reject overflow like `parse::<u8>`.
     let n = value
         .iter()
         .try_fold(0_u8, |acc, &b| acc.checked_mul(10)?.checked_add(b - b'0'))?;
@@ -400,13 +395,7 @@ fn parse_text(value: &[u8], max_encoded: usize, max_decoded: usize) -> Option<Co
     Some(text)
 }
 
-/// Appends `:key=value` to `out`.
-/// Write `n` (`0..=255`) as decimal into `buf`, returning the written digits.
-#[inline]
-fn write_decimal(n: u8, buf: &mut [u8; 3]) -> &[u8] {
-    vtty_core::write_decimal(u32::from(n), buf)
-}
-
+/// Append `:key=value` to `out`.
 fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.push(b':');
     out.extend_from_slice(key);
@@ -414,7 +403,13 @@ fn push_field(out: &mut Vec<u8>, key: &[u8], value: &[u8]) {
     out.extend_from_slice(value);
 }
 
-/// Appends `:key=value` to `out` when `value` is `Some`.
+/// Write `n` (`0..=255`) as decimal into `buf`, returning the written digits.
+#[inline]
+fn write_decimal(n: u8, buf: &mut [u8; 3]) -> &[u8] {
+    vtty_core::write_decimal(u32::from(n), buf)
+}
+
+/// Append `:key=value` when `value` is `Some`.
 fn push_opt_field(out: &mut Vec<u8>, key: &[u8], value: Option<&[u8]>) {
     let Some(value) = value else {
         return;

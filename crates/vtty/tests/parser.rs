@@ -114,10 +114,8 @@ impl Perform for CodepointBatches {
 #[cfg(feature = "simd")]
 #[test]
 fn print_codepoints_batches_utf8_runs() {
-    // 11 × 3 bytes = 33 bytes of CJK, no ESC: long enough to reach the SIMD
-    // batched decode (probe window is 32 bytes). The flattened code-point
-    // stream must reproduce the text under both paths; the SIMD path should
-    // emit it as one batch.
+    // 11 x 3 bytes of CJK, no ESC: long enough for the SIMD batch (32-byte
+    // probe window).
     let text = "中中中中中中中中中中中";
 
     let mut p = Parser::with_simd();
@@ -153,19 +151,16 @@ fn csi_semicolon_params() {
 
 #[test]
 fn csi_trailing_empty_param_is_sentinel() {
-    // ConPTY emits SGR with a trailing `;` (e.g. `ESC[48;2;R;G;B;m`). The
-    // trailing empty param must be distinguishable from an explicit `0` (which
-    // SGR would treat as "reset"), so it is dispatched as the `-1` sentinel
-    // (surfaced here as `u16::MAX` after `Params::from_i32`).
+    // ConPTY's trailing `;` must dispatch as the `-1` sentinel, not `0`
+    // (a reset).
     let c = parse(b"\x1b[48;2;255;128;0;m");
     assert_eq!(c.csi[0].0, vec![48, 2, 255, 128, 0, u16::MAX]);
 }
 
 #[test]
 fn csi_paramless_split_across_writes_is_empty() {
-    // `CSI s` (SCOSC) split across two `advance` calls must still dispatch
-    // with an empty param list — not `[0]`, which the decoder reads as
-    // DECSLRM. (Regression for the non-ground final-byte fast path.)
+    // `CSI s` split across calls must still dispatch an empty param list, not
+    // `[0]`.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, b"\x1b[");
@@ -192,9 +187,7 @@ fn csi_colon_rgb() {
 
 #[test]
 fn csi_colon_empty_middle_param() {
-    // nvim's underline color emits a double colon with an empty colorspace
-    // component: `ESC[58:2::r:g:b m`. The empty middle param must surface as
-    // the `-1` sentinel, not an explicit `0`.
+    // nvim's `58:2::r:g:b` empty colorspace must surface as `-1`, not `0`.
     let c = parse(b"\x1b[58:2::255:0:0m");
     assert_eq!(c.csi[0].0, vec![58, 2, u16::MAX, 255, 0, 0]);
     assert_eq!(c.csi[0].3, vec![true, true, true, true, true, false]);
@@ -231,10 +224,7 @@ fn osc_st_terminated() {
 
 #[test]
 fn osc_sixteen_params_across_multiple_parsers() {
-    // A full 16-param OSC (`0;1;…;15`). Each parser must dispatch all 16
-    // independently — the `EMPTY` seed array is copied per call, so one
-    // parser's slices never leak into another, and no trailing empty slice
-    // is dispatched.
+    // A 16-param OSC: all 16 dispatch, and no slice leaks between parsers.
     let mut bytes = vec![0x1b, b']'];
     for i in 0..16 {
         if i > 0 {
@@ -301,10 +291,8 @@ fn osc_single_call_payload_over_limit_is_discarded() {
 
 #[test]
 fn osc_via_c1_consuming_trailing_partial_does_not_panic() {
-    // Regression: a raw-C1 OSC introducer + payload can consume past a
-    // trailing UTF-8 partial, so a later ground re-entry must not underflow
-    // `valid_end - i`. The trailing bytes are raw C1 controls (executed), not
-    // a partial code point.
+    // A raw-C1 OSC can consume past a UTF-8 partial; the later ground
+    // re-entry must not underflow `valid_end - i`.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, &[0x04, 0x9d, 0xff, 0xf1, 0x8a, 0x87]);
@@ -324,9 +312,8 @@ fn utf8_split_across_chunks() {
 
 #[test]
 fn utf8_partial_abort_emits_single_replacement() {
-    // A 3-byte lead (U+4xxx) followed by a non-continuation byte must emit
-    // exactly one U+FFFD for the aborted partial, then decode the byte —
-    // not re-emit the stale code point as a spurious control char.
+    // A 3-byte lead then a non-continuation byte emits one U+FFFD, then
+    // decodes the byte.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, &[0xe4]); // partial lead, 2 continuations expected
@@ -342,9 +329,8 @@ fn utf8_partial_abort_emits_single_replacement() {
 
 #[test]
 fn utf8_partial_abort_after_continuation_emits_single_replacement() {
-    // A partial that consumes a continuation byte and THEN hits a
-    // non-continuation byte must still emit exactly one U+FFFD — not the
-    // stale truncated code point plus a replacement char.
+    // A partial that consumes a continuation byte and then aborts still emits
+    // one U+FFFD.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, &[0xe4]); // partial lead, 2 continuations expected
@@ -380,9 +366,8 @@ fn parser_reset_clears_state_and_partial() {
 
 #[test]
 fn paramless_csi_after_aborted_csi_dispatches_empty() {
-    // `CSI 1` (digit, no final) followed by `ESC [ H` must reset the partial
-    // parameter, so the param-less `CSI H` dispatches `[]` (not `[0]` from a
-    // stale `param_empty == false`).
+    // A digit-only `CSI 1` then `ESC [ H` resets the partial parameter, so
+    // `CSI H` dispatches `[]`.
     let mut p = Parser::new();
     let mut c = Collecting::default();
     p.advance(&mut c, b"\x1b[1");
@@ -481,7 +466,7 @@ fn multiple_csi_params() {
 #[test]
 fn csi_params_capped_at_32() {
     // A malicious stream with thousands of `;` must not grow the param
-    // vector unboundedly — only the first 32 are kept (vte/rio-vt cap).
+    // vector unboundedly; only the first 32 are kept (vte/rio-vt cap).
     let mut seq = vec![0x1b, b'['];
     for _ in 0..1000 {
         seq.push(b'7');
@@ -597,9 +582,7 @@ fn event_to_bytes_round_trips_the_parser() {
                 byte: b'7',
             },
         ),
-        // BEL-terminated OSC (ST termination is handled as ESC + `\`, so a
-        // BEL avoids the extra `EscDispatch` the parser emits for the ST
-        // final byte).
+        // BEL-terminated OSC: avoids the extra `EscDispatch` an ST emits.
         (
             b"\x1b]0;title\x07",
             Event::OscDispatch {

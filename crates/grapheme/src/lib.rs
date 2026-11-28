@@ -72,9 +72,8 @@ impl Grapheme {
     }
 }
 
-/// The GB11 lookahead state: whether the current cluster so far ends with
-/// `Extended_Pictographic Extend*` (awaiting `ZWJ`) or that plus `ZWJ`
-/// (awaiting the following `Extended_Pictographic`).
+/// GB11 lookahead: the cluster so far ends with `Extended_Pictographic Extend*`,
+/// awaiting `ZWJ`, or that plus `ZWJ`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Gb11 {
     None,
@@ -82,10 +81,8 @@ enum Gb11 {
     Zwj,
 }
 
-/// Iterator over the grapheme clusters of a UTF-8 string.
-///
-/// Yields [`Grapheme`] ranges in order; the first cluster starts at 0 and
-/// the last ends at `text.len()`.
+/// Iterator over the grapheme clusters of a UTF-8 string: [`Grapheme`] ranges
+/// in order, covering `0..text.len()`.
 #[derive(Debug)]
 #[must_use]
 pub struct Graphemes<'a> {
@@ -125,10 +122,8 @@ impl Graphemes<'_> {
         Some(Grapheme::new(start, start + 1))
     }
 
-    /// Set up a detected printable-ASCII run starting at `self.pos`: hold the
-    /// last byte as the open cluster (so a following combining mark can still
-    /// attach), and queue the preceding bytes for emission. Returns the
-    /// number of queued bytes (`run - 1`).
+    /// Hold the last byte of the detected run as the open cluster and queue the
+    /// rest; returns the number of queued bytes (`run - 1`).
     const fn start_ascii_run(&mut self, run: usize) -> usize {
         let first = self.pos;
         let last = first + run - 1;
@@ -158,10 +153,8 @@ impl Iterator for Graphemes<'_> {
             return self.next_ascii();
         }
 
-        // Detect a printable-ASCII run. Each byte is its own cluster (`Other`
-        // never joins) unless preceded by `Prepend` (GB9b). The run's last
-        // byte stays held as the open cluster so a combining mark can attach
-        // (GB9/GB9a).
+        // Detect a printable-ASCII run: each byte is its own cluster unless
+        // preceded by `Prepend` (GB9b); the last byte stays held for GB9/GB9a.
         if self.left != Some(Gcb::Prepend) {
             let run = vtty_width::first_non_printable_ascii(&self.text.as_bytes()[self.pos..]);
             if run > 0 {
@@ -182,7 +175,7 @@ impl Iterator for Graphemes<'_> {
 
         loop {
             let Some(ch) = self.text.get(self.pos..).and_then(|s| s.chars().next()) else {
-                // GB2: ÷ eot — emit the final open cluster.
+                // GB2: ÷ eot, emit the final open cluster.
                 self.finished = true;
                 return Some(Grapheme::new(self.cluster_start, self.text.len()));
             };
@@ -192,7 +185,7 @@ impl Iterator for Graphemes<'_> {
 
             match self.left {
                 None => {
-                    // GB1: sot ÷ — the first char always starts a cluster.
+                    // GB1: sot ÷, the first char always starts a cluster.
                     self.start_cluster(idx, gcb);
                 }
                 Some(left) => {
@@ -424,9 +417,8 @@ mod tests {
 
     #[test]
     fn cluster_width_sum_equals_per_char_sum() {
-        // The invariant this crate is built on: cluster boundaries never
-        // split a vtty_width width sequence, so the per-cluster sum equals
-        // the per-char sum.
+        // The invariant: cluster boundaries never split a `vtty_width` sequence, so
+        // the per-cluster sum equals the per-char sum.
         for text in [
             "hello",
             "中文字",
@@ -435,9 +427,8 @@ mod tests {
             "🇺🇸🇨🇦 flags",
             "❤\u{FE0F} vs16",
             "가나 hangul",
-            // Controls/format chars break clusters but are zero-width, and
-            // Hangul V/T only attach to a Hangul base — the width model and
-            // the grapheme model must agree on both.
+            // Controls break clusters but are zero-width; Hangul V/T attach only to a
+            // Hangul base. Both models must agree.
             "¡\0",
             "a\0b",
             "\u{200B}",

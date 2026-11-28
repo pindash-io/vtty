@@ -13,19 +13,19 @@ use compact_str::CompactString;
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum CapValue {
-    /// Unknown / unsupported — reply is the `DCS 0 + r` error.
+    /// Unknown or unsupported; the reply is `DCS 0 + r`.
     None,
-    /// Boolean capability — reply is a bare `key` (no `=value`).
+    /// Boolean, replied as a bare key.
     Bool,
-    /// String capability — reply is `key=value`.
+    /// String, replied as `key=value`.
     Text(&'static [u8]),
-    /// The terminal column count (`co`).
+    /// The column count (`co`).
     Cols,
-    /// The terminal row count (`li`).
+    /// The row count (`li`).
     Rows,
     /// The OS name (`query-os-name`).
     OsName,
-    /// The terminal name (`TN`), supplied by the host.
+    /// The terminal name (`TN`).
     Tn,
 }
 
@@ -80,9 +80,8 @@ impl CapValue {
 #[derive(Clone, Copy, Debug)]
 pub struct Cap;
 
-/// Defines the terminfo capability table: one entry per capability
-/// generates its `Cap` name const and its `parse` match arm, so the two
-/// lists cannot drift apart.
+/// The terminfo capability table: each entry generates its `Cap` const and
+/// `parse` arm, so the two cannot drift.
 macro_rules! caps {
     ($(
         $name:ident => $bytes:literal => $value:ident $(, [$($alias:ident => $abytes:literal),+ $(,)?])*
@@ -97,9 +96,8 @@ macro_rules! caps {
                 )+)*
             )+
 
-            /// Parse a query name into a capability (canonical key + value),
-            /// accepting the long/short terminfo aliases. Unknown names map to
-            /// [`CapValue::None`].
+            /// Parse a query name into a capability, accepting the aliases;
+            /// unknown names are [`CapValue::None`].
             pub const fn parse(query: &[u8]) -> (&'static [u8], CapValue) {
                 match query {
                     $(Self::$name $( $(| Self::$alias)+ )* => (Self::$name, CapValue::$value),)+
@@ -175,14 +173,6 @@ caps! {
 
 impl crate::Reply {
     /// Build an XTGETTCAP capability query answer (`DCS + q <hex cap> ST`).
-    /// The query may pack several capabilities, semicolon-separated (nvim/herdr
-    /// ask for `Tc;RGB;setrgbf;setrgbb` in one request); each is answered in
-    /// order.
-    ///
-    /// `tn` is the `$TERM` name. `os_name` answers the non-standard
-    /// `query-os-name` capability (fish probes it); it is the caller's, since
-    /// only the application knows what OS it is running on — an empty slice
-    /// answers the query as unsupported.
     #[must_use]
     pub fn termcap(
         cap: &[u8],

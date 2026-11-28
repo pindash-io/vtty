@@ -10,22 +10,23 @@
 
 use alloc::string::ToString;
 
-use compact_str::{CompactString, ToCompactString, format_compact};
+use compact_str::format_compact;
+use compact_str::{CompactString, ToCompactString};
 
 bitflags::bitflags! {
     /// Kitty keyboard protocol flags, reported by `CSI > flags u` and pushed
     /// by `CSI < count u`. Each bit enables a progressive feature tier.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct KittyFlags: u8 {
-        /// Disambiguate escape codes (`CSI u`)
+        /// Disambiguate escape codes (`CSI u`).
         const DISAMBIGUATE = 1;
-        /// Report event types (key press/repeat/release)
+        /// Report press, repeat and release.
         const REPORT_EVENT_TYPES = 2;
-        /// Report alternate keys (shift+tab, etc.)
+        /// Report alternate keys.
         const REPORT_ALTERNATE_KEYS = 4;
-        /// Report all keys as escape sequences
+        /// Report all keys as escape sequences.
         const REPORT_ALL_KEYS = 8;
-        /// Report associated text (IME/composing input)
+        /// Report associated text.
         const REPORT_ASSOCIATED_TEXT = 16;
     }
 }
@@ -34,30 +35,27 @@ bitflags::bitflags! {
 /// (DECCKM, modifyOtherKeys, kitty).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum KeyEncoding {
-    /// Legacy: arrows = CSI A/B/C/D, Ctrl = control chars, Alt = ESC prefix.
+    /// Arrows as `CSI A-D`, Ctrl as control bytes, Alt as an ESC prefix.
     #[default]
     Legacy,
-    /// DECCKM application cursor keys: arrows = SS3 (ESC O A/B/C/D).
+    /// DECCKM, arrows as `SS3`.
     ApplicationCursorKeys,
-    /// xterm modifyOtherKeys: modifiers in the CSI param. Carries the mode
-    /// (`CSI >4;Ps m`): 1 = format 1 (`CSI 1;mod A`), 2 = format 2
-    /// (`CSI 27;mod;code~`).
+    /// xterm modifyOtherKeys. Carries the mode: 1 is `CSI 1;mod A`, 2 is
+    /// `CSI 27;mod;code~`.
     ModifyOtherKeys(u8),
-    /// kitty keyboard protocol: `CSI code:mods u`. Carries the progressive-
-    /// enhancement flags (`CSI =flags u`) — bit 0 disambiguate, bit 1
-    /// `report_events`, bit 2 `report_alternates`, bit 3 `report_all_keys`.
+    /// kitty keyboard protocol, `CSI code:mods u`. Carries the progressive-enhancement flags.
     Kitty(u8),
 }
 
 /// Key press/repeat/release event type (for kitty `report_events`, flag 2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum KeyEventKind {
-    /// A key press (the default event type).
+    /// A key press, the kitty `:1` event type.
     #[default]
     Press,
-    /// A held-key repeat.
+    /// A held-key repeat, the kitty `:2` event type.
     Repeat,
-    /// A key release.
+    /// A key release, the kitty `:3` event type.
     Release,
 }
 
@@ -65,12 +63,12 @@ pub enum KeyEventKind {
 /// distinguish the numeric keypad from the main key row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum KeyLocation {
-    /// The key's normal location (or the location could not be identified).
+    /// The key's usual location.
     #[default]
     Standard,
-    /// The left-hand variant (e.g. the left Shift).
+    /// The left-hand variant.
     Left,
-    /// The right-hand variant (e.g. the right Shift).
+    /// The right-hand variant.
     Right,
     /// The numeric keypad.
     Numpad,
@@ -82,10 +80,10 @@ pub enum KeyLocation {
 pub struct KeyModes {
     /// DECKPAM/DECNKM (`ESC =` / `CSI ?66h`) application keypad.
     pub application_keypad: bool,
-    /// DEC 1035 (`CSI ?1035h`) — ignore the numlock: the keypad is always
+    /// DEC 1035 (`CSI ?1035h`): ignore numlock, the keypad is always
     /// numeric, never application.
     pub numlock_ignored: bool,
-    /// DECBKM (`CSI ?67h`) — Backspace sends `\x08` instead of `\x7f`.
+    /// DECBKM (`CSI ?67h`): Backspace sends `\x08` instead of `\x7f`.
     pub backarrow: bool,
 }
 
@@ -101,52 +99,50 @@ impl KeyModes {
 /// derive the kitty form from it; irregular keys carry both explicitly.
 #[derive(Clone, Copy, Debug)]
 pub enum KeySpec {
-    /// Cursor key (arrows): kitty `CSI 1;mod <l>`, legacy SS3/CSI `<l>`.
+    /// Cursor key, legacy `SS3` or `CSI <l>`.
     Cursor(char),
-    /// Home/End: kitty `CSI 1;mod <l>`, legacy `CSI <l>`.
+    /// Home/End, legacy `CSI <l>`.
     CsiLetter(char),
-    /// Editing/F-key: kitty `CSI <n>;mod ~`, legacy `CSI <n>~`.
+    /// Editing and function key, legacy `CSI <n>~`.
     Csi(u8),
-    /// Fixed legacy bytes + an explicit kitty form (Escape/F1-F4).
+    /// Fixed legacy bytes plus an explicit kitty form.
     Fixed {
         /// kitty `(code, trailer)` form.
         kitty: (u32, char),
         /// legacy byte sequence.
         bytes: &'static str,
     },
-    /// F13-F20: kitty PUA code + a legacy `CSI <csi>~` form.
+    /// F13-F20, kitty PUA code and a legacy `CSI <csi>~`.
     Pua {
         /// kitty PUA keycode.
         kitty: u32,
         /// legacy CSI parameter.
         csi: u8,
     },
-    /// kitty fallback key (Enter/Tab/Backspace/Space): the raw byte.
+    /// kitty fallback code, legacy raw byte.
     Fallback {
         /// kitty fallback keycode.
         code: u32,
         /// legacy raw byte.
         bytes: &'static str,
     },
-    /// kitty functional key with no legacy form (F21-F35, media).
+    /// kitty-only functional key.
     KittyOnly(u32),
-    /// Legacy-only (`ContextMenu`).
+    /// Legacy-only key (`ContextMenu`).
     LegacyOnly(&'static str),
 }
 
 bitflags::bitflags! {
-    /// Keyboard modifier state (shift/alt/ctrl/super), winit-free. The bits
-    /// equal the xterm/kitty modifier contributions, so [`Modifiers::encoded`]
-    /// is the wire bitfield minus the leading `1` (no-modifiers) bit.
+    /// Keyboard modifiers; the bits match the xterm/kitty contributions.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Modifiers: u8 {
-        /// The Shift key.
+        /// Shift.
         const SHIFT = 0b0001;
-        /// The Alt key.
+        /// Alt.
         const ALT = 0b0010;
-        /// The Control key.
+        /// Control.
         const CTRL = 0b0100;
-        /// The Super (OS/window) key.
+        /// Super (OS).
         const SUPER = 0b1000;
     }
 }
@@ -180,42 +176,32 @@ impl Modifiers {
     }
 }
 
-/// A terminal key, winit-free — the single representation the encoders need.
-///
-/// The host (a windowing layer) maps its native key events into this form
-/// before calling [`encode_key`].
+/// A terminal key, winit-free: the single representation the encoders need.
 #[derive(Clone, Copy, Debug)]
 pub enum Key {
-    /// A character/text key (its base char, never empty).
+    /// A character key; the legacy encoder sends its UTF-8.
     Character(char),
-    /// Backspace (kitty fallback code 127; the legacy byte depends on the
-    /// backarrow mode).
+    /// Backspace, `0x7f` (or `0x08` under DECBKM); kitty key code 127.
     Backspace,
-    /// Tab (kitty fallback code 9; Shift+Tab is the `BackTab` sequence in
-    /// legacy).
+    /// Tab, `\t`; kitty key code 9.
     Tab,
-    /// A functional/named key.
+    /// A functional key.
     Named(KeySpec),
-    /// A keypad key. `legacy` is `Some((ss3_sym, plain))` for the keys the
-    /// legacy encoder treats as keypad (digits/symbols/Enter) and `None` for
-    /// the functional keypad keys (arrows/editing), which fall back to `spec`
-    /// in legacy while kitty still uses `kitty`.
+    /// A keypad key. `legacy` is `Some` for the keys the legacy encoder sends as keypad.
     Keypad {
-        /// kitty keycode.
+        /// Kitty key code.
         kitty: u32,
-        /// legacy SS3 symbol + numerical-mode char, when legacy treats this
+        /// Legacy SS3 symbol + numerical-mode char, when legacy treats this
         /// key as keypad.
         legacy: Option<(char, char)>,
-        /// legacy fallback spec for functional keypad keys (arrows/editing).
+        /// Legacy fallback spec for functional keypad keys (arrows/editing).
         spec: Option<KeySpec>,
     },
-    /// A modifier/lock key reported under kitty `report_all_keys`; `legacy`
-    /// carries the legacy bytes for the one such key that has them
-    /// (`ContextMenu`), `None` for the keys legacy drops.
+    /// A modifier key under `report_all_keys`. `legacy` carries the bytes for keys that have them.
     Modifier {
-        /// kitty keycode.
+        /// Kitty key code.
         kitty: u32,
-        /// legacy byte sequence, when the key has one.
+        /// Legacy byte sequence, when the key has one.
         legacy: Option<&'static str>,
     },
 }
@@ -233,8 +219,8 @@ impl Key {
 }
 
 /// Encode a key event into the bytes to write to the PTY, under the given
-/// [`KeyEncoding`]. This is the winit-free entry point; the host maps its
-/// native keys/modifiers into [`Key`] + [`Modifiers`] first.
+/// [`KeyEncoding`]. The host maps its native keys into [`Key`] + [`Modifiers`]
+/// first.
 ///
 /// # Example
 ///
@@ -652,8 +638,7 @@ fn encode_modify_other_keys(
     {
         return encode_keypad(*sym, *plain, mods, modes);
     }
-    // xterm modifier param: 1 (none), 2 shift, 3 alt, 4 shift+alt, 5 ctrl, …
-    // xterm has no super bit, so mask it out.
+    // xterm modifier param: 1 none, 2 shift, 3 alt, 4 shift+alt, 5 ctrl; no super bit.
     let xmod = mods.encoded() & 0b111;
     if xmod == 1 {
         return encode_legacy(key, false, mods, modes, text);

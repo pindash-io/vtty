@@ -33,10 +33,9 @@ impl Screen {
         self.put_base(c, width);
     }
 
-    /// Write a run of printable ASCII bytes as width-1 cells. `print_bytes`
-    /// only ever receives `0x20..=0x7e` (the parser bulk-dispatches printable
-    /// ASCII runs), so the per-byte width lookup and double-width branch of
-    /// [`Self::put_base`] are dead work here. This is the bulk text hot path.
+    /// Write a printable-ASCII run as width-1 cells: `print_bytes` only sees
+    /// `0x20..=0x7e`, so the width lookup is dead work. This is the bulk text
+    /// hot path.
     pub(crate) fn put_ascii(&mut self, s: &[u8]) {
         // Insert mode writes one cell at a time so each glyph shifts the row
         // right; the bulk path below is the non-insert fast path.
@@ -87,9 +86,8 @@ impl Screen {
 
     /// Write a base glyph (width 1 or 2) at the cursor, handling autowrap.
     pub(crate) fn put_base(&mut self, c: char, mut width: u32) {
-        // A double-width glyph needs two cells; a one-column grid can't hold
-        // it, so clamp to the grid width (otherwise the `cells[idx + 1]`
-        // continuation write goes out of bounds).
+        // A wide glyph needs two cells; on a one-column grid clamp to the width
+        // so the continuation write stays in bounds.
         if width > self.cols {
             width = self.cols;
         }
@@ -155,9 +153,8 @@ impl Screen {
         self.active.cells[start..start + cols].copy_within(col..cols - shift, col + shift);
     }
 
-    /// Write a grapheme cluster as one cell: the first glyph is the base, the
-    /// rest are trailing marks. This is what makes a ZWJ emoji family
-    /// (`👨‍👩‍👧`) occupy one cell instead of separate glyphs.
+    /// Write a grapheme cluster as one cell (base plus trailing marks), so a ZWJ
+    /// family occupies one cell.
     pub(crate) fn put_cluster(&mut self, cluster: &str) {
         let mut chars = cluster.chars();
         let Some(base) = chars.next() else {

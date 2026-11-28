@@ -3,23 +3,17 @@
 
 //! A minimal cell-grid terminal screen for `vtty`.
 //!
-//! `Screen` is a `Perform` sink: feed it bytes through `vtty::Parser` and it
-//! maintains a `rows × cols` grid of styled cells, a cursor, DECSTBM scroll
-//! margins, and the common DEC cursor/erase/insert/delete commands. Render
-//! with [`Screen::render_line`]/[`Screen::lines`] (plain text) or
-//! [`Screen::render_ansi`] (SGR-styled text).
+//! `Screen` is a `Perform` sink: fed bytes through `vtty::Parser`, it keeps a
+//! `rows × cols` grid of styled cells, a cursor, DECSTBM scroll margins, and the
+//! common DEC cursor, erase, insert, delete and scroll commands
+//! (EK-VT520-RM). Render with [`Screen::render_line`]/[`Screen::lines`] for
+//! plain text or [`Screen::render_ansi`] for SGR-styled text.
 //!
-//! This is the MVP — cursor addressing, scrolling, SGR, DECSC/DECRC, DECALN,
-//! the alternate screen buffer (DEC 47/1046/1047/1049), scrollback (with
-//! resize reflow), tab stops (HTS/TBC), resize reflow, and the VT editing
-//! commands. Combining marks and ZWJ emoji families (up to eight trailing
-//! glyphs) attach to their base cell.
-//!
-//! Sixel, `ReGIS`, and downloadable soft fonts are out of scope. This is a
-//! text cell grid, not a pixel emulator.
-//!
-//! The cursor, erase, insert/delete and scroll commands follow EK-VT520-RM
-//! (ANSI Control Functions).
+//! Covered: SGR, DECSC/DECRC, DECALN, the alternate screen (DEC
+//! 47/1046/1047/1049), scrollback with reflow, and tab stops (HTS/TBC).
+//! Combining marks and ZWJ families (up to eight glyphs) attach to their base
+//! cell. Sixel, `ReGIS` and soft fonts are out of scope: this is a text grid,
+//! not a pixel emulator.
 
 #![forbid(unsafe_code)]
 #![no_std]
@@ -63,16 +57,16 @@ use scrollback::Scrollback;
 /// `OSC 9;4` progress-bar state, as used by modern terminal emulators.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Progress {
-    /// No progress bar is shown.
+    /// No progress bar.
     #[default]
     Hidden,
-    /// `OSC 9;4;0` — begin, indeterminate; the terminal animates it.
+    /// OSC 9;4;0, begin indeterminate.
     Indeterminate,
-    /// `OSC 9;4;1;<n>` — determinate progress, percent `0..=100`.
+    /// OSC 9;4;1, determinate percent.
     Percent(u8),
-    /// `OSC 9;4;2` — completed.
+    /// OSC 9;4;2, completed.
     Done,
-    /// `OSC 9;4;3` — errored.
+    /// OSC 9;4;3, errored.
     Error,
 }
 
@@ -108,9 +102,8 @@ struct Buffer {
     /// Per-buffer flags: DECOM origin.
     flags: BufferFlags,
     margins: Margins,
-    /// Soft-wrap flags: `continuation[r]` is true when row `r` continues the
-    /// logical line of row `r-1` (autowrap) rather than starting after a hard
-    /// newline. Drives reflow on resize.
+    /// `continuation[r]` is true when row `r` continues row `r-1` (autowrap)
+    /// rather than starting a new line; drives reflow.
     continuation: Vec<bool>,
 }
 
@@ -233,9 +226,8 @@ impl Screen {
         self.inactive.continuation.fill(false);
     }
 
-    /// DECSTR (`CSI ! p`): soft terminal reset. Resets cursor, styles,
-    /// margins, modes, and tab stops while keeping the screen contents and
-    /// scrollback.
+    /// DECSTR (`CSI ! p`): soft reset of cursor, styles, margins and tab stops,
+    /// keeping the contents.
     pub(crate) fn soft_reset(&mut self) {
         self.reset_cursor_style_margins();
         self.active.flags.remove(BufferFlags::ORIGIN);
@@ -277,10 +269,8 @@ impl Screen {
         self.modes.contains(ScreenFlags::ALT_ACTIVE)
     }
 
-    /// Enter the alternate screen buffer, swapping the active and saved
-    /// per-buffer state. `clear` blanks the (newly active) alt grid, homes its
-    /// cursor, and resets its margins and styles (DEC 1047/1049); DEC 47
-    /// passes `false` to keep the previous alt content.
+    /// Enter the alternate screen, swapping the per-buffer state. `clear` also
+    /// blanks the new grid (DEC 1047/1049); DEC 47 keeps the content.
     fn enter_alt(&mut self, clear: bool) {
         if self.modes.contains(ScreenFlags::ALT_ACTIVE) {
             return;
@@ -360,10 +350,7 @@ impl Screen {
         col < self.cols && self.tab_stops[col as usize]
     }
 
-    /// Assert the screen's structural invariants: cursor, saved cursor and
-    /// margins in bounds, ring-buffer offsets valid, and per-buffer vectors
-    /// sized to the grid. Panics on the first violation; called only from
-    /// tests and fuzzing.
+    /// Assert the screen's structural invariants, for tests and fuzzing.
     pub fn check_invariants(&self) {
         assert!(
             self.active.cursor.row < self.rows,
@@ -464,10 +451,7 @@ impl Screen {
         self.check_cell_continuations(&self.inactive.cells);
     }
 
-    /// Assert that no continuation cell is orphaned: every double-width
-    /// continuation immediately follows a non-continuation lead cell. (The
-    /// lead's single-char width can be 1 for a grapheme cluster whose total
-    /// width is 2, so it is not checked here.)
+    /// Assert that every double-width continuation follows a lead cell.
     fn check_cell_continuations(&self, cells: &[Cell]) {
         for row in 0..self.rows as usize {
             let base = row * self.cols as usize;
@@ -482,10 +466,8 @@ impl Screen {
         }
     }
 
-    /// Resolve a [`ColorId`] to packed `0xRRGGBBAA`. The default fg/bg ids use
-    /// the configured default colors; the 16 ANSI colors use the configured
-    /// palette; `16..=255` use the xterm table; truecolor ids (`>= 258`) look
-    /// up the screen's dynamic palette.
+    /// Resolve a [`ColorId`] to packed `0xRRGGBBAA` through the configured
+    /// defaults, palette, xterm table or dynamic palette.
     #[must_use]
     pub fn color_rgb(&self, id: ColorId) -> Option<u32> {
         match id.0 {
@@ -508,9 +490,8 @@ impl Screen {
         self.default_bg = bg;
     }
 
-    /// The physical flat offset of logical `row`'s first cell, accounting for
-    /// the ring-buffer scroll offset. The ring wraps at most once, so a
-    /// branch replaces the `%` (integer division) on this hot path.
+    /// Physical flat offset of logical `row`'s first cell, for the ring buffer.
+    /// The ring wraps at most once, so a branch beats `%` on this hot path.
     #[inline]
     pub(crate) const fn row_offset(&self, row: u32) -> usize {
         let sum = self.active.scroll_top as usize + row as usize;
@@ -533,9 +514,8 @@ impl Screen {
         }
     }
 
-    /// Rotate the active grid so logical row `0` sits at physical offset `0`.
-    /// Region operations memmove contiguous physical ranges, so they call this
-    /// first; full-screen scrolls rotate the ring in place instead.
+    /// Rotate the grid so logical row `0` is at physical offset `0`, which
+    /// region operations need before a contiguous memmove.
     pub(crate) fn materialize(&mut self) {
         if self.active.scroll_top == 0 {
             return;
@@ -587,9 +567,8 @@ impl Screen {
             .collect()
     }
 
-    /// Render every row to ANSI-styled text (for snapshots/tests): each row
-    /// `\r\n`-terminated, cells carrying their SGR attributes. Trailing blank
-    /// cells are trimmed; each line ends with an SGR reset.
+    /// Render every row to ANSI-styled text, for snapshots and tests: rows
+    /// `\r\n`-terminated, trailing blanks trimmed, each line closed with an SGR reset.
     #[must_use]
     pub fn render_ansi(&self) -> String {
         let mut out = String::new();
@@ -610,9 +589,8 @@ impl Screen {
         let cells = &self.active.cells[self.row_range(row)];
         let last = cells.len() - trailing_blanks(cells);
         let reverse = self.modes.contains(ScreenFlags::REVERSE);
-        // `current` is the emitted style; `None` means "default, no SGR
-        // emitted yet". Default-styled cells add no escape sequences (unless
-        // reverse video forces explicit colors).
+        // `current` is the emitted style; `None` means nothing emitted yet. Default
+        // cells add no escapes unless reverse video forces colors.
         let mut current: Option<(SgrFlags, ColorId, ColorId)> = None;
         let mut current_rgb: Option<(SgrFlags, u32, u32)> = None;
         for cell in &cells[..last] {
@@ -620,9 +598,7 @@ impl Screen {
                 continue;
             }
             if reverse {
-                // Reverse video swaps foreground/background. Default colors
-                // are resolved to RGB so the swap is visible (a snapshot is
-                // rendered on a non-reversed terminal).
+                // Reverse video swaps fg/bg; defaults resolve to RGB so the swap is visible.
                 let fg = self.color_rgb(cell.bg).unwrap_or(self.default_fg);
                 let bg = self.color_rgb(cell.fg).unwrap_or(self.default_bg);
                 let state = (cell.sgr, fg, bg);
@@ -678,9 +654,8 @@ impl Screen {
         self.scrollback.set_max(n);
     }
 
-    /// Resize to `cols × rows`, reflowing soft-wrapped lines (in the screen
-    /// and its scrollback) at the new width. The cursor is reset to home.
-    /// Zero dimensions clamp to 1.
+    /// Resize to `cols x rows`, reflowing soft-wrapped lines in the screen and its
+    /// scrollback. The cursor homes; zero dimensions clamp to 1.
     pub fn resize(&mut self, cols: u32, rows: u32) {
         let cols = cols.max(1);
         let rows = rows.max(1);
@@ -745,10 +720,8 @@ impl Screen {
         self.scrollback.line(i).map(render_cells)
     }
 
-    /// Attach a zero-width glyph (combining mark, variation selector, skin
-    /// tone) to the base cell immediately left of the cursor, skipping a
-    /// double-width continuation cell. Marks beyond eight are dropped; a
-    /// leading mark with no base cell is dropped.
+    /// Attach a zero-width glyph to the cell left of the cursor; marks past
+    /// eight, or with no base, are dropped.
     fn attach_mark(&mut self, c: char) {
         if self.active.cursor.col == 0 {
             return;

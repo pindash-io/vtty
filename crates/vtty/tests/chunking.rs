@@ -1,15 +1,11 @@
 // Copyright © Fangdun Tsai <fundon@pindash.io>
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Chunking-invariance: a byte stream must parse to the same canonical byte
-//! stream no matter how it is split across `advance` calls.
+//! Chunking-invariance: a byte stream parses to the same canonical bytes no
+//! matter how it is split across `advance` calls.
 //!
-//! This is the observable contract of the parser's streaming state — the
-//! UTF-8 partial decoder, the OSC deferral, and the CSI/DCS parameter
-//! accumulation must all make the result independent of chunk boundaries.
-//! Each event's [`Event::write_bytes`] gives the canonical on-wire bytes, so
-//! comparing the concatenation sidesteps the fact that a `PrintBytes` run is
-//! coalesced differently when a chunk boundary splits it.
+//! Concatenated `Event::write_bytes` sidesteps `PrintBytes` runs being
+//! coalesced differently when a chunk boundary splits them.
 
 use smallvec::SmallVec;
 

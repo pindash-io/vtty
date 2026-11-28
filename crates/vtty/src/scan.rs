@@ -7,9 +7,8 @@
 
 #[cfg(feature = "simd")]
 use crate::utils::is_esc;
-use crate::utils::{
-    CAN, DEL, ESC, SEMICOLON, SUB, is_dcs_boundary, is_non_printable, is_osc_boundary,
-};
+use crate::utils::{CAN, DEL, ESC, SEMICOLON, SUB};
+use crate::utils::{is_dcs_boundary, is_non_printable, is_osc_boundary};
 
 /// Byte-splat constants: byte `xx` repeated in every lane of a 64-bit word.
 const SPLAT_01: u64 = 0x0101_0101_0101_0101;
@@ -31,15 +30,13 @@ const fn swar_byte_eq(w: u64, b: u8) -> u64 {
     x.wrapping_sub(SPLAT_01) & !x & SPLAT_80
 }
 
-/// Minimum run length that pays for the SIMD dispatch. Below 16 bytes the
-/// scan falls through to the same scalar tail loop anyway, so the SWAR path
-/// stays faster — and ANSI-dense input produces runs this short.
+/// Minimum run length that pays for the SIMD dispatch; below it the SWAR path
+/// is faster, and ANSI-dense input produces runs this short.
 #[cfg(feature = "simd")]
 const SIMD_MIN_RUN: usize = 16;
 
-/// Run the SWAR scan unless the `simd` feature is on, the parser opted in, and
-/// the first `SIMD_MIN_RUN` bytes hold no stop — the same probe the scalar path
-/// uses, so a run that ends early never pays for the vector dispatch.
+/// Run the SWAR scan unless `simd` is on, the parser opted in, and the first
+/// `SIMD_MIN_RUN` bytes hold no stop.
 macro_rules! scan_or_simd {
     ($bytes:expr, $simd:expr, $mask:expr, $scalar:expr, $vector:path) => {{
         #[cfg(feature = "simd")]
@@ -55,9 +52,8 @@ macro_rules! scan_or_simd {
     }};
 }
 
-/// SWAR scan over whole words: index of the first byte whose
-/// `stop_mask(word)` bit is set (one bit per byte, LSB = first byte), or
-/// `None` when every word is clear. Any trailing bytes are the caller's.
+/// SWAR scan over whole words: index of the first byte whose `stop_mask` bit
+/// is set, or `None` when every word is clear.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 fn first_stop_word(bytes: &[u8], stop_mask: impl Fn(u64) -> u64) -> Option<usize> {
     for (i, chunk) in bytes.as_chunks::<8>().0.iter().enumerate() {
@@ -86,10 +82,8 @@ fn first_where(
     whole + tail.iter().position(is_stop).unwrap_or(tail.len())
 }
 
-/// Index of the first ESC byte in the first `limit` bytes, or that length when
-/// none — the probe that bounds each multi-byte decode window. SWAR over 8-byte
-/// words; SIMD memchr pays alignment and dispatch setup for no gain on such a
-/// short window.
+/// Index of the first ESC in the first `limit` bytes, or `limit`: the probe that
+/// bounds a decode window. SWAR, since SIMD setup loses on a short window.
 #[cfg(feature = "simd")]
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_esc_bounded(bytes: &[u8], limit: usize) -> usize {
@@ -133,13 +127,11 @@ pub(crate) fn first_non_printable_word(bytes: &[u8]) -> Option<usize> {
     first_stop_in_word::<8>(bytes, non_printable_mask)
 }
 
-/// Length of the leading printable-ASCII run (`0x20..=0x7e`) — the ground
-/// state's bulk `print_bytes` path. SIMD-scanned with the `simd` feature.
-/// `DEL` (`0x7f`) is a C0 control, not printable.
+/// Length of the leading printable-ASCII run (`0x20..=0x7e`); `DEL` is a C0
+/// control, not printable.
 #[cfg_attr(feature = "perf-inline", inline(always))]
 pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
-    // Fast path: ANSI-dense input (`ESC [ … m X ESC [ …`) and short text
-    // lines (`word\r\n`) have 0- and 1-byte printable runs, where a full
+    // ANSI-dense input and short lines leave 0- and 1-byte runs, where a full
     // 8-byte SWAR word is overkill.
     if matches!(bytes.first(), Some(b) if is_non_printable(b)) {
         return 0;
@@ -147,10 +139,8 @@ pub(crate) fn first_non_printable(bytes: &[u8], simd: bool) -> usize {
     if matches!(bytes.get(1), Some(b) if is_non_printable(b)) {
         return 1;
     }
-    // One SWAR word over the first 8 bytes catches the short-run pattern (a
-    // word followed by ESC or CR/LF) without paying for the SIMD dispatch.
-    // Long printable runs fall through; the word scan is ~9 ops against a
-    // 32 KiB run, so the overlap with the SIMD pass is negligible.
+    // One SWAR word over the first 8 bytes catches short runs (a word then ESC
+    // or CR/LF) without the SIMD dispatch; long runs fall through to it.
     if let Some(n) = first_non_printable_word(bytes) {
         return n;
     }
@@ -168,7 +158,7 @@ const fn osc_stop_mask(w: u64) -> u64 {
     swar_byte_eq(w & SPLAT_C0_C1, 0) | swar_byte_eq(w, SEMICOLON)
 }
 
-/// Index of the first byte that ends an OSC payload run — see
+/// Index of the first byte that ends an OSC payload run; see
 /// [`is_osc_boundary`] for the class. The rest are `OSC_PUT` bytes.
 #[inline]
 pub(crate) fn first_osc_boundary(bytes: &[u8], simd: bool) -> usize {
@@ -193,7 +183,7 @@ const fn dcs_stop_mask(w: u64) -> u64 {
         | swar_byte_eq(w, DEL)
 }
 
-/// Index of the first byte that ends a DCS passthrough run — see
+/// Index of the first byte that ends a DCS passthrough run; see
 /// [`is_dcs_boundary`] for the class.
 #[inline]
 pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
@@ -211,8 +201,9 @@ pub(crate) fn first_dcs_boundary(bytes: &[u8], simd: bool) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_dcs_boundary, first_non_printable, first_osc_boundary};
     use alloc::vec::Vec;
+
+    use super::{first_dcs_boundary, first_non_printable, first_osc_boundary};
 
     /// Scalar reference for the bounded ESC probe.
     #[cfg(feature = "simd")]

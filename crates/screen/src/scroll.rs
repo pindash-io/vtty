@@ -74,15 +74,14 @@ impl Screen {
         self.scroll(true);
     }
 
-    /// Scroll the region one line. `down` shifts content down (RI / SD) and
-    /// inserts a blank row at the top; otherwise content shifts up (LF / SU),
-    /// and a full-screen scroll pushes the top row into scrollback.
+    /// Scroll the region one line: `down` inserts a blank row at the top, else
+    /// content moves up and a full-screen scroll pushes into scrollback.
     pub(crate) fn scroll(&mut self, down: bool) {
         let width = self.cols as usize;
         let top = self.active.margins.top as usize;
         let bottom = self.active.margins.bottom as usize;
 
-        // Full-screen scrolls rotate the ring in place — O(cols) per line
+        // Full-screen scrolls rotate the ring in place: O(cols) per line
         // instead of memmoving the whole grid.
         if top == 0 && bottom == self.rows as usize - 1 {
             if down {
@@ -113,10 +112,8 @@ impl Screen {
         self.scroll_n(down, 1);
     }
 
-    /// Scroll the region `n` lines in one call. Full-screen scrolls rotate
-    /// the ring `n` times, each O(cols), so a loop over [`Self::scroll`] is
-    /// already optimal there. Region scrolls memmove `n` lines in one pass
-    /// instead of `n` passes.
+    /// Scroll the region `n` lines: a full-screen scroll rotates the ring `n` times
+    /// (already optimal), a region memmoves `n` lines in one pass.
     pub(crate) fn scroll_n(&mut self, down: bool, n: u32) {
         let top = self.active.margins.top as usize;
         let bottom = self.active.margins.bottom as usize;
@@ -139,9 +136,8 @@ impl Screen {
         let start = top * width;
         let end = (bottom + 1) * width;
 
-        // Shift content and soft-wrap flags by `n` rows in one pass; the
-        // vacated rows go blank. The ranges overlap, and `copy_within` moves
-        // them in the right order.
+        // Shift content and soft-wrap flags in one pass; `copy_within` handles the
+        // overlapping ranges, and the vacated rows go blank.
         let (src, dst, blank, c_src, c_dst, c_blank) = if down {
             (
                 start..end - n * width,

@@ -168,7 +168,7 @@ impl Terminal {
     }
 }
 
-/// True when a cell is blank (space, default attributes) — such cells are
+/// True when a cell is blank (space, default attributes); such cells are
 /// trimmed from the end of a rendered row.
 fn is_blank(cell: Option<&vtty_screen::Cell>) -> bool {
     cell.is_none_or(vtty_screen::Cell::is_blank)

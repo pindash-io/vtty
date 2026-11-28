@@ -1,7 +1,7 @@
 /* Copyright © Fangdun Tsai <fundon@pindash.io>
  * SPDX-License-Identifier: Apache-2.0 OR MIT
  *
- * term_demo.c — use vtty_ffi + a PTY as a minimal interactive terminal.
+ * term_demo.c: use vtty_ffi + a PTY as a minimal interactive terminal.
  *
  * Keystrokes from stdin are forwarded to a shell running on the PTY; the
  * shell's output is fed through the vtty parser and printed. Ctrl-D (or EOF
